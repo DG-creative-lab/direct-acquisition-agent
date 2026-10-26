@@ -60,6 +60,6 @@ Tests cover domain rules, real SQLite persistence, separate-process restart, tas
 
 ## Review evidence
 
-The current suite has 149 offline Python tests, a static architecture check, 22 targeted mutation checks and a strict TypeScript interface build. See the [test coverage review](docs/test-coverage-review.md), [architecture](docs/architecture.md) and [product-grounding notes](docs/product-grounding.md). A [recorded copy example](examples/grounded-run/letters.txt) shows the unreviewed output of a live run.
+The current suite has 151 offline Python tests, a static architecture check, 22 targeted mutation checks, eight executable frontend regressions and a strict TypeScript interface build. See the [test coverage review](docs/test-coverage-review.md), [architecture](docs/architecture.md) and [product-grounding notes](docs/product-grounding.md). A [recorded copy example](examples/grounded-run/letters.txt) shows the unreviewed output of a live run.
 
 Development branches use the `feature/...` naming convention. Real outcome feeds, correction/retraction, repeated-exposure models and external delivery are later work. No license terms have been selected yet.

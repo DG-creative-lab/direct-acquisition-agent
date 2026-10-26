@@ -1,5 +1,6 @@
 """Reachable UI authority, recovery and same-origin transport boundaries."""
 import json
+import http.client
 import tempfile
 import threading
 import unittest
@@ -215,6 +216,29 @@ class WorkspaceHttpTests(unittest.TestCase):
                 self.assertEqual(status, 403)
         self.assertEqual(self.server.workspace.listing()["sessions"], [])
         self.assertEqual(self.request('/api/sessions', headers={"X-Workspace-Token": ""})[0], 403)
+
+    def absolute_request(self, method, headers):
+        connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port, timeout=10)
+        try:
+            body = json.dumps({"request_id": "absolute-target", "mode": "fixture"}) if method == "POST" else None
+            connection.request(method, self.base + "/api/sessions", body=body, headers={"Content-Type": "application/json", **headers})
+            response = connection.getresponse()
+            return response.status, response.read()
+        finally:
+            connection.close()
+
+    def test_absolute_form_get_is_rejected_before_api_routing(self):
+        for headers in ({}, {"X-Workspace-Token": self.server.token}):
+            with self.subTest(headers=headers):
+                self.assertEqual(self.absolute_request("GET", headers)[0], 400)
+        self.assertEqual(self.server.workspace.listing()["sessions"], [])
+
+    def test_absolute_form_post_cannot_create_a_campaign_without_guards(self):
+        for headers in ({}, {"X-Workspace-Token": self.server.token},
+                        {"X-Workspace-Token": self.server.token, "Origin": self.base}):
+            with self.subTest(headers=headers):
+                self.assertEqual(self.absolute_request("POST", headers)[0], 400)
+        self.assertEqual(self.server.workspace.listing()["sessions"], [])
 
     def test_second_server_cannot_mutate_the_same_workspace(self):
         with self.assertRaises(BlockingIOError):

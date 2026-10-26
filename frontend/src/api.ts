@@ -144,20 +144,56 @@ export async function read<T>(path: string, signal?: AbortSignal): Promise<T> {
   if (!response.ok) throw new Error(result.error ?? "Unable to load workspace");
   return result;
 }
+function pendingKey(path: string, payload: Record<string, unknown>) {
+  // Workspace commands have flat JSON fields. Match the server's order-independent identity.
+  return (
+    "workspace-pending:" +
+    JSON.stringify([
+      path,
+      Object.fromEntries(
+        Object.entries(payload).sort(([a], [b]) => a.localeCompare(b)),
+      ),
+    ])
+  );
+}
+
+function migratePendingCommand() {
+  const legacy = sessionStorage.getItem("workspace-pending");
+  if (!legacy) return;
+  let record: { signature: string; request_id: string };
+  let path: string, payload: Record<string, unknown>;
+  try {
+    record = JSON.parse(legacy);
+    [path, payload] = JSON.parse(record.signature);
+    if (
+      typeof path !== "string" ||
+      !payload ||
+      typeof payload !== "object" ||
+      Array.isArray(payload) ||
+      typeof record.request_id !== "string" ||
+      !record.request_id
+    )
+      return;
+  } catch {
+    return;
+  }
+  const key = pendingKey(path, payload);
+  if (!sessionStorage.getItem(key))
+    sessionStorage.setItem(key, record.request_id);
+  sessionStorage.removeItem("workspace-pending");
+}
+
 export async function command(
   path: string,
   payload: Record<string, unknown>,
 ): Promise<State> {
-  const signature = JSON.stringify([path, payload]);
-  let pending: { signature: string; request_id: string } | null = null;
-  try {
-    pending = JSON.parse(sessionStorage.getItem("workspace-pending") ?? "null");
-  } catch {
-    /* New request below. */
-  }
-  if (pending?.signature !== signature) {
-    pending = { signature, request_id: crypto.randomUUID() };
-    sessionStorage.setItem("workspace-pending", JSON.stringify(pending));
+  migratePendingCommand();
+  const key = pendingKey(path, payload);
+  let requestId = sessionStorage.getItem(key);
+  if (!requestId) {
+    requestId = crypto.randomUUID();
+    // Persist before dispatch. Storage failure leaves the action undispatched.
+    sessionStorage.setItem(key, requestId);
   }
   const response = await fetch(path, {
     method: "POST",
@@ -165,16 +201,15 @@ export async function command(
       "Content-Type": "application/json",
       "X-Workspace-Token": token(),
     },
-    body: JSON.stringify({ ...payload, request_id: pending.request_id }),
+    body: JSON.stringify({ ...payload, request_id: requestId }),
   });
   const result = await response.json();
-  if (response.status < 500) sessionStorage.removeItem("workspace-pending");
   if (!response.ok)
     throw new Error(
       result.error ??
         "The action did not return a confirmed result. Refresh before retrying.",
     );
-  sessionStorage.removeItem("workspace-pending");
+  sessionStorage.removeItem(key);
   return result;
 }
 export async function download(id: string, kind: string, subjectId: string) {

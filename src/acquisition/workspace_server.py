@@ -55,12 +55,21 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _guard(self, mutation=False):
+        try:
+            self.parsed_target = urlsplit(self.path)
+        except ValueError:
+            self._send(400, {"error": "Use an origin-form workspace request target"})
+            return False
+        if (self.parsed_target.scheme or self.parsed_target.netloc or self.parsed_target.fragment
+                or not self.path.startswith("/")):
+            self._send(400, {"error": "Use an origin-form workspace request target"})
+            return False
         host = self.headers.get("Host", "")
         hosts = {"127.0.0.1:" + str(self.server.server_port), "localhost:" + str(self.server.server_port)}
         if host not in hosts:
             self._send(403, {"error": "Use the local workspace origin"})
             return False
-        if self.path.startswith("/api/"):
+        if self.parsed_target.path.startswith("/api/"):
             token = self.headers.get("X-Workspace-Token", "")
             if not secrets.compare_digest(token, self.server.token):
                 self._send(403, {"error": "Reload the workspace to establish a local session"})
@@ -74,14 +83,14 @@ class Handler(BaseHTTPRequestHandler):
         if not self._guard():
             return
         try:
-            path = urlsplit(self.path).path
+            path = self.parsed_target.path
             if path == "/api/sessions":
                 return self._send(200, self.server.workspace.listing())
             parts = path.strip("/").split("/")
             if len(parts) == 3 and parts[:2] == ["api", "sessions"]:
                 return self._send(200, self.server.workspace.view(parts[2]))
             if len(parts) == 5 and parts[:2] == ["api", "sessions"] and parts[3] == "artifacts":
-                query = parse_qs(urlsplit(self.path).query)
+                query = parse_qs(self.parsed_target.query)
                 if set(query) != {"subject_id"} or len(query["subject_id"]) != 1:
                     raise ValueError("Download requires the exact displayed subject")
                 body, content_type, filename = self.server.workspace.artifact(parts[2], parts[4], query["subject_id"][0])
@@ -111,7 +120,7 @@ class Handler(BaseHTTPRequestHandler):
             data = json.loads(self.rfile.read(length))
             if not isinstance(data, dict):
                 raise ValueError("Use a JSON object")
-            path = urlsplit(self.path).path
+            path = self.parsed_target.path
             if path == "/api/sessions":
                 if set(data) - {"request_id", "mode", "parent_id"}:
                     raise ValueError("Unknown campaign creation fields")

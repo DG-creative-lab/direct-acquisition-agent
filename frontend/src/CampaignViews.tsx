@@ -149,9 +149,7 @@ export function AudienceView({
                 <th>Segment</th>
                 <th>Assignment</th>
                 <th>Status</th>
-                <th>
-                  <span className="sr-only">Actions</span>
-                </th>
+                <th aria-label="Actions" />
               </tr>
             </thead>
             <tbody>

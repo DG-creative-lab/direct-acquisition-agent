@@ -21,3 +21,4 @@ workspace:
 interface-check:
 	npm --prefix frontend run build
 	npm --prefix frontend run format:check
+	npm --prefix frontend test
