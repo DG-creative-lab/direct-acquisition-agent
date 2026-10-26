@@ -5,6 +5,8 @@ import sqlite3
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
+from unittest.mock import patch
 from pathlib import Path
 from threading import Barrier
 
@@ -173,6 +175,29 @@ class LearningTests(unittest.TestCase):
             self.assertEqual((group["trials"], group["successes"], group["alpha"], group["beta"]),
                              (len(members), successes, 1 + successes, 19 + len(members) - successes))
 
+    def test_finalization_replay_preserves_original_actor_time_and_single_effect_event(self):
+        self.mature()
+        first = self.finalize()
+        original = self.store.view(self.scope, self.cohort)["events"]
+        self.now += 10
+        self.app.reviews.store.register_actor(self.scope, "second-operator", ("operator",))
+        replay = self.store.finalize(self.scope, "second-operator", "observe-finalized", self.cohort, self.opened["window_end"])
+        self.assertEqual(replay, first)
+        self.assertEqual(self.store.view(self.scope, self.cohort)["events"], original)
+        finalized = [e for e in original if e["kind"] == "cohort_finalized"]
+        self.assertEqual(len(finalized), 1)
+        self.assertEqual(finalized[0]["payload"]["actor"], self.actor)
+        self.assertEqual(finalized[0]["at"], first["finalized_at"])
+        with self.store.database.connect() as db:
+            cached = json.loads(db.execute("SELECT receipt FROM learning_commands WHERE organization=? AND request_id='observe-finalized'", (self.scope,)).fetchone()[0])
+        self.assertEqual(cached, first)
+        reopened = build(self.path, lambda: self.now)
+        self.assertEqual(reopened.learning.store.finalize(self.scope, "second-operator", "observe-finalized", self.cohort, self.opened["window_end"]), first)
+        self.assertEqual(reopened.learning.store.view(self.scope, self.cohort)["events"], original)
+        with self.assertRaises(Conflict):
+            self.store.finalize(self.scope, "second-operator", "observe-finalized", self.cohort, self.opened["window_end"] + 1)
+        self.assertEqual(self.count("learning_beliefs"), 6)
+
     def test_dedup_across_batches_and_keys_never_inflates_counts(self):
         self.mature()
         original = self.ingest()
@@ -270,6 +295,9 @@ class LearningTests(unittest.TestCase):
 
     def test_cohort_open_replay_and_overlapping_businesses(self):
         self.assertEqual(self.opened, self.app.learning.open(self.scope, self.case, self.actor, "open"))
+        self.assertEqual(self.opened, self.app.learning.open(self.scope, self.case, self.actor, "observe-open"))
+        events = self.store.view(self.scope, self.cohort)["events"]
+        self.assertEqual(len([e for e in events if e["kind"] == "cohort_opened"]), 1)
         run = self.app.start(self.scope, "second-campaign")
         self.app.worker.drain(self.scope)
         review = self.app.reviews.store
@@ -310,6 +338,55 @@ class LearningTests(unittest.TestCase):
         self.assertEqual(self.store.memory("other", "inventory")["groups"], [])
         self.assertEqual(len(model.requests), 0)
         self.assertEqual(self.count("review_decisions"), 2)
+
+    def test_model_run_freezes_all_segments_before_concurrent_finalization(self):
+        self.mature()
+        model = FakeModel()
+        app = build(self.path, lambda: self.now, model, ModelConfig("test/model"))
+        database = app.learning.store.database
+        connect = database.connect
+        finalized = []
+
+        class Cursor:
+            def __init__(cursor_self, cursor):
+                cursor_self.cursor = cursor
+
+            def fetchall(cursor_self):
+                rows = cursor_self.cursor.fetchall()
+                if not finalized:
+                    # Writer commits after the reader has established its WAL
+                    # snapshot, before any later segment can be frozen.
+                    finalized.append(self.finalize())
+                return rows
+
+        class Connection:
+            def __init__(connection_self, connection):
+                connection_self.connection = connection
+
+            def __getattr__(connection_self, name):
+                return getattr(connection_self.connection, name)
+
+            def execute(connection_self, sql, *args):
+                cursor = connection_self.connection.execute(sql, *args)
+                if "SELECT b.* FROM learning_beliefs" in sql:
+                    self.assertTrue(connection_self.connection.in_transaction)
+                    return Cursor(cursor)
+                return cursor
+
+        @contextmanager
+        def observed_connect():
+            with connect() as db:
+                yield Connection(db)
+
+        with patch.object(database, "connect", observed_connect):
+            run = app.start_model(self.scope, "concurrent-learning-freeze", size=100)
+        self.assertEqual(len(finalized), 1)
+        context_ids = app.tasks.inspect(self.scope, run)["tasks"][0]["inputs"]["context_ids"]
+        for segment, identity in context_ids.items():
+            frozen = app.memory.get_context(self.scope, identity)["audience_summary"]["outcome_evidence"]
+            self.assertEqual(frozen["groups"], [], segment)
+            self.assertEqual(len(app.learning.store.memory(self.scope, segment)["groups"]), 3)
+        self.assertEqual(len(model.requests), 0)
 
     def test_learning_memory_does_not_leak_future_finalized_evidence(self):
         original_time = self.now

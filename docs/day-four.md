@@ -29,7 +29,7 @@ The simulated clock is confined to this demonstration. Ordinary learning command
 | Independence limit | A business may join only one learning cohort per organization, including controls. Repeated exposure is rejected instead of being counted as a new independent trial. |
 | Recommendation | Advisory comparison within the same randomized cohort and segment. No automatic copy, targeting, budget or approval mutation. |
 
-The local configured operator role is checked inside each mutation transaction. It remains trusted local administration rather than hosted authentication. The active role check occurs even when returning a cached command receipt. Receipt replay observes historical work; it does not repeat an update or renew authority.
+The local configured operator role is checked inside each mutation transaction. It remains trusted local administration rather than hosted authentication. The active role check occurs even when returning a cached command receipt. Receipt replay observes historical work; it does not repeat an update or renew authority. A new request ID observing an already finalized or opened cohort persists only its command receipt, without emitting another effect event or changing the original actor/time.
 
 A finalized cohort is immutable. Late corrections, data retraction, recurrent exposures, contamination between experiments, delivery confirmation and real data feeds need further design. The current implementation deliberately rejects conflicting updates. Do not use it as a production outcome warehouse. A real feed needs an independently verified completeness watermark and data-quality policy; a local synthetic attestation cannot establish those facts.
 
@@ -80,7 +80,7 @@ Response lift refers only to the fixed randomized, high-propensity selected coho
 
 ## Memory and copy generation
 
-New model runs freeze organization/segment-scoped synthetic learning memory in their existing creative context, alongside the separate editorial examples. Memory contains exact creative identities, cohort provenance, support counts and posterior parameters. Existing contexts remain unchanged. No inference is issued by learning itself.
+New model runs read all required organization/segment-scoped synthetic learning memory in one database read transaction, then build their creative contexts from that frozen result alongside the separate editorial examples. A cohort finalizing during context construction cannot appear in only one segment. Memory contains exact creative identities, cohort provenance, support counts and posterior parameters. Existing contexts remain unchanged. No inference is issued by learning itself.
 
 Pooled memory uses finalized disjoint cohorts only and applies the prior once per creative group. These pooled response rates are descriptive. Recommendation comparisons remain within an individual randomized cohort; the system does not compare pooled treatments with pooled controls from different populations. Evidence finalized after the current clock is excluded from new model context.
 
@@ -94,7 +94,7 @@ Schema v5 adds cohorts, independent business membership, immutable outcomes, bel
 
 ## Verification ledger
 
-The current suite has 133 offline tests, including 22 new learning tests and three learning CLI/migration tests. Existing foundation tests now expect schema v5; their lifecycle and compatibility assertions are preserved. Architecture checks pass. The 17 declared mutation probes include five new controls: maturity independent of completeness, full assigned population, assignment binding, immutable observations and atomic finalization.
+The current suite has 135 offline tests, including 24 new learning tests and three learning CLI/migration tests. Existing foundation tests now expect schema v5; their lifecycle and compatibility assertions are preserved. Architecture checks pass. The 19 declared mutation probes include the original five learning controls: maturity independent of completeness, full assigned population, assignment binding, immutable observations and atomic finalization.
 
 | Failure cluster | Executable evidence and independent oracle |
 | --- | --- |
@@ -111,3 +111,7 @@ The current suite has 133 offline tests, including 22 new learning tests and thr
 | Report | Untrusted text is escaped. Desktop and mobile browser inspection checks layout and explicit synthetic clock labels. |
 
 These are bounded experiments, not exhaustive coverage. No line-coverage percentage, production-readiness claim or live model-quality result is asserted. No paid model calls were made for day-four verification.
+
+## Local review follow-up
+
+Two regression tests reproduce the reported defects against commit `fe28c3d`: finalization between independent segment reads creates mixed context evidence, and a different operator replaying finalization with a fresh key emits a false second effect event. The snapshot regression forces a real SQLite writer commit after the reader has established its snapshot. The audit regression checks exact historical events and receipt equality across actor/time changes and restart. Cohort-opening semantic replay also preserves its single effect event. Two additional mutation probes restore the old behaviors; the selected denominator is now **19**. These fixes do not rewrite existing historical events.

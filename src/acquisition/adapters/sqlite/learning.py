@@ -41,6 +41,9 @@ class SqliteLearning:
     def _record(self, db, organization, request_id, fingerprint, receipt, actor, now):
         db.execute("INSERT INTO learning_events(organization,cohort_id,kind,payload,at) VALUES(?,?,?,?,?)",
             (organization, receipt["cohort_id"], receipt["kind"], canonical(receipt | {"actor": actor}), now))
+        return self._command(db, organization, request_id, fingerprint, receipt)
+
+    def _command(self, db, organization, request_id, fingerprint, receipt):
         db.execute("INSERT INTO learning_commands VALUES(?,?,?,?)", (organization, request_id, fingerprint, canonical(receipt)))
         return receipt
 
@@ -78,9 +81,11 @@ class SqliteLearning:
                     [(organization, m["business_id"], proposal["id"]) for m in proposal["members"]])
             elif old["id"] != proposal["id"]:
                 raise Conflict("Accepted job already binds a different cohort")
-            return self._record(db, organization, request_id, fingerprint,
-                {"kind": "cohort_opened", "cohort_id": proposal["id"], "members": len(proposal["members"]),
-                 "window_start": proposal["window_start"], "window_end": proposal["window_end"], "mode": "SYNTHETIC_ONLY"}, actor, now)
+            opened = {"kind": "cohort_opened", "cohort_id": proposal["id"], "members": len(proposal["members"]),
+                "window_start": proposal["window_start"], "window_end": proposal["window_end"], "mode": "SYNTHETIC_ONLY"}
+            if old is not None:
+                return self._command(db, organization, request_id, fingerprint, opened)
+            return self._record(db, organization, request_id, fingerprint, opened, actor, now)
 
     def ingest(self, organization, actor, request_id, cohort_id, batch):
         if (type(batch) is not dict or set(batch) != {"schema", "mode", "cohort_id", "outcomes"}
@@ -136,7 +141,7 @@ class SqliteLearning:
             if complete_through != cohort["window_end"] or now < cohort["window_end"]:
                 raise Conflict("The entire observation window must close before finalization")
             if row["finalized_at"] is not None:
-                return self._record(db, organization, request_id, fingerprint, json.loads(row["finalization"]), actor, now)
+                return self._command(db, organization, request_id, fingerprint, json.loads(row["finalization"]))
             outcomes = self._outcomes(db, organization, cohort_id)
             for member in cohort["members"]:
                 if member["business_id"] in outcomes:
@@ -176,21 +181,35 @@ class SqliteLearning:
                     "Recommendations require a new proposal and approval before any changed campaign."]}
 
     def memory(self, organization, segment):
-        if segment not in {"inventory", "contractors"}:
-            raise ValueError("Unknown learning segment")
+        return self.memory_snapshot(organization, (segment,))[segment]
+
+    def memory_snapshot(self, organization, segments):
+        if (type(segments) is not tuple or not 1 <= len(segments) <= 2
+                or len(set(segments)) != len(segments) or set(segments) - {"inventory", "contractors"}):
+            raise ValueError("Choose unique supported learning segments")
         with self.database.connect() as db:
             db.execute("BEGIN")
             now = self._now()
-            rows = db.execute("SELECT b.* FROM learning_beliefs b JOIN learning_cohorts c ON c.organization=b.organization AND c.id=b.cohort_id WHERE b.organization=? AND b.segment=? AND c.finalized_at IS NOT NULL AND c.finalized_at<=? ORDER BY b.cohort_id,b.arm", (organization, segment, now)).fetchall()
-            totals = defaultdict(lambda: [0, 0, []])
-            for row in rows:
-                g = json.loads(row["payload"])
-                value = totals[(g["arm"], g["creative_id"])]
-                value[0] += g["trials"]
-                value[1] += g["successes"]
-                value[2].append(row["cohort_id"])
-            return {"schema": "synthetic-learning-memory/v1", "segment": segment, "mode": "SYNTHETIC_ONLY",
-                "basis": "Finalized disjoint business cohorts only. Pooled rates are descriptive, not causal comparisons.",
-                "groups": [posterior(segment, arm, creative, n, s) | {"cohort_ids": ids}
-                           for (arm, creative), (n, s, ids) in sorted(totals.items())],
-                "authority": "ADVISORY_ONLY_NO_COPY_OR_APPROVAL_INHERITANCE"}
+            placeholders = ",".join("?" for _ in segments)
+            rows = db.execute("SELECT b.* FROM learning_beliefs b JOIN learning_cohorts c "
+                "ON c.organization=b.organization AND c.id=b.cohort_id "
+                "WHERE b.organization=? AND b.segment IN (" + placeholders + ") "
+                "AND c.finalized_at IS NOT NULL AND c.finalized_at<=? ORDER BY b.cohort_id,b.arm",
+                (organization, *segments, now)).fetchall()
+            snapshot = {}
+            for segment in segments:
+                totals = defaultdict(lambda: [0, 0, []])
+                for row in rows:
+                    if row["segment"] != segment:
+                        continue
+                    g = json.loads(row["payload"])
+                    value = totals[(g["arm"], g["creative_id"])]
+                    value[0] += g["trials"]
+                    value[1] += g["successes"]
+                    value[2].append(row["cohort_id"])
+                snapshot[segment] = {"schema": "synthetic-learning-memory/v1", "segment": segment, "mode": "SYNTHETIC_ONLY",
+                    "basis": "Finalized disjoint business cohorts only. Pooled rates are descriptive, not causal comparisons.",
+                    "groups": [posterior(segment, arm, creative, n, s) | {"cohort_ids": ids}
+                               for (arm, creative), (n, s, ids) in sorted(totals.items())],
+                    "authority": "ADVISORY_ONLY_NO_COPY_OR_APPROVAL_INHERITANCE"}
+            return snapshot

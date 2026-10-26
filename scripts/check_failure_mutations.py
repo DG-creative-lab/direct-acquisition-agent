@@ -69,6 +69,14 @@ CASES = [
      '        with self.database.transaction() as db:\n            now = self._now()\n            require_actor(db, organization, actor, "operator")\n            fingerprint, cached = self._cached(db, organization, actor, request_id, "finalize",',
      '        with self.database.connect() as db:\n            now = self._now()\n            require_actor(db, organization, actor, "operator")\n            fingerprint, cached = self._cached(db, organization, actor, request_id, "finalize",',
      "test_learning.LearningTests.test_finalize_event_failure_rolls_back_counts_and_receipt"),
+    ("learning-run-snapshot", "bootstrap.py",
+     'learning_memory = self.learning.store.memory_snapshot(organization, segments)',
+     'learning_memory = {segment: self.learning.store.memory(organization, segment) for segment in segments}',
+     "test_learning.LearningTests.test_model_run_freezes_all_segments_before_concurrent_finalization"),
+    ("learning-finalization-replay-event", "adapters/sqlite/learning.py",
+     'return self._command(db, organization, request_id, fingerprint, json.loads(row["finalization"]))',
+     'return self._record(db, organization, request_id, fingerprint, json.loads(row["finalization"]), actor, now)',
+     "test_learning.LearningTests.test_finalization_replay_preserves_original_actor_time_and_single_effect_event"),
 ]
 
 

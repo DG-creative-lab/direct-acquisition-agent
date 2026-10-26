@@ -63,7 +63,9 @@ class Application:
             product_facts = current["pack"]
         validate_fact_pack(product_facts, datetime.fromtimestamp(self.clock(), timezone.utc).date())
         contexts = {}
-        for segment in ("inventory", "contractors"):
+        segments = ("inventory", "contractors")
+        learning_memory = self.learning.store.memory_snapshot(organization, segments)
+        for segment in segments:
             example = guidance["reviewer_examples"][segment]
             # Seed examples are explicitly reviewer preferences, never outcome evidence.
             if not self.memory.examples(organization, segment):
@@ -73,7 +75,7 @@ class Application:
                        "audience_summary": {"input_records": sum(row.segment == segment for row in snapshot.records),
                            "model_version": snapshot.model_version, "snapshot_id": snapshot.id,
                            "situation_hypothesis": guidance["situations"][segment],
-                           "outcome_evidence": self.learning.store.memory(organization, segment)}}
+                           "outcome_evidence": learning_memory[segment]}}
             contexts[segment] = self.memory.put_context(organization, context)
         specs = model_task_plan(snapshot_id, Brief(campaign_id or request_id, budget_pence), contexts, self.inference)
         return self.tasks.create(organization, request_id, specs, self.clock())
