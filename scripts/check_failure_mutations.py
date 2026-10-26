@@ -77,6 +77,15 @@ CASES = [
      'return self._command(db, organization, request_id, fingerprint, json.loads(row["finalization"]))',
      'return self._record(db, organization, request_id, fingerprint, json.loads(row["finalization"]), actor, now)',
      "test_learning.LearningTests.test_finalization_replay_preserves_original_actor_time_and_single_effect_event"),
+    ("workspace-origin", "workspace_server.py",
+     'if mutation and self.headers.get("Origin") != "http://" + host:', 'if False:',
+     "test_workspace.WorkspaceHttpTests.test_host_token_and_origin_guard_every_mutation"),
+    ("workspace-command-identity", "workspace.py",
+     'if old["request_hash"] != fingerprint:', 'if False:',
+     "test_workspace.WorkspaceTests.test_request_reuse_cannot_advance_clock_or_change_action"),
+    ("workspace-artifact-subject", "workspace.py",
+     'if review["subject"]["id"] != expected_subject:', 'if False:',
+     "test_workspace.WorkspaceTests.test_artifact_download_cannot_substitute_a_newer_subject"),
 ]
 
 

@@ -133,3 +133,7 @@ Approval is distinct from checkpoint acknowledgement and semantic screening. The
 ## Day-four learning boundary
 
 Accepted simulated assignments define the cohort and denominator. The learning service obtains them through a workflow adapter, while the persistence adapter checks exact accepted bytes again before admission. Mature explicit outcomes produce durable counts in one transaction. Statistical recommendations are read-only projections. New model contexts freeze the separate synthetic outcome memory, preserving historical editorial contexts. No recommendation mutates a campaign or grants approval. Schema v5 preserves previous review and legacy admission state. See the [day-four guide](day-four.md) for lifecycle, independence limits, priors and tests.
+
+## Day-five local interface
+
+React/TypeScript views consume a same-origin, loopback-only Python API. The workspace facade calls the existing composition root and public module APIs; frontend state never authorizes an effect. Exact displayed subjects bind review decisions and artifact downloads. A separate local control store persists sandbox metadata and command fingerprints, while original domain receipts reconcile retries across the two stores. Descendant experiments can share scoped learning, without inheriting approval. The core database remains schema v5. See the [interface guide](day-five.md) for deployment boundaries, simulated clocks, request controls and tests.
