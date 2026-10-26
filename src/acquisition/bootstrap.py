@@ -24,6 +24,9 @@ from acquisition.workflows.model_mail import ModelMonthlyMail, model_task_plan
 from acquisition.adapters.sqlite.reviews import SqliteReviews
 from acquisition.reviews import ReviewService
 from acquisition.workflows.review import ReviewProposalBuilder
+from acquisition.learning import LearningService
+from acquisition.adapters.sqlite.learning import SqliteLearning
+from acquisition.workflows.learning import AcceptedCohortSource
 
 
 @dataclass
@@ -38,6 +41,7 @@ class Application:
     calls: SqliteCalls
     inference: Inference | None
     reviews: ReviewService
+    learning: LearningService
 
     def start(self, organization: str, request_id: str, size: int = 1000, seed: int = 42,
               budget_pence: int = 85000, as_of: str = "2026-10-25", campaign_id: str | None = None) -> str:
@@ -69,7 +73,7 @@ class Application:
                        "audience_summary": {"input_records": sum(row.segment == segment for row in snapshot.records),
                            "model_version": snapshot.model_version, "snapshot_id": snapshot.id,
                            "situation_hypothesis": guidance["situations"][segment],
-                           "outcome_evidence": "No mature campaign evidence is available in day two."}}
+                           "outcome_evidence": self.learning.store.memory(organization, segment)}}
             contexts[segment] = self.memory.put_context(organization, context)
         specs = model_task_plan(snapshot_id, Brief(campaign_id or request_id, budget_pence), contexts, self.inference)
         return self.tasks.create(organization, request_id, specs, self.clock())
@@ -107,7 +111,9 @@ def build(path: str | Path, clock: Callable[[], float] = time.time,
     inference = Inference(gateway, calls, model_config, clock) if gateway is not None and model_config is not None else None
     model_workflow = ModelMonthlyMail(audiences, campaigns, memory, inference)
     capabilities = workflow.capabilities() | model_workflow.capabilities()
+    reviews = SqliteReviews(database, clock)
     return Application(tasks, audiences, drafts, Worker(tasks, capabilities, clock, lease_seconds=180 if inference else 60,
                        eligible=model_workflow.eligible), clock,
                        campaigns.catalogue_hash, memory, calls, inference,
-                       ReviewService(SqliteReviews(database, clock), ReviewProposalBuilder(audiences, drafts, campaigns)))
+                       ReviewService(reviews, ReviewProposalBuilder(audiences, drafts, campaigns)),
+                       LearningService(SqliteLearning(database, clock), AcceptedCohortSource(reviews, drafts)))

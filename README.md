@@ -11,6 +11,7 @@ Requires Python 3.11 or later. No third-party packages are currently required.
 ```sh
 make demo
 PYTHONPATH=src python3 -m acquisition --db .local/review.sqlite demo-review --out .local/day-three
+PYTHONPATH=src python3 -m acquisition --db .local/learning.sqlite demo-learning --out .local/day-four
 make test
 make arch-check
 make mutation-check
@@ -39,7 +40,9 @@ The model can read editorial context and submit bounded copy drafts. Code contro
 
 Editorial memory contains reviewer preferences and examples scoped to the organization and segment. Each run freezes the guidance and examples it uses. This is separate from evidence of audience response.
 
-The learning module currently supplies the counted Bayesian mathematical value. Persistent mature-cohort ingestion, posterior reporting and adaptive campaign recommendations are planned. No synthetic persona judgment is presented as a real customer outcome.
+The learning module ingests explicit synthetic outcomes for accepted simulated campaigns, waits for a complete 28-day cohort and persists Beta posterior counts. It compares A/B variants with the no-mail control and recommends a further experiment when illustrative evidence thresholds are met. New copy runs freeze mature learning memory alongside separate editorial preferences.
+
+Run `demo-learning` to create `.local/day-four/learning.html`, with a clearly labelled simulated clock and outcomes. Repeated imports and finalization do not double-count evidence. The prototype rejects repeated business exposure across cohorts. Recommendations remain advisory and require a new proposal and approval. See the [day-four guide](docs/day-four.md) for the statistical assumptions, import contract and limits. No synthetic judgment is presented as real customer response.
 
 ## Current boundaries
 
@@ -51,6 +54,6 @@ Tests cover domain rules, real SQLite persistence, separate-process restart, tas
 
 ## Review evidence
 
-The current suite has 108 offline tests, a static architecture check and 12 targeted mutation checks. See the [test coverage review](docs/test-coverage-review.md), [architecture](docs/architecture.md) and [product-grounding notes](docs/product-grounding.md). A [recorded copy example](examples/grounded-run/letters.txt) shows the unreviewed output of a live run.
+The current suite has 133 offline tests, a static architecture check and 17 targeted mutation checks. See the [test coverage review](docs/test-coverage-review.md), [architecture](docs/architecture.md) and [product-grounding notes](docs/product-grounding.md). A [recorded copy example](examples/grounded-run/letters.txt) shows the unreviewed output of a live run.
 
-Development branches use the `feature/...` naming convention. Durable outcome learning and external delivery are later work. No license terms have been selected yet.
+Development branches use the `feature/...` naming convention. Real outcome feeds, correction/retraction, repeated-exposure models and external delivery are later work. No license terms have been selected yet.

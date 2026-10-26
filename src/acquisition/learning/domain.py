@@ -1,4 +1,4 @@
-"""Statistical value only; production outcome ingestion arrives on day four."""
+"""Counted Beta belief. Preferences and model confidence are not observations."""
 
 import math
 from dataclasses import dataclass

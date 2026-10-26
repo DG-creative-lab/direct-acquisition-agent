@@ -6,7 +6,7 @@ newly generated content must follow the current editorial guidance.
 
 Use the modular monolith decision in `docs/architecture.md` for implementation.
 The runnable scope includes deterministic day one and the day-two OpenRouter
-copy workflow, plus day-three local review and simulated acceptance. Design documents also describe later work and must not be
+copy workflow, plus day-three local review and simulated acceptance and day-four synthetic outcome learning. Design documents also describe later work and must not be
 presented as implemented behavior. See `docs/product-grounding.md` for live model evidence.
 
 ## Boundaries
@@ -53,3 +53,5 @@ not only mocked repositories. Maintain the invariant ledger in
 authority boundary. Do not claim live model behavior without executing it.
 
 Day-three approval binds an immutable subject, current evidence/suppression epochs, reviewer generation and bounded expiry. Recheck authority and candidate integrity inside the acceptance transaction. Never treat cached receipts or saved reports as current authorization. Keep simulator acceptance, audit and receipt atomic. Preserve the schema-v3 legacy cutoff when migrating to v4. See `docs/day-three.md` for the review authority and test ledger.
+
+Learning cohorts bind accepted simulated assignments, including controls. Missing results are unknown, never implicit non-responses. Finalization requires maturity and full explicit population coverage. Keep outcomes immutable, deduplicate across imports and commit beliefs/finalization/audit/receipt together. Do not count a business in multiple learning cohorts within an organization. Synthetic posterior memory is advisory and separate from preferences, product facts and approval. See `docs/day-four.md` for the ledger and statistical limits.
