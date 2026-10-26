@@ -66,6 +66,11 @@ class SqliteTasks:
             event(connection, run_id, None, "run_created", {"task_count": len(specs)}, now)
             return run_id
 
+    def find_run(self, organization: str, request_id: str) -> str | None:
+        with self.database.connect() as connection:
+            row = connection.execute("SELECT id FROM runs WHERE organization=? AND request_id=?", (organization, request_id)).fetchone()
+            return row["id"] if row else None
+
     def claim(self, organization: str, now: float, lease_seconds: float,
               eligible: Callable[[str, dict], bool] | None = None) -> Claim | None:
         finite_time(now)

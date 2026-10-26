@@ -6,7 +6,13 @@ The first workflow prepares a direct-mail campaign: inspect an audience, draft c
 
 ## Run locally
 
-Requires Python 3.11 or later. No third-party packages are currently required.
+The Python CLI requires Python 3.11 or later and no third-party Python packages. The optional React interface also requires Node 22.12+ and npm on macOS or Linux.
+
+```sh
+make workspace
+```
+
+Open `http://127.0.0.1:8768`. Explore audience and copy, record review decisions, invalidate approval with a suppression, simulate handoff and inspect mature learning. Offline mode has no API cost. Model generation is an explicit OpenRouter option. See the [interface guide](docs/day-five.md) for startup, recovery and the local transport boundary.
 
 ```sh
 make demo
@@ -54,6 +60,6 @@ Tests cover domain rules, real SQLite persistence, separate-process restart, tas
 
 ## Review evidence
 
-The current suite has 135 offline tests, a static architecture check and 19 targeted mutation checks. See the [test coverage review](docs/test-coverage-review.md), [architecture](docs/architecture.md) and [product-grounding notes](docs/product-grounding.md). A [recorded copy example](examples/grounded-run/letters.txt) shows the unreviewed output of a live run.
+The current suite has 149 offline Python tests, a static architecture check, 22 targeted mutation checks and a strict TypeScript interface build. See the [test coverage review](docs/test-coverage-review.md), [architecture](docs/architecture.md) and [product-grounding notes](docs/product-grounding.md). A [recorded copy example](examples/grounded-run/letters.txt) shows the unreviewed output of a live run.
 
 Development branches use the `feature/...` naming convention. Real outcome feeds, correction/retraction, repeated-exposure models and external delivery are later work. No license terms have been selected yet.

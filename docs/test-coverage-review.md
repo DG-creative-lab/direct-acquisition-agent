@@ -104,3 +104,7 @@ The suite now contains **133 offline tests**. Twenty-two learning tests and thre
 ## Day-four local review follow-up
 
 Two P2 findings added two independent regressions, bringing the suite to **135 offline tests**. Model contexts now freeze all segment learning from a single read transaction; a forced finalization after the snapshot read cannot split the evidence. Semantic finalization replay persists only a new command receipt, preserving the original effect actor, timestamp and event count, including after restart. Opening an existing cohort follows the same receipt-only rule. Both regressions fail against `fe28c3d`, and two additional targeted mutation probes bring the selected set to **19**. Historical events are preserved rather than rewritten. No paid model requests were made.
+
+## Day-five interface addendum
+
+The current suite has **149 Python tests**, including 14 workspace tests, plus strict TypeScript/build and formatting checks. The real HTTP tests reject wrong Host/token/Origin, bounded-input violations and static traversal. Facade tests cover stale review, suppression/rebuild, replay after metadata loss, exact displayed-subject downloads and future experiment memory without inherited approval. Three additional targeted mutants bring the selected denominator to **22**. Desktop/mobile browser verification covers the real UI/API/persistence journey. This does not establish hosted authentication, remote deployment or live model quality; gateway doubles were used for inference tests, with no paid calls.
