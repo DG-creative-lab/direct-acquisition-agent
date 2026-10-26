@@ -55,6 +55,45 @@ CREATE TABLE IF NOT EXISTS model_calls (
 PRAGMA user_version=2;
 """
 
+DAY_THREE = """
+CREATE TABLE IF NOT EXISTS review_actors (
+ organization TEXT NOT NULL, id TEXT NOT NULL, roles TEXT NOT NULL,
+ enabled INTEGER NOT NULL CHECK(enabled IN (0,1)), generation INTEGER NOT NULL,
+ PRIMARY KEY(organization,id));
+CREATE TABLE IF NOT EXISTS review_authorities (
+ organization TEXT PRIMARY KEY, evidence_epoch INTEGER NOT NULL, audience_epoch INTEGER NOT NULL,
+ pack TEXT NOT NULL, policy TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS review_cases (
+ organization TEXT NOT NULL, id TEXT NOT NULL, run_id TEXT NOT NULL REFERENCES runs(id), current_subject TEXT NOT NULL,
+ PRIMARY KEY(organization,id), UNIQUE(organization,run_id));
+CREATE TABLE IF NOT EXISTS review_subjects (
+ organization TEXT NOT NULL, id TEXT NOT NULL, case_id TEXT NOT NULL, revision INTEGER NOT NULL,
+ payload TEXT NOT NULL, created_at REAL NOT NULL, PRIMARY KEY(organization,id), UNIQUE(organization,case_id,revision),
+ FOREIGN KEY(organization,case_id) REFERENCES review_cases(organization,id));
+CREATE TABLE IF NOT EXISTS review_decisions (
+ sequence INTEGER PRIMARY KEY AUTOINCREMENT, organization TEXT NOT NULL, id TEXT NOT NULL,
+ case_id TEXT NOT NULL, subject_id TEXT NOT NULL, payload TEXT NOT NULL, UNIQUE(organization,id),
+ FOREIGN KEY(organization,subject_id) REFERENCES review_subjects(organization,id));
+CREATE TABLE IF NOT EXISTS review_revocations (
+ organization TEXT NOT NULL, approval_id TEXT NOT NULL, actor TEXT NOT NULL, reason TEXT NOT NULL,
+ at REAL NOT NULL, PRIMARY KEY(organization,approval_id),
+ FOREIGN KEY(organization,approval_id) REFERENCES review_decisions(organization,id));
+CREATE TABLE IF NOT EXISTS review_suppressions (
+ organization TEXT NOT NULL, business_id TEXT NOT NULL, actor TEXT NOT NULL, reason TEXT NOT NULL,
+ at REAL NOT NULL, PRIMARY KEY(organization,business_id));
+CREATE TABLE IF NOT EXISTS review_commands (
+ organization TEXT NOT NULL, request_id TEXT NOT NULL, request_hash TEXT NOT NULL, receipt TEXT NOT NULL,
+ PRIMARY KEY(organization,request_id));
+CREATE TABLE IF NOT EXISTS simulated_agency_jobs (
+ organization TEXT NOT NULL, case_id TEXT NOT NULL, id TEXT NOT NULL, approval_id TEXT NOT NULL,
+ subject_id TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(organization,case_id), UNIQUE(organization,id),
+ FOREIGN KEY(organization,approval_id) REFERENCES review_decisions(organization,id));
+CREATE TABLE IF NOT EXISTS review_events (
+ sequence INTEGER PRIMARY KEY AUTOINCREMENT, organization TEXT NOT NULL, case_id TEXT,
+ kind TEXT NOT NULL, payload TEXT NOT NULL, at REAL NOT NULL);
+PRAGMA user_version=4;
+"""
+
 
 class Database:
     def __init__(self, path: str | Path):
@@ -63,7 +102,7 @@ class Database:
         with self.transaction() as connection:
             # Version discovery and every migration share one SQLite write lock.
             version = connection.execute("PRAGMA user_version").fetchone()[0]
-            if version not in {0, 1, 2, 3}:
+            if version not in {0, 1, 2, 3, 4}:
                 raise ValueError(f"Unsupported database schema {version}")
             if version == 0:
                 self._apply_migration(connection, SCHEMA)
@@ -71,6 +110,8 @@ class Database:
                 self._apply_migration(connection, DAY_TWO)
             if version < 3:
                 self._freeze_legacy_admissions(connection)
+            if version < 4:
+                self._apply_migration(connection, DAY_THREE)
         self._enable_wal()
 
     def _enable_wal(self):

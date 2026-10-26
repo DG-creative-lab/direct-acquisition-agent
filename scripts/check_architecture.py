@@ -4,8 +4,9 @@ import ast
 from pathlib import Path
 
 
-MODULES = {"runtime", "audiences", "campaigns", "creative", "learning", "reasoning"}
-DEPENDENCIES = {"campaigns": {"audiences", "creative"}, "creative": {"reasoning"}}
+MODULES = {"runtime", "audiences", "campaigns", "creative", "learning", "reasoning", "reviews"}
+DEPENDENCIES = {"campaigns": {"audiences", "creative"}, "creative": {"reasoning"},
+                "reviews": {"audiences", "campaigns", "creative"}}
 
 
 def imports(source: str, module: str) -> list[str]:
