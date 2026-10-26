@@ -48,6 +48,6 @@ Tests cover domain rules, real SQLite persistence, separate-process restart, tas
 
 ## Review evidence
 
-The current suite has 75 offline tests, a static architecture check and eight targeted mutation checks. See the [test coverage review](docs/test-coverage-review.md), [architecture](docs/architecture.md) and [product-grounding notes](docs/product-grounding.md). A [recorded copy example](examples/grounded-run/letters.txt) shows the unreviewed output of a live run.
+The current suite has 77 offline tests, a static architecture check and eight targeted mutation checks. See the [test coverage review](docs/test-coverage-review.md), [architecture](docs/architecture.md) and [product-grounding notes](docs/product-grounding.md). A [recorded copy example](examples/grounded-run/letters.txt) shows the unreviewed output of a live run.
 
 Development branches use the `feature/...` naming convention. Approval, invalidation and delivery are later work. No license terms have been selected yet.

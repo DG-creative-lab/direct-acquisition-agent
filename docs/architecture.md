@@ -112,6 +112,8 @@ The claim port accepts a worker-eligibility predicate. The composition root supp
 
 Initialization takes a SQLite write lock before reading `user_version` and keeps that lock through every migration and version change. Migration statements use `execute` inside the transaction; `executescript` is excluded because it can commit a pending transaction. Failure rolls back the complete chain. If the earlier initialization race has left version 2 with a schema-v3 admission table, initialization restores the version marker without expanding the existing admission snapshot.
 
+WAL activation happens after the migration commits because SQLite cannot change journal mode inside that transaction. A busy result during activation is retried on a fresh connection, with a ten-second retry deadline and a short per-attempt busy timeout. The retry does not reapply migrations. Other SQLite errors and exhausted contention are reported rather than hidden.
+
 Use the standard library for day one so the persistence/recovery slice runs without credentials or third-party installation. Python 3.11 or later is declared; the verification host ran Python 3.14.3. Introduce and pin external dependencies when they serve an implemented use case.
 
 Move SQLite behind the existing ports to PostgreSQL when deployment/concurrency requirements justify it, adding real migrations and compatibility tests. Add durable external dispatch through an outbox once the agency integration creates that need. This migration will require engineering and new evidence; the ports do not make it automatic.

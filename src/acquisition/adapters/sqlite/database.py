@@ -2,6 +2,7 @@ import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 import json
+import time
 
 from acquisition.contracts import digest
 
@@ -70,9 +71,27 @@ class Database:
                 self._apply_migration(connection, DAY_TWO)
             if version < 3:
                 self._freeze_legacy_admissions(connection)
-        with self.connect() as connection:
-            if connection.execute("PRAGMA journal_mode").fetchone()[0] != "wal":
-                connection.execute("PRAGMA journal_mode=WAL")
+        self._enable_wal()
+
+    def _enable_wal(self):
+        # Journal-mode changes require their own lock outside a transaction.
+        # A competing initializer can hold it just after our migration commits.
+        deadline = time.monotonic() + 10
+        while True:
+            try:
+                with self.connect() as connection:
+                    connection.execute("PRAGMA busy_timeout=100")
+                    if connection.execute("PRAGMA journal_mode").fetchone()[0] == "wal":
+                        return
+                    if connection.execute("PRAGMA journal_mode=WAL").fetchone()[0] != "wal":
+                        raise sqlite3.OperationalError("SQLite did not enable WAL journal mode")
+                    return
+            except sqlite3.OperationalError as error:
+                code = getattr(error, "sqlite_errorcode", None)
+                remaining = deadline - time.monotonic()
+                if code is None or code & 0xFF != sqlite3.SQLITE_BUSY or remaining <= 0:
+                    raise
+                time.sleep(min(0.05, remaining))
 
     @staticmethod
     def _apply_migration(connection, script):

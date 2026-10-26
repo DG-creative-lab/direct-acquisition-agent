@@ -146,3 +146,54 @@ class DatabaseInitializationTests(unittest.TestCase):
         self.assert_reopenable(path)
         with closing(sqlite3.connect(path)) as db, db:
             self.assertEqual(db.execute("SELECT run_id FROM legacy_task_admissions").fetchall(), [("original",)])
+
+    def test_busy_wal_activation_is_retried_without_repeating_migrations(self):
+        path = self.root / "busy-wal.sqlite"
+        original_connect = sqlite3.connect
+        attempts, versions = [], []
+        class BusyOnce(sqlite3.Connection):
+            def execute(connection, sql, *args, **kwargs):
+                command = sql.strip().rstrip(";").upper()
+                if command.startswith("PRAGMA USER_VERSION="):
+                    versions.append(command)
+                if command == "PRAGMA JOURNAL_MODE=WAL":
+                    attempts.append(command)
+                    if len(attempts) == 1:
+                        error = sqlite3.OperationalError("database is locked")
+                        error.sqlite_errorcode = sqlite3.SQLITE_BUSY
+                        raise error
+                return super().execute(sql, *args, **kwargs)
+        def connect(*args, **kwargs):
+            return original_connect(*args, factory=BusyOnce, **kwargs)
+        with patch("acquisition.adapters.sqlite.database.sqlite3.connect", side_effect=connect), \
+             patch("acquisition.adapters.sqlite.database.time.sleep") as sleep:
+            Database(path)
+        self.assertEqual(len(attempts), 2)
+        self.assertEqual(sleep.call_count, 1)
+        self.assertEqual(versions, ["PRAGMA USER_VERSION=1", "PRAGMA USER_VERSION=2", "PRAGMA USER_VERSION=3"])
+        self.assert_reopenable(path)
+
+    def test_wal_retry_is_bounded_and_does_not_hide_other_sqlite_errors(self):
+        original_connect = sqlite3.connect
+        for code in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_IOERR):
+            with self.subTest(code=code):
+                path = self.root / f"wal-error-{code}.sqlite"
+                attempts = []
+                class JournalError(sqlite3.Connection):
+                    def execute(connection, sql, *args, **kwargs):
+                        if sql.strip().upper() == "PRAGMA JOURNAL_MODE=WAL":
+                            attempts.append(sql)
+                            error = sqlite3.OperationalError("fixture journal failure")
+                            error.sqlite_errorcode = code
+                            raise error
+                        return super().execute(sql, *args, **kwargs)
+                def connect(*args, **kwargs):
+                    return original_connect(*args, factory=JournalError, **kwargs)
+                with patch("acquisition.adapters.sqlite.database.sqlite3.connect", side_effect=connect), \
+                     patch("acquisition.adapters.sqlite.database.time.monotonic", side_effect=[0, 11]), \
+                     patch("acquisition.adapters.sqlite.database.time.sleep") as sleep:
+                    with self.assertRaises(sqlite3.OperationalError):
+                        Database(path)
+                self.assertEqual(len(attempts), 1)
+                sleep.assert_not_called()
+                self.assert_reopenable(path)

@@ -82,7 +82,7 @@ The next review reproduced a migration race that the earlier tests missed. Versi
 
 The constructor now acquires `BEGIN IMMEDIATE` before reading the version. All migration statements, the legacy admission snapshot and version changes share that transaction. Migration scripts no longer contain their own transaction boundaries, and production initialization executes complete statements individually to avoid `executescript` committing the outer transaction. A known stale-marker state is repaired by preserving the original admission table and restoring version 3, never by refreshing the admission cutoff.
 
-Four additional tests bring the suite to **75**:
+Four additional tests initially brought the suite to **75**:
 
 - A controlled two-connection interleaving starts from versions 0 and 1. Both initializers succeed; each version read occurs inside a transaction, and the second observes version 3. The same test against commit `4cf912f` reproduces the reported table-already-exists error for both starting versions.
 - Two separate Python processes initialize the same database from versions 0 and 1. Both exit successfully; repeated opens retain version 3 and pass SQLite integrity checks.
@@ -90,3 +90,5 @@ Four additional tests bring the suite to **75**:
 - The earlier damaged version-2/schema-3 state is reopened successfully, while later records remain outside the original legacy admission snapshot.
 
 The additional mutation removes the constructor's write transaction and is detected by the whole-chain rollback test. This is **8/8** selected mutations in total. These bounded schedules establish local initialization behavior, not multi-host operational readiness. No paid model calls were made.
+
+The first CI run then caught another contention point on Python 3.13: post-migration WAL activation returned `SQLITE_BUSY`. The schema remained valid, but one initializer failed. WAL activation now retries only busy errors on fresh connections until a ten-second deadline, using a short per-attempt busy timeout. It never repeats schema migrations. Two more tests force a busy result followed by success and verify that deadline exhaustion and unrelated I/O errors are not hidden. The current suite has **77 tests**. This records the CI-discovered failure and its fix rather than treating a rerun as evidence of correctness.
