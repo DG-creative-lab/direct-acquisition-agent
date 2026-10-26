@@ -1,0 +1,13 @@
+from typing import Protocol
+
+from .domain import CallScope
+
+
+class ModelGateway(Protocol):
+    def complete(self, request: dict) -> dict: ...
+
+
+class CallJournal(Protocol):
+    def reserve(self, scope: CallScope, key: str, request_hash: str, limit: int, now: float) -> dict | None: ...
+    def record(self, scope: CallScope, key: str, response: dict | None, error: str | None) -> None: ...
+    def inspect(self, organization: str, run_id: str) -> list[dict]: ...

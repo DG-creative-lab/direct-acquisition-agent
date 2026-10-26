@@ -1,0 +1,22 @@
+{
+  "observed_on": "2026-10-25",
+  "model": "openai/gpt-oss-120b",
+  "status": "generated_unreviewed",
+  "original_draft_id": "draft_8578d1f9c53b6d372fc1f0fad88cda038b9372e055537fac5e6c1d94ec0df401",
+  "counts": {
+    "eligible_unselected": 0,
+    "excluded": 245,
+    "holdout": 74,
+    "input": 1000,
+    "mailed": 681
+  },
+  "model_calls": 9,
+  "reported_inference_cost_usd": "0.00108033",
+  "synthetic_mailing_cost_pence": 57885,
+  "limitations": [
+    "Partial recorded example; not a complete export or approval.",
+    "Display heading uses current plain punctuation.",
+    "Historical audience snapshots and complete manifests remain in the private development archive.",
+    "No audience-response result or general model reliability is established."
+  ]
+}
