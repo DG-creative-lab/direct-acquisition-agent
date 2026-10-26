@@ -6,6 +6,8 @@ Before a request, the journal checks the active task lease and reserves one call
 
 Before claiming or recovering a model task, the worker checks its configuration against the task's original model and limits inside the claim transaction. An incompatible worker leaves attempts, lifecycle and events unchanged and can still claim compatible offline work. Resume with the pinned configuration. Historical v2 execution also requires a matching admission record frozen during the schema-v3 migration; new v2 runs are rejected.
 
+Database initialization serializes version discovery and the entire migration chain under one write lock. Existing admission records are preserved if repairing a version marker damaged by the older initialization race. Repair cannot grant legacy status to later records.
+
 The current profile allows ten calls per run, at most 1,600 output tokens per request and a 24,000-byte input envelope. Paid routes have ceilings of $1 per million input tokens and $2 per million output tokens, with no per-request charge. Free model IDs require zero-price routes. Provider fallbacks are disabled. These controls supplement the provider's account or key spending limit.
 
 Only aggregate synthetic segment information is supplied to the model. Reviewer preferences are scoped by organization and segment, then frozen into each run's context. They are writing guidance, not evidence of customer response.

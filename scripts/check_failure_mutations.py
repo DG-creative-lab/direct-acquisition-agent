@@ -32,6 +32,10 @@ CASES = [
      '    if type(now) not in {int, float} or not math.isfinite(now):\n        raise ValueError("Durable timestamps must be finite numbers")',
      '    return None',
      "test_review_regressions.ReviewRegressions.test_nonfinite_creation_acknowledgement_and_cancellation_are_atomic"),
+    ("migration-write-transaction", "adapters/sqlite/database.py",
+     '        with self.transaction() as connection:\n            # Version discovery',
+     '        with self.connect() as connection:\n            # Version discovery',
+     "test_database_initialization.DatabaseInitializationTests.test_failure_rolls_back_all_migration_steps_and_version_changes"),
 ]
 
 

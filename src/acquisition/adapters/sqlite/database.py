@@ -7,7 +7,6 @@ from acquisition.contracts import digest
 
 
 SCHEMA = """
-BEGIN IMMEDIATE;
 CREATE TABLE IF NOT EXISTS runs (
  id TEXT PRIMARY KEY, organization TEXT NOT NULL, request_id TEXT NOT NULL,
  request_hash TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN
@@ -35,11 +34,9 @@ CREATE TABLE IF NOT EXISTS draft_operations (
  PRIMARY KEY(organization,operation_id),
  FOREIGN KEY(organization,draft_id) REFERENCES drafts(organization,id));
 PRAGMA user_version=1;
-COMMIT;
 """
 
 DAY_TWO = """
-BEGIN IMMEDIATE;
 CREATE TABLE IF NOT EXISTS editorial_memories (
  organization TEXT NOT NULL, id TEXT NOT NULL, segment TEXT NOT NULL, payload TEXT NOT NULL,
  PRIMARY KEY(organization,id));
@@ -55,7 +52,6 @@ CREATE TABLE IF NOT EXISTS model_calls (
  request_hash TEXT NOT NULL, status TEXT NOT NULL, response TEXT, error TEXT,
  PRIMARY KEY(organization,run_id,call_key));
 PRAGMA user_version=2;
-COMMIT;
 """
 
 
@@ -63,36 +59,50 @@ class Database:
     def __init__(self, path: str | Path):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.connect() as connection:
+        with self.transaction() as connection:
+            # Version discovery and every migration share one SQLite write lock.
             version = connection.execute("PRAGMA user_version").fetchone()[0]
             if version not in {0, 1, 2, 3}:
                 raise ValueError(f"Unsupported database schema {version}")
             if version == 0:
-                connection.executescript(SCHEMA)
+                self._apply_migration(connection, SCHEMA)
             if version < 2:
-                connection.executescript(DAY_TWO)
+                self._apply_migration(connection, DAY_TWO)
             if version < 3:
                 self._freeze_legacy_admissions(connection)
-            connection.execute("PRAGMA journal_mode=WAL")
+        with self.connect() as connection:
+            if connection.execute("PRAGMA journal_mode").fetchone()[0] != "wal":
+                connection.execute("PRAGMA journal_mode=WAL")
+
+    @staticmethod
+    def _apply_migration(connection, script):
+        # executescript can commit a pending transaction. Execute each complete
+        # checked-in statement instead, retaining the constructor's write lock.
+        statement = ""
+        for line in script.splitlines(keepends=True):
+            statement += line
+            if sqlite3.complete_statement(statement):
+                connection.execute(statement)
+                statement = ""
+        if statement.strip():
+            raise ValueError("Incomplete migration statement")
 
     @staticmethod
     def _freeze_legacy_admissions(connection):
-        connection.execute("BEGIN IMMEDIATE")
-        try:
-            # Recheck under the write lock. Reopening must never certify new rows.
-            if connection.execute("PRAGMA user_version").fetchone()[0] < 3:
-                connection.execute("""CREATE TABLE legacy_task_admissions (
-                    organization TEXT NOT NULL, run_id TEXT NOT NULL REFERENCES runs(id),
-                    request_hash TEXT NOT NULL, PRIMARY KEY(organization,run_id))""")
-                for run in connection.execute("SELECT * FROM runs").fetchall():
-                    if stored_plan_hash(connection, run["id"]) == run["request_hash"]:
-                        connection.execute("INSERT INTO legacy_task_admissions VALUES(?,?,?)",
-                                           (run["organization"], run["id"], run["request_hash"]))
-                connection.execute("PRAGMA user_version=3")
-            connection.commit()
-        except BaseException:
-            connection.rollback()
-            raise
+        existing = connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='legacy_task_admissions'").fetchone()
+        if existing:
+            # Repair the previous race's stale version marker, retaining the
+            # original cutoff. Never grant admission to rows added afterwards.
+            connection.execute("SELECT organization,run_id,request_hash FROM legacy_task_admissions LIMIT 0")
+        else:
+            connection.execute("""CREATE TABLE legacy_task_admissions (
+                organization TEXT NOT NULL, run_id TEXT NOT NULL REFERENCES runs(id),
+                request_hash TEXT NOT NULL, PRIMARY KEY(organization,run_id))""")
+            for run in connection.execute("SELECT * FROM runs").fetchall():
+                if stored_plan_hash(connection, run["id"]) == run["request_hash"]:
+                    connection.execute("INSERT INTO legacy_task_admissions VALUES(?,?,?)",
+                                       (run["organization"], run["id"], run["request_hash"]))
+        connection.execute("PRAGMA user_version=3")
 
     @contextmanager
     def connect(self):

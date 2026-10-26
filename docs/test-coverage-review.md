@@ -42,7 +42,7 @@ The budget sample is 3 seeds x 3 sizes x 4 budgets = **36**, correcting the olde
 
 The nine newly declared failure scenarios have nine executable tests. The non-finite-time scenario checks three clock values across three operations, so **9/9** declared clock/operation combinations reject the action. The transport tests exercise **5/5** selected failure partitions: HTTP rejection, URL failure, timeout, oversized response and redirect.
 
-`make mutation-check` creates temporary source copies and weakens seven controls: task lease expiry, inference clock validation, the reservation budget, uncertain-call retry fencing, worker configuration preflight, retired-workflow admission and durable timestamp validation. All **7/7** declared mutants are detected by the targeted tests. The suite separately rejects **7/7** declared architecture violations. These denominators describe selected experiments, not all possible mutations.
+`make mutation-check` creates temporary source copies and weakens eight controls: task lease expiry, inference clock validation, the reservation budget, uncertain-call retry fencing, worker configuration preflight, retired-workflow admission, durable timestamp validation and the migration write transaction. All **8/8** declared mutants are detected by the targeted tests. The suite separately rejects **7/7** declared architecture violations. These denominators describe selected experiments, not all possible mutations.
 
 Three added call-timeline fault positions are exercised: cancellation during a request, remote response before receipt persistence, and receipt write failure before a repeat attempt. They are **3/3** selected injections, not exhaustive fault-point coverage. Existing tests add other task/artifact recovery positions.
 
@@ -64,7 +64,7 @@ Before day three, the critical remaining design work is explicit approval author
 
 ## Follow-up review: three P2 findings
 
-The local review found three real gaps despite the first green suite. They are addressed with ten additional regression tests, bringing the current total to **71**. The old test that created a fresh v2 workflow is now an admission-rejection test; compatibility is tested using genuine persisted schema-v2 rows created before the current application opens the database.
+The local review found three real gaps despite the first green suite. Ten additional regression tests brought the suite to **71**. The old test that created a fresh v2 workflow is now an admission-rejection test; compatibility is tested using genuine persisted schema-v2 rows created before the current application opens the database.
 
 | Finding | Enforcement | Regression evidence |
 | --- | --- | --- |
@@ -75,3 +75,18 @@ The local review found three real gaps despite the first green suite. They are a
 The migration's table creation, admission snapshot and version change are transactional. A fault during snapshotting rolls back the cutoff and a subsequent clean migration resumes the original legacy run. Existing terminal or malformed records are not silently rewritten. The certificate is local database state, not a tamper-proof service against an administrator who edits the certificate itself.
 
 No paid live-model regression was rerun for these storage and scheduling changes. Offline tests exercise the actual CLI, worker, SQLite boundaries and model contracts with deterministic doubles. The seven selected mutation probes include the three new enforcement boundaries. General model quality, production topology and approval authority remain outside these checks.
+
+## Concurrent initialization follow-up
+
+The next review reproduced a migration race that the earlier tests missed. Version discovery occurred outside the migration lock, so a second initializer could use a stale version and reapply an older script after the first reached schema v3. The version marker could fall back to 2 while the admission table remained present, preventing subsequent opens.
+
+The constructor now acquires `BEGIN IMMEDIATE` before reading the version. All migration statements, the legacy admission snapshot and version changes share that transaction. Migration scripts no longer contain their own transaction boundaries, and production initialization executes complete statements individually to avoid `executescript` committing the outer transaction. A known stale-marker state is repaired by preserving the original admission table and restoring version 3, never by refreshing the admission cutoff.
+
+Four additional tests bring the suite to **75**:
+
+- A controlled two-connection interleaving starts from versions 0 and 1. Both initializers succeed; each version read occurs inside a transaction, and the second observes version 3. The same test against commit `4cf912f` reproduces the reported table-already-exists error for both starting versions.
+- Two separate Python processes initialize the same database from versions 0 and 1. Both exit successfully; repeated opens retain version 3 and pass SQLite integrity checks.
+- An injected failure at the final migration rolls back all preceding migrations and version changes, preserving the original version 0 or 1. A clean retry succeeds.
+- The earlier damaged version-2/schema-3 state is reopened successfully, while later records remain outside the original legacy admission snapshot.
+
+The additional mutation removes the constructor's write transaction and is detected by the whole-chain rollback test. This is **8/8** selected mutations in total. These bounded schedules establish local initialization behavior, not multi-host operational readiness. No paid model calls were made.
