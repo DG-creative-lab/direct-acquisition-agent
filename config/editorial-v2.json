@@ -1,0 +1,21 @@
+{
+  "version": "demo-editorial/v2",
+  "rules": [
+    "Write clear, specific British English with short sentences and sentence-case headlines.",
+    "Start from a possible business situation; do not assume the recipient has a cash shortfall or needs borrowing.",
+    "Each opening must connect that situation to an optional invitation to explore whether business finance could suit the reader's plans. Generic planning advice alone does not meet this acquisition brief.",
+    "No product facts have been supplied. Do not invent a lender's terms, eligibility, speed, flexibility, price, benefits or approval. Do not include links or imply that borrowing is suitable.",
+    "Avoid pressure, urgency, numeric offers and guaranteed outcomes. Do not promise that finance solves the problem.",
+    "A should frame planning ahead; B should frame considering options around payment timing. Explain each hypothesis as a prediction, never an observed result.",
+    "Reviewer preferences are writing examples, not evidence of audience conversion."
+  ],
+  "locked_block": "SYNTHETIC DEMONSTRATION ONLY. This is not an offer of credit or approved marketing material.",
+  "situations": {
+    "inventory": "Hypothesis: planning stock purchases before sales receipts arrive.",
+    "contractors": "Hypothesis: planning project expenses before customers pay."
+  },
+  "reviewer_examples": {
+    "inventory": {"preferred": "Planning your next stock order?", "avoid": "Unlock limitless growth!", "reason": "A concrete situation is clearer than a vague promise."},
+    "contractors": {"preferred": "Plan around project costs and payment timing.", "avoid": "We know you are short of cash.", "reason": "Describe a possible timing problem without inventing a personal financial condition."}
+  }
+}

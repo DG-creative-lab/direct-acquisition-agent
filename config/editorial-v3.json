@@ -1,0 +1,21 @@
+{
+  "version": "demo-editorial/v3",
+  "rules": [
+    "Use full stops, commas or colons. Do not use em dashes.",
+    "Write short, concrete British English with sentence-case headlines.",
+    "Write only a headline and a brief situational opening hook. Code appends the product fact, all qualifications and the call to action. Do not duplicate them in the hook.",
+    "Frame the situation as a question or possibility. Do not assume the recipient needs money or has a shortfall.",
+    "Never put lender, product, borrowing, pricing, service, eligibility or performance claims in generated headlines or hooks, even when a fact pack mentions them. Select a fact ID instead.",
+    "A should frame planning ahead; B should frame considering the timing of payments. Explain the hypothesised difference without inventing measured results.",
+    "Avoid pressure, urgency, vague slogans, promises and invented benefits. Reviewer preferences describe taste, not conversion evidence."
+  ],
+  "locked_block": "SYNTHETIC DEMONSTRATION ONLY. This is not an offer of credit or approved marketing material.",
+  "situations": {
+    "inventory": "Hypothesis: planning stock purchases before sales receipts arrive.",
+    "contractors": "Hypothesis: planning project expenses before customers pay."
+  },
+  "reviewer_examples": {
+    "inventory": {"preferred": "Planning your next stock order?", "avoid": "Unlock limitless growth!", "reason": "A concrete situation is clearer than a vague promise."},
+    "contractors": {"preferred": "Thinking ahead to your next project's costs?", "avoid": "We know you are short of cash.", "reason": "Describe a possibility without asserting a financial condition."}
+  }
+}

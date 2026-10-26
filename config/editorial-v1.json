@@ -1,0 +1,19 @@
+{
+  "version": "demo-editorial/v1",
+  "rules": [
+    "Write clear, specific British English with short sentences.",
+    "Frame a possible business situation without claiming to know a recipient's finances.",
+    "Invite exploration; avoid pressure, invented urgency, numeric offers and guaranteed outcomes.",
+    "Vary the framing between A and B, and explain the hypothesis without claiming experimental proof.",
+    "Reviewer preferences are writing examples, not evidence of audience conversion."
+  ],
+  "locked_block": "SYNTHETIC DEMONSTRATION ONLY. This is not an offer of credit or approved marketing material.",
+  "situations": {
+    "inventory": "Hypothesis: planning stock purchases before sales receipts arrive.",
+    "contractors": "Hypothesis: planning project expenses before customers pay."
+  },
+  "reviewer_examples": {
+    "inventory": {"preferred": "Planning your next stock order?", "avoid": "Unlock limitless growth!", "reason": "A concrete situation is clearer than a vague promise."},
+    "contractors": {"preferred": "Plan around project costs and payment timing.", "avoid": "We know you are short of cash.", "reason": "Describe a possible timing problem without inventing a personal financial condition."}
+  }
+}
