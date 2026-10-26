@@ -6,12 +6,12 @@ newly generated content must follow the current editorial guidance.
 
 Use the modular monolith decision in `docs/architecture.md` for implementation.
 The runnable scope includes deterministic day one and the day-two OpenRouter
-copy workflow. Design documents also describe later work and must not be
+copy workflow, plus day-three local review and simulated acceptance. Design documents also describe later work and must not be
 presented as implemented behavior. See `docs/product-grounding.md` for live model evidence.
 
 ## Boundaries
 
-- `runtime`, `audiences`, `campaigns`, `creative`, `reasoning`, and `learning` own their
+- `runtime`, `audiences`, `campaigns`, `creative`, `reasoning`, `learning`, and `reviews` own their
   domain values, rules and narrow ports. Their `domain.py` files use only the
   standard library, `contracts`, and declared public domain contracts.
 - Cross-module use goes through the provider module's `__init__.py` exports.
@@ -51,3 +51,5 @@ Run `make test` and `make arch-check`. Test real SQLite and process restarts,
 not only mocked repositories. Maintain the invariant ledger in
 `docs/day-one-validation.md`. Add targeted checks for every new effect or
 authority boundary. Do not claim live model behavior without executing it.
+
+Day-three approval binds an immutable subject, current evidence/suppression epochs, reviewer generation and bounded expiry. Recheck authority and candidate integrity inside the acceptance transaction. Never treat cached receipts or saved reports as current authorization. Keep simulator acceptance, audit and receipt atomic. Preserve the schema-v3 legacy cutoff when migrating to v4. See `docs/day-three.md` for the review authority and test ledger.

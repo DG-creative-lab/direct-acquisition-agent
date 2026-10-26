@@ -36,6 +36,20 @@ CASES = [
      '        with self.transaction() as connection:\n            # Version discovery',
      '        with self.connect() as connection:\n            # Version discovery',
      "test_database_initialization.DatabaseInitializationTests.test_failure_rolls_back_all_migration_steps_and_version_changes"),
+    ("approval-expiry", "adapters/sqlite/reviews.py",
+     '        if now < approval["at"] or now >= approval["expires_at"]:', '        if False:',
+     "test_reviews.ReviewTests.test_expiry_is_enforced_at_the_exact_boundary"),
+    ("approval-reviewer-authority", "adapters/sqlite/reviews.py",
+     '        if (reviewer is None or not reviewer["enabled"] or "reviewer" not in json.loads(reviewer["roles"])\n                or reviewer["generation"] != approval["actor_generation"]):',
+     '        if False:',
+     "test_reviews.ReviewTests.test_reviewer_disable_and_reenable_cannot_revive_old_authority"),
+    ("approval-current-evidence", "reviews/domain.py",
+     'if proposal[key] != current[key]]', 'if False]',
+     "test_reviews.ReviewTests.test_evidence_aba_does_not_revive_old_approval"),
+    ("approval-atomic-decision", "adapters/sqlite/reviews.py",
+     '        with self.database.transaction() as db:\n            now = self._now()\n            reviewer = self._actor',
+     '        with self.database.connect() as db:\n            now = self._now()\n            reviewer = self._actor',
+     "test_reviews.ReviewTests.test_decision_and_event_are_atomic"),
 ]
 
 

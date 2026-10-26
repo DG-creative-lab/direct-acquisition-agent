@@ -21,6 +21,9 @@ from acquisition.runtime import TaskStore, Worker
 from acquisition.reasoning import Inference, ModelConfig, ModelGateway
 from acquisition.workflows.monthly_mail import MonthlyMail, task_plan
 from acquisition.workflows.model_mail import ModelMonthlyMail, model_task_plan
+from acquisition.adapters.sqlite.reviews import SqliteReviews
+from acquisition.reviews import ReviewService
+from acquisition.workflows.review import ReviewProposalBuilder
 
 
 @dataclass
@@ -34,15 +37,16 @@ class Application:
     memory: SqliteCreative
     calls: SqliteCalls
     inference: Inference | None
+    reviews: ReviewService
 
     def start(self, organization: str, request_id: str, size: int = 1000, seed: int = 42,
-              budget_pence: int = 85000, as_of: str = "2026-10-25") -> str:
+              budget_pence: int = 85000, as_of: str = "2026-10-25", campaign_id: str | None = None) -> str:
         snapshot_id = self.audiences.put(generate(organization, size, seed, as_of))
-        brief = Brief(campaign_id=request_id, budget_pence=budget_pence)
+        brief = Brief(campaign_id=campaign_id or request_id, budget_pence=budget_pence)
         return self.tasks.create(organization, request_id, task_plan(snapshot_id, brief, self.catalogue_hash), self.clock())
 
     def start_model(self, organization: str, request_id: str, size: int = 1000, seed: int = 42,
-                    budget_pence: int = 85000, as_of: str = "2026-10-25") -> str:
+                    budget_pence: int = 85000, as_of: str = "2026-10-25", campaign_id: str | None = None) -> str:
         if self.inference is None:
             raise ValueError("Configure a model adapter before starting a model run")
         snapshot = generate(organization, size, seed, as_of)
@@ -50,6 +54,9 @@ class Application:
         config_root = Path(__file__).resolve().parents[2] / "config"
         guidance = json.loads((config_root / "editorial-v3.json").read_text())
         product_facts = json.loads((config_root / "iwoca-product-facts-v1.json").read_text())
+        current = self.reviews.store.evidence(organization)
+        if current is not None:
+            product_facts = current["pack"]
         validate_fact_pack(product_facts, datetime.fromtimestamp(self.clock(), timezone.utc).date())
         contexts = {}
         for segment in ("inventory", "contractors"):
@@ -64,7 +71,7 @@ class Application:
                            "situation_hypothesis": guidance["situations"][segment],
                            "outcome_evidence": "No mature campaign evidence is available in day two."}}
             contexts[segment] = self.memory.put_context(organization, context)
-        specs = model_task_plan(snapshot_id, Brief(request_id, budget_pence), contexts, self.inference)
+        specs = model_task_plan(snapshot_id, Brief(campaign_id or request_id, budget_pence), contexts, self.inference)
         return self.tasks.create(organization, request_id, specs, self.clock())
 
     def export(self, organization: str, run_id: str, directory: Path) -> Path:
@@ -73,6 +80,17 @@ class Application:
         if not outputs:
             raise ValueError("No committed draft receipt exists yet")
         draft = self.drafts.get(organization, outputs[-1]["draft_id"])
+        return self._export_draft(organization, draft, directory)
+
+    def export_review(self, organization: str, case_id: str, directory: Path, expected_subject: str | None = None) -> Path:
+        view = self.reviews.store.view(organization, case_id)
+        if expected_subject is not None and view["subject"]["id"] != expected_subject:
+            from acquisition.contracts import Conflict
+            raise Conflict("Review changed before export; request a fresh report")
+        draft = self.drafts.get(organization, view["subject"]["draft_id"])
+        return self._export_draft(organization, draft, directory)
+
+    def _export_draft(self, organization, draft, directory):
         context_ids = {item["context_id"] for item in draft.manifest["creatives"] if item.get("fact_pack_id")}
         contexts = tuple(self.memory.get_context(organization, identity) for identity in sorted(context_ids))
         return export_draft(draft, directory, contexts)
@@ -91,4 +109,5 @@ def build(path: str | Path, clock: Callable[[], float] = time.time,
     capabilities = workflow.capabilities() | model_workflow.capabilities()
     return Application(tasks, audiences, drafts, Worker(tasks, capabilities, clock, lease_seconds=180 if inference else 60,
                        eligible=model_workflow.eligible), clock,
-                       campaigns.catalogue_hash, memory, calls, inference)
+                       campaigns.catalogue_hash, memory, calls, inference,
+                       ReviewService(SqliteReviews(database, clock), ReviewProposalBuilder(audiences, drafts, campaigns)))

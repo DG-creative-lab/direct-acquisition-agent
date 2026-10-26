@@ -10,6 +10,7 @@ Requires Python 3.11 or later. No third-party packages are currently required.
 
 ```sh
 make demo
+PYTHONPATH=src python3 -m acquisition --db .local/review.sqlite demo-review --out .local/day-three
 make test
 make arch-check
 make mutation-check
@@ -30,7 +31,7 @@ Model commands default to GPT-OSS-120B. The current direct-mail configuration us
 
 ## Architecture
 
-One deployable modular monolith contains runtime, audiences, campaigns, creative, reasoning and learning modules. Domain rules are pure; application services depend on narrow ports; SQLite, filesystem and OpenRouter implementations are adapters. An explicit composition root wires the application together. Static checks enforce module imports and reject cycles.
+One deployable modular monolith contains runtime, audiences, campaigns, creative, reasoning, learning and reviews modules. Domain rules are pure; application services depend on narrow ports; SQLite, filesystem and OpenRouter implementations are adapters. An explicit composition root wires the application together. Static checks enforce module imports and reject cycles.
 
 The model can read editorial context and submit bounded copy drafts. Code controls the population, experiment assignments, exact money calculations, task lifecycle and artifact integrity. Inference requests are reserved and journaled before dispatch so task recovery can reuse completed responses without issuing another request.
 
@@ -42,12 +43,14 @@ The learning module currently supplies the counted Bayesian mathematical value. 
 
 ## Current boundaries
 
-This is a local prototype for trusted operators, with a single active worker. The organization flag selects a scope; it is not hosted authentication. Approval policy, agency delivery and production data connectors require further implementation and verification.
+This is a local prototype for trusted operators, with a single active worker. The organization flag selects a scope; it is not hosted authentication. Review decisions bind the exact draft, audience and active evidence. Changes, expiry or revoked reviewer authority block a new simulated handoff. A read-only HTML report supports inspection; decisions use the transactional CLI. See the [day-three guide](docs/day-three.md) for manual commands, invalidation rules and recovery semantics.
+
+The scripted review demo writes `.local/day-three/review.html` and demonstrates a late suppression followed by fresh approval. Its reviewer decisions are scripted, and agency acceptance is a local simulation. Hosted authentication, real agency delivery and production data connectors require further implementation and verification.
 
 Tests cover domain rules, real SQLite persistence, separate-process restart, task leases, idempotency, scoped memory, model-call replay and deterministic output validation. Live model quality is evaluated separately from offline contract tests.
 
 ## Review evidence
 
-The current suite has 77 offline tests, a static architecture check and eight targeted mutation checks. See the [test coverage review](docs/test-coverage-review.md), [architecture](docs/architecture.md) and [product-grounding notes](docs/product-grounding.md). A [recorded copy example](examples/grounded-run/letters.txt) shows the unreviewed output of a live run.
+The current suite has 108 offline tests, a static architecture check and 12 targeted mutation checks. See the [test coverage review](docs/test-coverage-review.md), [architecture](docs/architecture.md) and [product-grounding notes](docs/product-grounding.md). A [recorded copy example](examples/grounded-run/letters.txt) shows the unreviewed output of a live run.
 
-Development branches use the `feature/...` naming convention. Approval, invalidation and delivery are later work. No license terms have been selected yet.
+Development branches use the `feature/...` naming convention. Durable outcome learning and external delivery are later work. No license terms have been selected yet.

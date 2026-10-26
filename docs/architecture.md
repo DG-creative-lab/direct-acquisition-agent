@@ -2,7 +2,7 @@
 
 Decision accepted for day one, 25 October 2026: **one Python application, organized by business module, with a small set of ports and adapters**. The custom runtime schedules work; it does not own the campaign's business rules. SQLite is the local transactional adapter. The CLI is the first entry point.
 
-This is a focused workflow architecture. The source implements a synthetic local dry run, including day-two OpenRouter tool calls, generated copy and frozen editorial memory. Persistent experimental outcome learning, actual human approval and agency delivery remain subsequent work. `AGENTS.md` and the executable import checks preserve the boundaries as those features arrive.
+This is a focused workflow architecture. The source implements a synthetic local dry run, including day-two OpenRouter tool calls, generated copy and frozen editorial memory. Day three adds local reviewer decisions and simulated acceptance through the reviews module. Persistent experimental outcome learning, hosted identity and external agency delivery remain subsequent work. `AGENTS.md` and the executable import checks preserve the boundaries as those features arrive.
 
 ## Why this shape
 
@@ -20,10 +20,12 @@ src/acquisition/
   creative/         versioned creative values, bounded copy loop and editorial memory port
   reasoning/        provider-independent inference limits, gateway and call journal ports
   learning/         Beta-belief value and counted mathematical update
+  reviews/          immutable proposals, review policy, decision and acceptance ports
   workflows/        explicit monthly-mail integration through public module APIs
   adapters/
     sqlite/         task/audience/draft, frozen contexts, creative and inference persistence
     openrouter.py   HTTP adapter; no orchestration or business-rule authority
+    review_report.py escaped read-only HTML review projection
     synthetic.py    seeded synthetic source
     files.py        rebuildable CSV, letters and manifest export
   contracts.py      technical JSON/hash helpers and shared errors only
@@ -78,6 +80,8 @@ The first scenario is `inspect audience → build draft → wait for review chec
 | Editorial context and generated copy | Creative module | Organization-scoped examples, immutable context and content-bound creative identities; all output unreviewed |
 | Sourced product wording | Reviewed local fact pack inside frozen creative context | Checked official source, dated review window, exact text/qualifications and fact IDs; revalidated before draft persistence |
 | Semantic claim screen | Separate inference request, validated by creative module | Complete A/B verdict bound to exact copy/pack; a pass grants no approval authority |
+| Review authority | Reviews module and SQLite review adapter | Exact immutable subject, monotonic evidence/suppression epochs, reviewer generation, expiry and current validation at acceptance |
+| Simulated agency acceptance | Same local review transaction | One accepted job per case; acceptance, audit and command receipt commit together; replay observes that historical receipt |
 | Bayesian counts and creative support | Future learning application service | Day one supplies mathematical types and assignment evidence, not durable outcome ingestion |
 
 We deliberately avoid a transaction spanning runtime and campaign internals. The campaign commits its deterministic artifact under a stable operation ID; the runtime then commits its task receipt. If the process dies between those commits, recovery retrieves the same artifact. This works because the operation is deterministic and idempotent. It is not an automatic pattern for non-idempotent external effects.
@@ -94,7 +98,7 @@ The snapshot's completeness flag attests the synthetic generator's supplied batc
 
 The draft enrolls a bounded high-score cohort first, then deterministically randomizes within each segment into A/B/no-mail. Control and treatment therefore come from the same selected population. Integer pence calculations conservatively reserve enough budget for every enrolled business, including potential holdouts; the draft may leave budget unused. Small segments may not receive a holdout, and the manifest exposes that limitation.
 
-CSV assignments retain segment, business, arm and creative identity for later outcome joins. Creative identity includes its exact content hash. The workflow pins the catalogue hash in its stored inputs so a changed catalogue cannot silently resume old work. Product fact/disclosure validation and real editorial review arrive with copy generation.
+CSV assignments retain segment, business, arm and creative identity for later outcome joins. Creative identity includes its exact content hash. The workflow pins the catalogue hash in its stored inputs so a changed catalogue cannot silently resume old work. Product fact/disclosure validation runs with grounded copy generation; local editorial decisions are separate day-three records.
 
 ## Testability of the whole system
 
@@ -108,7 +112,7 @@ Day two added copy generation and explicit wire validation behind the current ca
 
 The current `monthly-mail/v3` extension adds source-bound product rendering and a separate semantic claim screen within creative. The workflow checks the frozen evidence's review date again before creating a campaign draft. See `docs/product-grounding.md` for the evidence/authority boundary, recovery tests and live results. The original v2 capabilities remain available for explicit historical replay.
 
-The claim port accepts a worker-eligibility predicate. The composition root supplies model/configuration compatibility through the workflow; runtime contains no model-specific policy. The SQLite adapter evaluates eligibility before claim or expired-lease recovery. Configuration mistakes therefore leave a run resumable. Schema v3 freezes the exact plans present at migration and the task store checks that certificate before executing retired capabilities. It rejects new retired-capability admission and never refreshes certificates on restart. All durable timestamps and calculated lease/retry times must be finite. This migration is forward-only; older binaries reject schema v3.
+The claim port accepts a worker-eligibility predicate. The composition root supplies model/configuration compatibility through the workflow; runtime contains no model-specific policy. The SQLite adapter evaluates eligibility before claim or expired-lease recovery. Configuration mistakes therefore leave a run resumable. Schema v3 freezes the exact plans present at migration and the task store checks that certificate before executing retired capabilities. It rejects new retired-capability admission and never refreshes certificates on restart. All durable timestamps and calculated lease/retry times must be finite. This migration is forward-only; older binaries reject newer schemas. Schema v4 adds review tables without refreshing the legacy admission cutoff.
 
 Initialization takes a SQLite write lock before reading `user_version` and keeps that lock through every migration and version change. Migration statements use `execute` inside the transaction; `executescript` is excluded because it can commit a pending transaction. Failure rolls back the complete chain. If the earlier initialization race has left version 2 with a schema-v3 admission table, initialization restores the version marker without expanding the existing admission snapshot.
 
@@ -119,3 +123,9 @@ Use the standard library for day one so the persistence/recovery slice runs with
 Move SQLite behind the existing ports to PostgreSQL when deployment/concurrency requirements justify it, adding real migrations and compatibility tests. Add durable external dispatch through an outbox once the agency integration creates that need. This migration will require engineering and new evidence; the ports do not make it automatic.
 
 The local organization flag is a scope selector, not authentication. A hosted service needs identity, permissions, operational monitoring, retention and secret controls before exposure. Until then the application remains a local synthetic tool.
+
+## Day-three review boundary
+
+The reviews module consumes only public audience, campaign and creative contracts. Its pure domain validates exact candidates and hashes approval subjects. Its service coordinates refresh preparation through a narrow proposal-builder port; workflows implements that builder using existing campaign rules. The SQLite review adapter owns local roles, active evidence, cases, decisions and simulated acceptance. Runtime has no review-specific dependency.
+
+Approval is distinct from checkpoint acknowledgement and semantic screening. The model cannot issue a reviewer decision. Read-only HTML is a derived snapshot; all decisions and simulated acceptance recheck current state transactionally. Local actor registration is trusted administration, not hosted authentication. The active evidence registry requires manual source verification. See the [day-three guide](day-three.md) for the exact invalidation, replay and concurrency rules and their bounded test evidence.

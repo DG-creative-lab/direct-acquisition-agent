@@ -4,7 +4,7 @@ Reviewed 26 October 2026 using the failure-space and evidence-led review workflo
 
 ## Assessment
 
-The suite provides useful evidence for a local synthetic prototype. It tests real SQLite transactions, restarts across processes, deterministic policy and bounded model integration. It does not establish production readiness, universal claim detection or the approval behavior planned for day three.
+The suite provides useful evidence for a local synthetic prototype. It tests real SQLite transactions, restarts across processes, deterministic policy and bounded model integration. It does not establish production readiness or universal claim detection. The day-three addendum below records local approval behavior separately.
 
 The initial 52 tests left several important paths implicit. Nine new tests exercise paid-call races, cancellation during dispatch, lost inference receipts, non-finite clocks and the HTTP transport boundary. The clock probes exposed a defect: a NaN time reading could bypass a lease-expiry comparison in task completion and inference admission. Both paths now reject non-finite time. The HTTP error test also led to closing the error response before returning a sanitized exception.
 
@@ -19,7 +19,7 @@ The initial 52 tests left several important paths implicit. Nine new tests exerc
 | Product claims | Manually reviewed official-source pack and exact code-rendered wording | Confirmed for structural/source relations; manual verification remains a trust boundary |
 | Semantic screening | Separate model request bound to both variants and the pack | Contract checks confirmed; general semantic accuracy remains unknown |
 | Reviewer memory | Organization/segment-scoped preferences frozen per run | Confirmed; no audience conversion is inferred from memory |
-| Approval and delivery | Not implemented | Day-three requirement, not a current tested guarantee |
+| Approval and simulated acceptance | Reviews module and transactional SQLite adapter | Implemented in day three; see the addendum and review ledger |
 
 ## Coverage and independent oracles
 
@@ -92,3 +92,7 @@ Four additional tests initially brought the suite to **75**:
 The additional mutation removes the constructor's write transaction and is detected by the whole-chain rollback test. This is **8/8** selected mutations in total. These bounded schedules establish local initialization behavior, not multi-host operational readiness. No paid model calls were made.
 
 The first CI run then caught another contention point on Python 3.13: post-migration WAL activation returned `SQLITE_BUSY`. The schema remained valid, but one initializer failed. WAL activation now retries only busy errors on fresh connections until a ten-second deadline, using a short per-attempt busy timeout. It never repeats schema migrations. Two more tests force a busy result followed by success and verify that deadline exhaustion and unrelated I/O errors are not hidden. The current suite has **77 tests**. This records the CI-discovered failure and its fix rather than treating a rerun as evidence of correctness.
+
+## Day-three addendum
+
+The suite now has **108 offline tests**, including 27 review cases and four CLI/migration cases. The [day-three ledger](day-three.md) records exact-subject approval, stale authority, revocation, suppression, copy replacement, actor generation, expiry, artifact integrity, transaction faults, selected races and process replay. Four additional mutation probes bring the declared set to **12/12 detected**. The review report was inspected at desktop and mobile widths. No paid model regression was run. Earlier counts and schema-v3 references above describe their historical review stages; current initialization reaches schema v4 while preserving the original legacy cutoff. Local configured identities and a simulated agency do not establish hosted authentication or remote delivery guarantees.

@@ -7,6 +7,7 @@ from acquisition.contracts import Conflict, NotFound
 from acquisition.adapters.environment import openrouter_key
 from acquisition.adapters.openrouter import OpenRouter, inexpensive_models
 from acquisition.reasoning import ModelConfig, ModelError
+from acquisition.review_cli import add_review_commands, review_command
 
 
 def main() -> None:
@@ -25,6 +26,7 @@ def main() -> None:
         create.add_argument("--seed", type=int, default=42)
         create.add_argument("--budget-pence", type=int, default=85000)
         create.add_argument("--as-of", default="2026-10-25")
+        create.add_argument("--campaign-id", help="Stable campaign identity when preparing a new copy revision")
     work = commands.add_parser("work")
     work.add_argument("--max-tasks", type=int, default=20)
     commands.add_parser("models", help="List inexpensive tool-capable models from the live public catalogue")
@@ -38,6 +40,7 @@ def main() -> None:
             action.add_argument("--reference", required=True)
         if name == "export":
             action.add_argument("--out", type=Path, default=Path(".local/exports"))
+    add_review_commands(commands)
     args = parser.parse_args()
     try:
         if args.command == "models":
@@ -49,9 +52,11 @@ def main() -> None:
         config = ModelConfig(model, max_calls=args.model_max_calls, force_tool_choice=force_tools) if model else None
         app = build(args.db, gateway=gateway, model_config=config)
         scope = args.organization
-        if args.command in {"create", "demo", "create-model", "demo-model"}:
+        if args.command.startswith("review-") or args.command == "demo-review":
+            result = review_command(app, args)
+        elif args.command in {"create", "demo", "create-model", "demo-model"}:
             start = app.start_model if args.command.endswith("model") else app.start
-            run_id = start(scope, args.request_id, args.size, args.seed, args.budget_pence, args.as_of)
+            run_id = start(scope, args.request_id, args.size, args.seed, args.budget_pence, args.as_of, campaign_id=args.campaign_id)
             result = {"run_id": run_id, "mode": "synthetic_generated_unreviewed" if args.command.endswith("model") else "synthetic_day_one_no_release"}
             if args.command.startswith("demo"):
                 result["worker_ticks"] = app.worker.drain(scope)
