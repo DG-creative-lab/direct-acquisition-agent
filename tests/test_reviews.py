@@ -343,6 +343,18 @@ class ReviewTests(unittest.TestCase):
         with self.assertRaises(Conflict):
             self.app.reviews.replace("one", self.case, self.subject, draft.id, "operator", "replace-forged")
 
+    def test_fixture_identity_cannot_hide_changed_segment_metadata(self):
+        view = self.store.view("one", self.case)
+        snapshot = self.app.audiences.get("one", view["subject"]["snapshot_id"])
+        original = fixture_catalog()
+        swapped = tuple(replace(c, segment="contractors" if c.segment == "inventory" else "inventory") for c in original)
+        self.assertEqual({c.id for c in original}, {c.id for c in swapped})
+        draft = build_draft(snapshot, Brief("campaign"), swapped)
+        self.app.drafts.put("one", "swapped-fixtures", draft)
+        with self.assertRaises(Conflict):
+            self.app.reviews.replace("one", self.case, self.subject, draft.id, "operator", "swap-fixtures")
+        self.assertEqual(self.store.view("one", self.case)["subject"]["id"], self.subject)
+
     def test_readonly_report_escapes_untrusted_text(self):
         view = self.store.view("one", self.case)
         view["manifest"]["creatives"][0]["opening"] = '<script>alert("copy")</script>'

@@ -78,7 +78,7 @@ Schema v4 adds review tables under the existing initialization write lock. It pr
 
 ## Verification ledger
 
-The complete suite has 107 offline tests: the 77 merged foundation tests plus 26 review tests and four CLI/migration tests. `make arch-check` includes the review module and preserves public-module imports and the acyclic dependency graph. `make mutation-check` detects 12/12 declared mutations, including four new controls: expiry, current evidence epoch, reviewer generation and transactional decision persistence.
+The complete suite has 108 offline tests: the 77 merged foundation tests plus 27 review tests and four CLI/migration tests. `make arch-check` includes the review module and preserves public-module imports and the acyclic dependency graph. `make mutation-check` detects 12/12 declared mutations, including four new controls: expiry, current evidence epoch, reviewer generation and transactional decision persistence.
 
 | Failure space | Executable evidence |
 | --- | --- |

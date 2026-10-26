@@ -58,7 +58,7 @@ def validate_candidate(draft: Draft, snapshot: Snapshot, contexts: dict[str, dic
     if mailed & suppressions:
         raise Conflict("Current suppressions affect this draft; rebuild before review")
     if all(c.status == "synthetic_fixture_unapproved" for c in creatives):
-        if not policy.allow_fixtures or set(c.id for c in creatives) != set(c.id for c in fixture_catalog()):
+        if not policy.allow_fixtures or set(creatives) != set(fixture_catalog()):
             raise Conflict("Only the known synthetic fixtures are permitted in fixture mode")
     elif all(c.status == "generated_unreviewed" and c.fact_pack_id == fact_pack_id(pack) for c in creatives):
         for segment in ("inventory", "contractors"):
