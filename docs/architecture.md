@@ -2,7 +2,7 @@
 
 Decision accepted for day one, 25 October 2026: **one Python application, organized by business module, with a small set of ports and adapters**. The custom runtime schedules work; it does not own the campaign's business rules. SQLite is the local transactional adapter. The CLI is the first entry point.
 
-This is a focused workflow architecture. The source implements a synthetic local dry run, including day-two OpenRouter tool calls, generated copy and frozen editorial memory. Day three adds local reviewer decisions and simulated acceptance through the reviews module. Persistent experimental outcome learning, hosted identity and external agency delivery remain subsequent work. `AGENTS.md` and the executable import checks preserve the boundaries as those features arrive.
+This is a focused workflow architecture. The source implements a synthetic local dry run, including day-two OpenRouter tool calls, generated copy and frozen editorial memory. Day three adds local reviewer decisions and simulated acceptance through the reviews module. Day four adds persistent synthetic response cohorts and advisory Bayesian recommendations. Real outcome feeds, hosted identity and external agency delivery remain subsequent work. `AGENTS.md` and the executable import checks preserve the boundaries as those features arrive.
 
 ## Why this shape
 
@@ -19,7 +19,7 @@ src/acquisition/
   campaigns/        campaign brief, selection/assignment rules, draft service and port
   creative/         versioned creative values, bounded copy loop and editorial memory port
   reasoning/        provider-independent inference limits, gateway and call journal ports
-  learning/         Beta-belief value and counted mathematical update
+  learning/         synthetic cohorts, counted posteriors, advisory recommendations and ports
   reviews/          immutable proposals, review policy, decision and acceptance ports
   workflows/        explicit monthly-mail integration through public module APIs
   adapters/
@@ -82,7 +82,7 @@ The first scenario is `inspect audience → build draft → wait for review chec
 | Semantic claim screen | Separate inference request, validated by creative module | Complete A/B verdict bound to exact copy/pack; a pass grants no approval authority |
 | Review authority | Reviews module and SQLite review adapter | Exact immutable subject, monotonic evidence/suppression epochs, reviewer generation, expiry and current validation at acceptance |
 | Simulated agency acceptance | Same local review transaction | One accepted job per case; acceptance, audit and command receipt commit together; replay observes that historical receipt |
-| Bayesian counts and creative support | Future learning application service | Day one supplies mathematical types and assignment evidence, not durable outcome ingestion |
+| Bayesian counts and creative support | Learning module and SQLite adapter | Full mature synthetic cohorts, immutable outcomes, disjoint business support, atomic finalization and traceable counts |
 
 We deliberately avoid a transaction spanning runtime and campaign internals. The campaign commits its deterministic artifact under a stable operation ID; the runtime then commits its task receipt. If the process dies between those commits, recovery retrieves the same artifact. This works because the operation is deterministic and idempotent. It is not an automatic pattern for non-idempotent external effects.
 
@@ -108,7 +108,7 @@ These layers are complementary. A module unit test cannot establish restart beha
 
 ## Evolution without premature extraction
 
-Day two added copy generation and explicit wire validation behind the current capability surface, with a provider-independent reasoning module and an OpenRouter adapter. The workflow order remains explicit in code; the model chooses only context-read and copy-submission actions. See `docs/model-integration.md` for its controls and live evidence. Day four can add cohort/outcome ingestion and a persistent belief store inside learning. Neither addition requires runtime to import those modules.
+Day two added copy generation and explicit wire validation behind the current capability surface, with a provider-independent reasoning module and an OpenRouter adapter. The workflow order remains explicit in code; the model chooses only context-read and copy-submission actions. See `docs/model-integration.md` for its controls and live evidence. Day four adds cohort/outcome ingestion and a persistent belief store inside learning. Neither addition requires runtime to import those modules.
 
 The current `monthly-mail/v3` extension adds source-bound product rendering and a separate semantic claim screen within creative. The workflow checks the frozen evidence's review date again before creating a campaign draft. See `docs/product-grounding.md` for the evidence/authority boundary, recovery tests and live results. The original v2 capabilities remain available for explicit historical replay.
 
@@ -129,3 +129,7 @@ The local organization flag is a scope selector, not authentication. A hosted se
 The reviews module consumes only public audience, campaign and creative contracts. Its pure domain validates exact candidates and hashes approval subjects. Its service coordinates refresh preparation through a narrow proposal-builder port; workflows implements that builder using existing campaign rules. The SQLite review adapter owns local roles, active evidence, cases, decisions and simulated acceptance. Runtime has no review-specific dependency.
 
 Approval is distinct from checkpoint acknowledgement and semantic screening. The model cannot issue a reviewer decision. Read-only HTML is a derived snapshot; all decisions and simulated acceptance recheck current state transactionally. Local actor registration is trusted administration, not hosted authentication. The active evidence registry requires manual source verification. See the [day-three guide](day-three.md) for the exact invalidation, replay and concurrency rules and their bounded test evidence.
+
+## Day-four learning boundary
+
+Accepted simulated assignments define the cohort and denominator. The learning service obtains them through a workflow adapter, while the persistence adapter checks exact accepted bytes again before admission. Mature explicit outcomes produce durable counts in one transaction. Statistical recommendations are read-only projections. New model contexts freeze the separate synthetic outcome memory, preserving historical editorial contexts. No recommendation mutates a campaign or grants approval. Schema v5 preserves previous review and legacy admission state. See the [day-four guide](day-four.md) for lifecycle, independence limits, priors and tests.

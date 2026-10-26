@@ -21,3 +21,5 @@ dist/
 
 !/docs/day-three.md
 .playwright-mcp/
+
+!/docs/day-four.md

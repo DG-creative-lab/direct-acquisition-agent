@@ -14,6 +14,7 @@ from acquisition.creative import fact_pack_id, validate_fact_pack
 from acquisition.reviews import ReviewPolicy, current_reasons, subject, text, timestamp, validate_candidate
 
 from .database import Database
+from .actors import require_actor
 from .drafts import verify
 from .tasks import scoped_run
 
@@ -28,10 +29,7 @@ class SqliteReviews:
         return now
 
     def _actor(self, db, organization, actor, role):
-        row = db.execute("SELECT * FROM review_actors WHERE organization=? AND id=?", (organization, actor)).fetchone()
-        if row is None or not row["enabled"] or role not in json.loads(row["roles"]):
-            raise ValueError("Active local " + role + " identity required in this organization")
-        return row
+        return require_actor(db, organization, actor, role)
 
     def _authority(self, db, organization):
         row = db.execute("SELECT * FROM review_authorities WHERE organization=?", (organization,)).fetchone()

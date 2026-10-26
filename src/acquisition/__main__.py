@@ -7,6 +7,8 @@ from acquisition.contracts import Conflict, NotFound
 from acquisition.adapters.environment import openrouter_key
 from acquisition.adapters.openrouter import OpenRouter, inexpensive_models
 from acquisition.reasoning import ModelConfig, ModelError
+from acquisition.learning_cli import add_learning_commands, learning_command
+from acquisition.learning_demo import run_learning_demo
 from acquisition.review_cli import add_review_commands, review_command
 
 
@@ -40,11 +42,15 @@ def main() -> None:
             action.add_argument("--reference", required=True)
         if name == "export":
             action.add_argument("--out", type=Path, default=Path(".local/exports"))
+    add_learning_commands(commands)
     add_review_commands(commands)
     args = parser.parse_args()
     try:
         if args.command == "models":
             print(json.dumps(inexpensive_models(), indent=2))
+            return
+        if args.command == "demo-learning":
+            print(json.dumps(run_learning_demo(args.db, args.organization, args.request_id, args.out), indent=2))
             return
         model = args.model or ("openai/gpt-oss-120b" if args.command in {"create-model", "demo-model"} else None)
         gateway = OpenRouter(openrouter_key(args.env_file)) if model else None
@@ -52,7 +58,9 @@ def main() -> None:
         config = ModelConfig(model, max_calls=args.model_max_calls, force_tool_choice=force_tools) if model else None
         app = build(args.db, gateway=gateway, model_config=config)
         scope = args.organization
-        if args.command.startswith("review-") or args.command == "demo-review":
+        if args.command.startswith("learning-"):
+            result = learning_command(app, args)
+        elif args.command.startswith("review-") or args.command == "demo-review":
             result = review_command(app, args)
         elif args.command in {"create", "demo", "create-model", "demo-model"}:
             start = app.start_model if args.command.endswith("model") else app.start

@@ -31,7 +31,7 @@ class DatabaseInitializationTests(unittest.TestCase):
         for _ in range(3):
             db = Database(path)
             with db.connect() as connection:
-                self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 4)
+                self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 5)
                 self.assertEqual(connection.execute("PRAGMA integrity_check").fetchone()[0], "ok")
                 self.assertIsNotNone(connection.execute("SELECT name FROM sqlite_master WHERE name='legacy_task_admissions'").fetchone())
 
@@ -86,7 +86,7 @@ class DatabaseInitializationTests(unittest.TestCase):
                         second = pool.submit(initialize, "second")
                         first.result(timeout=15)
                         second.result(timeout=15)
-                self.assertCountEqual(observations, [("first", True, version), ("second", True, 4)])
+                self.assertCountEqual(observations, [("first", True, version), ("second", True, 5)])
                 self.assert_reopenable(path)
 
     def test_two_processes_can_initialize_versions_zero_and_one(self):
@@ -170,7 +170,7 @@ class DatabaseInitializationTests(unittest.TestCase):
             Database(path)
         self.assertEqual(len(attempts), 2)
         self.assertEqual(sleep.call_count, 1)
-        self.assertEqual(versions, ["PRAGMA USER_VERSION=1", "PRAGMA USER_VERSION=2", "PRAGMA USER_VERSION=3", "PRAGMA USER_VERSION=4"])
+        self.assertEqual(versions, ["PRAGMA USER_VERSION=1", "PRAGMA USER_VERSION=2", "PRAGMA USER_VERSION=3", "PRAGMA USER_VERSION=4", "PRAGMA USER_VERSION=5"])
         self.assert_reopenable(path)
 
     def test_wal_retry_is_bounded_and_does_not_hide_other_sqlite_errors(self):

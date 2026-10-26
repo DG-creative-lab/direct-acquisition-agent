@@ -95,6 +95,34 @@ PRAGMA user_version=4;
 """
 
 
+DAY_FOUR = """
+CREATE TABLE IF NOT EXISTS learning_cohorts (
+ organization TEXT NOT NULL, id TEXT NOT NULL, job_id TEXT NOT NULL, payload TEXT NOT NULL,
+ opened_at REAL NOT NULL, finalized_at REAL, finalization TEXT,
+ PRIMARY KEY(organization,id), UNIQUE(organization,job_id));
+CREATE TABLE IF NOT EXISTS learning_members (
+ organization TEXT NOT NULL, business_id TEXT NOT NULL, cohort_id TEXT NOT NULL,
+ PRIMARY KEY(organization,business_id),
+ FOREIGN KEY(organization,cohort_id) REFERENCES learning_cohorts(organization,id));
+CREATE TABLE IF NOT EXISTS learning_outcomes (
+ organization TEXT NOT NULL, cohort_id TEXT NOT NULL, business_id TEXT NOT NULL, payload TEXT NOT NULL,
+ PRIMARY KEY(organization,cohort_id,business_id),
+ FOREIGN KEY(organization,cohort_id) REFERENCES learning_cohorts(organization,id));
+CREATE TABLE IF NOT EXISTS learning_beliefs (
+ organization TEXT NOT NULL, cohort_id TEXT NOT NULL, segment TEXT NOT NULL, arm TEXT NOT NULL,
+ creative_id TEXT NOT NULL, payload TEXT NOT NULL,
+ PRIMARY KEY(organization,cohort_id,segment,arm),
+ FOREIGN KEY(organization,cohort_id) REFERENCES learning_cohorts(organization,id));
+CREATE TABLE IF NOT EXISTS learning_commands (
+ organization TEXT NOT NULL, request_id TEXT NOT NULL, request_hash TEXT NOT NULL, receipt TEXT NOT NULL,
+ PRIMARY KEY(organization,request_id));
+CREATE TABLE IF NOT EXISTS learning_events (
+ sequence INTEGER PRIMARY KEY AUTOINCREMENT, organization TEXT NOT NULL, cohort_id TEXT NOT NULL,
+ kind TEXT NOT NULL, payload TEXT NOT NULL, at REAL NOT NULL);
+PRAGMA user_version=5;
+"""
+
+
 class Database:
     def __init__(self, path: str | Path):
         self.path = Path(path)
@@ -102,7 +130,7 @@ class Database:
         with self.transaction() as connection:
             # Version discovery and every migration share one SQLite write lock.
             version = connection.execute("PRAGMA user_version").fetchone()[0]
-            if version not in {0, 1, 2, 3, 4}:
+            if version not in {0, 1, 2, 3, 4, 5}:
                 raise ValueError(f"Unsupported database schema {version}")
             if version == 0:
                 self._apply_migration(connection, SCHEMA)
@@ -112,6 +140,8 @@ class Database:
                 self._freeze_legacy_admissions(connection)
             if version < 4:
                 self._apply_migration(connection, DAY_THREE)
+            if version < 5:
+                self._apply_migration(connection, DAY_FOUR)
         self._enable_wal()
 
     def _enable_wal(self):
