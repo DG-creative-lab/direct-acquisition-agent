@@ -81,12 +81,14 @@ class Application:
 def build(path: str | Path, clock: Callable[[], float] = time.time,
           gateway: ModelGateway | None = None, model_config: ModelConfig | None = None) -> Application:
     database = Database(path)
-    audiences, drafts, tasks = SqliteAudiences(database), SqliteDrafts(database), SqliteTasks(database)
+    audiences, drafts = SqliteAudiences(database), SqliteDrafts(database)
+    tasks = SqliteTasks(database, retired_capabilities=ModelMonthlyMail.legacy_capabilities())
     campaigns = CampaignService(audiences, drafts, fixture_catalog())
     workflow = MonthlyMail(audiences, campaigns)
     memory, calls = SqliteCreative(database), SqliteCalls(database)
     inference = Inference(gateway, calls, model_config, clock) if gateway is not None and model_config is not None else None
     model_workflow = ModelMonthlyMail(audiences, campaigns, memory, inference)
     capabilities = workflow.capabilities() | model_workflow.capabilities()
-    return Application(tasks, audiences, drafts, Worker(tasks, capabilities, clock, lease_seconds=180 if inference else 60), clock,
+    return Application(tasks, audiences, drafts, Worker(tasks, capabilities, clock, lease_seconds=180 if inference else 60,
+                       eligible=model_workflow.eligible), clock,
                        campaigns.catalogue_hash, memory, calls, inference)

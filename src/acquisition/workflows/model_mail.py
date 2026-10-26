@@ -23,6 +23,19 @@ class ModelMonthlyMail(MonthlyMail):
         super().__init__(audiences, campaigns)
         self.memory, self.inference = memory, inference
 
+    @staticmethod
+    def legacy_capabilities() -> frozenset[str]:
+        return frozenset(("audiences.inspect_model.v2", "creative.generate.v2",
+                          "campaigns.build_model_draft.v2", "campaigns.model_review_checkpoint.v2"))
+
+    def eligible(self, capability: str, inputs: dict) -> bool:
+        if capability not in self.capabilities():
+            return True
+        version = inputs.get("workflow_version")
+        if version not in {"monthly-mail/v2", "monthly-mail/v3"} or not capability.endswith("." + version.rsplit("/", 1)[-1]):
+            return True  # Invalid protocol is a task error, not a worker configuration mismatch.
+        return self.inference is not None and inputs.get("model_config") == asdict(self.inference.config)
+
     def _check_version(self, claim: Claim) -> None:
         if (self.inference is None or claim.inputs.get("workflow_version") not in {"monthly-mail/v2", "monthly-mail/v3"}
                 or not claim.capability.endswith("." + claim.inputs["workflow_version"].rsplit("/", 1)[-1])

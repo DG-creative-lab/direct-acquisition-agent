@@ -9,14 +9,16 @@ class Worker:
     """One bounded tick; waiting never keeps an invocation open."""
 
     def __init__(self, store: TaskStore, capabilities: dict[str, Callable[[Claim], Outcome]],
-                 clock: Callable[[], float], lease_seconds: float = 60):
+                 clock: Callable[[], float], lease_seconds: float = 60,
+                 eligible: Callable[[str, dict], bool] | None = None):
         if not math.isfinite(lease_seconds) or lease_seconds <= 0:
             raise ValueError("Lease must be positive")
         self.store, self.capabilities, self.clock = store, dict(capabilities), clock
         self.lease_seconds = lease_seconds
+        self.eligible = eligible
 
     def tick(self, organization: str) -> bool:
-        claim = self.store.claim(organization, self.clock(), self.lease_seconds)
+        claim = self.store.claim(organization, self.clock(), self.lease_seconds, eligible=self.eligible)
         if claim is None:
             return False
         try:

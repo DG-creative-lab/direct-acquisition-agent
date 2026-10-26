@@ -198,19 +198,15 @@ class GroundingTests(unittest.TestCase):
         self.assertEqual(self.app.tasks.inspect("two", run)["run"]["status"], "failed")
         self.assertEqual(self.model.requests, [])
 
-    def test_legacy_v2_runs_remain_explicitly_ungrounded_and_replayable(self):
+    def test_new_v2_runs_cannot_be_admitted(self):
         from acquisition.runtime import TaskSpec
         state = self.app.tasks.inspect("one", self.run)
         specs = [TaskSpec(t["capability"].replace(".v3", ".v2"), t["inputs"] | {"workflow_version": "monthly-mail/v2"})
                  for t in state["tasks"]]
         self.app.tasks.cancel("one", self.run, self.now)
-        run = self.app.tasks.create("one", "legacy-v2", specs, self.now)
-        self.app.worker.drain("one")
-        final = self.app.tasks.inspect("one", run)
-        self.assertEqual(final["run"]["status"], "waiting")
-        self.assertEqual(len(self.model.requests), 4)
-        draft = self.app.drafts.get("one", final["tasks"][-1]["output"]["draft_id"])
-        self.assertTrue(all("fact_pack_id" not in c for c in draft.manifest["creatives"]))
+        with self.assertRaises(ValueError):
+            self.app.tasks.create("one", "legacy-v2", specs, self.now)
+        self.assertEqual(self.model.requests, [])
 
     def test_critic_evaluation_reports_failures_and_still_executes_independent_cases(self):
         from scripts.evaluate_claim_screen import main

@@ -25,13 +25,13 @@ The critic uses the same underlying model in a separate request. It is a probabi
 
 ## Persistence and module boundaries
 
-The implementation stays inside `creative`, behind the existing `reasoning` port. Runtime remains business-agnostic. `workflows` chooses the grounded capability and revalidates at draft creation. SQLite retains contexts, catalogue and inference receipts through the existing schema; no new database migration is necessary.
+The implementation stays inside `creative`, behind the existing `reasoning` port. Runtime remains business-agnostic. `workflows` chooses the grounded capability and revalidates at draft creation. SQLite retains contexts, catalogue and inference receipts. Review hardening adds schema v3 to freeze pre-existing task-plan admissions for legacy replay.
 
 Every creative carries its selected fact, pack ID, frozen context, evidence references and exact paired screening verdict. The candidate fingerprint covers headlines, hooks, hypotheses, arms, selected facts and pack identity. Changing copy cannot reuse the old verdict. The journal preserves the model/provider generation metadata and usage. A crash before catalogue persistence can replay both generation and critic receipts without another API call.
 
 Exports include `product-evidence.json` alongside the manifest, letters and CSVs. The pack keys can be recomputed from their content. The manifest holds the screening receipts and selected fact IDs. Exporting historical evidence does not renew its freshness or grant release authority.
 
-Legacy `monthly-mail/v2` tasks remain explicitly ungrounded and resumable under their original model configuration. New commands create v3 tasks, and a v3 capability cannot declare v2 inputs to skip grounding. Day-one serialization and exact artifact identity remain unchanged.
+Legacy `monthly-mail/v2` tasks remain explicitly ungrounded and resumable only when their exact persisted plan matches an admission frozen by the schema-v3 migration. Restarting cannot grant legacy status to new rows, and new v2 admission is rejected. An incompatible worker skips a task before claiming it, without consuming attempts. New commands create v3 tasks, and a v3 capability cannot declare v2 inputs to skip grounding. Historical day-one artifacts retain their original identity.
 
 ## Reproduce
 

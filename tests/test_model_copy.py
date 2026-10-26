@@ -246,4 +246,4 @@ class ModelCopyTests(unittest.TestCase):
         migrated = build(old)
         self.assertEqual(migrated.tasks.inspect("one", "legacy")["run"]["status"], "queued")
         with Database(old).connect() as connection:
-            self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 2)
+            self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 3)

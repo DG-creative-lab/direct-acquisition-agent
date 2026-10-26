@@ -42,7 +42,7 @@ The budget sample is 3 seeds x 3 sizes x 4 budgets = **36**, correcting the olde
 
 The nine newly declared failure scenarios have nine executable tests. The non-finite-time scenario checks three clock values across three operations, so **9/9** declared clock/operation combinations reject the action. The transport tests exercise **5/5** selected failure partitions: HTTP rejection, URL failure, timeout, oversized response and redirect.
 
-`make mutation-check` creates temporary source copies and weakens four controls: task clock validation, inference clock validation, the reservation budget and uncertain-call retry fencing. All **4/4** declared mutants are detected by the targeted tests. The suite separately rejects **7/7** declared architecture violations. These denominators describe selected experiments, not all possible mutations.
+`make mutation-check` creates temporary source copies and weakens seven controls: task lease expiry, inference clock validation, the reservation budget, uncertain-call retry fencing, worker configuration preflight, retired-workflow admission and durable timestamp validation. All **7/7** declared mutants are detected by the targeted tests. The suite separately rejects **7/7** declared architecture violations. These denominators describe selected experiments, not all possible mutations.
 
 Three added call-timeline fault positions are exercised: cancellation during a request, remote response before receipt persistence, and receipt write failure before a repeat attempt. They are **3/3** selected injections, not exhaustive fault-point coverage. Existing tests add other task/artifact recovery positions.
 
@@ -61,3 +61,17 @@ make mutation-check
 The release includes CI for Python 3.11 through 3.14. Offline tests do not need a model key. The public tree includes portable documentation and a labelled recorded copy example. Credentials, development databases, private research and internal references are excluded.
 
 Before day three, the critical remaining design work is explicit approval authority, an immutable approval subject containing the exact draft and current evidence, rejection of stale or superseded subjects, and tests at the approval/use boundary. Current checkpoint acknowledgement grants no release authority and must not be relabelled approval.
+
+## Follow-up review: three P2 findings
+
+The local review found three real gaps despite the first green suite. They are addressed with ten additional regression tests, bringing the current total to **71**. The old test that created a fresh v2 workflow is now an admission-rejection test; compatibility is tested using genuine persisted schema-v2 rows created before the current application opens the database.
+
+| Finding | Enforcement | Regression evidence |
+| --- | --- | --- |
+| Wrong worker configuration terminally failed a resumable run | Atomic claim-time compatibility check, including expired-lease recovery | Missing model, changed model/limits/tool choice and repeated worker invocations preserve attempts and state; correct worker resumes; compatible offline work is not starved; CLI reproduction covered |
+| Legacy registration allowed fresh ungrounded v2 work | New retired-capability admission rejected; schema-v3 migration freezes existing organization/run/plan hashes and checks them before legacy execution | Actual pre-migration records resume, matching replay returns the same run, fresh v2 admission fails, restart does not certify new rows, and coordinated plan/hash changes cannot reuse a certificate |
+| Infinite creation/acknowledgement times stranded tasks | Finite timestamp checks before mutation and finite derived lease/retry deadlines | Creation, acknowledgement and cancellation reject non-finite inputs without state/event changes; a finite clock still resumes valid work; overflowing lease expiry is rejected |
+
+The migration's table creation, admission snapshot and version change are transactional. A fault during snapshotting rolls back the cutoff and a subsequent clean migration resumes the original legacy run. Existing terminal or malformed records are not silently rewritten. The certificate is local database state, not a tamper-proof service against an administrator who edits the certificate itself.
+
+No paid live-model regression was rerun for these storage and scheduling changes. Offline tests exercise the actual CLI, worker, SQLite boundaries and model contracts with deterministic doubles. The seven selected mutation probes include the three new enforcement boundaries. General model quality, production topology and approval authority remain outside these checks.

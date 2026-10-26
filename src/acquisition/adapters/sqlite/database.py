@@ -1,6 +1,9 @@
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
+import json
+
+from acquisition.contracts import digest
 
 
 SCHEMA = """
@@ -62,13 +65,34 @@ class Database:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as connection:
             version = connection.execute("PRAGMA user_version").fetchone()[0]
-            if version not in {0, 1, 2}:
+            if version not in {0, 1, 2, 3}:
                 raise ValueError(f"Unsupported database schema {version}")
             if version == 0:
                 connection.executescript(SCHEMA)
             if version < 2:
                 connection.executescript(DAY_TWO)
+            if version < 3:
+                self._freeze_legacy_admissions(connection)
             connection.execute("PRAGMA journal_mode=WAL")
+
+    @staticmethod
+    def _freeze_legacy_admissions(connection):
+        connection.execute("BEGIN IMMEDIATE")
+        try:
+            # Recheck under the write lock. Reopening must never certify new rows.
+            if connection.execute("PRAGMA user_version").fetchone()[0] < 3:
+                connection.execute("""CREATE TABLE legacy_task_admissions (
+                    organization TEXT NOT NULL, run_id TEXT NOT NULL REFERENCES runs(id),
+                    request_hash TEXT NOT NULL, PRIMARY KEY(organization,run_id))""")
+                for run in connection.execute("SELECT * FROM runs").fetchall():
+                    if stored_plan_hash(connection, run["id"]) == run["request_hash"]:
+                        connection.execute("INSERT INTO legacy_task_admissions VALUES(?,?,?)",
+                                           (run["organization"], run["id"], run["request_hash"]))
+                connection.execute("PRAGMA user_version=3")
+            connection.commit()
+        except BaseException:
+            connection.rollback()
+            raise
 
     @contextmanager
     def connect(self):
@@ -90,3 +114,12 @@ class Database:
             except BaseException:
                 connection.rollback()
                 raise
+
+
+def stored_plan_hash(connection, run_id: str) -> str | None:
+    try:
+        specs = [{"capability": row["capability"], "inputs": json.loads(row["inputs"]), "max_attempts": row["max_attempts"]}
+                 for row in connection.execute("SELECT * FROM tasks WHERE run_id=? ORDER BY position", (run_id,))]
+        return digest(specs) if specs else None
+    except (ValueError, TypeError):
+        return None
