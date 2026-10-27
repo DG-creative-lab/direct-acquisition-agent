@@ -1,6 +1,6 @@
-# Product-grounded copy before day three
+# Product evidence and grounded copy
 
-Implemented on 25 October 2026. New model commands use GPT-OSS-120B and `monthly-mail/v3`. The deliverable is a sourced, screened, unreviewed synthetic draft. It does not approve financial promotions, assess recipient eligibility or send mail.
+New model commands use GPT-OSS-120B and `monthly-mail/v3`. The deliverable is a sourced, screened, unreviewed synthetic draft. It does not approve financial promotions, assess recipient eligibility or send mail.
 
 ## Evidence and editorial authority
 
@@ -31,7 +31,7 @@ Every creative carries its selected fact, pack ID, frozen context, evidence refe
 
 Exports include `product-evidence.json` alongside the manifest, letters and CSVs. The pack keys can be recomputed from their content. The manifest holds the screening receipts and selected fact IDs. Exporting historical evidence does not renew its freshness or grant release authority.
 
-Legacy `monthly-mail/v2` tasks remain explicitly ungrounded and resumable only when their exact persisted plan matches an admission frozen by the schema-v3 migration. Restarting cannot grant legacy status to new rows, and new v2 admission is rejected. An incompatible worker skips a task before claiming it, without consuming attempts. New commands create v3 tasks, and a v3 capability cannot declare v2 inputs to skip grounding. Historical day-one artifacts retain their original identity.
+Legacy `monthly-mail/v2` tasks remain explicitly ungrounded and resumable only when their exact persisted plan matches an admission frozen by the schema-v3 migration. Restarting cannot grant legacy status to new rows, and new v2 admission is rejected. An incompatible worker skips a task before claiming it, without consuming attempts. New commands create v3 tasks, and a v3 capability cannot declare v2 inputs to skip grounding. Historical deterministic artifacts retain their original identity.
 
 ## Reproduce
 
@@ -59,7 +59,7 @@ PYTHONPATH=src python3 scripts/evaluate_claim_screen.py --request-id screen-eval
 
 ## Failure-space evidence
 
-Final offline verification passed **52 tests** plus the architecture check. The new tests use real SQLite and controlled time. Their independent oracles are the checked pack, literal required qualification text, explicit rejected claim examples, expected scope/identity and labelled critic outcomes.
+Offline tests use real SQLite and controlled time. Independent oracles include literal required qualification text, rejected claim examples, expected identity/scope and labelled critic outcomes. See [validation](validation.md) for the current test portfolio.
 
 | Invariant | Failure exercised | Observable consequence |
 | --- | --- | --- |
@@ -73,18 +73,12 @@ Final offline verification passed **52 tests** plus the architecture check. The 
 | Version compatibility | Legacy v2 replay and v3 capability/input downgrade | Legacy stays ungrounded; inconsistent downgrade blocked |
 | Evaluation independence | First critic call fails with unknown cost | Remaining three cases execute; report retains incomplete case and missing cost |
 
-## Live validation
+## Recorded live evaluation, 25 October 2026
 
-The completed acceptance run is `.local/grounded-iwoca-v6.json`: nine GPT-OSS-120B calls, reported cost **$0.00108033**, and a persisted draft waiting for review. It reconciles 1,000 synthetic records to 245 exclusions, 74 no-mail controls and 681 draft recipients, with £578.85 synthetic mailing cost. Mailing cost and inference cost are separate. Both segments' final paired checks passed after bounded corrections. The generated text was also read manually; it is a working demonstration, still somewhat wordy and not a finished direct-mail piece.
+A recorded GPT-OSS-120B generation run used nine calls, reported $0.00108033 in inference cost and persisted an unreviewed draft. The synthetic population reconciled to 245 exclusions, 74 controls and 681 recipients, with £578.85 in separate simulated mailing cost. Both segments passed their paired screen after bounded corrections. A [portable copy example](../examples/grounded-run/letters.txt) is included for inspection. Passing the screen did not constitute editorial approval; the manually inspected output was still wordy.
 
-The exact draft is `draft_8578d1f9c53b6d372fc1f0fad88cda038b9372e055537fac5e6c1d94ec0df401`. Its export includes `letters.txt`, `manifest.json`, `product-evidence.json`, `mailing.csv` and `assignments.csv` under `.local/exports/`.
+The labelled regression in `config/claim-screen-cases-v1.json` completed four pairs, matching eight of eight variant labels with four calls and $0.00045711 reported cost. Expected labels were hidden from the critic, but the corpus and rubric were developed together. This is a regression observation, not held-out accuracy. These dated costs describe those executions, not current pricing or a future cost guarantee.
 
-Development failures are retained rather than represented as successful acceptance runs. They included invented guidance IDs, unsupported repayment-schedule implications, a provider stop without a tool, and critic confusion between generated hooks and inserted product text. One earlier completed draft used questions implying business benefits; the earlier critic passed them. That human-discovered false negative became the `benefits-hidden-in-questions` regression case and an additional deterministic check. A later critic request returned malformed arguments; no classification or campaign authority was inferred from it.
+Observed failures included a false negative for benefits phrased as questions, false rejections, malformed tool arguments and provider completions without a tool. The false negative informed an additional deterministic rule and a regression case. Incomplete verdicts remain incomplete evaluations, never inferred passes. The evaluation harness isolates cases so one provider failure cannot hide the remainder.
 
-The evaluation harness originally put independent cases in one fail-fast campaign-style run, which let one provider failure hide later cases. It now gives each case one inference reservation in its own run and reports incomplete results separately. The labelled corpus and critic prompt were developed together, so subsequent success on these examples is a regression result, not a held-out quality estimate. Earlier rounds remain in `.local/claim-screen-eval.sqlite`.
-
-The final isolated regression, `.local/claim-screen-eval-v4.json`, completed all four pairs: **eight of eight variant labels matched**. It accepted both situational questions and rejected all six labelled negative examples, including implied benefits phrased as questions, injection and fabricated results. Four calls reported **$0.00045711**, with no missing cost receipts. This result does not erase the earlier false negative, false rejections or malformed/provider failures and is not a claim of general accuracy.
-
-Across this grounding round's development and evaluation databases, all 44 call receipts together reported **$0.00493797**. That includes the failed experiments, not only the final successful runs. No cost receipt was missing in those two databases; earlier day-two model comparisons are separate.
-
-The lexical list is intentionally bounded. Remaining risks include semantic false negatives, false rejections, source changes inside the review window, manual fact-pack mistakes and marketing judgment beyond the rubric. Day three must treat this catalogue as a proposal and bind any new approval mechanism to the exact artifact and current evidence.
+The lexical list is bounded, and the drafting and screening requests use the same underlying model. Remaining risks include semantic false negatives, false rejections, source changes inside the review window, manual pack mistakes and judgment beyond the rubric. The [review flow](reviews.md) binds any approval to the exact artifact and current evidence. Development databases are not shipped, and no new model call is implied by these recorded results.

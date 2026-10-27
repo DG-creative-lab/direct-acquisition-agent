@@ -1,67 +1,59 @@
 # Direct Acquisition Agent
 
-A Python acquisition operations demo with custom orchestration, persistent tasks, audience-specific copy and human review checkpoints. All audience data is synthetic. This is an independent demonstration with no connection to a lender's production systems.
+An acquisition workspace for preparing audience-specific direct-mail experiments, reviewing the exact campaign and learning from counted outcomes. It combines a custom agent runtime with deterministic population rules, source-grounded copy generation and explicit human approval.
 
-The first workflow prepares a direct-mail campaign: inspect an audience, draft contrasting messages for two segments, apply deterministic exclusions and a budget, assign A/B/no-mail groups, then stop for review. It does not send letters or make lending decisions.
+Built by Dessi Georgieva. The current product is a local demonstration using synthetic businesses, simulated agency acceptance and synthetic responses. The example campaign uses public iwoca product evidence. It has no connection to iwoca production systems, sends no mail and makes no lending decisions.
 
-## Run locally
+## What the product does
 
-The Python CLI requires Python 3.11 or later and no third-party Python packages. The optional React interface also requires Node 22.12+ and npm on macOS or Linux.
+- Prepares a campaign audience with traceable exclusions, a bounded mailing budget and randomized A/B/no-mail assignments.
+- Uses offline copy fixtures or explicitly requested GPT-OSS-120B generation through OpenRouter. Generated framing is checked against a frozen product fact pack; factual text and qualifications are inserted by code.
+- Records review decisions against an exact draft and current evidence. Suppression, revision, expiry or withdrawn authority blocks a new simulated handoff until the requirements are met again.
+- Counts only complete, mature outcome cohorts. Bayesian comparisons with the no-mail group inform a proposed next experiment, which needs its own review.
+
+The [product overview](docs/product.md) explains the intended users, authority boundaries and current limits. The [user guide](docs/user-guide.md) follows the interface from a new campaign through review and learning.
+
+## Try it locally
+
+Requires Python 3.11 or later, Node 22.12+ and npm on macOS or Linux.
 
 ```sh
 make workspace
 ```
 
-Open `http://127.0.0.1:8768`. Explore audience and copy, record review decisions, invalidate approval with a suppression, simulate handoff and inspect mature learning. Offline mode has no API cost. Model generation is an explicit OpenRouter option. See the [interface guide](docs/day-five.md) for startup, recovery and the local transport boundary.
+Open [the local workspace](http://127.0.0.1:8768/) and choose **New campaign → Offline fixtures → Prepare campaign**. This path needs no model key and makes no inference requests. All audience records and results are labelled synthetic. Stop the server with Ctrl+C.
+
+To try model copy, configure `OPENROUTER_API_KEY` in ignored `.env.local`, then explicitly choose **Generate with GPT-OSS-120B**. This spends provider credit and requires an unexpired, manually reviewed fact pack. No paid fallback or uncertain-call retry is automatic. See [model integration](docs/model-integration.md) and [product grounding](docs/product-grounding.md).
+
+The server is loopback-only and intended for trusted local use. Startup, storage, recovery and CLI alternatives are in [local operations](docs/workspace.md).
+
+## Documentation
+
+| Reader need | Guide |
+| --- | --- |
+| Understand the product and demonstrated scope | [Product overview](docs/product.md) |
+| Walk through campaign, review and learning | [User guide](docs/user-guide.md) |
+| Understand modules, state and transactions | [Architecture](docs/architecture.md) |
+| Assess a path to hosted operation and scale | [Scalability](docs/scalability.md) |
+| Run and recover the local application | [Workspace operations](docs/workspace.md) |
+| Inspect approval and invalidation semantics | [Review reference](docs/reviews.md) |
+| Inspect outcome contracts and Bayesian assumptions | [Learning reference](docs/learning.md) |
+| Inspect inference controls and evidence | [Model integration](docs/model-integration.md), [grounding](docs/product-grounding.md) |
+| Assess verification and remaining gaps | [Validation](docs/validation.md) |
+| Reuse the visual system and trace the shared mark | [Branding](docs/branding.md) |
+
+## Engineering
+
+A Python modular monolith owns business rules, durable tasks, inference reservations and authority. SQLite and OpenRouter sit behind narrow ports. React is a presentation client of the same-origin local API. The workflow order is explicit in code, and the model's tool surface is bounded to context reading and copy submission.
 
 ```sh
-make demo
-PYTHONPATH=src python3 -m acquisition --db .local/review.sqlite demo-review --out .local/day-three
-PYTHONPATH=src python3 -m acquisition --db .local/learning.sqlite demo-learning --out .local/day-four
 make test
 make arch-check
 make mutation-check
+npm --prefix frontend exec -- playwright install chromium
+make interface-check
 ```
 
-The deterministic demo needs no model account. It creates a local SQLite database and exports a manifest, mailing CSV and assignment CSV. Repeated requests reuse their persisted identity and artifact.
+Offline checks need no provider credentials. Live model quality is evaluated separately. A [recorded generated-copy example](examples/grounded-run/letters.txt) is supplied for inspection, with its limitations described in the grounding guide.
 
-For generated copy, configure an OpenRouter key in ignored `.env.local` as `OPENROUTER_API_KEY`. GPT-OSS-120B is the default. You can also list current inexpensive tool-capable models:
-
-```sh
-PYTHONPATH=src python3 -m acquisition models
-PYTHONPATH=src python3 -m acquisition --db .local/copy.sqlite demo-model --request-id copy-demo
-```
-
-Free endpoints may be unavailable or fail the output contract. No paid fallback is automatic. Model responses are validated before a draft is saved. All generated copy remains unreviewed, and checkpoint acknowledgement grants no sending authority.
-
-Model commands default to GPT-OSS-120B. The current direct-mail configuration uses a dated, public-source iwoca fact pack. Generated framing is checked separately; code inserts selected factual wording, qualifications and the official CTA. The source pack and paired screening result travel with the exported draft. The semantic screen can make mistakes and does not replace human review. New generation stops when the evidence review window expires.
-
-The interface shares Dessi Georgieva's publication typography and palette, with a restrained shared Op Art signature. See the [branding guide](docs/branding.md) for reusable tokens, asset provenance and application boundaries.
-
-## Architecture
-
-One deployable modular monolith contains runtime, audiences, campaigns, creative, reasoning, learning and reviews modules. Domain rules are pure; application services depend on narrow ports; SQLite, filesystem and OpenRouter implementations are adapters. An explicit composition root wires the application together. Static checks enforce module imports and reject cycles.
-
-The model can read editorial context and submit bounded copy drafts. Code controls the population, experiment assignments, exact money calculations, task lifecycle and artifact integrity. Inference requests are reserved and journaled before dispatch so task recovery can reuse completed responses without issuing another request.
-
-## Memory and learning
-
-Editorial memory contains reviewer preferences and examples scoped to the organization and segment. Each run freezes the guidance and examples it uses. This is separate from evidence of audience response.
-
-The learning module ingests explicit synthetic outcomes for accepted simulated campaigns, waits for a complete 28-day cohort and persists Beta posterior counts. It compares A/B variants with the no-mail control and recommends a further experiment when illustrative evidence thresholds are met. New copy runs freeze mature learning memory alongside separate editorial preferences.
-
-Run `demo-learning` to create `.local/day-four/learning.html`, with a clearly labelled simulated clock and outcomes. Repeated imports and finalization do not double-count evidence. The prototype rejects repeated business exposure across cohorts. Recommendations remain advisory and require a new proposal and approval. See the [day-four guide](docs/day-four.md) for the statistical assumptions, import contract and limits. No synthetic judgment is presented as real customer response.
-
-## Current boundaries
-
-This is a local prototype for trusted operators, with a single active worker. The organization flag selects a scope; it is not hosted authentication. Review decisions bind the exact draft, audience and active evidence. Changes, expiry or revoked reviewer authority block a new simulated handoff. A read-only HTML report supports inspection; decisions use the transactional CLI. See the [day-three guide](docs/day-three.md) for manual commands, invalidation rules and recovery semantics.
-
-The scripted review demo writes `.local/day-three/review.html` and demonstrates a late suppression followed by fresh approval. Its reviewer decisions are scripted, and agency acceptance is a local simulation. Hosted authentication, real agency delivery and production data connectors require further implementation and verification.
-
-Tests cover domain rules, real SQLite persistence, separate-process restart, task leases, idempotency, scoped memory, model-call replay and deterministic output validation. Live model quality is evaluated separately from offline contract tests.
-
-## Review evidence
-
-The current suite has 151 offline Python tests, a static architecture check, 22 targeted mutation checks, nine executable frontend regressions and a strict TypeScript interface build. See the [test coverage review](docs/test-coverage-review.md), [architecture](docs/architecture.md) and [product-grounding notes](docs/product-grounding.md). A [recorded copy example](examples/grounded-run/letters.txt) shows the unreviewed output of a live run.
-
-Development branches use the `feature/...` naming convention. Real outcome feeds, correction/retraction, repeated-exposure models and external delivery are later work. No license terms have been selected yet.
+Development branches use `feature/...`. Build history is available in Git; the guides describe the current product and label future work explicitly. No license terms have been selected yet.
