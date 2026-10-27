@@ -1,7 +1,7 @@
 from dataclasses import replace
 
 from acquisition.audiences import AudienceStore
-from acquisition.campaigns import Brief, CampaignService, DraftStore
+from acquisition.campaigns import brief_from, CampaignService, DraftStore
 from acquisition.reviews import creatives_from
 
 
@@ -16,5 +16,5 @@ class ReviewProposalBuilder:
         updated = replace(snapshot, records=tuple(replace(row, suppressed=True) if row.business_id in blocked else row
                                                   for row in snapshot.records))
         snapshot_id = self.audiences.put(updated)
-        return self.campaigns.prepare_with_catalogue(organization, snapshot_id, Brief(**draft.manifest["brief"]),
+        return self.campaigns.prepare_with_catalogue(organization, snapshot_id, brief_from(draft.manifest["brief"]),
                                                       operation, creatives_from(draft))["draft_id"]

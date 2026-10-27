@@ -4,7 +4,7 @@ import json
 from dataclasses import asdict
 
 from acquisition.contracts import canonical, digest
-from acquisition.conversations import CAPABILITY, validate_result
+from acquisition.conversations import CAPABILITY, FIXTURE_MESSAGE, validate_result
 from acquisition.reasoning import CallScope, Inference, ModelError
 from acquisition.runtime import Outcome
 
@@ -55,6 +55,18 @@ class ConversationPlanner:
         if self.inference is None:
             raise ModelError("configure_the_original_planner_before_resuming")
         self.inference.prepare_request(self.messages(frozen), [SUBMIT])
+
+    def fixture_plan(self, claim):
+        frozen = claim.inputs
+        if (frozen.get("fixture") != "offline-example/v1" or len(frozen.get("messages", [])) != 1
+                or frozen["messages"][0]["content"] != FIXTURE_MESSAGE
+                or frozen.get("knowledge_id") != "knowledge_" + digest(frozen["knowledge"])):
+            raise ValueError("Offline example input does not match the frozen fixture")
+        candidate = {"outcome": "brief_proposal", "objective": "Test direct-mail responses among UK contractors.",
+                     "budget_pence": 60000, "segments": ["contractors"], "copy_mode": "fixture",
+                     "question": "", "assumptions": ["Use synthetic audience data and offline copy fixtures."],
+                     "unsupported_reason": ""}
+        return Outcome("succeeded", validate_result(candidate, frozen, claim.organization))
 
     def plan(self, claim):
         if not self.eligible(claim.capability, claim.inputs):

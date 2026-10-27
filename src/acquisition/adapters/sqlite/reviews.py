@@ -10,6 +10,7 @@ from uuid import uuid4
 from acquisition.audiences import Business, Snapshot
 from acquisition.campaigns import Draft
 from acquisition.contracts import Conflict, NotFound, canonical, digest
+from acquisition.conversations import validate_result
 from acquisition.creative import fact_pack_id, validate_fact_pack
 from acquisition.reviews import ReviewPolicy, current_reasons, subject, text, timestamp, validate_candidate
 
@@ -90,8 +91,46 @@ class SqliteReviews:
     def _suppressed(self, db, organization):
         return {r[0] for r in db.execute("SELECT business_id FROM review_suppressions WHERE organization=?", (organization,))}
 
-    def _validate(self, db, organization, draft_id, authority, now):
+    def _conversation_source(self, db, organization, case, draft):
+        original = db.execute("SELECT inputs FROM tasks WHERE run_id=? ORDER BY position LIMIT 1", (case["run_id"],)).fetchone()
+        inputs = json.loads(original[0]) if original else {}
+        source = inputs.get("brief", {})
+        brief = draft.manifest["brief"]
+        if inputs.get("workflow_version") != "conversation-mail/v1":
+            if "conversation_id" in brief:
+                raise Conflict("Conversation provenance cannot be added to another workflow")
+            return
+        if brief != source:
+            raise Conflict("Campaign differs from its original conversation proposal")
+        conversation_scope = "local-conversations"
+        conversation = db.execute("SELECT revision FROM conversations WHERE organization=? AND id=?",
+                                  (conversation_scope, source["conversation_id"])).fetchone()
+        if conversation is None or conversation[0] != source["conversation_revision"]:
+            raise Conflict("Conversation changed after this campaign was prepared")
+        row = db.execute("SELECT payload FROM conversation_plans WHERE organization=? AND conversation_id=? AND revision=?",
+                         (conversation_scope, source["conversation_id"], source["conversation_revision"])).fetchone()
+        if row is None:
+            raise Conflict("Original conversation plan is unavailable")
+        frozen = json.loads(row[0])
+        row = db.execute("""SELECT t.output FROM runs r JOIN tasks t ON t.run_id=r.id
+            WHERE r.organization=? AND r.request_id=? AND r.status='succeeded' AND t.status='succeeded'
+            AND t.capability IN ('conversations.plan.v1','conversations.fixture_plan.v1')""", (conversation_scope, frozen["run_request_id"])).fetchone()
+        if row is None:
+            raise Conflict("Original conversation plan has not succeeded")
+        result = json.loads(row[0])
+        fields = ("outcome", "objective", "budget_pence", "segments", "copy_mode", "question", "assumptions", "unsupported_reason")
+        try:
+            verified = validate_result({field: result[field] for field in fields}, frozen, conversation_scope)
+        except (KeyError, TypeError, ValueError):
+            raise Conflict("Original conversation plan failed integrity checks") from None
+        if (verified != result or result["id"] != source["plan_id"] or result["outcome"] != "brief_proposal"
+                or result["copy_mode"] != "fixture" or result["budget_pence"] != brief["budget_pence"]
+                or result["segments"] != brief["segments"]):
+            raise Conflict("Campaign does not match its validated conversation proposal")
+
+    def _validate(self, db, organization, case, draft_id, authority, now):
         bundle = self._bundle(db, organization, draft_id)
+        self._conversation_source(db, organization, case, bundle[0])
         validate_candidate(*bundle, authority["pack"], ReviewPolicy(**authority["policy"]), self._suppressed(db, organization), now)
         return bundle[0]
 
@@ -129,6 +168,16 @@ class SqliteReviews:
                 db.execute("INSERT OR REPLACE INTO review_actors VALUES(?,?,?,?,?)", (organization, actor, role_json, enabled, generation))
                 self._event(db, organization, None, "local_actor_configured", {"actor": actor, "generation": generation}, now)
             return {"actor": actor, "roles": json.loads(role_json), "enabled": enabled, "generation": generation}
+
+    def initialize_actor(self, organization, actor, roles):
+        """Create initial local authority once without overriding later administration."""
+        text(organization, 120), text(actor, 120)
+        if not roles or set(roles) - {"operator", "reviewer"}:
+            raise ValueError("Known local operator/reviewer roles required")
+        with self.database.transaction() as db:
+            if db.execute("SELECT 1 FROM review_actors WHERE organization=? AND id=?", (organization, actor)).fetchone() is None:
+                db.execute("INSERT INTO review_actors VALUES(?,?,?,?,?)", (organization, actor, canonical(sorted(set(roles))), True, 1))
+                self._event(db, organization, None, "local_actor_configured", {"actor": actor, "generation": 1}, self._now())
 
     def activate(self, organization, actor, request_id, pack, policy):
         with self.database.transaction() as db:
@@ -221,7 +270,7 @@ class SqliteReviews:
             candidate_reasons = current_reasons(proposal, authority)
             try:
                 self._run_ready(db, organization, case)
-                self._validate(db, organization, proposal["draft_id"], authority, now)
+                self._validate(db, organization, case, proposal["draft_id"], authority, now)
             except (ValueError, NotFound) as error:
                 candidate_reasons.append(str(error))
             reasons.extend(candidate_reasons)
@@ -271,7 +320,7 @@ class SqliteReviews:
             if decision == "approve":
                 if current_reasons(proposal, authority):
                     raise Conflict("Current evidence changed; publish a refreshed subject before approving")
-                self._validate(db, organization, proposal["draft_id"], authority, now)
+                self._validate(db, organization, case, proposal["draft_id"], authority, now)
             receipt = {"kind": "review_decision", "id": "decision_" + uuid4().hex, "case_id": case_id,
                 "subject_id": expected_subject, "actor": actor, "actor_generation": reviewer["generation"],
                 "decision": decision, "reason": reason, "at": now, "expires_at": now + ttl_seconds,
@@ -357,7 +406,7 @@ class SqliteReviews:
             authority = self._authority(db, organization)
             if (audience_epoch, evidence_epoch) != (authority["audience_epoch"], authority["evidence_epoch"]):
                 raise Conflict("Evidence changed during preparation; retry with a new request ID")
-            draft = self._validate(db, organization, draft_id, authority, now)
+            draft = self._validate(db, organization, case, draft_id, authority, now)
             original = self._bundle(db, organization, old["draft_id"])[0]
             if draft.manifest["brief"]["campaign_id"] != original.manifest["brief"]["campaign_id"]:
                 raise Conflict("Replacement belongs to a different campaign")
@@ -390,7 +439,7 @@ class SqliteReviews:
             reasons = self._approval_reasons(db, organization, case, proposal, authority, approval, now)
             if reasons:
                 raise Conflict("Simulated handoff blocked: " + "; ".join(reasons))
-            draft = self._validate(db, organization, proposal["draft_id"], authority, now)
+            draft = self._validate(db, organization, case, proposal["draft_id"], authority, now)
             receipt = {"kind": "simulated_agency_acceptance", "mode": "SYNTHETIC_NO_PRINT_NO_SEND", "id": "fake_job_" + digest({"case": case_id, "approval": approval_id}),
                 "actor": actor, "actor_generation": operator["generation"], "case_id": case_id,
                 "approval_id": approval_id, "subject_id": proposal["id"], "draft_id": draft.id,

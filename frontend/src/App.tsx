@@ -27,8 +27,9 @@ import { Badge, Empty, Modal } from "./ui";
 import { AudienceView, CopyView } from "./CampaignViews";
 import ReviewPanel from "./ReviewPanel";
 import LearningView from "./LearningView";
+import ConversationWorkspace from "./ConversationWorkspace";
 
-type Page = "campaign" | "evidence" | "learning" | "activity";
+type Page = "assistant" | "campaign" | "evidence" | "learning" | "activity";
 type Tab = "audience" | "copy";
 
 export default function App() {
@@ -37,7 +38,7 @@ export default function App() {
       () => localStorage.getItem("workspace-selected") ?? "",
     ),
     [state, setState] = useState<State | null>(null);
-  const [page, setPage] = useState<Page>("campaign"),
+  const [page, setPage] = useState<Page>("assistant"),
     [tab, setTab] = useState<Tab>("audience"),
     [busy, setBusy] = useState(""),
     [error, setError] = useState(""),
@@ -46,6 +47,8 @@ export default function App() {
     [mode, setMode] = useState<"fixture" | "model">("fixture");
   const [listed, setListed] = useState(false);
   const [parent, setParent] = useState<string | null>(null);
+  const [conversationMount, setConversationMount] =
+    useState<HTMLDivElement | null>(null);
   const selectedRef = useRef(selected),
     generation = useRef(0),
     listGeneration = useRef(0);
@@ -198,7 +201,7 @@ export default function App() {
           href="#"
           onClick={(e) => {
             e.preventDefault();
-            setPage("campaign");
+            setPage("assistant");
           }}
         >
           <span className="brand-mark" aria-hidden="true">
@@ -218,6 +221,7 @@ export default function App() {
           WORKSPACE <span>01</span>
         </div>
         <nav aria-label="Workspace navigation">
+          <div ref={setConversationMount} className="conversation-navigation" />
           {nav.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -302,7 +306,11 @@ export default function App() {
             <Layers3 size={16} />
             <span>Workspace</span>
             <ChevronRight size={13} />
-            <strong>{nav.find((n) => n.id === page)?.label}</strong>
+            <strong>
+              {page === "assistant"
+                ? "Conversations"
+                : nav.find((n) => n.id === page)?.label}
+            </strong>
           </div>
           <div className="top-actions">
             <span className="environment">
@@ -324,431 +332,454 @@ export default function App() {
           </div>
         </header>
         <main id="workspace-main">
-          <div className="page-heading">
-            <div>
-              <div className="eyebrow">ACQUISITION OPERATIONS</div>
-              <h1>
-                {page === "campaign"
-                  ? "Campaign workspace"
-                  : page === "evidence"
-                    ? "Product evidence"
-                    : page === "learning"
-                      ? "Campaign learning"
-                      : "Activity log"}
-              </h1>
-              <p>
-                {page === "campaign"
-                  ? "From audience selection to a reviewed, traceable campaign."
-                  : page === "evidence"
-                    ? "The source material and qualifications behind this campaign."
-                    : page === "learning"
-                      ? "Counted outcomes, uncertainty and the next experiment."
-                      : "Decisions and receipts, in the order they were committed."}
-              </p>
-            </div>
-            <button
-              className="button primary"
-              onClick={() => {
-                setParent(null);
-                setCreating(true);
+          <div hidden={page !== "assistant"}>
+            <ConversationWorkspace
+              navigationTarget={conversationMount}
+              active={page === "assistant"}
+              onNavigate={() => setPage("assistant")}
+              onOpenCampaign={(next) => {
+                selectedRef.current = next.session.id;
+                setSelected(next.session.id);
+                setState(next);
+                setPage("campaign");
+                setTab("audience");
+                void loadList();
               }}
-              disabled={!!busy}
-            >
-              <Plus size={16} />
-              New campaign
-            </button>
+            />
           </div>
-          {error && (
-            <div className="message error" role="alert">
-              <AlertTriangle size={17} />
-              <span>{error}</span>
-              <button
-                className="icon-button"
-                aria-label="Dismiss error"
-                onClick={() => setError("")}
-              >
-                <X size={15} />
-              </button>
-            </div>
-          )}
-          {notice && (
-            <div className="message success" role="status">
-              <Check size={17} />
-              <span>{notice}</span>
-              <button
-                className="icon-button"
-                aria-label="Dismiss notification"
-                onClick={() => setNotice("")}
-              >
-                <X size={15} />
-              </button>
-            </div>
-          )}
-          {busy && (
-            <div className="busy-line" role="status">
-              <Loader2 size={14} className="spin" />
-              {busy === "Creating campaign" && mode === "model"
-                ? "Generating and checking copy. Up to 10 bounded model calls."
-                : `${busy.replaceAll("-", " ")} in progress…`}
-            </div>
-          )}
-          {!selected && !sessions.length ? (
-            <Empty icon={Mail} title="Prepare your first campaign">
-              <p>
-                Explore audience selection, exact-draft review and response
-                learning in one local sandbox.
-              </p>
-              <button
-                className="button primary"
-                onClick={() => {
-                  setParent(null);
-                  setCreating(true);
-                }}
-              >
-                <Plus size={16} />
-                Create a synthetic campaign
-              </button>
-            </Empty>
-          ) : !state ? (
-            <div className="loading">
-              <Loader2 className="spin" size={22} />
-              Loading campaign
-            </div>
-          ) : !view ? (
-            <Empty icon={Clock3} title="Campaign preparation">
-              <p>
-                This campaign has not reached review. Resume preparation to
-                recover persisted tasks.
-              </p>
-              <button
-                className="button primary"
-                onClick={() => act("prepare")}
-                disabled={!!busy}
-              >
-                Resume preparation
-              </button>
-              <details>
-                <summary>Task state</summary>
-                <pre>{JSON.stringify(state.tasks, null, 2)}</pre>
-              </details>
-            </Empty>
-          ) : (
+          {page !== "assistant" && (
             <>
-              <section className="campaign-header">
+              <div className="page-heading">
                 <div>
-                  <span className="campaign-number">
-                    CAMPAIGN / {state.session.id.slice(-6).toUpperCase()}
-                  </span>
-                  <h2>Working capital exploration</h2>
-                  <div className="campaign-meta">
-                    <span>
-                      <Clock3 size={13} />
-                      {date(state.session.clock)} ·{" "}
-                      {state.session.clock_mode === "SIMULATED"
-                        ? "Simulated clock"
-                        : "Sandbox clock"}
-                    </span>
-                    <span>Revision {view.subject.revision}</span>
-                    <Badge
-                      tone={
-                        view.handoff || view.approval_valid
-                          ? "green"
-                          : !view.candidate_valid
-                            ? "amber"
-                            : "neutral"
-                      }
-                    >
-                      {status}
-                    </Badge>
-                  </div>
+                  <div className="eyebrow">ACQUISITION OPERATIONS</div>
+                  <h1>
+                    {page === "campaign"
+                      ? "Campaign workspace"
+                      : page === "evidence"
+                        ? "Product evidence"
+                        : page === "learning"
+                          ? "Campaign learning"
+                          : "Activity log"}
+                  </h1>
+                  <p>
+                    {page === "campaign"
+                      ? "From audience selection to a reviewed, traceable campaign."
+                      : page === "evidence"
+                        ? "The source material and qualifications behind this campaign."
+                        : page === "learning"
+                          ? "Counted outcomes, uncertainty and the next experiment."
+                          : "Decisions and receipts, in the order they were committed."}
+                  </p>
                 </div>
                 <button
-                  className="button secondary"
-                  onClick={() =>
-                    download(selected, "manifest", view.subject.id).catch((e) =>
-                      setError(e.message),
-                    )
-                  }
+                  className="button primary"
+                  onClick={() => {
+                    setParent(null);
+                    setCreating(true);
+                  }}
+                  disabled={!!busy}
                 >
-                  <ArrowDownToLine size={15} />
-                  Manifest
+                  <Plus size={16} />
+                  New campaign
                 </button>
-              </section>
-              <div className="stage-strip" aria-label="Campaign progress">
-                {[
-                  { label: "Audience prepared", done: true },
-                  { label: "Copy prepared", done: true },
-                  {
-                    label: "Human review",
-                    done: view.approval_valid || !!view.handoff,
-                  },
-                  { label: "Simulated handoff", done: !!view.handoff },
-                  {
-                    label: "Outcome learning",
-                    done: state.learning?.status === "finalized",
-                  },
-                ].map((s, i) => (
-                  <div
-                    key={s.label}
-                    className={s.done ? "stage done" : "stage"}
-                  >
-                    <span>
-                      {s.done ? (
-                        <Check size={11} />
-                      ) : (
-                        String(i + 1).padStart(2, "0")
-                      )}
-                    </span>
-                    {s.label}
-                    {i < 4 && <ChevronRight size={13} />}
-                  </div>
-                ))}
               </div>
-              {page === "campaign" && (
+              {error && (
+                <div className="message error" role="alert">
+                  <AlertTriangle size={17} />
+                  <span>{error}</span>
+                  <button
+                    className="icon-button"
+                    aria-label="Dismiss error"
+                    onClick={() => setError("")}
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+              )}
+              {notice && (
+                <div className="message success" role="status">
+                  <Check size={17} />
+                  <span>{notice}</span>
+                  <button
+                    className="icon-button"
+                    aria-label="Dismiss notification"
+                    onClick={() => setNotice("")}
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+              )}
+              {busy && (
+                <div className="busy-line" role="status">
+                  <Loader2 size={14} className="spin" />
+                  {busy === "Creating campaign" && mode === "model"
+                    ? "Generating and checking copy. Up to 10 bounded model calls."
+                    : `${busy.replaceAll("-", " ")} in progress…`}
+                </div>
+              )}
+              {!selected && !sessions.length ? (
+                <Empty icon={Mail} title="Prepare your first campaign">
+                  <p>
+                    Explore audience selection, exact-draft review and response
+                    learning in one local sandbox.
+                  </p>
+                  <button
+                    className="button primary"
+                    onClick={() => {
+                      setParent(null);
+                      setCreating(true);
+                    }}
+                  >
+                    <Plus size={16} />
+                    Create a synthetic campaign
+                  </button>
+                </Empty>
+              ) : !state ? (
+                <div className="loading">
+                  <Loader2 className="spin" size={22} />
+                  Loading campaign
+                </div>
+              ) : !view ? (
+                <Empty icon={Clock3} title="Campaign preparation">
+                  <p>
+                    This campaign has not reached review. Resume preparation to
+                    recover persisted tasks.
+                  </p>
+                  <button
+                    className="button primary"
+                    onClick={() => act("prepare")}
+                    disabled={!!busy}
+                  >
+                    Resume preparation
+                  </button>
+                  <details>
+                    <summary>Task state</summary>
+                    <pre>{JSON.stringify(state.tasks, null, 2)}</pre>
+                  </details>
+                </Empty>
+              ) : (
                 <>
-                  <section className="metrics">
+                  <section className="campaign-header">
+                    <div>
+                      <span className="campaign-number">
+                        CAMPAIGN / {state.session.id.slice(-6).toUpperCase()}
+                      </span>
+                      <h2>Working capital exploration</h2>
+                      <div className="campaign-meta">
+                        <span>
+                          <Clock3 size={13} />
+                          {date(state.session.clock)} ·{" "}
+                          {state.session.clock_mode === "SIMULATED"
+                            ? "Simulated clock"
+                            : "Sandbox clock"}
+                        </span>
+                        <span>Revision {view.subject.revision}</span>
+                        <Badge
+                          tone={
+                            view.handoff || view.approval_valid
+                              ? "green"
+                              : !view.candidate_valid
+                                ? "amber"
+                                : "neutral"
+                          }
+                        >
+                          {status}
+                        </Badge>
+                      </div>
+                    </div>
+                    <button
+                      className="button secondary"
+                      onClick={() =>
+                        download(selected, "manifest", view.subject.id).catch(
+                          (e) => setError(e.message),
+                        )
+                      }
+                    >
+                      <ArrowDownToLine size={15} />
+                      Manifest
+                    </button>
+                  </section>
+                  <div className="stage-strip" aria-label="Campaign progress">
                     {[
+                      { label: "Audience prepared", done: true },
+                      { label: "Copy prepared", done: true },
                       {
-                        label: "Source audience",
-                        value: view.manifest.counts.input.toLocaleString(),
-                        note: "Synthetic business records",
-                        icon: Users,
+                        label: "Human review",
+                        done: view.approval_valid || !!view.handoff,
                       },
+                      { label: "Simulated handoff", done: !!view.handoff },
                       {
-                        label: "Mailing recipients",
-                        value: view.manifest.counts.mailed.toLocaleString(),
-                        note: `${view.manifest.counts.excluded} excluded by policy`,
-                        icon: Mail,
+                        label: "Outcome learning",
+                        done: state.learning?.status === "finalized",
                       },
-                      {
-                        label: "No-mail control",
-                        value: view.manifest.counts.holdout.toLocaleString(),
-                        note: "Within the selected cohort",
-                        icon: FlaskConical,
-                      },
-                      {
-                        label: "Mailing estimate",
-                        value: money(view.manifest.variable_cost_pence),
-                        note: "Synthetic variable cost",
-                        icon: FileText,
-                      },
-                    ].map((m) => (
-                      <div className="metric" key={m.label}>
-                        <div>
-                          {m.label}
-                          <m.icon size={16} />
-                        </div>
-                        <strong>{m.value}</strong>
-                        <small>{m.note}</small>
+                    ].map((s, i) => (
+                      <div
+                        key={s.label}
+                        className={s.done ? "stage done" : "stage"}
+                      >
+                        <span>
+                          {s.done ? (
+                            <Check size={11} />
+                          ) : (
+                            String(i + 1).padStart(2, "0")
+                          )}
+                        </span>
+                        {s.label}
+                        {i < 4 && <ChevronRight size={13} />}
                       </div>
                     ))}
-                  </section>
-                  <div className="campaign-grid">
-                    <section className="workspace-body">
-                      <div
-                        onKeyDown={(event) => {
-                          if (
-                            ![
-                              "ArrowLeft",
-                              "ArrowRight",
-                              "Home",
-                              "End",
-                            ].includes(event.key)
-                          )
-                            return;
-                          event.preventDefault();
-                          const next =
-                            event.key === "Home"
-                              ? "audience"
-                              : event.key === "End"
-                                ? "copy"
-                                : tab === "audience"
-                                  ? "copy"
-                                  : "audience";
-                          setTab(next);
-                          event.currentTarget
-                            .querySelector<HTMLButtonElement>(`#${next}-tab`)
-                            ?.focus();
-                        }}
-                        className="section-tabs"
-                        role="tablist"
-                        aria-label="Campaign details"
-                      >
-                        <button
-                          role="tab"
-                          id="audience-tab"
-                          aria-controls="audience-panel"
-                          tabIndex={tab === "audience" ? 0 : -1}
-                          aria-selected={tab === "audience"}
-                          onClick={() => setTab("audience")}
-                          className={tab === "audience" ? "active" : ""}
-                        >
-                          <Users size={16} />
-                          Audience<span>{state.audience.length}</span>
-                        </button>
-                        <button
-                          role="tab"
-                          id="copy-tab"
-                          aria-controls="copy-panel"
-                          tabIndex={tab === "copy" ? 0 : -1}
-                          aria-selected={tab === "copy"}
-                          onClick={() => setTab("copy")}
-                          className={tab === "copy" ? "active" : ""}
-                        >
-                          <FileText size={16} />
-                          Copy variants<span>4</span>
-                        </button>
-                      </div>
-                      {tab === "audience" ? (
-                        <AudienceView
+                  </div>
+                  {page === "campaign" && (
+                    <>
+                      <section className="metrics">
+                        {[
+                          {
+                            label: "Source audience",
+                            value: view.manifest.counts.input.toLocaleString(),
+                            note: "Synthetic business records",
+                            icon: Users,
+                          },
+                          {
+                            label: "Mailing recipients",
+                            value: view.manifest.counts.mailed.toLocaleString(),
+                            note: `${view.manifest.counts.excluded} excluded by policy`,
+                            icon: Mail,
+                          },
+                          {
+                            label: "No-mail control",
+                            value:
+                              view.manifest.counts.holdout.toLocaleString(),
+                            note: "Within the selected cohort",
+                            icon: FlaskConical,
+                          },
+                          {
+                            label: "Mailing estimate",
+                            value: money(view.manifest.variable_cost_pence),
+                            note: "Synthetic variable cost",
+                            icon: FileText,
+                          },
+                        ].map((m) => (
+                          <div className="metric" key={m.label}>
+                            <div>
+                              {m.label}
+                              <m.icon size={16} />
+                            </div>
+                            <strong>{m.value}</strong>
+                            <small>{m.note}</small>
+                          </div>
+                        ))}
+                      </section>
+                      <div className="campaign-grid">
+                        <section className="workspace-body">
+                          <div
+                            onKeyDown={(event) => {
+                              if (
+                                ![
+                                  "ArrowLeft",
+                                  "ArrowRight",
+                                  "Home",
+                                  "End",
+                                ].includes(event.key)
+                              )
+                                return;
+                              event.preventDefault();
+                              const next =
+                                event.key === "Home"
+                                  ? "audience"
+                                  : event.key === "End"
+                                    ? "copy"
+                                    : tab === "audience"
+                                      ? "copy"
+                                      : "audience";
+                              setTab(next);
+                              event.currentTarget
+                                .querySelector<HTMLButtonElement>(
+                                  `#${next}-tab`,
+                                )
+                                ?.focus();
+                            }}
+                            className="section-tabs"
+                            role="tablist"
+                            aria-label="Campaign details"
+                          >
+                            <button
+                              role="tab"
+                              id="audience-tab"
+                              aria-controls="audience-panel"
+                              tabIndex={tab === "audience" ? 0 : -1}
+                              aria-selected={tab === "audience"}
+                              onClick={() => setTab("audience")}
+                              className={tab === "audience" ? "active" : ""}
+                            >
+                              <Users size={16} />
+                              Audience<span>{state.audience.length}</span>
+                            </button>
+                            <button
+                              role="tab"
+                              id="copy-tab"
+                              aria-controls="copy-panel"
+                              tabIndex={tab === "copy" ? 0 : -1}
+                              aria-selected={tab === "copy"}
+                              onClick={() => setTab("copy")}
+                              className={tab === "copy" ? "active" : ""}
+                            >
+                              <FileText size={16} />
+                              Copy variants
+                              <span>{view.manifest.creatives.length}</span>
+                            </button>
+                          </div>
+                          {tab === "audience" ? (
+                            <AudienceView
+                              state={state}
+                              busy={!!busy}
+                              act={act}
+                              onError={setError}
+                            />
+                          ) : (
+                            <CopyView state={state} />
+                          )}
+                        </section>
+                        <ReviewPanel
                           state={state}
                           busy={!!busy}
                           act={act}
-                          onError={setError}
+                          error={error}
+                          onEvidence={() => setPage("evidence")}
                         />
-                      ) : (
-                        <CopyView state={state} />
-                      )}
+                      </div>
+                    </>
+                  )}
+                  {page === "evidence" && (
+                    <section className="evidence-layout">
+                      <div>
+                        <div className="section-title">
+                          <div>
+                            <h3>Reviewed product facts</h3>
+                            <p>
+                              Locked wording and qualifications, kept separate
+                              from generated framing.
+                            </p>
+                          </div>
+                          <Badge tone="green">Source-bound</Badge>
+                        </div>
+                        {view.authority.pack.facts.map((f) => (
+                          <article className="fact" key={f.id}>
+                            <ShieldCheck size={20} />
+                            <div>
+                              <h3>{f.copy}</h3>
+                              <p>{f.qualification}</p>
+                              <code>{f.id}</code>
+                            </div>
+                          </article>
+                        ))}
+                        <div className="policy-note">
+                          <AlertTriangle size={17} />
+                          <p>
+                            Sources are manually verified and activated. The
+                            semantic claim screen can make mistakes and never
+                            grants approval.
+                          </p>
+                        </div>
+                      </div>
+                      <aside className="evidence-aside">
+                        <h3>Evidence registry</h3>
+                        <dl>
+                          <dt>Checked on</dt>
+                          <dd>{view.authority.pack.checked_on}</dd>
+                          <dt>Review due</dt>
+                          <dd>{view.authority.pack.review_by}</dd>
+                          <dt>Evidence version</dt>
+                          <dd>Epoch {view.subject.evidence_epoch}</dd>
+                          <dt>Suppression version</dt>
+                          <dd>Epoch {view.subject.audience_epoch}</dd>
+                        </dl>
+                        {view.authority.pack.sources.map((s) => (
+                          <a
+                            className="source-link"
+                            key={s.url}
+                            href={s.url}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {s.title}
+                            <ArrowUpRight size={16} />
+                          </a>
+                        ))}
+                        <details>
+                          <summary>Review policy</summary>
+                          <pre>
+                            {JSON.stringify(view.authority.policy, null, 2)}
+                          </pre>
+                        </details>
+                      </aside>
                     </section>
-                    <ReviewPanel
+                  )}
+                  {page === "learning" && (
+                    <LearningView
                       state={state}
                       busy={!!busy}
                       act={act}
-                      error={error}
-                      onEvidence={() => setPage("evidence")}
+                      onCampaign={() => setPage("campaign")}
+                      onNext={() => {
+                        setParent(selected);
+                        setCreating(true);
+                      }}
                     />
-                  </div>
+                  )}
+                  {page === "activity" && (
+                    <section className="activity">
+                      <div className="section-title">
+                        <div>
+                          <h3>Campaign history</h3>
+                          <p>
+                            Persisted domain events. Replayed receipts do not
+                            repeat effects.
+                          </p>
+                        </div>
+                        <Badge>
+                          {view.events.length +
+                            (state.learning?.events.length ?? 0)}{" "}
+                          events
+                        </Badge>
+                      </div>
+                      {[...view.events, ...(state.learning?.events ?? [])]
+                        .sort((a, b) => a.at - b.at)
+                        .map((ev, i) => (
+                          <div className="event" key={`${ev.kind}-${i}`}>
+                            <span className="event-line">
+                              <Check size={12} />
+                            </span>
+                            <div>
+                              <h4>{ev.kind.replaceAll("_", " ")}</h4>
+                              <p>
+                                {date(ev.at)}
+                                {ev.payload.actor
+                                  ? ` · ${String(ev.payload.actor)}`
+                                  : ""}
+                              </p>
+                              <details>
+                                <summary>View committed receipt</summary>
+                                <pre>{JSON.stringify(ev.payload, null, 2)}</pre>
+                              </details>
+                            </div>
+                          </div>
+                        ))}
+                    </section>
+                  )}
                 </>
               )}
-              {page === "evidence" && (
-                <section className="evidence-layout">
-                  <div>
-                    <div className="section-title">
-                      <div>
-                        <h3>Reviewed product facts</h3>
-                        <p>
-                          Locked wording and qualifications, kept separate from
-                          generated framing.
-                        </p>
-                      </div>
-                      <Badge tone="green">Source-bound</Badge>
-                    </div>
-                    {view.authority.pack.facts.map((f) => (
-                      <article className="fact" key={f.id}>
-                        <ShieldCheck size={20} />
-                        <div>
-                          <h3>{f.copy}</h3>
-                          <p>{f.qualification}</p>
-                          <code>{f.id}</code>
-                        </div>
-                      </article>
-                    ))}
-                    <div className="policy-note">
-                      <AlertTriangle size={17} />
-                      <p>
-                        Sources are manually verified and activated. The
-                        semantic claim screen can make mistakes and never grants
-                        approval.
-                      </p>
-                    </div>
-                  </div>
-                  <aside className="evidence-aside">
-                    <h3>Evidence registry</h3>
-                    <dl>
-                      <dt>Checked on</dt>
-                      <dd>{view.authority.pack.checked_on}</dd>
-                      <dt>Review due</dt>
-                      <dd>{view.authority.pack.review_by}</dd>
-                      <dt>Evidence version</dt>
-                      <dd>Epoch {view.subject.evidence_epoch}</dd>
-                      <dt>Suppression version</dt>
-                      <dd>Epoch {view.subject.audience_epoch}</dd>
-                    </dl>
-                    {view.authority.pack.sources.map((s) => (
-                      <a
-                        className="source-link"
-                        key={s.url}
-                        href={s.url}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {s.title}
-                        <ArrowUpRight size={16} />
-                      </a>
-                    ))}
-                    <details>
-                      <summary>Review policy</summary>
-                      <pre>
-                        {JSON.stringify(view.authority.policy, null, 2)}
-                      </pre>
-                    </details>
-                  </aside>
-                </section>
-              )}
-              {page === "learning" && (
-                <LearningView
-                  state={state}
-                  busy={!!busy}
-                  act={act}
-                  onCampaign={() => setPage("campaign")}
-                  onNext={() => {
-                    setParent(selected);
-                    setCreating(true);
-                  }}
-                />
-              )}
-              {page === "activity" && (
-                <section className="activity">
-                  <div className="section-title">
-                    <div>
-                      <h3>Campaign history</h3>
-                      <p>
-                        Persisted domain events. Replayed receipts do not repeat
-                        effects.
-                      </p>
-                    </div>
-                    <Badge>
-                      {view.events.length +
-                        (state.learning?.events.length ?? 0)}{" "}
-                      events
-                    </Badge>
-                  </div>
-                  {[...view.events, ...(state.learning?.events ?? [])]
-                    .sort((a, b) => a.at - b.at)
-                    .map((ev, i) => (
-                      <div className="event" key={`${ev.kind}-${i}`}>
-                        <span className="event-line">
-                          <Check size={12} />
-                        </span>
-                        <div>
-                          <h4>{ev.kind.replaceAll("_", " ")}</h4>
-                          <p>
-                            {date(ev.at)}
-                            {ev.payload.actor
-                              ? ` · ${String(ev.payload.actor)}`
-                              : ""}
-                          </p>
-                          <details>
-                            <summary>View committed receipt</summary>
-                            <pre>{JSON.stringify(ev.payload, null, 2)}</pre>
-                          </details>
-                        </div>
-                      </div>
-                    ))}
-                </section>
-              )}
+              <footer className="workspace-footer">
+                <span>
+                  <FlaskConical size={13} />
+                  Synthetic audience and outcomes
+                </span>
+                <span>
+                  Dessi Georgieva · Independent product demo · No production
+                  connection
+                </span>
+              </footer>
             </>
           )}
-          <footer className="workspace-footer">
-            <span>
-              <FlaskConical size={13} />
-              Synthetic audience and outcomes
-            </span>
-            <span>
-              Dessi Georgieva · Independent product demo · No production
-              connection
-            </span>
-          </footer>
         </main>
       </div>
       {creating && (

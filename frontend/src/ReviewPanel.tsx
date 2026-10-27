@@ -97,24 +97,39 @@ export default function ReviewPanel({
         <div className="review-warning">
           <AlertTriangle size={16} />
           <div>
-            <strong>Current evidence changed</strong>
+            <strong>Review is blocked</strong>
             <p>
               {review.blocked_reasons
                 .filter((r) => !r.startsWith("No approval"))
                 .join(". ")}
             </p>
-            {!review.handoff && (
-              <button
-                className="text-button"
-                disabled={busy}
-                onClick={() =>
-                  act("refresh", { subject_id: review.subject.id })
-                }
-              >
-                <RefreshCw size={13} />
-                Rebuild draft
-              </button>
+            {review.blocked_reasons.some((r) =>
+              r.includes(
+                "Conversation changed after this campaign was prepared",
+              ),
+            ) && (
+              <p>
+                Return to the assistant and prepare a campaign from the current
+                conversation.
+              </p>
             )}
+            {!review.handoff &&
+              !review.blocked_reasons.some((r) =>
+                r.includes(
+                  "Conversation changed after this campaign was prepared",
+                ),
+              ) && (
+                <button
+                  className="text-button"
+                  disabled={busy}
+                  onClick={() =>
+                    act("refresh", { subject_id: review.subject.id })
+                  }
+                >
+                  <RefreshCw size={13} />
+                  Rebuild draft
+                </button>
+              )}
           </div>
         </div>
       )}

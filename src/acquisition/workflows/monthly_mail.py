@@ -1,7 +1,8 @@
 from dataclasses import asdict
 
 from acquisition.audiences import AudienceStore
-from acquisition.campaigns import Brief, CampaignService
+from acquisition.campaigns import Brief, CampaignService, brief_from
+from acquisition.creative import fixture_catalog
 from acquisition.runtime import Claim, Outcome, TaskSpec
 
 
@@ -52,3 +53,29 @@ class MonthlyMail:
     def capabilities(self):
         return {"audiences.inspect.v1": self.inspect, "campaigns.build_draft.v1": self.prepare,
                 "campaigns.review_checkpoint.v1": self.review}
+
+
+def conversation_task_plan(snapshot_id, brief, catalogue_hash):
+    inputs = {"snapshot_id": snapshot_id, "brief": asdict(brief), "workflow_version": "conversation-mail/v1",
+              "creative_catalogue_hash": catalogue_hash}
+    return [TaskSpec("audiences.inspect_conversation.v1", inputs),
+            TaskSpec("campaigns.build_conversation.v1", inputs),
+            TaskSpec("campaigns.review_conversation.v1", inputs, max_attempts=5)]
+
+
+class ConversationMail(MonthlyMail):
+    def _check_version(self, claim):
+        if (claim.inputs.get("workflow_version") != "conversation-mail/v1"
+                or claim.inputs.get("creative_catalogue_hash") != self.campaigns.catalogue_hash):
+            raise ValueError("Conversation workflow or fixture catalogue changed")
+
+    def _draft(self, claim):
+        brief = brief_from(claim.inputs["brief"])
+        creatives = tuple(c for c in fixture_catalog() if c.segment in brief.segments)
+        return self.campaigns.prepare_with_catalogue(claim.organization, claim.inputs["snapshot_id"],
+                                                      brief, claim.run_id + ":draft", creatives)
+
+    def capabilities(self):
+        return {"audiences.inspect_conversation.v1": self.inspect,
+                "campaigns.build_conversation.v1": self.prepare,
+                "campaigns.review_conversation.v1": self.review}

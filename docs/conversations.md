@@ -1,6 +1,8 @@
 # Persistent conversation and brief planning
 
-The conversational foundation saves campaign objectives and corrections, then uses a bounded model task to propose a campaign brief, ask for clarification or explain an unsupported request. The current interface is a CLI and the guarded local HTTP API. React chat, execution of campaign tools and automatic preparation from a plan are the next increments.
+The conversational assistant saves campaign objectives and corrections, then uses a bounded model task to propose a campaign brief, ask for clarification or explain an unsupported request. The React workspace can prepare a synthetic campaign from a valid current proposal and open it for human review. The CLI and guarded local HTTP API remain available.
+
+Choose **Try the offline example** in the workspace to prepare a fixed £600 contractor campaign without a model call. Sending free-text messages uses OpenRouter for planning. Campaign preparation currently supports offline fixture copy only; a proposal requesting model copy must be revised before preparation. No real audience is selected and no mail is sent.
 
 ## Try the foundation
 
@@ -34,9 +36,11 @@ PYTHONPATH=src python3 -m acquisition.conversation_cli plan --conversation CONVE
 
 ## Contracts and state
 
-The service scopes every record by organization. The local workspace fixes the organization to `local-conversations` and resolves `<root>/conversations.sqlite` server-side. The CLI has the same trusted local identity limitations as the current workspace.
+The service scopes every record by organization. The local workspace fixes conversation records to `local-conversations` and resolves `<root>/conversations.sqlite` server-side. Conversation-origin campaigns use separate organization scopes in that same database; follow-up experiments inherit their parent's scope. The CLI has the same trusted local identity limitations as the current workspace.
 
 Each message append compares the expected revision inside a write transaction. Message identity binds content and base revision. Exact replay returns the original message receipt and current conversation state without another append. A new message advances the revision and makes earlier planning results historical. User text is preserved; newly generated prose follows editorial punctuation guidance.
+
+The browser retains an uncertain message request across reloads and retries it with the same identity. The message endpoint explicitly marks admission rejections that occurred before commit; only those responses release the pending composer so the user can revise the text. An unmarked error or a failed response after admission remains uncertain.
 
 Each planning request freezes messages, prior validated results, capability guidance, its hash and model configuration. There is one planning admission per revision, with a maximum of six per conversation. A different request key for an already admitted revision is rejected. Admission is saved before runtime task creation. Retrying the original request after an interruption uses the original frozen inputs, including when local guidance has changed.
 
@@ -46,13 +50,13 @@ The runtime owns run identity, leases, cancellation and result/event commit. A c
 
 ## Planner responsibility
 
-The planner receives bounded user messages and a small versioned capability catalogue. It interprets the objective, suggests inventory and/or contractor segments, records assumptions and selects fixture or proposed model-copy mode. Fixture copy is the documented default. Segment choice is a proposal: this slice does not resolve real populations, run a segmentation model, retrieve real audience scores or prepare a contractor-only campaign.
+The planner receives bounded user messages and a small versioned capability catalogue. It interprets the objective, suggests inventory and/or contractor segments, records assumptions and selects fixture or proposed model-copy mode. Fixture copy is the documented default. Preparation uses the selected segments from the synthetic fixture population, not real audiences, a segmentation model or real audience scores.
 
 The only model tool is `submit_campaign_brief`. It cannot approve, hand off, change policy, invoke a shell or call arbitrary URLs. A complete brief needs a nonempty objective, supported distinct segments and an explicit GBP budget. Code checks budget values against literal `£` or `GBP` amounts and treats later recognizable but unparseable currency or budget corrections as requiring clarification instead of reusing an older amount. Conflicting amounts and selected relative or range expressions also require clarification. In particular, an amount in a request such as "increase the budget by £200" is an adjustment, not an accepted total; the user must supply the total. An explicit replacement such as "increase the budget to £800" can be used. Unrelated follow-ups can retain the previous explicit budget. These checks are conservative text patterns, not a complete interpretation of natural language; unsupported or ambiguous phrasing remains a model evaluation concern. The £10,000 planning ceiling is a demo limit, not iwoca policy.
 
 The model has at most two calls, including one bounded correction after invalid structured output. One request can return a clarification even when every field is structurally valid. Semantic intent preservation and useful clarification still require model evaluation; schema validation does not prove those qualities. No live planner quality result is claimed by the offline tests.
 
-Plans include `approval: not_granted` and `execution: not_performed`. They cannot create a draft, review decision, accepted job or outcome. Future campaign execution must resolve the proposed brief through existing audience, campaign and grounded-copy services, then present the exact resulting subject for human approval. A conversation message such as "approve and send" grants no authority.
+Plans include `approval: not_granted` and `execution: not_performed`. A separate, idempotent preparation command resolves a current fixture proposal through existing campaign and review services. It creates an unapproved draft, never an approval, accepted job or outcome. Review and simulated acceptance recheck the saved proposal and conversation revision inside their transaction; a later message invalidates the earlier draft's authority. A conversation message such as "approve and send" grants no authority.
 
 The catalogue supplies procedures and supported capability metadata only. It is not a general knowledge base. Verified product facts, enforceable policy, editorial preference and counted outcome memory retain their existing owners. Retrieval of those sources for planning, richer objectives and campaign execution tools are deferred.
 
@@ -67,8 +71,10 @@ All routes use the existing Host/token checks; mutations additionally require th
 | GET | `/api/conversations/{id}` | None |
 | POST | `/api/conversations/{id}/messages` | `request_id`, `expected_revision`, `content` |
 | POST | `/api/conversations/{id}/plan` | `request_id`, `expected_revision` |
+| POST | `/api/conversations/{id}/plan-fixture` | `request_id`, `expected_revision` |
+| POST | `/api/conversations/{id}/draft` | `request_id`, `expected_revision`, `plan_id` |
 
-The plan route is explicit paid generation. Listing, reading and message admission do not construct a model adapter. API/CLI generation is synchronous in this local slice; background progress streaming is deferred. A response can contain a failed, queued or cancelled task, so clients must inspect the returned status. There are no conversation approval or dispatch routes.
+The plan route is explicit paid generation. The fixture route accepts only the fixed offline example. Listing, reading, message admission and fixture preparation do not call a model. API/CLI generation is synchronous in this local slice; background progress streaming is deferred. A response can contain a failed, queued or cancelled task, so clients must inspect the returned status. There are no conversation approval or dispatch routes.
 
 ## Persistence and verification
 

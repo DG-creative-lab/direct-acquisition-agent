@@ -15,11 +15,11 @@ from acquisition.adapters.sqlite.tasks import SqliteTasks
 from acquisition.adapters.synthetic import generate
 from acquisition.adapters.sqlite.creative import SqliteCreative
 from acquisition.adapters.sqlite.inference import SqliteCalls
-from acquisition.campaigns import Brief, CampaignService
+from acquisition.campaigns import Brief, ConversationBrief, CampaignService
 from acquisition.creative import fixture_catalog, validate_fact_pack
 from acquisition.runtime import TaskStore, Worker
 from acquisition.reasoning import Inference, ModelConfig, ModelGateway
-from acquisition.workflows.monthly_mail import MonthlyMail, task_plan
+from acquisition.workflows.monthly_mail import MonthlyMail, ConversationMail, conversation_task_plan, task_plan
 from acquisition.workflows.model_mail import ModelMonthlyMail, model_task_plan
 from acquisition.adapters.sqlite.reviews import SqliteReviews
 from acquisition.reviews import ReviewService
@@ -28,7 +28,7 @@ from acquisition.learning import LearningService
 from acquisition.adapters.sqlite.learning import SqliteLearning
 from acquisition.workflows.learning import AcceptedCohortSource
 from acquisition.adapters.sqlite.conversations import SqliteConversations
-from acquisition.conversations import ConversationService, CAPABILITY as PLANNER_CAPABILITY
+from acquisition.conversations import ConversationService, CAPABILITY as PLANNER_CAPABILITY, FIXTURE_CAPABILITY
 from acquisition.workflows.conversation import ConversationPlanner
 
 
@@ -84,6 +84,13 @@ class Application:
         specs = model_task_plan(snapshot_id, Brief(campaign_id or request_id, budget_pence), contexts, self.inference)
         return self.tasks.create(organization, request_id, specs, self.clock())
 
+    def start_conversation(self, organization, request_id, plan, as_of):
+        snapshot_id = self.audiences.put(generate(organization, 1000, 42, as_of))
+        brief = ConversationBrief(campaign_id=request_id, budget_pence=plan["budget_pence"],
+                                  segments=tuple(plan["segments"]), conversation_id=plan["conversation_id"],
+                                  conversation_revision=plan["revision"], plan_id=plan["id"])
+        return self.tasks.create(organization, request_id, conversation_task_plan(snapshot_id, brief, self.catalogue_hash), self.clock())
+
     def export(self, organization: str, run_id: str, directory: Path) -> Path:
         state = self.tasks.inspect(organization, run_id)
         outputs = [task["output"] for task in state["tasks"] if task["output"] and task["output"].get("draft_id")]
@@ -121,7 +128,7 @@ def build(path: str | Path, clock: Callable[[], float] = time.time,
     planner = ConversationPlanner(planner_inference)
     conversations = ConversationService(SqliteConversations(database), tasks, calls, clock,
                                         planner_config if planner_inference else None, planner.preflight)
-    capabilities = workflow.capabilities() | model_workflow.capabilities() | {PLANNER_CAPABILITY: planner.plan}
+    capabilities = workflow.capabilities() | ConversationMail(audiences, campaigns).capabilities() | model_workflow.capabilities() | {PLANNER_CAPABILITY: planner.plan, FIXTURE_CAPABILITY: planner.fixture_plan}
     reviews = SqliteReviews(database, clock)
     return Application(tasks, audiences, drafts, Worker(tasks, capabilities, clock, lease_seconds=180 if inference else 60,
                        eligible=lambda capability, inputs: model_workflow.eligible(capability, inputs) and planner.eligible(capability, inputs)), clock,

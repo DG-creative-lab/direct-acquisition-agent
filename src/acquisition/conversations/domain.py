@@ -6,6 +6,8 @@ from acquisition.contracts import digest
 
 
 CAPABILITY = "conversations.plan.v1"
+FIXTURE_CAPABILITY = "conversations.fixture_plan.v1"
+FIXTURE_MESSAGE = "Prepare a £600 direct-mail response experiment for UK contractors. Use offline copy fixtures."
 KNOWLEDGE = {
     "version": "campaign-planning/v1",
     "mode": "LOCAL_SYNTHETIC_PLANNING_ONLY",
