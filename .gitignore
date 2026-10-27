@@ -24,6 +24,7 @@ dist/
 
 !/docs/architecture.md
 !/docs/branding.md
+!/docs/conversations.md
 !/docs/learning.md
 !/docs/model-integration.md
 !/docs/product-grounding.md

@@ -17,8 +17,8 @@ class Worker:
         self.lease_seconds = lease_seconds
         self.eligible = eligible
 
-    def tick(self, organization: str) -> bool:
-        claim = self.store.claim(organization, self.clock(), self.lease_seconds, eligible=self.eligible)
+    def tick(self, organization: str, *, run_id: str | None = None) -> bool:
+        claim = self.store.claim(organization, self.clock(), self.lease_seconds, eligible=self.eligible, run_id=run_id)
         if claim is None:
             return False
         try:
@@ -40,10 +40,10 @@ class Worker:
                 pass
         return True
 
-    def drain(self, organization: str, max_tasks: int = 20) -> int:
+    def drain(self, organization: str, max_tasks: int = 20, *, run_id: str | None = None) -> int:
         if type(max_tasks) is not int or not 1 <= max_tasks <= 1000:
             raise ValueError("Use 1–1000 worker ticks")
         count = 0
-        while count < max_tasks and self.tick(organization):
+        while count < max_tasks and self.tick(organization, run_id=run_id):
             count += 1
         return count

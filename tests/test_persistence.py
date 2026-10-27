@@ -63,6 +63,28 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(state["run"]["status"], "succeeded")
         self.assertEqual(state["tasks"][0]["output"], {"correct": True})
 
+    def test_targeted_worker_only_recovers_and_claims_the_requested_run(self):
+        expired = self.task(request="expired")
+        first = self.app.tasks.claim("one", self.now, 60, run_id=expired)
+        queued = self.task(request="queued")
+        completed = self.task(request="completed")
+        worker = Worker(self.app.tasks, {"test.v1": lambda claim: Outcome("succeeded", {"run": claim.run_id})}, lambda: self.now)
+        self.assertEqual(worker.drain("one", run_id=completed), 1)
+        self.now += 61
+        expired_before = self.app.tasks.inspect("one", expired)
+        queued_before = self.app.tasks.inspect("one", queued)
+        self.assertEqual(worker.drain("one", run_id=completed), 0)
+        self.assertEqual(self.app.tasks.inspect("one", expired), expired_before)
+        self.assertEqual(self.app.tasks.inspect("one", queued), queued_before)
+        self.assertEqual(worker.drain("one", run_id=queued), 1)
+        self.assertEqual(self.app.tasks.inspect("one", expired), expired_before)
+        with self.assertRaises(NotFound):
+            worker.drain("two", run_id=expired)
+        self.assertEqual(worker.drain("one", run_id=expired), 1)
+        self.assertEqual(self.app.tasks.inspect("one", expired)["tasks"][0]["attempts"], 2)
+        with self.assertRaises(LeaseLost):
+            self.app.tasks.settle(first, Outcome("succeeded", {}), self.now)
+
     def test_cancel_fences_a_running_worker_and_terminal_resurrection(self):
         run = self.task()
         claim = self.app.tasks.claim("one", self.now, 60)

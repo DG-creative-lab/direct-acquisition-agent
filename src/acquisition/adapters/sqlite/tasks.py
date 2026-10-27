@@ -72,7 +72,7 @@ class SqliteTasks:
             return row["id"] if row else None
 
     def claim(self, organization: str, now: float, lease_seconds: float,
-              eligible: Callable[[str, dict], bool] | None = None) -> Claim | None:
+              eligible: Callable[[str, dict], bool] | None = None, run_id: str | None = None) -> Claim | None:
         finite_time(now)
         if not math.isfinite(lease_seconds) or lease_seconds <= 0 or not math.isfinite(now):
             raise ValueError("Lease must be positive")
@@ -84,9 +84,11 @@ class SqliteTasks:
                 raise Conflict("Retired capability has no matching preserved legacy admission")
             return True
         with self.database.transaction() as connection:
+            if run_id is not None:
+                scoped_run(connection, organization, run_id)
             expired = connection.execute("""SELECT t.* FROM tasks t JOIN runs r ON r.id=t.run_id
-                WHERE r.organization=? AND r.status='running' AND t.status='running' AND t.lease_until<=?""",
-                (organization, now)).fetchall()
+                WHERE r.organization=? AND r.status='running' AND t.status='running' AND t.lease_until<=?
+                AND (? IS NULL OR r.id=?)""", (organization, now, run_id, run_id)).fetchall()
             for row in expired:
                 if not can_run(connection, row):
                     continue
@@ -98,9 +100,9 @@ class SqliteTasks:
                 event(connection, row["run_id"], row["id"], "lease_exhausted" if exhausted else "lease_recovered", {}, now)
             candidates = connection.execute("""SELECT t.* FROM tasks t JOIN runs r ON r.id=t.run_id
                 WHERE r.organization=? AND r.status IN ('queued','running') AND t.status='queued'
-                AND t.available_at<=? AND NOT EXISTS
+                AND t.available_at<=? AND (? IS NULL OR r.id=?) AND NOT EXISTS
                 (SELECT 1 FROM tasks p WHERE p.run_id=t.run_id AND p.position<t.position AND p.status!='succeeded')
-                ORDER BY r.created_at,r.id,t.position""", (organization, now))
+                ORDER BY r.created_at,r.id,t.position""", (organization, now, run_id, run_id))
             row = next((candidate for candidate in candidates if can_run(connection, candidate)), None)
             if row is None:
                 return None

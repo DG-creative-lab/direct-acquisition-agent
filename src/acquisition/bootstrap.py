@@ -3,7 +3,7 @@
 import time
 import json
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -27,6 +27,9 @@ from acquisition.workflows.review import ReviewProposalBuilder
 from acquisition.learning import LearningService
 from acquisition.adapters.sqlite.learning import SqliteLearning
 from acquisition.workflows.learning import AcceptedCohortSource
+from acquisition.adapters.sqlite.conversations import SqliteConversations
+from acquisition.conversations import ConversationService, CAPABILITY as PLANNER_CAPABILITY
+from acquisition.workflows.conversation import ConversationPlanner
 
 
 @dataclass
@@ -42,6 +45,7 @@ class Application:
     inference: Inference | None
     reviews: ReviewService
     learning: LearningService
+    conversations: ConversationService
 
     def start(self, organization: str, request_id: str, size: int = 1000, seed: int = 42,
               budget_pence: int = 85000, as_of: str = "2026-10-25", campaign_id: str | None = None) -> str:
@@ -112,10 +116,15 @@ def build(path: str | Path, clock: Callable[[], float] = time.time,
     memory, calls = SqliteCreative(database), SqliteCalls(database)
     inference = Inference(gateway, calls, model_config, clock) if gateway is not None and model_config is not None else None
     model_workflow = ModelMonthlyMail(audiences, campaigns, memory, inference)
-    capabilities = workflow.capabilities() | model_workflow.capabilities()
+    planner_config = replace(model_config, max_calls=2, force_tool_choice=True) if model_config else None
+    planner_inference = Inference(gateway, calls, planner_config, clock) if gateway is not None and planner_config else None
+    planner = ConversationPlanner(planner_inference)
+    conversations = ConversationService(SqliteConversations(database), tasks, calls, clock,
+                                        planner_config if planner_inference else None, planner.preflight)
+    capabilities = workflow.capabilities() | model_workflow.capabilities() | {PLANNER_CAPABILITY: planner.plan}
     reviews = SqliteReviews(database, clock)
     return Application(tasks, audiences, drafts, Worker(tasks, capabilities, clock, lease_seconds=180 if inference else 60,
-                       eligible=model_workflow.eligible), clock,
+                       eligible=lambda capability, inputs: model_workflow.eligible(capability, inputs) and planner.eligible(capability, inputs)), clock,
                        campaigns.catalogue_hash, memory, calls, inference,
                        ReviewService(reviews, ReviewProposalBuilder(audiences, drafts, campaigns)),
-                       LearningService(SqliteLearning(database, clock), AcceptedCohortSource(reviews, drafts)))
+                       LearningService(SqliteLearning(database, clock), AcceptedCohortSource(reviews, drafts)), conversations)

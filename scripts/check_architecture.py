@@ -4,9 +4,9 @@ import ast
 from pathlib import Path
 
 
-MODULES = {"runtime", "audiences", "campaigns", "creative", "learning", "reasoning", "reviews"}
+MODULES = {"runtime", "audiences", "campaigns", "creative", "learning", "reasoning", "reviews", "conversations"}
 DEPENDENCIES = {"campaigns": {"audiences", "creative"}, "creative": {"reasoning"},
-                "reviews": {"audiences", "campaigns", "creative"}}
+                "reviews": {"audiences", "campaigns", "creative"}, "conversations": {"reasoning", "runtime"}}
 
 
 def imports(source: str, module: str) -> list[str]:
@@ -37,7 +37,7 @@ def violations(source: str, module: str) -> list[str]:
     for target in imports(source, module):
         if not target.startswith("acquisition."):
             if module.endswith(".domain") and target.split(".")[0] not in {
-                "collections", "csv", "dataclasses", "datetime", "hashlib", "io", "math", "typing"
+                "collections", "csv", "dataclasses", "datetime", "hashlib", "io", "math", "typing", "re"
             }:
                 errors.append(f"Domain imports undeclared dependency {target}")
             continue
