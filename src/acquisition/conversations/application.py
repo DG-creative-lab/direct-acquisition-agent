@@ -2,12 +2,24 @@ from collections.abc import Callable
 from dataclasses import asdict
 import re
 
-from acquisition.contracts import digest
+from acquisition.contracts import Conflict, NotFound, digest
 from acquisition.reasoning import CallJournal, ModelConfig
 from acquisition.runtime import TaskSpec, TaskStore
 
-from .domain import CAPABILITY, KNOWLEDGE
+from .domain import CAPABILITY, FIXTURE_CAPABILITY, FIXTURE_MESSAGE, KNOWLEDGE
 from .ports import ConversationStore
+
+
+class MessageRejectedConflict(Conflict):
+    pass
+
+
+class MessageRejectedInvalid(ValueError):
+    pass
+
+
+class MessageRejectedNotFound(NotFound):
+    pass
 
 
 class ConversationService:
@@ -20,7 +32,11 @@ class ConversationService:
         return self.view(organization, conversation)
 
     def message(self, organization: str, conversation_id: str, request_id: str, expected_revision: int, content: str) -> dict:
-        receipt = self.store.append(organization, conversation_id, request_id, expected_revision, content, self.clock())
+        try:
+            receipt = self.store.append(organization, conversation_id, request_id, expected_revision, content, self.clock())
+        except (Conflict, NotFound, ValueError) as error:
+            kind = MessageRejectedConflict if isinstance(error, Conflict) else MessageRejectedNotFound if isinstance(error, NotFound) else MessageRejectedInvalid
+            raise kind(str(error)) from error
         return self.view(organization, conversation_id) | {"message_receipt": receipt}
 
     def plan(self, organization: str, conversation_id: str, request_id: str, expected_revision: int) -> str:
@@ -30,7 +46,20 @@ class ConversationService:
         context = {"knowledge": KNOWLEDGE, "knowledge_id": "knowledge_" + digest(KNOWLEDGE), "model_config": asdict(self.config),
                    "previous_results": previous}
         frozen = self.store.admit(organization, conversation_id, request_id, expected_revision, context, self.clock(), self.preflight)
+        if frozen.get("fixture"):
+            raise Conflict("Planning request already binds another mode")
         return self.tasks.create(organization, frozen["run_request_id"], [TaskSpec(CAPABILITY, frozen)], self.clock())
+
+    def plan_fixture(self, organization: str, conversation_id: str, request_id: str, expected_revision: int) -> str:
+        context = {"knowledge": KNOWLEDGE, "knowledge_id": "knowledge_" + digest(KNOWLEDGE),
+                   "model_config": None, "previous_results": [], "fixture": "offline-example/v1"}
+        def preflight(frozen):
+            if len(frozen["messages"]) != 1 or frozen["messages"][0]["content"] != FIXTURE_MESSAGE:
+                raise ValueError("The offline example requires its exact synthetic example message")
+        frozen = self.store.admit(organization, conversation_id, request_id, expected_revision, context, self.clock(), preflight)
+        if frozen.get("fixture") != "offline-example/v1":
+            raise Conflict("Planning request already binds another mode")
+        return self.tasks.create(organization, frozen["run_request_id"], [TaskSpec(FIXTURE_CAPABILITY, frozen)], self.clock())
 
     def view(self, organization: str, conversation_id: str) -> dict:
         snapshot = self.store.snapshot(organization, conversation_id)
@@ -46,6 +75,7 @@ class ConversationService:
                 if code and (re.fullmatch(r"provider_http_[1-5][0-9]{2}", code) or code in {"provider_request_failed", "provider_outcome_unknown"}):
                     error = error | {"provider_error": code}
             plans.append({"request_id": admission["request_id"], "revision": admission["revision"], "run_id": run,
+                          "mode": "fixture" if admission.get("fixture") else "model",
                           "status": state["run"]["status"] if state else "admitted",
                           "current": admission["revision"] == snapshot["revision"],
                           "result": task["output"] if task and task["status"] == "succeeded" else None,

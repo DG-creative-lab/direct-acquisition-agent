@@ -123,7 +123,7 @@ Schema v3 froze exact legacy task-plan admissions; later migrations preserve tha
 
 `ConversationService` uses its persistence port and the public runtime task port. The composition root wires its SQLite adapter and `ConversationPlanner`; runtime remains business-agnostic. Each planning admission freezes the complete bounded message history, earlier planning results, capability guidance and model settings before creating one runtime task. If the process stops between those commits, retrying the original request creates or retrieves the same task plan. Results commit only through the runtime's lease-checked task/event transaction. They are immutable proposals, never review decisions.
 
-The planner exposes one tool, `submit_campaign_brief`, and returns a complete brief proposal, clarification or unsupported explanation. Code validates shape, supported segments, budget provenance and output bounds. The current slice is reachable by CLI and guarded loopback API; the React chat, campaign execution tools and broader knowledge retrieval are deferred. See [conversation planning](conversations.md).
+The planner exposes one tool, `submit_campaign_brief`, and returns a complete brief proposal, clarification or unsupported explanation. Code validates shape, supported segments, budget provenance and output bounds. React and the guarded loopback API can prepare a synthetic, fixture-copy campaign from a current validated proposal. The source brief and conversation revision are rechecked in the review transaction, so a later message blocks approval and acceptance of the older draft. Broader knowledge retrieval, real audiences and delivery remain future work. See [conversation planning](conversations.md).
 
 ## Testability and evolution
 

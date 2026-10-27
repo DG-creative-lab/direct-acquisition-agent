@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 
 from acquisition.audiences import Snapshot
-from acquisition.campaigns import Brief, Draft, build_draft
+from acquisition.campaigns import ConversationBrief, Draft, brief_from, build_draft
 from acquisition.contracts import Conflict, digest
 from acquisition.creative import Creative, fact_pack_id, fixture_catalog, validate_fact_pack, validate_grounded_catalogue
 
@@ -52,13 +52,15 @@ def validate_candidate(draft: Draft, snapshot: Snapshot, contexts: dict[str, dic
     if snapshot.organization != draft.manifest.get("organization") or snapshot.id != draft.manifest.get("snapshot_id"):
         raise Conflict("Draft does not bind its audience snapshot")
     creatives = creatives_from(draft)
-    if build_draft(snapshot, Brief(**draft.manifest["brief"]), creatives) != draft:
+    brief = brief_from(draft.manifest["brief"])
+    if build_draft(snapshot, brief, creatives) != draft:
         raise Conflict("Draft is not the exact result of its recorded inputs")
     mailed = {row["business_id"] for row in csv.DictReader(io.StringIO(draft.mailing_csv))}
     if mailed & suppressions:
         raise Conflict("Current suppressions affect this draft; rebuild before review")
     if all(c.status == "synthetic_fixture_unapproved" for c in creatives):
-        if not policy.allow_fixtures or set(creatives) != set(fixture_catalog()):
+        expected = tuple(c for c in fixture_catalog() if not isinstance(brief, ConversationBrief) or c.segment in brief.segments)
+        if not policy.allow_fixtures or set(creatives) != set(expected):
             raise Conflict("Only the known synthetic fixtures are permitted in fixture mode")
     elif all(c.status == "generated_unreviewed" and c.fact_pack_id == fact_pack_id(pack) for c in creatives):
         for segment in ("inventory", "contractors"):

@@ -183,10 +183,12 @@ function migratePendingCommand() {
   sessionStorage.removeItem("workspace-pending");
 }
 
-export async function command(
+export class MessageNotSavedError extends Error {}
+
+export async function command<T = State>(
   path: string,
   payload: Record<string, unknown>,
-): Promise<State> {
+): Promise<T> {
   migratePendingCommand();
   const key = pendingKey(path, payload);
   let requestId = sessionStorage.getItem(key);
@@ -204,12 +206,42 @@ export async function command(
     body: JSON.stringify({ ...payload, request_id: requestId }),
   });
   const result = await response.json();
+  if (
+    !response.ok &&
+    [400, 404, 409].includes(response.status) &&
+    result.message_not_saved === true &&
+    /^\/api\/conversations\/[^/]+\/messages$/.test(path)
+  ) {
+    sessionStorage.removeItem(key);
+    throw new MessageNotSavedError(
+      result.error ?? "The message was not saved.",
+    );
+  }
   if (!response.ok)
     throw new Error(
       result.error ??
         "The action did not return a confirmed result. Refresh before retrying.",
     );
   sessionStorage.removeItem(key);
+  return result;
+}
+
+export async function replay<T>(
+  path: string,
+  payload: Record<string, unknown>,
+  requestId: string,
+): Promise<T> {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Workspace-Token": token(),
+    },
+    body: JSON.stringify({ ...payload, request_id: requestId }),
+  });
+  const result = await response.json();
+  if (!response.ok)
+    throw new Error(result.error ?? "Unable to resume this request.");
   return result;
 }
 export async function download(id: string, kind: string, subjectId: string) {

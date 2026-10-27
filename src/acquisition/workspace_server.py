@@ -10,6 +10,7 @@ from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
 
 from acquisition.contracts import Conflict, NotFound
+from acquisition.conversations import MessageRejectedConflict, MessageRejectedInvalid, MessageRejectedNotFound
 from acquisition.reasoning import ModelError
 from acquisition.workspace import Workspace
 
@@ -135,6 +136,10 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, self.server.workspace.message_conversation(parts[2], **data))
                 if parts[3] == "plan" and set(data) == {"request_id", "expected_revision"}:
                     return self._send(200, self.server.workspace.plan_conversation(parts[2], **data))
+                if parts[3] == "plan-fixture" and set(data) == {"request_id", "expected_revision"}:
+                    return self._send(200, self.server.workspace.plan_conversation_fixture(parts[2], **data))
+                if parts[3] == "draft" and set(data) == {"request_id", "expected_revision", "plan_id"}:
+                    return self._send(200, self.server.workspace.draft_conversation(parts[2], **data))
                 raise ValueError("Use exact fields for a supported conversation action")
             if path == "/api/sessions":
                 if set(data) - {"request_id", "mode", "parent_id"}:
@@ -146,6 +151,9 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, self.server.workspace.prepare(parts[2]))
                 return self._send(200, self.server.workspace.action(parts[2], parts[3], data))
             raise NotFound("Unknown workspace route")
+        except (MessageRejectedConflict, MessageRejectedInvalid, MessageRejectedNotFound) as error:
+            self._send(409 if isinstance(error, MessageRejectedConflict) else 404 if isinstance(error, MessageRejectedNotFound) else 400,
+                       {"error": str(error), "message_not_saved": True})
         except (NotFound, ValueError, Conflict, ModelError, KeyError) as error:
             self._send(404 if isinstance(error, NotFound) else 409 if isinstance(error, Conflict) else 400,
                 {"error": str(error) if not isinstance(error, KeyError) else "Missing required workspace field"})

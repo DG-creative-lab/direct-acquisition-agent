@@ -286,6 +286,20 @@ class WorkspaceHttpTests(unittest.TestCase):
         self.assertEqual(self.request(path, {"request_id": "new", "title": "Contractors", "organization": "other"})[0], 400)
         self.assertEqual(self.request(path, headers={"X-Workspace-Token": ""})[0], 403)
 
+    def test_message_rejection_marker_only_identifies_precommit_failures(self):
+        _, body, _ = self.request("/api/conversations", {"request_id": "new", "title": "Test"})
+        path = "/api/conversations/" + json.loads(body)["id"]
+        payload = {"request_id": "first", "expected_revision": 0, "content": "First message"}
+        self.assertEqual(self.request(path + "/messages", payload)[0], 200)
+        status, body, _ = self.request(path + "/messages", payload | {"request_id": "stale"})
+        self.assertEqual(status, 409)
+        self.assertTrue(json.loads(body)["message_not_saved"])
+        with patch("acquisition.conversations.application.ConversationService.view", side_effect=ValueError("Read failed after commit")):
+            status, body, _ = self.request(path + "/messages", {"request_id": "second", "expected_revision": 1, "content": "Saved before read failure"})
+        self.assertEqual(status, 400)
+        self.assertNotIn("message_not_saved", json.loads(body))
+        self.assertEqual(json.loads(self.request(path)[1])["revision"], 2)
+
     def test_conversation_http_planning_is_explicit_and_creates_no_campaign(self):
         from test_conversations import PlannerModel
         model = PlannerModel()

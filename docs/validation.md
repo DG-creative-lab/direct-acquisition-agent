@@ -1,6 +1,6 @@
 # Validation and limits
 
-The product is tested at pure-rule, persistence, process, HTTP and browser boundaries. This guide describes the current portfolio rather than the chronology of its construction. The portfolio includes nine frontend regressions, 29 selected mutation probes and backend tests covering the campaign lifecycle and persistent conversational planning. Test counts do not measure overall completeness or production readiness.
+The product is tested at pure-rule, persistence, process, HTTP and browser boundaries. This guide describes the current portfolio rather than the chronology of its construction. The portfolio includes frontend regressions, 29 selected mutation probes and backend tests covering the campaign lifecycle, conversational planning and synthetic preparation. Test counts do not measure overall completeness or production readiness.
 
 ## Reproduce the checks
 
@@ -46,7 +46,7 @@ Python checks require Python 3.11 or later; the interface requires Node 22.12+ a
 | Conversation intent survives replay and revision | Scoped SQLite messages, concurrent append and plan admission, process restart, stale browser revision and changed request rejection | Local trusted identity; bounded message history |
 | Brief proposals retain provenance without authority | Literal current GBP budget, supported segment catalogue, forbidden tool and no campaign/review/job writes | Model intent interpretation and clarification quality are not proven by structural validation |
 | Planning stays bounded across interruptions | Six admissions per conversation, two calls per request, frozen-context admission recovery, unknown-call fencing, recorded-response replay and cancellation | Fake model responses only; no live planner quality or general semantic compliance claim |
-| Late planning cannot replace new intent | A correction during inference makes the completed earlier result historical | Conversation revisions only; no campaign execution from plans yet |
+| Late planning cannot replace new intent | A correction during inference makes the completed earlier result historical; changing a conversation invalidates review authority for its prior campaign | Synthetic fixture preparation only |
 | Planning replay cannot dispatch unrelated work | Completed-plan replay with a separate queued conversation; targeted recovery with an unrelated expired lease and wrong organization | Targeted local worker path; general worker draining remains organization-wide |
 | Budget corrections do not silently reuse stale amounts | Later unsupported currencies, shorthand, relative edits with valid amounts, ranges and mixed valid/invalid amounts require clarification; explicit new totals remain valid | Pattern-based detection cannot identify every natural-language correction |
 

@@ -199,6 +199,7 @@ for (const viewport of [
   }) => {
     await page.setViewportSize(viewport);
     await page.goto("/");
+    await page.getByRole("button", { name: /^Campaign(?: \d+)?$/ }).click();
     await page
       .locator(".page-heading")
       .getByRole("button", { name: "New campaign" })
@@ -237,6 +238,7 @@ for (const viewport of [
       .textContent();
     // Reload the persisted creative: publication tokens must not restyle it.
     await page.reload();
+    await page.getByRole("button", { name: /^Campaign(?: \d+)?$/ }).click();
     await page.getByRole("tab", { name: /Copy variants/ }).click();
     await page.evaluate(() => document.fonts.ready);
     await expect(page.locator(".copy-provenance code").first()).toHaveText(
@@ -320,4 +322,207 @@ test("brand identity stays named on desktop, tablet and mobile", async ({
       "#000000",
     );
   }
+});
+
+test("offline assistant prepares a persistent draft without a model call", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const paths = [];
+  page.on("request", (request) => {
+    if (request.method() === "POST")
+      paths.push(new URL(request.url()).pathname);
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: /Try the offline example/ }).click();
+  await expect(
+    page.getByRole("heading", { name: "Campaign brief" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /Review campaign/ }),
+  ).toBeVisible();
+  expect(paths.some((path) => path.endsWith("/plan-fixture"))).toBe(true);
+  expect(paths.some((path) => path.endsWith("/plan"))).toBe(false);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
+    await page.evaluate(() => document.documentElement.clientWidth),
+  );
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: /Review campaign/ }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: /Review campaign/ }).click();
+  await expect(page.getByText("Review & approval")).toBeVisible();
+  await expect(
+    page.getByText("Pending", { exact: true }).first(),
+  ).toBeVisible();
+});
+
+test("conversation navigation opens a new chat and returns to recent work", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await expect(
+    page.getByRole("button", { name: "Assistant", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "New conversation", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Message Direct Acquisition")).toBeInViewport();
+  await page.screenshot({ path: "../.local/chat-desktop.png", fullPage: true });
+  await page.getByRole("button", { name: /Try the offline example/ }).click();
+  await expect(
+    page.getByRole("button", { name: /Review campaign/ }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: /Review campaign/ }).click();
+  await expect(page.getByText("Review & approval")).toBeVisible();
+  await page
+    .locator(".conversation-history")
+    .getByRole("button", { name: "Offline example" })
+    .first()
+    .click();
+  await expect(
+    page.getByRole("button", { name: /Review campaign/ }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "New conversation", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "What would you like to prepare?" }),
+  ).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByLabel("Message Direct Acquisition")).toBeInViewport();
+  await page.screenshot({ path: "../.local/chat-mobile.png", fullPage: true });
+  await expect(
+    page.getByRole("button", { name: "New conversation", exact: true }),
+  ).toBeVisible();
+  await page
+    .locator(".conversation-list")
+    .getByRole("button", { name: /Offline example/ })
+    .first()
+    .click();
+  await expect(
+    page.getByRole("button", { name: /Review campaign/ }),
+  ).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
+    await page.evaluate(() => document.documentElement.clientWidth),
+  );
+});
+
+test("lost message acknowledgement is retried with the original identity after reload", async ({
+  page,
+}) => {
+  let attempts = [],
+    dropped = false;
+  await page.route("**/api/conversations/*/messages", async (route) => {
+    const body = route.request().postDataJSON();
+    attempts.push(body);
+    if (!dropped) {
+      dropped = true;
+      await route.fetch();
+      await route.abort("failed");
+    } else await route.continue();
+  });
+  await page.route("**/api/conversations/*/plan", (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "Model disabled for test" }),
+    }),
+  );
+  await page.goto("/");
+  await page
+    .getByLabel("Message Direct Acquisition")
+    .fill("Plan a £600 campaign for contractors.");
+  await page.getByRole("button", { name: "Send to agent" }).click();
+  await expect(
+    page.getByRole("button", { name: "Retry saving message" }),
+  ).toBeEnabled();
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "Retry saving message" }),
+  ).toBeEnabled();
+  await page.getByRole("button", { name: "Retry saving message" }).click();
+  await expect(page.getByText("Model disabled for test")).toBeVisible();
+  expect(attempts).toHaveLength(2);
+  expect(attempts[1]).toEqual(attempts[0]);
+  await expect(
+    page
+      .locator(".conversation-thread")
+      .getByText("Plan a £600 campaign for contractors.", { exact: true }),
+  ).toHaveCount(1);
+});
+
+test("stale message rejection unlocks the composer and allows revision", async ({
+  page,
+}) => {
+  let advanced = false;
+  await page.route("**/api/conversations/*/messages", async (route) => {
+    if (!advanced) {
+      advanced = true;
+      const body = route.request().postDataJSON();
+      const response = await nativeFetch(route.request().url(), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Workspace-Token": workspaceToken,
+          Origin: base,
+        },
+        body: JSON.stringify({
+          request_id: "other-client",
+          expected_revision: body.expected_revision,
+          content: "A concurrent message.",
+        }),
+      });
+      expect(response.ok).toBeTruthy();
+    }
+    await route.continue();
+  });
+  await page.route("**/api/conversations/*/plan", (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "Model disabled for test" }),
+    }),
+  );
+  await page.goto("/");
+  const composer = page.getByLabel("Message Direct Acquisition");
+  await composer.fill("Plan a £600 campaign for contractors.");
+  await page.getByRole("button", { name: "Send to agent" }).click();
+  await expect(
+    page.getByText(
+      "Conversation changed; reload before appending this message",
+    ),
+  ).toBeVisible();
+  await expect(composer).toBeEnabled();
+  await expect(composer).toHaveValue("Plan a £600 campaign for contractors.");
+  await expect(
+    page.getByText("A concurrent message.", { exact: true }),
+  ).toBeVisible();
+  await composer.fill("Plan a £300 campaign for contractors.");
+  await page.getByRole("button", { name: "Send to agent" }).click();
+  await expect(page.getByText("Model disabled for test")).toBeVisible();
+  await expect(
+    page.getByText("Plan a £300 campaign for contractors.", { exact: true }),
+  ).toHaveCount(1);
+});
+
+test("unmarked conflict keeps the message pending", async ({ page }) => {
+  await page.route("**/api/conversations/*/messages", (route) =>
+    route.fulfill({
+      status: 409,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "Unconfirmed conflict" }),
+    }),
+  );
+  await page.goto("/");
+  await page
+    .getByLabel("Message Direct Acquisition")
+    .fill("Plan a £600 campaign for contractors.");
+  await page.getByRole("button", { name: "Send to agent" }).click();
+  await expect(page.getByText("Unconfirmed conflict")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Retry saving message" }),
+  ).toBeEnabled();
+  await expect(page.getByLabel("Message Direct Acquisition")).toBeDisabled();
 });

@@ -29,6 +29,28 @@ class Brief:
 
 
 @dataclass(frozen=True)
+class ConversationBrief(Brief):
+    segments: tuple[str, ...] = ()
+    conversation_id: str = ""
+    conversation_revision: int = 0
+    plan_id: str = ""
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if (type(self.segments) is not tuple or not self.segments or len(set(self.segments)) != len(self.segments)
+                or any(segment not in {"inventory", "contractors"} for segment in self.segments)
+                or not self.conversation_id.startswith("conversation_") or not self.plan_id.startswith("brief_")
+                or type(self.conversation_revision) is not int or self.conversation_revision < 1):
+            raise ValueError("A conversation brief requires supported segments and exact proposal provenance")
+
+
+def brief_from(payload: dict) -> Brief:
+    if "segments" not in payload:
+        return Brief(**payload)
+    return ConversationBrief(**(payload | {"segments": tuple(payload["segments"])}))
+
+
+@dataclass(frozen=True)
 class Draft:
     manifest: dict
     mailing_csv: str
@@ -56,7 +78,8 @@ def build_draft(snapshot: Snapshot, brief: Brief, creatives: tuple[Creative, ...
     catalogue = {(item.segment, item.arm): item for item in creatives}
     if len(catalogue) != len(creatives) or len({item.id for item in creatives}) != len(creatives):
         raise ValueError("Duplicate creative identity or segment/arm")
-    if set(catalogue) != {(s, a) for s in ("inventory", "contractors") for a in ("A", "B")}:
+    segments = brief.segments if isinstance(brief, ConversationBrief) else ("inventory", "contractors")
+    if set(catalogue) != {(s, a) for s in segments for a in ("A", "B")}:
         raise ValueError("Incomplete creative catalogue")
     identity_counts = Counter(row.business_id for row in snapshot.records)
     reasons: Counter[str] = Counter()
@@ -78,6 +101,8 @@ def build_draft(snapshot: Snapshot, brief: Brief, creatives: tuple[Creative, ...
             reason = "contact_cap"
         elif row.last_contact and (as_of - date.fromisoformat(row.last_contact)).days < 30:
             reason = "contact_cooldown"
+        elif isinstance(brief, ConversationBrief) and row.segment not in segments:
+            reason = "outside_selected_segment"
         if reason:
             reasons[reason] += 1
         else:
@@ -89,7 +114,7 @@ def build_draft(snapshot: Snapshot, brief: Brief, creatives: tuple[Creative, ...
     cohort = eligible[:limit]
     assignment_rows, mailing_rows = [], []
     arm_counts: Counter[str] = Counter()
-    for segment in ("inventory", "contractors"):
+    for segment in segments:
         group = sorted((row for row in cohort if row.segment == segment), key=lambda row: digest({
             "algorithm": "hash-randomization/v1", "seed": snapshot.seed,
             "campaign": brief.campaign_id, "business": row.business_id,
@@ -110,12 +135,15 @@ def build_draft(snapshot: Snapshot, brief: Brief, creatives: tuple[Creative, ...
               "eligible_unselected": len(eligible) - len(cohort), "holdout": held, "mailed": selected}
     if counts["input"] != sum(value for key, value in counts.items() if key != "input"):
         raise AssertionError("Population did not reconcile")
+    brief_data = asdict(brief)
+    if isinstance(brief, ConversationBrief):
+        brief_data["segments"] = list(brief.segments)
     manifest = {
         "schema": "draft/v1", "mode": "SYNTHETIC_DRY_RUN_UNAPPROVED",
         "organization": snapshot.organization, "snapshot_id": snapshot.id,
         "as_of": snapshot.as_of, "model_version": snapshot.model_version,
         "score_semantics": snapshot.score_semantics, "forecast_basis": "response_not_incremental_value",
-        "brief": asdict(brief), "counts": counts, "exclusion_reasons": dict(sorted(reasons.items())),
+        "brief": brief_data, "counts": counts, "exclusion_reasons": dict(sorted(reasons.items())),
         "assignment_algorithm": "hash-randomization/v1", "seed": snapshot.seed,
         "arm_counts": dict(sorted(arm_counts.items())),
         "variable_cost_pence": selected * brief.unit_cost_pence,

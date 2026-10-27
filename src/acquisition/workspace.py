@@ -29,6 +29,7 @@ class Workspace:
         with self.control() as db:
             db.execute("CREATE TABLE IF NOT EXISTS sessions(id TEXT PRIMARY KEY, request_hash TEXT NOT NULL, payload TEXT NOT NULL)")
             db.execute("CREATE TABLE IF NOT EXISTS commands(session_id TEXT NOT NULL, request_id TEXT NOT NULL, request_hash TEXT NOT NULL, done INTEGER NOT NULL, PRIMARY KEY(session_id,request_id))")
+            db.execute("CREATE TABLE IF NOT EXISTS conversation_draft_requests(conversation_id TEXT NOT NULL, request_id TEXT NOT NULL, request_hash TEXT NOT NULL, session_id TEXT NOT NULL, PRIMARY KEY(conversation_id,request_id))")
         self.pack = json.loads((Path(__file__).resolve().parents[2] / "config/iwoca-product-facts-v1.json").read_text())
 
     @contextmanager
@@ -60,7 +61,9 @@ class Workspace:
             config = ModelConfig("openai/gpt-oss-120b", max_calls=10, force_tool_choice=True)
         # Each sandbox has its own durable clock. Live generation starts at real
         # time; explicit outcome simulation alone can advance the sandbox clock.
-        return build(self.root / session["organization"] / "campaign.sqlite", clock=lambda: max(self.real_clock(), session["clock"]) if session.get("clock_mode") == "REAL" else session["clock"], gateway=gateway, model_config=config)
+        conversation_db = session.get("database_scope") == "conversations" or session.get("conversation_plan") or session["organization"] == "local-conversations"
+        database = self.root / "conversations.sqlite" if conversation_db else self.root / session["organization"] / "campaign.sqlite"
+        return build(database, clock=lambda: max(self.real_clock(), session["clock"]) if session.get("clock_mode") == "REAL" else session["clock"], gateway=gateway, model_config=config)
 
     def listing(self):
         with self.lock, self.control() as db:
@@ -80,7 +83,12 @@ class Workspace:
 
     def conversation(self, conversation_id):
         with self.lock:
-            return self._conversation_app().conversations.view("local-conversations", conversation_id)
+            view = self._conversation_app().conversations.view("local-conversations", conversation_id)
+            with self.control() as db:
+                sessions = [json.loads(r[0]) for r in db.execute("SELECT payload FROM sessions ORDER BY rowid DESC")]
+            return view | {"campaigns": [{"session_id": s["id"], "plan_id": s["conversation_plan"]["id"],
+                                          "revision": s["conversation_plan"]["revision"], "case_id": s["case_id"]}
+                                         for s in sessions if s.get("conversation_plan", {}).get("conversation_id") == conversation_id]}
 
     def create_conversation(self, request_id, title):
         with self.lock:
@@ -96,6 +104,57 @@ class Workspace:
             run_id = app.conversations.plan("local-conversations", conversation_id, request_id, expected_revision)
             app.worker.drain("local-conversations", run_id=run_id)
             return app.conversations.view("local-conversations", conversation_id)
+
+    def plan_conversation_fixture(self, conversation_id, request_id, expected_revision):
+        with self.lock:
+            app = self._conversation_app()
+            run_id = app.conversations.plan_fixture("local-conversations", conversation_id, request_id, expected_revision)
+            app.worker.drain(organization="local-conversations", run_id=run_id)
+            return app.conversations.view("local-conversations", conversation_id)
+
+    def draft_conversation(self, conversation_id, request_id, expected_revision, plan_id):
+        identifier(conversation_id), identifier(request_id), identifier(plan_id)
+        if type(expected_revision) is not int or expected_revision < 1:
+            raise ValueError("Select a current conversation revision")
+        fingerprint = digest({"conversation_id": conversation_id, "revision": expected_revision, "plan_id": plan_id})
+        session_id = "workspace_" + digest({"conversation_id": conversation_id, "plan_id": plan_id})[:24]
+        with self.lock:
+            with self.control() as db:
+                prior_draft = db.execute("SELECT * FROM conversation_draft_requests WHERE conversation_id=? AND request_id=?", (conversation_id, request_id)).fetchone()
+                if prior_draft:
+                    if prior_draft["request_hash"] != fingerprint:
+                        raise Conflict("Draft request already binds different proposal inputs")
+                    return self.prepare(prior_draft["session_id"])
+            view = self._conversation_app().conversations.view("local-conversations", conversation_id)
+            current = view["current_plan"]
+            plan = current["result"] if current and current["status"] == "succeeded" else None
+            if view["revision"] != expected_revision or not plan or plan["id"] != plan_id or plan["outcome"] != "brief_proposal":
+                raise Conflict("Select the exact current completed brief proposal")
+            if plan["copy_mode"] != "fixture":
+                raise ValueError("Conversation drafts currently support offline fixture copy only")
+            start = datetime.fromisoformat(self.pack["checked_on"]).replace(tzinfo=timezone.utc).timestamp() + 43200
+            session = {"id": session_id, "name": "Conversation / " + plan["objective"][:70], "mode": "fixture",
+                       "organization": session_id, "database_scope": "conversations", "clock": start, "parent_id": None,
+                       "clock_mode": "SIMULATED", "created_at": self.real_clock(), "run_id": None,
+                       "case_id": None, "cohort_id": None, "conversation_plan": plan}
+            with self.control() as db:
+                db.execute("BEGIN IMMEDIATE")
+                try:
+                    replay = db.execute("SELECT * FROM conversation_draft_requests WHERE conversation_id=? AND request_id=?", (conversation_id, request_id)).fetchone()
+                    if replay is not None and (replay["request_hash"] != fingerprint or replay["session_id"] != session_id):
+                        raise Conflict("Draft request already binds different proposal inputs")
+                    existing = db.execute("SELECT * FROM sessions WHERE id=?", (session_id,)).fetchone()
+                    if existing is not None and existing["request_hash"] != fingerprint:
+                        raise Conflict("Campaign identity already binds different proposal inputs")
+                    if existing is None:
+                        db.execute("INSERT INTO sessions VALUES(?,?,?)", (session_id, fingerprint, canonical(session)))
+                    if replay is None:
+                        db.execute("INSERT INTO conversation_draft_requests VALUES(?,?,?,?)", (conversation_id, request_id, fingerprint, session_id))
+                    db.commit()
+                except BaseException:
+                    db.rollback()
+                    raise
+            return self.prepare(session_id)
 
     def create(self, request_id, mode, parent_id=None):
         identifier(request_id)
@@ -118,7 +177,7 @@ class Workspace:
                         start = max(start, parent["clock"])
                     session = {"id": identity, "name": "Working capital / " + ("model copy" if mode == "model" else "offline demo"),
                         "mode": mode, "organization": parent["organization"] if parent else identity, "clock": start,
-                        "parent_id": parent_id, "clock_mode": "SIMULATED" if parent or mode == "fixture" else "REAL", "created_at": self.real_clock(), "run_id": None,
+                        "parent_id": parent_id, "database_scope": (parent.get("database_scope") or ("conversations" if parent.get("conversation_plan") or parent["organization"] == "local-conversations" else "campaign")) if parent else "campaign", "clock_mode": "SIMULATED" if parent or mode == "fixture" else "REAL", "created_at": self.real_clock(), "run_id": None,
                         "case_id": None, "cohort_id": None}
                     db.execute("INSERT INTO sessions VALUES(?,?,?)", (identity, fingerprint, canonical(session)))
             return self.prepare(identity)
@@ -131,8 +190,8 @@ class Workspace:
             app = self._app(session, with_model=True)
             store = app.reviews.store
             scope = session["organization"]
-            store.register_actor(scope, "local-operator", ("operator",))
-            store.register_actor(scope, "local-reviewer", ("reviewer",))
+            store.initialize_actor(scope, "local-operator", ("operator",))
+            store.initialize_actor(scope, "local-reviewer", ("reviewer",))
             if store.evidence(scope) is None:
                 store.activate(scope, "local-operator", "initial-evidence", self.pack, ReviewPolicy())
             start = app.start_model if session["mode"] == "model" else app.start
@@ -140,7 +199,14 @@ class Workspace:
             # Recomputing context here could conflict with newly learned memory.
             run = session["run_id"] or app.tasks.find_run(scope, identity)
             if run is None:
-                run = start(scope, identity, as_of=datetime.fromtimestamp(session["clock"], timezone.utc).date().isoformat())
+                if session.get("conversation_plan"):
+                    source = session["conversation_plan"]
+                    current = app.conversations.view("local-conversations", source["conversation_id"])
+                    if current["revision"] != source["revision"] or not current["current_plan"] or current["current_plan"]["result"] != source:
+                        raise Conflict("Conversation changed before campaign preparation")
+                    run = app.start_conversation(scope, identity, source, datetime.fromtimestamp(session["clock"], timezone.utc).date().isoformat())
+                else:
+                    run = start(scope, identity, as_of=datetime.fromtimestamp(session["clock"], timezone.utc).date().isoformat())
             session["run_id"] = run
             self._save(session)
             if session["mode"] == "model":
@@ -149,7 +215,7 @@ class Workspace:
                 admitted = app.tasks.inspect(scope, run)
                 for context_id in admitted["tasks"][0]["inputs"]["context_ids"].values():
                     validate_fact_pack(app.memory.get_context(scope, context_id)["product_facts"], today)
-            app.worker.drain(scope)
+            app.worker.drain(scope, run_id=run)
             state = app.tasks.inspect(scope, run)
             if state["run"]["status"] not in {"waiting", "succeeded"}:
                 raise Conflict("Preparation has not reached review. Inspect the task status before resuming.")
