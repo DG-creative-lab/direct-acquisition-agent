@@ -23,7 +23,7 @@ CASES = [
      '                    raise ModelError("previous_inference_failed_or_unknown_no_retry")', "                    return None",
      "test_unknown_gateway_failure_is_sanitized_and_never_dispatched_again"),
     ("worker-configuration-preflight", "runtime/application.py",
-     'eligible=self.eligible)', 'eligible=None)',
+     'eligible=self.eligible, run_id=run_id)', 'eligible=None, run_id=run_id)',
      "test_review_regressions.ReviewRegressions.test_incompatible_workers_do_not_claim_consume_attempts_or_fail_a_run"),
     ("retired-workflow-admission", "adapters/sqlite/tasks.py",
      '            if any(s.capability in self.retired_capabilities for s in specs):\n                raise ValueError("Retired capabilities cannot be admitted as new runs")\n', '',
@@ -95,6 +95,16 @@ CASES = [
     ("conversation-organization-scope", "adapters/sqlite/conversations.py",
      'SELECT * FROM conversations WHERE organization=? AND id=?', 'SELECT * FROM conversations WHERE ? IS NOT NULL AND id=?',
      "test_conversations.ConversationTests.test_message_revision_idempotency_scope_and_history"),
+    ("planner-targeted-worker", "workspace.py",
+     'app.worker.drain("local-conversations", run_id=run_id)', 'app.worker.drain("local-conversations", run_id=None)',
+     "test_workspace.WorkspaceHttpTests.test_replaying_a_completed_plan_does_not_execute_another_conversation"),
+    ("planner-unparseable-currency-correction", "conversations/domain.py",
+     'if any(not any(marker.start() == match.start() for match in matches) for marker in currency):', 'if False:',
+     "test_conversations.ConversationTests.test_later_unparseable_budget_correction_cannot_reuse_an_older_amount"),
+    ("targeted-worker-expired-recovery", "adapters/sqlite/tasks.py",
+     'AND (? IS NULL OR r.id=?)""", (organization, now, run_id, run_id)).fetchall()',
+     'AND (? IS NULL OR ? IS NOT NULL)""", (organization, now, run_id, run_id)).fetchall()',
+     "test_persistence.PersistenceTests.test_targeted_worker_only_recovers_and_claims_the_requested_run"),
 ]
 
 

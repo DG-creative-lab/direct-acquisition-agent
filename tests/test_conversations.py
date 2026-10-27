@@ -338,6 +338,42 @@ class ConversationTests(unittest.TestCase):
         for unsupported in ("£1e6", "£600k", "£1,00", "£600.123"):
             self.assertIsNone(explicit_budget([{"id": "m", "content": unsupported}]))
 
+    def test_later_unparseable_budget_correction_cannot_reuse_an_older_amount(self):
+        self.message()
+        for correction in ("use £600k instead", "Change the budget to £600k instead", "halve the budget",
+                           "use $500 instead", "budget 600 pounds", "make it GBP600", "change it to 600k",
+                           "budget £300 or £600k", "budget £600 or 800", "budget £600-800",
+                           "Actually 700 instead", "spend under £600"):
+            with self.subTest(correction=correction):
+                frozen = {"conversation_id": self.id, "request_id": "plan", "revision": 2,
+                          "knowledge_id": "fixture", "messages": [
+                              {"id": "first", "content": "Prepare a contractor experiment with £600."},
+                              {"id": "correction", "content": correction}]}
+                self.assertIsNone(explicit_budget(frozen["messages"]))
+                with self.assertRaises(ValueError):
+                    validate_result(proposal(), frozen, "one")
+                clarification = proposal(outcome="clarification", budget_pence=None,
+                                         question="What exact GBP budget should I use?")
+                self.assertEqual(validate_result(clarification, frozen, "one")["outcome"], "clarification")
+        self.assertEqual(explicit_budget([{"id": "first", "content": "Budget £600."},
+                                          {"id": "next", "content": "Keep the tone concise."}])["budget_pence"], 60000)
+        self.assertEqual(explicit_budget([{"id": "first", "content": "Budget £600."},
+                                          {"id": "next", "content": "Use 2 variants."}])["budget_pence"], 60000)
+        self.assertEqual(explicit_budget([{"id": "first", "content": "Budget £600."},
+                                          {"id": "next", "content": "Set the budget to £300."}])["budget_pence"], 30000)
+
+    def test_planner_repairs_stale_budget_proposal_into_clarification(self):
+        self.message()
+        self.message("Use £600k instead.", "correction", 1)
+        self.model.results = [proposal(), proposal(outcome="clarification", budget_pence=None,
+                                                   question="What exact GBP budget should I use?")]
+        self.plan("corrected-plan", 2)
+        result = self.finish()
+        self.assertEqual(result["outcome"], "clarification")
+        self.assertIsNone(result["budget_pence"])
+        self.assertIsNone(result["budget_evidence"])
+        self.assertEqual(len(self.model.requests), 2)
+
 
 class ConversationMigrationAndCliTests(unittest.TestCase):
     def test_schema_six_migration_is_atomic_and_preserves_existing_authority(self):

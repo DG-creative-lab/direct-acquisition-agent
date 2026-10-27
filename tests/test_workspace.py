@@ -309,6 +309,28 @@ class WorkspaceHttpTests(unittest.TestCase):
             self.assertEqual(self.request(path + "/messages", payload | {"request_id": "stale"})[0], 409)
         self.assertEqual(self.server.workspace.listing()["sessions"], [])
 
+    def test_replaying_a_completed_plan_does_not_execute_another_conversation(self):
+        from test_conversations import PlannerModel
+        model = PlannerModel()
+        workspace = self.server.workspace
+        with patch("acquisition.workspace.openrouter_key", return_value="fixture"), patch("acquisition.workspace.OpenRouter", return_value=model):
+            first = workspace.create_conversation("first", "First")
+            workspace.message_conversation(first["id"], "message", 0, "Plan a £600 contractor experiment.")
+            completed = workspace.plan_conversation(first["id"], "plan", 1)
+            self.assertEqual(completed["current_plan"]["status"], "succeeded")
+            second = workspace.create_conversation("second", "Second")
+            workspace.message_conversation(second["id"], "message", 0, "Plan a £600 contractor experiment.")
+            app = workspace._conversation_app(with_model=True)
+            second_run = app.conversations.plan("local-conversations", second["id"], "plan", 1)
+            before = app.tasks.inspect("local-conversations", second_run)
+            self.assertEqual(before["run"]["status"], "queued")
+            replay = workspace.plan_conversation(first["id"], "plan", 1)
+            self.assertEqual(replay["current_plan"]["result"], completed["current_plan"]["result"])
+            self.assertEqual(len(model.requests), 1)
+            self.assertEqual(app.tasks.inspect("local-conversations", second_run), before)
+            self.assertEqual(workspace.plan_conversation(second["id"], "plan", 1)["current_plan"]["status"], "succeeded")
+            self.assertEqual(len(model.requests), 2)
+
     def test_real_http_json_actions_artifacts_and_input_boundaries(self):
         status, body, _ = self.request('/api/sessions', {"request_id": "http", "mode": "fixture"})
         self.assertEqual(status, 200)

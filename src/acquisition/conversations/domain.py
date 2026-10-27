@@ -49,10 +49,25 @@ def revision_number(value: int) -> int:
 
 
 def explicit_budget(messages: list[dict]) -> dict | None:
-    """Resolve literal GBP amounts from the latest message containing them."""
+    """Resolve an unambiguous literal GBP budget without skipping later corrections."""
     for message in reversed(messages):
-        matches = list(re.finditer(r"(?:£\s*|\bGBP\s+)((?:\d{1,3}(?:,\d{3})+|\d{1,7})(?:\.\d{1,2})?)(?!\w|[.,]\d)", message["content"], re.I))
+        content = message["content"]
+        matches = list(re.finditer(r"(?:£\s*|\bGBP\s+)((?:\d{1,3}(?:,\d{3})+|\d{1,7})(?:\.\d{1,2})?)(?!\w|[.,]\d)", content, re.I))
+        currency = list(re.finditer(r"£|[$€]|\b(?:GBP|USD|EUR)(?=\b|\d)", content, re.I))
+        # An unrecognized or foreign-currency amount is a material reference,
+        # even when the valid-GBP parser cannot interpret it.
+        if any(not any(marker.start() == match.start() for match in matches) for marker in currency):
+            return None
+        if re.search(r"\b(?:not|except|excluding|rather than|instead of|less than|more than|under|over|at least|up to)\s+(?:£|GBP\b)", content, re.I):
+            return None
+        if matches and (re.search(r"\b(?:or|to|and|mean|actually)\s+\d", content, re.I)
+                        or re.search(r"(?<=\d)\s*[-–]\s*(?:£\s*|GBP\s+)?\d", content, re.I)):
+            return None
         if not matches:
+            if re.search(r"\b(?:budget|budgets|spend|spending|pounds?|pence|halve|halved|half|double|doubled|increase|decrease|reduce|reduced)\b", content, re.I):
+                return None
+            if re.search(r"\b(?:change|set|make|use|raise|lower|actually|instead)\b[^\n]*\b\d[\d,.]*(?:\s*[km]\b|(?=\s*(?:instead|rather|please)?\s*[.!?]*$))", content, re.I):
+                return None
             continue
         amounts = set()
         for match in matches:

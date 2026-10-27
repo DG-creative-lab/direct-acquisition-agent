@@ -1,6 +1,6 @@
 # Validation and limits
 
-The product is tested at pure-rule, persistence, process, HTTP and browser boundaries. This guide describes the current portfolio rather than the chronology of its construction. The portfolio includes nine frontend regressions, 25 selected mutation probes and backend tests covering the campaign lifecycle and persistent conversational planning. Test counts do not measure overall completeness or production readiness.
+The product is tested at pure-rule, persistence, process, HTTP and browser boundaries. This guide describes the current portfolio rather than the chronology of its construction. The portfolio includes nine frontend regressions, 28 selected mutation probes and backend tests covering the campaign lifecycle and persistent conversational planning. Test counts do not measure overall completeness or production readiness.
 
 ## Reproduce the checks
 
@@ -47,12 +47,14 @@ Python checks require Python 3.11 or later; the interface requires Node 22.12+ a
 | Brief proposals retain provenance without authority | Literal current GBP budget, supported segment catalogue, forbidden tool and no campaign/review/job writes | Model intent interpretation and clarification quality are not proven by structural validation |
 | Planning stays bounded across interruptions | Six admissions per conversation, two calls per request, frozen-context admission recovery, unknown-call fencing, recorded-response replay and cancellation | Fake model responses only; no live planner quality or general semantic compliance claim |
 | Late planning cannot replace new intent | A correction during inference makes the completed earlier result historical | Conversation revisions only; no campaign execution from plans yet |
+| Planning replay cannot dispatch unrelated work | Completed-plan replay with a separate queued conversation; targeted recovery with an unrelated expired lease and wrong organization | Targeted local worker path; general worker draining remains organization-wide |
+| Budget corrections do not silently reuse stale amounts | Later unsupported currencies, shorthand, relative edits, ranges and mixed valid/invalid amounts require clarification | Pattern-based detection cannot identify every natural-language correction |
 
 ## Test composition
 
 Pure domain tests use literal expected populations, money and posterior values. Persistence tests use real temporary SQLite databases, controlled clocks, concurrent connections and injected failures. CLI tests cross OS process boundaries to exercise restart, review, export, learning and replay. HTTP tests send real requests to the loopback server. Frontend client tests use the real backend, and Chromium tests inspect the rendered interface.
 
-The mutation command creates temporary source copies and weakens 25 selected enforcement points, including leases, reservations, uncertain-call fencing, retired-workflow admission, timestamp validation, migration locking, review expiry/epochs, cohort maturity/completeness, atomic finalization, snapshot memory, Origin checks, exact-subject binding, planning budget provenance, current-revision projection and conversation scope. Detection establishes that the targeted test distinguishes that weakened behavior. It is not a general mutation score. Frontend regressions are reported separately from these probes.
+The mutation command creates temporary source copies and weakens 28 selected enforcement points, including leases, reservations, uncertain-call fencing, retired-workflow admission, timestamp validation, migration locking, review expiry/epochs, cohort maturity/completeness, atomic finalization, snapshot memory, Origin checks, exact-subject binding, planning budget provenance, current-revision projection, conversation scope, targeted execution and stale-budget correction handling. Detection establishes that the targeted test distinguishes that weakened behavior. It is not a general mutation score. Frontend regressions are reported separately from these probes.
 
 The analytic Beta(1,19) quantiles provide an independent check on sampled prior intervals. Count tests verify exact trials/successes and sequential/batch equivalence. This checks calculation behavior; it does not calibrate the prior or turn simulated results into real causal evidence.
 

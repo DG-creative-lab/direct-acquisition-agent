@@ -93,8 +93,8 @@ class Workspace:
     def plan_conversation(self, conversation_id, request_id, expected_revision):
         with self.lock:
             app = self._conversation_app(with_model=True)
-            app.conversations.plan("local-conversations", conversation_id, request_id, expected_revision)
-            app.worker.drain("local-conversations")
+            run_id = app.conversations.plan("local-conversations", conversation_id, request_id, expected_revision)
+            app.worker.drain("local-conversations", run_id=run_id)
             return app.conversations.view("local-conversations", conversation_id)
 
     def create(self, request_id, mode, parent_id=None):
