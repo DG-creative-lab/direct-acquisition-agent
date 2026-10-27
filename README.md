@@ -36,6 +36,8 @@ Free endpoints may be unavailable or fail the output contract. No paid fallback 
 
 Model commands default to GPT-OSS-120B. The current direct-mail configuration uses a dated, public-source iwoca fact pack. Generated framing is checked separately; code inserts selected factual wording, qualifications and the official CTA. The source pack and paired screening result travel with the exported draft. The semantic screen can make mistakes and does not replace human review. New generation stops when the evidence review window expires.
 
+The interface shares Dessi Georgieva's publication typography and palette, with a restrained shared Op Art signature. See the [branding guide](docs/branding.md) for reusable tokens, asset provenance and application boundaries.
+
 ## Architecture
 
 One deployable modular monolith contains runtime, audiences, campaigns, creative, reasoning, learning and reviews modules. Domain rules are pure; application services depend on narrow ports; SQLite, filesystem and OpenRouter implementations are adapters. An explicit composition root wires the application together. Static checks enforce module imports and reject cycles.
@@ -60,6 +62,6 @@ Tests cover domain rules, real SQLite persistence, separate-process restart, tas
 
 ## Review evidence
 
-The current suite has 151 offline Python tests, a static architecture check, 22 targeted mutation checks, eight executable frontend regressions and a strict TypeScript interface build. See the [test coverage review](docs/test-coverage-review.md), [architecture](docs/architecture.md) and [product-grounding notes](docs/product-grounding.md). A [recorded copy example](examples/grounded-run/letters.txt) shows the unreviewed output of a live run.
+The current suite has 151 offline Python tests, a static architecture check, 22 targeted mutation checks, nine executable frontend regressions and a strict TypeScript interface build. See the [test coverage review](docs/test-coverage-review.md), [architecture](docs/architecture.md) and [product-grounding notes](docs/product-grounding.md). A [recorded copy example](examples/grounded-run/letters.txt) shows the unreviewed output of a live run.
 
 Development branches use the `feature/...` naming convention. Real outcome feeds, correction/retraction, repeated-exposure models and external delivery are later work. No license terms have been selected yet.

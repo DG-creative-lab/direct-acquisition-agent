@@ -194,17 +194,24 @@ export default function App() {
       <aside className="sidebar">
         <a
           className="wordmark"
+          aria-label="Direct Acquisition by Dessi Georgieva"
           href="#"
           onClick={(e) => {
             e.preventDefault();
             setPage("campaign");
           }}
         >
-          <span className="brand-mark">
-            <Mail size={21} />
+          <span className="brand-mark" aria-hidden="true">
+            <img
+              src="/brand/nested-squares.svg"
+              alt=""
+              width="44"
+              height="44"
+            />
           </span>
-          <span>
-            direct<span>acquisition</span>
+          <span className="product-signature">
+            Direct<span>Acquisition</span>
+            <small>By Dessi Georgieva</small>
           </span>
         </a>
         <div className="workspace-label">
@@ -737,7 +744,10 @@ export default function App() {
               <FlaskConical size={13} />
               Synthetic audience and outcomes
             </span>
-            <span>Independent portfolio demo · No production connection</span>
+            <span>
+              Dessi Georgieva · Independent product demo · No production
+              connection
+            </span>
           </footer>
         </main>
       </div>
