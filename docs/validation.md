@@ -8,12 +8,12 @@ The product is tested at pure-rule, persistence, process, HTTP and browser bound
 make test
 make arch-check
 make mutation-check
-npm --prefix frontend ci
-npm --prefix frontend exec -- playwright install chromium
+pnpm --dir frontend install --frozen-lockfile
+pnpm --dir frontend exec playwright install chromium
 make interface-check
 ```
 
-Python checks require Python 3.11 or later; the interface requires Node 22.12+ and npm. CI uses Python 3.11 through 3.14 and a Node interface job. Browser and HTTP tests need permission to bind loopback ports. Offline tests do not use provider credit. Live inference evaluations are separate and opt-in.
+Python checks require Python 3.11 or later; the interface requires Node 22.12+ and pnpm 10.33+. CI uses Python 3.11 through 3.14 and a Node interface job. Browser and HTTP tests need permission to bind loopback ports. Offline tests do not use provider credit. Live inference evaluations are separate and opt-in.
 
 ## Invariant ledger
 

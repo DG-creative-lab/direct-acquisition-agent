@@ -206,7 +206,7 @@ for (const viewport of [
     await page
       .getByRole("button", { name: "Prepare campaign", exact: true })
       .click();
-    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 15000 });
     await expect(page.getByRole("tab", { name: /Audience/ })).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
     await page

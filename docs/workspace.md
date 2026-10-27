@@ -4,19 +4,19 @@ React and TypeScript provide the local interface; Vite produces static assets se
 
 ## Start locally
 
-Requires Python 3.11+, Node 22.12+ and npm on macOS or Linux. The local server uses a POSIX file lock to permit one server process per workspace root.
+Requires Python 3.11+, Node 22.12+ and pnpm 10.33+ on macOS or Linux. The local server uses a POSIX file lock to permit one server process per workspace root.
 
 ```sh
 make workspace
 ```
 
-Open `http://127.0.0.1:8768`. This command installs the locked frontend dependencies, builds the interface and starts the Python server. Stop the server with Ctrl+C. For a different port or isolated data directory:
+Open `http://127.0.0.1:8768`. This one command installs the locked frontend dependencies with pnpm, builds the interface and starts the Python server. The Python process serves both the compiled React application and the API from the same origin, so normal use does not need a second frontend server. Stop it with Ctrl+C. For a different port or isolated data directory:
 
 ```sh
-PYTHONPATH=src python3 -m acquisition.workspace_server --port 8769 --root .local/another-workspace
+make workspace WORKSPACE_PORT=8769 WORKSPACE_ROOT=.local/another-workspace
 ```
 
-After the first build, frontend development can use `npm --prefix frontend run dev` in another terminal. It rebuilds assets on change; refresh the browser against the Python server. Serving the compiled app and API from one origin preserves the local request controls. This build does not use a separate cross-origin development proxy.
+For frontend development, keep `make workspace` running and use `pnpm --dir frontend run dev` in another terminal. The watcher rebuilds static assets on change; refresh the browser against the Python server. It is a build watcher, not a separate frontend server. Serving the compiled app and API from one origin preserves the local request controls.
 
 ## Product and presentation
 
@@ -50,7 +50,7 @@ These controls protect the local browser transport. They do not establish user a
 
 ## Development and verification
 
-Run `make test`, `make arch-check` and `make mutation-check` for backend checks. Install Chromium with `npm --prefix frontend exec -- playwright install chromium`, then run `make interface-check`. See [validation](validation.md) for the test portfolio and its limits.
+Run `make test`, `make arch-check` and `make mutation-check` for backend checks. Install Chromium with `pnpm --dir frontend exec playwright install chromium`, then run `make interface-check`. See [validation](validation.md) for the test portfolio and its limits.
 
 Native dialogs support focus containment, return focus and Escape. Audience/copy tabs support arrow keys, Home and End. Stale loads cannot replace another selected campaign. Failed decisions retain the server error in their dialog. Browser session storage retains each uncertain command identity until confirmed success; storage failure blocks dispatch. Equivalent field ordering preserves identity and older pending-key records migrate without dropping requests.
 

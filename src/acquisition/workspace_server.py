@@ -145,7 +145,10 @@ def main():
     args = parser.parse_args()
     assets = Path(__file__).resolve().parents[2] / "frontend/dist"
     if not (assets / "index.html").exists():
-        parser.error("Build the interface first: npm --prefix frontend ci && npm --prefix frontend run build")
+        parser.error(
+            "Build the interface first: pnpm --dir frontend install --frozen-lockfile "
+            "&& pnpm --dir frontend run build"
+        )
     server = WorkspaceServer(args.port, Workspace(args.root), assets)
     print(f"Synthetic workspace: http://127.0.0.1:{server.server_port}", flush=True)
     try:
