@@ -13,7 +13,7 @@ class Inference:
     def __init__(self, gateway: ModelGateway, journal: CallJournal, config: ModelConfig, clock: Callable[[], float]):
         self.gateway, self.journal, self.config, self.clock = gateway, journal, config, clock
 
-    def call(self, scope: CallScope, key: str, messages: list[dict], tools: list[dict]) -> dict:
+    def prepare_request(self, messages: list[dict], tools: list[dict]) -> dict:
         free = self.config.model.endswith(":free")
         request = {
             "model": self.config.model, "messages": messages, "tools": tools,
@@ -26,6 +26,10 @@ class Inference:
             request["tool_choice"] = "required"
         if len(canonical(request).encode()) > self.config.max_input_bytes:
             raise ModelError("input_budget_exceeded")
+        return request
+
+    def call(self, scope: CallScope, key: str, messages: list[dict], tools: list[dict]) -> dict:
+        request = self.prepare_request(messages, tools)
         cached = self.journal.reserve(scope, key, digest(request), self.config.max_calls, self.clock())
         if cached is not None:
             return cached

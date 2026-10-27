@@ -278,6 +278,37 @@ class WorkspaceHttpTests(unittest.TestCase):
             self.assertEqual(status, 404)
             self.assertNotIn(b"do-not-serve", body)
 
+    def test_conversations_keep_http_guards_and_fixed_server_scope(self):
+        path = "/api/conversations"
+        for headers in ({"X-Workspace-Token": "wrong"}, {"Origin": "https://attacker.invalid"}):
+            self.assertEqual(self.request(path, {"request_id": "new", "title": "Contractors"}, headers)[0], 403)
+        self.assertEqual(json.loads(self.request(path)[1])["conversations"], [])
+        self.assertEqual(self.request(path, {"request_id": "new", "title": "Contractors", "organization": "other"})[0], 400)
+        self.assertEqual(self.request(path, headers={"X-Workspace-Token": ""})[0], 403)
+
+    def test_conversation_http_planning_is_explicit_and_creates_no_campaign(self):
+        from test_conversations import PlannerModel
+        model = PlannerModel()
+        with patch("acquisition.workspace.openrouter_key", return_value="fixture"), patch("acquisition.workspace.OpenRouter", return_value=model):
+            status, body, _ = self.request("/api/conversations", {"request_id": "new", "title": "Contractors"})
+            self.assertEqual(status, 200)
+            identity = json.loads(body)["id"]
+            path = "/api/conversations/" + identity
+            payload = {"request_id": "message", "expected_revision": 0, "content": "Prepare a £600 UK contractor experiment."}
+            self.assertEqual(self.request(path + "/messages", payload)[0], 200)
+            self.assertEqual(self.request(path)[0], 200)
+            self.assertEqual(model.requests, [])
+            self.assertEqual(self.request(path + "/plan", {"request_id": "plan", "expected_revision": 1, "approve": True})[0], 400)
+            status, body, _ = self.request(path + "/plan", {"request_id": "plan", "expected_revision": 1})
+            self.assertEqual(status, 200)
+            self.assertEqual(json.loads(body)["current_plan"]["result"]["budget_pence"], 60000)
+            self.assertEqual(len(model.requests), 1)
+            self.assertEqual(self.request(path + "/plan", {"request_id": "plan", "expected_revision": 1})[0], 200)
+            self.assertEqual(len(model.requests), 1)
+            self.assertEqual(self.request(path + "/approve", {"request_id": "approval", "expected_revision": 1})[0], 400)
+            self.assertEqual(self.request(path + "/messages", payload | {"request_id": "stale"})[0], 409)
+        self.assertEqual(self.server.workspace.listing()["sessions"], [])
+
     def test_real_http_json_actions_artifacts_and_input_boundaries(self):
         status, body, _ = self.request('/api/sessions', {"request_id": "http", "mode": "fixture"})
         self.assertEqual(status, 200)

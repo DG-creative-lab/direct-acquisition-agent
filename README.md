@@ -50,12 +50,15 @@ To try model copy, configure `OPENROUTER_API_KEY` in ignored `.env.local`, then 
 
 The server is loopback-only and intended for trusted local use. Startup, storage, recovery and CLI alternatives are in [local operations](docs/workspace.md).
 
+A [persistent conversational planner](docs/conversations.md) is available through the local API and a CLI. It saves objectives and corrections, then explicitly invokes the model to propose a brief or ask a clarification. This foundation does not yet add chat to React or execute a campaign from a plan.
+
 ## Documentation
 
 | Reader need | Guide |
 | --- | --- |
 | Understand the product and demonstrated scope | [Product overview](docs/product.md) |
 | Walk through campaign, review and learning | [User guide](docs/user-guide.md) |
+| Use persistent conversations and the brief planner | [Conversation planning](docs/conversations.md) |
 | Understand modules, state and transactions | [Architecture](docs/architecture.md) |
 | Assess a path to hosted operation and scale | [Scalability](docs/scalability.md) |
 | Run and recover the local application | [Workspace operations](docs/workspace.md) |
@@ -67,7 +70,7 @@ The server is loopback-only and intended for trusted local use. Startup, storage
 
 ## Engineering
 
-A Python modular monolith owns business rules, durable tasks, inference reservations and authority. SQLite and OpenRouter sit behind narrow ports. React is a presentation client of the same-origin local API. The workflow order is explicit in code, and the model's tool surface is bounded to context reading and copy submission.
+A Python modular monolith owns business rules, durable tasks, inference reservations and authority. SQLite and OpenRouter sit behind narrow ports. React is a presentation client of the same-origin local API. The copy workflow exposes context reading and copy submission; the separate conversational planner can submit a brief proposal or clarification. Neither tool surface grants approval or delivery authority.
 
 ```sh
 make test

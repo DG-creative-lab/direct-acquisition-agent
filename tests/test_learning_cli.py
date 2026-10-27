@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from acquisition.adapters.sqlite.database import Database, DAY_FOUR
+from acquisition.adapters.sqlite.database import Database, DAY_FOUR, CONVERSATIONS
 
 
 class LearningCliTests(unittest.TestCase):
@@ -42,9 +42,9 @@ class LearningCliTests(unittest.TestCase):
             path = Path(temporary) / "old.sqlite"
             original = Database._apply_migration
             def skip_four(connection, script):
-                if script != DAY_FOUR:
+                if script not in {DAY_FOUR, CONVERSATIONS}:
                     original(connection, script)
-            with patch.object(Database, "_apply_migration", side_effect=skip_four):
+            with patch.object(Database, "_apply_migration", side_effect=skip_four), patch.object(Database, "_validate_conversation_schema"):
                 old = Database(path)
             with old.connect() as db:
                 self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 4)
@@ -52,7 +52,7 @@ class LearningCliTests(unittest.TestCase):
                 cutoff = [tuple(r) for r in db.execute("SELECT * FROM legacy_task_admissions")]
             upgraded = Database(path)
             with upgraded.connect() as db:
-                self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 5)
+                self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 6)
                 self.assertEqual(db.execute("SELECT generation FROM review_actors").fetchone()[0], 7)
                 self.assertEqual([tuple(r) for r in db.execute("SELECT * FROM legacy_task_admissions")], cutoff)
 
@@ -61,9 +61,9 @@ class LearningCliTests(unittest.TestCase):
             path = Path(temporary) / "old.sqlite"
             original = Database._apply_migration
             def skip(connection, script):
-                if script != DAY_FOUR:
+                if script not in {DAY_FOUR, CONVERSATIONS}:
                     original(connection, script)
-            with patch.object(Database, "_apply_migration", side_effect=skip):
+            with patch.object(Database, "_apply_migration", side_effect=skip), patch.object(Database, "_validate_conversation_schema"):
                 Database(path)
             def fail(connection, script):
                 if script == DAY_FOUR:
@@ -77,4 +77,4 @@ class LearningCliTests(unittest.TestCase):
                 self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 4)
                 self.assertIsNone(db.execute("SELECT name FROM sqlite_master WHERE name='learning_cohorts'").fetchone())
             with Database(path).connect() as db:
-                self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 5)
+                self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 6)

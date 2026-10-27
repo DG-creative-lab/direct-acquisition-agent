@@ -31,7 +31,7 @@ class DatabaseInitializationTests(unittest.TestCase):
         for _ in range(3):
             db = Database(path)
             with db.connect() as connection:
-                self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 5)
+                self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 6)
                 self.assertEqual(connection.execute("PRAGMA integrity_check").fetchone()[0], "ok")
                 self.assertIsNotNone(connection.execute("SELECT name FROM sqlite_master WHERE name='legacy_task_admissions'").fetchone())
 
@@ -86,7 +86,7 @@ class DatabaseInitializationTests(unittest.TestCase):
                         second = pool.submit(initialize, "second")
                         first.result(timeout=15)
                         second.result(timeout=15)
-                self.assertCountEqual(observations, [("first", True, version), ("second", True, 5)])
+                self.assertCountEqual(observations, [("first", True, version), ("second", True, 6)])
                 self.assert_reopenable(path)
 
     def test_two_processes_can_initialize_versions_zero_and_one(self):
@@ -139,6 +139,8 @@ class DatabaseInitializationTests(unittest.TestCase):
                 VALUES('original-task','original',0,'fixture',?,'queued',3,0)""", (canonical({}),))
         Database(path)
         with closing(sqlite3.connect(path)) as db, db:
+            db.execute("INSERT INTO conversations VALUES('one','conversation','request','Saved',1,0)")
+            db.execute("INSERT INTO conversation_messages VALUES('one','conversation','message',1,'Preserved objective',0)")
             db.execute("PRAGMA user_version=2")
             db.execute("INSERT INTO runs VALUES('later','one','new',?,'queued',0)", (digest([spec]),))
             db.execute("""INSERT INTO tasks(id,run_id,position,capability,inputs,status,max_attempts,available_at)
@@ -146,6 +148,7 @@ class DatabaseInitializationTests(unittest.TestCase):
         self.assert_reopenable(path)
         with closing(sqlite3.connect(path)) as db, db:
             self.assertEqual(db.execute("SELECT run_id FROM legacy_task_admissions").fetchall(), [("original",)])
+            self.assertEqual(db.execute("SELECT content FROM conversation_messages").fetchall(), [("Preserved objective",)])
 
     def test_busy_wal_activation_is_retried_without_repeating_migrations(self):
         path = self.root / "busy-wal.sqlite"
@@ -170,7 +173,7 @@ class DatabaseInitializationTests(unittest.TestCase):
             Database(path)
         self.assertEqual(len(attempts), 2)
         self.assertEqual(sleep.call_count, 1)
-        self.assertEqual(versions, ["PRAGMA USER_VERSION=1", "PRAGMA USER_VERSION=2", "PRAGMA USER_VERSION=3", "PRAGMA USER_VERSION=4", "PRAGMA USER_VERSION=5"])
+        self.assertEqual(versions, ["PRAGMA USER_VERSION=1", "PRAGMA USER_VERSION=2", "PRAGMA USER_VERSION=3", "PRAGMA USER_VERSION=4", "PRAGMA USER_VERSION=5", "PRAGMA USER_VERSION=6"])
         self.assert_reopenable(path)
 
     def test_wal_retry_is_bounded_and_does_not_hide_other_sqlite_errors(self):

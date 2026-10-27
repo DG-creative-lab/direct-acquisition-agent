@@ -68,6 +68,35 @@ class Workspace:
         return {"sessions": [{k: s[k] for k in ("id", "name", "mode", "created_at", "case_id")} for s in sessions],
                 "mode": "LOCAL_SYNTHETIC_SANDBOX", "hosted_authentication": False}
 
+    def _conversation_app(self, with_model=False):
+        # Scope and database location are server-owned, never model/browser input.
+        gateway = OpenRouter(openrouter_key(Path(".env.local"))) if with_model else None
+        config = ModelConfig("openai/gpt-oss-120b", max_calls=2, force_tool_choice=True) if with_model else None
+        return build(self.root / "conversations.sqlite", clock=self.real_clock, gateway=gateway, model_config=config)
+
+    def conversations(self):
+        with self.lock:
+            return {"conversations": self._conversation_app().conversations.store.listing("local-conversations")}
+
+    def conversation(self, conversation_id):
+        with self.lock:
+            return self._conversation_app().conversations.view("local-conversations", conversation_id)
+
+    def create_conversation(self, request_id, title):
+        with self.lock:
+            return self._conversation_app().conversations.create("local-conversations", request_id, title)
+
+    def message_conversation(self, conversation_id, request_id, expected_revision, content):
+        with self.lock:
+            return self._conversation_app().conversations.message("local-conversations", conversation_id, request_id, expected_revision, content)
+
+    def plan_conversation(self, conversation_id, request_id, expected_revision):
+        with self.lock:
+            app = self._conversation_app(with_model=True)
+            app.conversations.plan("local-conversations", conversation_id, request_id, expected_revision)
+            app.worker.drain("local-conversations")
+            return app.conversations.view("local-conversations", conversation_id)
+
     def create(self, request_id, mode, parent_id=None):
         identifier(request_id)
         if type(mode) is not str or mode not in {"fixture", "model"}:

@@ -123,6 +123,25 @@ PRAGMA user_version=5;
 """
 
 
+CONVERSATIONS = """
+CREATE TABLE IF NOT EXISTS conversations (
+ organization TEXT NOT NULL, id TEXT NOT NULL, request_id TEXT NOT NULL, title TEXT NOT NULL,
+ revision INTEGER NOT NULL DEFAULT 0, created_at REAL NOT NULL,
+ PRIMARY KEY(organization,id), UNIQUE(organization,request_id));
+CREATE TABLE IF NOT EXISTS conversation_messages (
+ organization TEXT NOT NULL, conversation_id TEXT NOT NULL, request_id TEXT NOT NULL,
+ revision INTEGER NOT NULL, content TEXT NOT NULL, created_at REAL NOT NULL,
+ PRIMARY KEY(organization,conversation_id,request_id), UNIQUE(organization,conversation_id,revision),
+ FOREIGN KEY(organization,conversation_id) REFERENCES conversations(organization,id));
+CREATE TABLE IF NOT EXISTS conversation_plans (
+ organization TEXT NOT NULL, conversation_id TEXT NOT NULL, request_id TEXT NOT NULL,
+ revision INTEGER NOT NULL, payload TEXT NOT NULL, created_at REAL NOT NULL,
+ PRIMARY KEY(organization,conversation_id,request_id), UNIQUE(organization,conversation_id,revision),
+ FOREIGN KEY(organization,conversation_id) REFERENCES conversations(organization,id));
+PRAGMA user_version=6;
+"""
+
+
 class Database:
     def __init__(self, path: str | Path):
         self.path = Path(path)
@@ -130,7 +149,7 @@ class Database:
         with self.transaction() as connection:
             # Version discovery and every migration share one SQLite write lock.
             version = connection.execute("PRAGMA user_version").fetchone()[0]
-            if version not in {0, 1, 2, 3, 4, 5}:
+            if version not in {0, 1, 2, 3, 4, 5, 6}:
                 raise ValueError(f"Unsupported database schema {version}")
             if version == 0:
                 self._apply_migration(connection, SCHEMA)
@@ -142,7 +161,18 @@ class Database:
                 self._apply_migration(connection, DAY_THREE)
             if version < 5:
                 self._apply_migration(connection, DAY_FOUR)
+            if version < 6:
+                self._apply_migration(connection, CONVERSATIONS)
+                self._validate_conversation_schema(connection)
         self._enable_wal()
+
+    @staticmethod
+    def _validate_conversation_schema(connection):
+        # A stale version marker can leave already-created tables in place.
+        # Verify their shape before committing the version change.
+        connection.execute("SELECT organization,id,request_id,title,revision,created_at FROM conversations LIMIT 0")
+        connection.execute("SELECT organization,conversation_id,request_id,revision,content,created_at FROM conversation_messages LIMIT 0")
+        connection.execute("SELECT organization,conversation_id,request_id,revision,payload,created_at FROM conversation_plans LIMIT 0")
 
     def _enable_wal(self):
         # Journal-mode changes require their own lock outside a transaction.

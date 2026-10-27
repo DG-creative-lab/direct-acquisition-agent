@@ -22,6 +22,8 @@ class ArchitectureTests(unittest.TestCase):
             ("acquisition.learning.domain", "import sqlite3"),
             ("acquisition.runtime.application", "from acquisition import adapters"),
             ("acquisition.campaigns.application", "from acquisition.audiences import domain"),
+            ("acquisition.conversations.application", "from acquisition.adapters.sqlite import conversations"),
+            ("acquisition.conversations.application", "from acquisition.reviews import ReviewService"),
         ]
         for module, source in examples:
             with self.subTest(module=module, source=source):

@@ -37,6 +37,7 @@ The browser and CLI are entry points to the same application rules. A single loc
 | `reasoning` | Provider-independent limits, gateway contracts and inference journal | Business approval or automatic uncertain-call retries |
 | `reviews` | Proposals, subjects, decisions, invalidation and simulated acceptance | Hosted authentication or real agency effects |
 | `learning` | Cohort membership, immutable observations, counted posteriors and recommendations | Automatic campaign mutation or new product facts |
+| `conversations` | Persistent user messages, revision-bound brief interpretation, scoped planning admission and read models | Campaign preparation, approval, dispatch or verified source facts |
 
 `workflows` composes public module APIs. Cross-module imports use the provider's `__init__.py`; domain code uses pure standard-library values, declared domain contracts and technical serialization helpers. Runtime has no dependency on business modules. Adapters keep SQL private. The architecture checker rejects prohibited dependencies, private imports and cycles.
 
@@ -52,11 +53,13 @@ src/acquisition/
   reasoning/                  inference contracts and reservation journal
   reviews/                    proposal and approval services
   learning/                   cohorts, outcomes and recommendations
+  conversations/              persistent intent and bounded brief proposals
   workflows/                  integration through public contracts
   adapters/                   SQLite, OpenRouter, files and report projections
   bootstrap.py                composition root
   workspace.py                local workspace facade
   workspace_server.py         loopback transport and static asset serving
+  conversation_cli.py         explicit conversation and planner commands
   __main__.py                 CLI entry point
 config/                       editorial guidance, fact pack and evaluation cases
 tests/                        pure rules, SQLite, HTTP and process recovery
@@ -112,9 +115,15 @@ These are local transport controls. Organization flags and configured actors are
 
 ## Schema and compatibility
 
-The application database is schema v5. Initialization takes a write lock before reading `user_version` and holds it through the entire migration chain. DDL and version changes roll back together. Statements execute individually because `executescript` can commit an outer transaction. WAL activation runs after migration and retries only busy errors on fresh connections with a bounded deadline.
+The application database is schema v6. Initialization takes a write lock before reading `user_version` and holds it through the entire migration chain. DDL and version changes roll back together. Statements execute individually because `executescript` can commit an outer transaction. WAL activation runs after migration and retries only busy errors on fresh connections with a bounded deadline.
 
-Schema v3 froze exact legacy task-plan admissions; later migrations preserve that cutoff. Historical v2 workflows resume only with their original admission certificate. New v2 admission and capability/input downgrades are rejected. Repair of the known older stale-marker state preserves the original cutoff rather than certifying later records. Schema v4 added review state; v5 added learning state. Older binaries reject newer schemas, and mixed-version rollback is unsupported. Durable timestamps and derived lease/retry deadlines must be finite.
+Schema v3 froze exact legacy task-plan admissions; later migrations preserve that cutoff. Historical v2 workflows resume only with their original admission certificate. New v2 admission and capability/input downgrades are rejected. Repair of the known older stale-marker state preserves the original cutoff rather than certifying later records. Schema v4 added review state; v5 added learning state; v6 adds conversations, messages and planning admissions. Older binaries reject newer schemas, and mixed-version rollback is unsupported. Durable timestamps and derived lease/retry deadlines must be finite.
+
+## Conversational planning
+
+`ConversationService` uses its persistence port and the public runtime task port. The composition root wires its SQLite adapter and `ConversationPlanner`; runtime remains business-agnostic. Each planning admission freezes the complete bounded message history, earlier planning results, capability guidance and model settings before creating one runtime task. If the process stops between those commits, retrying the original request creates or retrieves the same task plan. Results commit only through the runtime's lease-checked task/event transaction. They are immutable proposals, never review decisions.
+
+The planner exposes one tool, `submit_campaign_brief`, and returns a complete brief proposal, clarification or unsupported explanation. Code validates shape, supported segments, budget provenance and output bounds. The current slice is reachable by CLI and guarded loopback API; the React chat, campaign execution tools and broader knowledge retrieval are deferred. See [conversation planning](conversations.md).
 
 ## Testability and evolution
 

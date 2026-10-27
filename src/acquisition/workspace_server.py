@@ -86,7 +86,11 @@ class Handler(BaseHTTPRequestHandler):
             path = self.parsed_target.path
             if path == "/api/sessions":
                 return self._send(200, self.server.workspace.listing())
+            if path == "/api/conversations":
+                return self._send(200, self.server.workspace.conversations())
             parts = path.strip("/").split("/")
+            if len(parts) == 3 and parts[:2] == ["api", "conversations"]:
+                return self._send(200, self.server.workspace.conversation(parts[2]))
             if len(parts) == 3 and parts[:2] == ["api", "sessions"]:
                 return self._send(200, self.server.workspace.view(parts[2]))
             if len(parts) == 5 and parts[:2] == ["api", "sessions"] and parts[3] == "artifacts":
@@ -121,6 +125,17 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(data, dict):
                 raise ValueError("Use a JSON object")
             path = self.parsed_target.path
+            if path == "/api/conversations":
+                if set(data) != {"request_id", "title"}:
+                    raise ValueError("Use exact conversation creation fields")
+                return self._send(200, self.server.workspace.create_conversation(data["request_id"], data["title"]))
+            parts = path.strip("/").split("/")
+            if len(parts) == 4 and parts[:2] == ["api", "conversations"]:
+                if parts[3] == "messages" and set(data) == {"request_id", "expected_revision", "content"}:
+                    return self._send(200, self.server.workspace.message_conversation(parts[2], **data))
+                if parts[3] == "plan" and set(data) == {"request_id", "expected_revision"}:
+                    return self._send(200, self.server.workspace.plan_conversation(parts[2], **data))
+                raise ValueError("Use exact fields for a supported conversation action")
             if path == "/api/sessions":
                 if set(data) - {"request_id", "mode", "parent_id"}:
                     raise ValueError("Unknown campaign creation fields")

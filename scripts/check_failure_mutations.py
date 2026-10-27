@@ -86,6 +86,15 @@ CASES = [
     ("workspace-artifact-subject", "workspace.py",
      'if review["subject"]["id"] != expected_subject:', 'if False:',
      "test_workspace.WorkspaceTests.test_artifact_download_cannot_substitute_a_newer_subject"),
+    ("planner-budget-provenance", "conversations/domain.py",
+     '        if evidence is None or budget != evidence["budget_pence"]:', '        if False:',
+     "test_conversations.ConversationTests.test_invented_or_stale_budget_and_extra_authority_fail_before_success"),
+    ("planner-current-revision", "conversations/application.py",
+     '"current": admission["revision"] == snapshot["revision"],', '"current": True,',
+     "test_conversations.ConversationTests.test_message_during_inference_keeps_the_late_result_historical"),
+    ("conversation-organization-scope", "adapters/sqlite/conversations.py",
+     'SELECT * FROM conversations WHERE organization=? AND id=?', 'SELECT * FROM conversations WHERE ? IS NOT NULL AND id=?',
+     "test_conversations.ConversationTests.test_message_revision_idempotency_scope_and_history"),
 ]
 
 

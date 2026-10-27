@@ -14,7 +14,7 @@ See `docs/product-grounding.md` for recorded live-model evidence.
 
 ## Boundaries
 
-- `runtime`, `audiences`, `campaigns`, `creative`, `reasoning`, `learning`, and `reviews` own their
+- `runtime`, `audiences`, `campaigns`, `creative`, `reasoning`, `learning`, `reviews`, and `conversations` own their
   domain values, rules and narrow ports. Their `domain.py` files use only the
   standard library, `contracts`, and declared public domain contracts.
 - Cross-module use goes through the provider module's `__init__.py` exports.
@@ -62,3 +62,5 @@ Learning cohorts bind accepted simulated assignments, including controls. Missin
 The React workspace is a presentation/client layer. Keep approval, inference budgets, artifact identity and learning rules in existing Python modules. Bind browser decisions and downloads to exact displayed subjects. Preserve same-origin/token/Host checks and fixed server-side identity resolution. Keep model keys server-side and model inference behind explicit generation. Workspace command replay must not repeat effects or mislabel historical receipts. The per-root server lock and single-worker deployment limit are intentional. Run `make interface-check` for frontend changes. See `docs/workspace.md`.
 
 Presentation follows the publication baseline in `docs/branding.md`. Keep reusable font/palette roles in `frontend/src/brand/tokens.css`; reserve the static Op Art motif for the product signature. Keep semantic status labels and colors distinct, reading surfaces calm, and touch targets at least 44px. Do not restyle historical campaign artifacts as a side effect of UI branding.
+
+Conversations preserve user messages and immutable planning results by organization and revision. Freeze context and model settings before admitting a planning task. Resume the original request after partial admission; a new key cannot repeat planning for the same revision. Bound each conversation to six planning requests and each request to two model calls. Plans, clarification questions and retrieved guidance grant no campaign or approval authority. New messages make earlier proposals historical. See `docs/conversations.md` for the implemented API/CLI slice and deferred UI/execution work.
