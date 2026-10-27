@@ -1,0 +1,28 @@
+/* Publication brand adaptation 1.0.1. Source and application scope: docs/branding.md. */
+:root {
+  --brand-paper: #faf9f6;
+  --brand-ink: #171717;
+  --brand-muted: #626262;
+  --brand-rule: #deddd9;
+  --brand-surface: #efeeeb;
+  --brand-panel: #ffffff;
+  --brand-black: #000000;
+  --brand-on-dark: #f4f3ed;
+  --brand-muted-on-dark: #b5b4b0;
+  --brand-dark-rule: #272727;
+  --brand-dark-surface: #111111;
+  --brand-sans: Arial, Helvetica, sans-serif;
+  --brand-code: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --status-success-ink: #315c3a;
+  --status-success-surface: #eef4ed;
+  --status-success-rule: #d6e3d5;
+  --status-warning-ink: #77551a;
+  --status-warning-surface: #faf3e5;
+  --status-warning-rule: #e6d8b8;
+  --status-error-ink: #8d382b;
+  --status-error-surface: #fcf0ed;
+  --status-error-rule: #e9d0c9;
+  --status-control-ink: #5b5271;
+  --status-control-surface: #f1eff5;
+  --status-control-rule: #ded9e7;
+}

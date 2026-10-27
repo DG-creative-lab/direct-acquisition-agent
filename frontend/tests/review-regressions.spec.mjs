@@ -231,5 +231,93 @@ for (const viewport of [
     expect((await dimensions()).scroll).toBe((await dimensions()).client);
     await page.getByRole("tab", { name: /Copy variants/ }).click();
     expect((await dimensions()).scroll).toBe((await dimensions()).client);
+    const originalCreative = await page
+      .locator(".copy-provenance code")
+      .first()
+      .textContent();
+    // Reload the persisted creative: publication tokens must not restyle it.
+    await page.reload();
+    await page.getByRole("tab", { name: /Copy variants/ }).click();
+    await page.evaluate(() => document.fonts.ready);
+    await expect(page.locator(".copy-provenance code").first()).toHaveText(
+      originalCreative,
+    );
+    const letter = page.locator(".letter").first();
+    await expect(letter).toHaveCSS(
+      "font-family",
+      '"Inter Variable", Inter, Arial, sans-serif',
+    );
+    await expect(letter).toHaveCSS("border-radius", "5px");
+    await expect(letter.locator(".letter-paper")).toHaveCSS(
+      "background-color",
+      "rgb(255, 254, 250)",
+    );
+    await expect(letter.locator(".letter-paper")).toHaveCSS(
+      "padding",
+      viewport.width < 550 ? "25px" : "24px 20px",
+    );
+    await expect(letter.locator(".letter-brand")).toHaveCSS(
+      "color",
+      "rgb(24, 61, 50)",
+    );
+    await expect(letter.locator("h3")).toHaveCSS("font-size", "20px");
+    await expect(letter.locator("h3")).toHaveCSS("font-weight", "550");
+    await expect(letter.locator(".letter-opening")).toHaveCSS(
+      "font-size",
+      "12px",
+    );
+    await expect(letter.locator(".letter-opening")).toHaveCSS(
+      "color",
+      "rgb(97, 112, 89)",
+    );
+    await expect(letter.locator(".letter-disclosure")).toHaveCSS(
+      "font-size",
+      "9px",
+    );
+    await expect(letter.locator(".copy-provenance summary")).toHaveCSS(
+      "font-size",
+      "10px",
+    );
+    await expect(letter.locator(".badge")).toHaveCSS(
+      "background-color",
+      "rgb(244, 246, 239)",
+    );
+    // Workspace changes remain isolated even when the public brand roles change.
+    await page.evaluate(() => {
+      document.documentElement.style.setProperty("--brand-paper", "magenta");
+      document.documentElement.style.setProperty("--brand-ink", "blue");
+      document.documentElement.style.setProperty("--brand-sans", "monospace");
+    });
+    await expect(letter.locator(".letter-paper")).toHaveCSS(
+      "background-color",
+      "rgb(255, 254, 250)",
+    );
+    await expect(letter.locator(".letter-brand")).toHaveCSS(
+      "color",
+      "rgb(24, 61, 50)",
+    );
+    await expect(letter).toHaveCSS(
+      "font-family",
+      '"Inter Variable", Inter, Arial, sans-serif',
+    );
   });
 }
+
+test("brand identity stays named on desktop, tablet and mobile", async ({
+  page,
+}) => {
+  for (const width of [1440, 820, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/");
+    await expect(
+      page.getByRole("link", {
+        name: "Direct Acquisition by Dessi Georgieva",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute(
+      "content",
+      "#000000",
+    );
+  }
+});

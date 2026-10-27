@@ -1,0 +1,185 @@
+/* Frozen preview presentation from 829d961, before publication branding.
+   Kept separate from workspace tokens so saved creatives retain their appearance. */
+.letter {
+  font-family: "Inter Variable", Inter, Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+  color: #233b34;
+  line-height: normal;
+  --line: #e4e8e2;
+}
+.letter summary {
+  align-items: normal;
+  min-height: 0;
+}
+.letter code,
+.letter pre {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 10px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  line-height: 1.8;
+}
+.letter pre {
+  background: #f3f5f0;
+  padding: 16px;
+  border-radius: 5px;
+  max-height: 340px;
+  overflow: auto;
+}
+:where(.letter) details summary {
+  cursor: pointer;
+  font-size: 11px;
+  color: #65766a;
+  line-height: 1.6;
+}
+:where(.letter) details[open] summary {
+  margin-bottom: 10px;
+}
+:where(.letter) details p {
+  padding: 3px 0;
+}
+.letter .badge {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  border: 1px solid #e4e8de;
+  background: #f4f6ef;
+  color: #77816e;
+  font-size: 8px;
+  font-weight: 500;
+  border-radius: 4px;
+  padding: 4px 7px;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+.letter .badge.green {
+  color: #4c7245;
+  background: #edf4e7;
+  border-color: #dce8d1;
+}
+.letter .badge.amber {
+  color: #94702f;
+  background: #fbf4e5;
+  border-color: #eadfbd;
+}
+.letter .badge.purple {
+  color: #7c6e91;
+  background: #f4f0f8;
+  border-color: #e8e0ed;
+}
+.letter {
+  border: 1px solid #e4e8dc;
+  border-radius: 5px;
+  overflow: hidden;
+}
+.letter-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 13px;
+  font-size: 8px;
+  background: #fafbf6;
+  color: #87947c;
+  border-bottom: 1px solid var(--line);
+}
+.letter-paper {
+  background: #fffefa;
+  padding: 24px 20px;
+  min-height: 310px;
+}
+.letter-brand {
+  font-size: 27px;
+  font-weight: 600;
+  color: #183d32;
+  letter-spacing: -1px;
+}
+.letter-brand span {
+  font-size: 7px;
+  font-weight: 400;
+  letter-spacing: 0;
+  display: block;
+  color: #9da28c;
+  margin-top: 4px;
+}
+.letter-label {
+  font-size: 6px;
+  letter-spacing: 1.2px;
+  color: #a4ad94;
+  margin: 25px 0 12px;
+}
+.letter-paper h3 {
+  font-size: 17px;
+  line-height: 1.4;
+  letter-spacing: -0.45px;
+  font-weight: 550;
+  margin-bottom: 16px;
+}
+.letter-opening {
+  font-size: 10px;
+  color: #617059;
+  line-height: 1.9;
+  white-space: pre-line;
+}
+.letter-disclosure {
+  font-size: 7px;
+  line-height: 1.8;
+  color: #9b9f8a;
+  margin-top: 24px;
+}
+.copy-provenance {
+  border-top: 1px solid var(--line);
+  padding: 12px 14px;
+  font-size: 8px;
+  color: #8b9a7c;
+}
+.copy-provenance summary {
+  display: flex;
+  justify-content: space-between;
+  font-size: 8px;
+}
+.copy-provenance code {
+  font-size: 7px;
+}
+.copy-provenance p {
+  line-height: 1.8;
+  margin: 8px 0;
+}
+@media (max-width: 550px) {
+  .letter-paper {
+    padding: 25px;
+    min-height: 260px;
+  }
+  .letter-opening {
+    font-size: 11px;
+  }
+  .letter-disclosure {
+    font-size: 8px;
+  }
+  .letter-top {
+    font-size: 10px;
+  }
+}
+.letter .badge {
+  font-size: 9px;
+}
+.letter-disclosure {
+  font-size: 9px;
+}
+.letter-label {
+  font-size: 8px;
+}
+.letter-opening {
+  font-size: 12px;
+}
+.letter-top,
+.copy-provenance summary {
+  font-size: 10px;
+}
+.copy-provenance p {
+  font-size: 11px;
+}
+.letter-paper h3 {
+  font-size: 20px;
+}
