@@ -1,4 +1,5 @@
 """Reachable UI authority, recovery and same-origin transport boundaries."""
+import io
 import json
 import http.client
 import tempfile
@@ -6,11 +7,12 @@ import threading
 import unittest
 import urllib.request
 import urllib.error
+from contextlib import redirect_stderr
 from pathlib import Path
 from unittest.mock import patch
 
 from acquisition.workspace import Workspace
-from acquisition.workspace_server import WorkspaceServer
+from acquisition.workspace_server import WorkspaceServer, main
 from acquisition.contracts import Conflict, NotFound
 from acquisition.reasoning import ModelConfig
 from acquisition.bootstrap import build
@@ -175,6 +177,27 @@ class WorkspaceTests(unittest.TestCase):
             context = app.memory.get_context(session["organization"], c["context_id"])
             self.assertEqual(len(context["audience_summary"]["outcome_evidence"]["groups"]), 3)
         self.assertEqual(len(model.requests), 6)
+
+
+class WorkspaceStartupTests(unittest.TestCase):
+    def test_missing_assets_report_the_reproducible_pnpm_build_commands(self):
+        error = io.StringIO()
+        with (
+            patch("acquisition.workspace_server.Path.exists", return_value=False),
+            patch("sys.argv", ["workspace-server"]),
+            redirect_stderr(error),
+            self.assertRaises(SystemExit) as stopped,
+        ):
+            main()
+
+        message = error.getvalue()
+        self.assertEqual(stopped.exception.code, 2)
+        self.assertIn(
+            "pnpm --dir frontend install --frozen-lockfile "
+            "&& pnpm --dir frontend run build",
+            message,
+        )
+        self.assertNotIn("npm", message.split())
 
 
 class WorkspaceHttpTests(unittest.TestCase):

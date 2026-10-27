@@ -15,13 +15,36 @@ The [product overview](docs/product.md) explains the intended users, authority b
 
 ## Try it locally
 
-Requires Python 3.11 or later, Node 22.12+ and npm on macOS or Linux.
+Requires Python 3.11 or later, Node 22.12+ and pnpm 10.33+ on macOS or Linux.
 
 ```sh
 make workspace
 ```
 
-Open [the local workspace](http://127.0.0.1:8768/) and choose **New campaign → Offline fixtures → Prepare campaign**. This path needs no model key and makes no inference requests. All audience records and results are labelled synthetic. Stop the server with Ctrl+C.
+Then open [the local workspace](http://127.0.0.1:8768/). The command:
+
+1. Installs dependencies using the frozen pnpm lockfile.
+2. Builds the React interface.
+3. Starts the Python server.
+4. Serves both React and the API from the same origin.
+
+No separate frontend server is required. Choose **New campaign → Offline fixtures → Prepare campaign** to use the application without a model key or inference request. All audience records and results are labelled synthetic. Stop the server with Ctrl+C.
+
+For frontend development with automatic rebuilding, keep the workspace server running and start the Vite build watcher in a second terminal:
+
+```sh
+# Terminal 1
+make workspace
+
+# Terminal 2
+pnpm --dir frontend run dev
+```
+
+To use another port or isolated data directory:
+
+```sh
+make workspace WORKSPACE_PORT=8769 WORKSPACE_ROOT=.local/another-workspace
+```
 
 To try model copy, configure `OPENROUTER_API_KEY` in ignored `.env.local`, then explicitly choose **Generate with GPT-OSS-120B**. This spends provider credit and requires an unexpired, manually reviewed fact pack. No paid fallback or uncertain-call retry is automatic. See [model integration](docs/model-integration.md) and [product grounding](docs/product-grounding.md).
 
@@ -50,7 +73,7 @@ A Python modular monolith owns business rules, durable tasks, inference reservat
 make test
 make arch-check
 make mutation-check
-npm --prefix frontend exec -- playwright install chromium
+pnpm --dir frontend exec playwright install chromium
 make interface-check
 ```
 
