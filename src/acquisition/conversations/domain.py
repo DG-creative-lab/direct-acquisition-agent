@@ -48,6 +48,16 @@ def revision_number(value: int) -> int:
     return value
 
 
+def relative_amount(content: str, match: re.Match) -> bool:
+    """Identify common amount-as-adjustment phrases, not absolute totals."""
+    before, after = content[:match.start()], content[match.end():]
+    return bool(
+        re.search(r"\bby\s+(?:(?:another|a further|an? (?:extra|additional))\s+)?$", before, re.I)
+        or re.search(r"\b(?:add|adding|subtract|subtracting|deduct|deducting|another|extra|additional|plus|minus|top up)\s+$", before, re.I)
+        or re.match(r"\s+(?:more|less|extra|additional|higher|lower|increase|decrease)\b", after, re.I)
+    )
+
+
 def explicit_budget(messages: list[dict]) -> dict | None:
     """Resolve an unambiguous literal GBP budget without skipping later corrections."""
     for message in reversed(messages):
@@ -57,6 +67,8 @@ def explicit_budget(messages: list[dict]) -> dict | None:
         # An unrecognized or foreign-currency amount is a material reference,
         # even when the valid-GBP parser cannot interpret it.
         if any(not any(marker.start() == match.start() for match in matches) for marker in currency):
+            return None
+        if any(relative_amount(content, match) for match in matches):
             return None
         if re.search(r"\b(?:not|except|excluding|rather than|instead of|less than|more than|under|over|at least|up to)\s+(?:£|GBP\b)", content, re.I):
             return None

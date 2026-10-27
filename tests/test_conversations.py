@@ -374,6 +374,38 @@ class ConversationTests(unittest.TestCase):
         self.assertIsNone(result["budget_evidence"])
         self.assertEqual(len(self.model.requests), 2)
 
+    def test_relative_budget_amount_is_not_accepted_as_a_new_total(self):
+        initial = {"id": "first", "content": "Prepare a contractor experiment with £600."}
+        for correction in ("Increase the budget by £200", "reduce it by GBP 200", "Add £200 to the budget",
+                           "increase it by another £200", "allocate an extra £200", "£200 more", "£200 less"):
+            with self.subTest(correction=correction):
+                frozen = {"conversation_id": self.id, "request_id": "plan", "revision": 2,
+                          "knowledge_id": "fixture", "messages": [initial, {"id": "correction", "content": correction}]}
+                self.assertIsNone(explicit_budget(frozen["messages"]))
+                for candidate_budget in (20000, 60000, 80000):
+                    with self.assertRaises(ValueError):
+                        validate_result(proposal(budget_pence=candidate_budget), frozen, "one")
+                clarification = proposal(outcome="clarification", budget_pence=None,
+                                         question="What total GBP budget should I use?")
+                self.assertIsNone(validate_result(clarification, frozen, "one")["budget_pence"])
+        for correction in ("Increase the budget to £800", "Set the budget to GBP 800."):
+            with self.subTest(correction=correction):
+                evidence = explicit_budget([initial, {"id": "correction", "content": correction}])
+                self.assertEqual(evidence["budget_pence"], 80000)
+                self.assertEqual(evidence["message_id"], "correction")
+
+    def test_planner_repairs_relative_amount_into_clarification(self):
+        self.message()
+        self.message("Increase the budget by £200", "correction", 1)
+        self.model.results = [proposal(budget_pence=20000), proposal(outcome="clarification", budget_pence=None,
+                                                   question="What total GBP budget should I use?")]
+        self.plan("relative-plan", 2)
+        result = self.finish()
+        self.assertEqual(result["outcome"], "clarification")
+        self.assertIsNone(result["budget_pence"])
+        self.assertIsNone(result["budget_evidence"])
+        self.assertEqual(len(self.model.requests), 2)
+
 
 class ConversationMigrationAndCliTests(unittest.TestCase):
     def test_schema_six_migration_is_atomic_and_preserves_existing_authority(self):
