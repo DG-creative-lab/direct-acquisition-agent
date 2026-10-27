@@ -13,19 +13,22 @@ dist/
 *.log
 /research/
 /docs/*
-!/docs/architecture.md
-!/docs/day-one-validation.md
-!/docs/product-grounding.md
-!/docs/model-integration.md
-!/docs/test-coverage-review.md
 
-!/docs/day-three.md
 .playwright-mcp/
 
-!/docs/day-four.md
 /frontend/node_modules/
 /frontend/dist/
 
-!/docs/day-five.md
 
+
+!/docs/architecture.md
 !/docs/branding.md
+!/docs/learning.md
+!/docs/model-integration.md
+!/docs/product-grounding.md
+!/docs/product.md
+!/docs/reviews.md
+!/docs/scalability.md
+!/docs/user-guide.md
+!/docs/validation.md
+!/docs/workspace.md

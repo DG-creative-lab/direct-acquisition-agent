@@ -1,14 +1,14 @@
-# Day four: persistent synthetic outcome learning
+# Learning and outcome reference
 
-Implemented 26 October 2026 on `feature/bayesian-outcome-learning`. This extends the existing learning module, keeping runtime, campaign selection, reviewer preferences and approval separate.
+The learning module turns complete, mature synthetic outcome cohorts into persistent Bayesian counts and advisory experiment recommendations. Runtime, campaign selection, editorial preferences and approval remain separate.
 
 ## Run the demonstration
 
 ```sh
-PYTHONPATH=src python3 -m acquisition --db .local/day-four.sqlite demo-learning --out .local/day-four
+PYTHONPATH=src python3 -m acquisition --db .local/learning-demo.sqlite demo-learning --out .local/learning-demo
 ```
 
-Open `.local/day-four/learning.html`. The command also writes a pending report, outcome JSON, a learning JSON projection and the earlier review demonstration. It uses scripted reviewer decisions, simulated acceptance, synthetic response labels and a simulated 28-day clock. It does not wait 28 real days or claim real customer performance. Its deterministic organization is separate from the operator's organization. No model key or model requests are needed.
+Open `.local/learning-demo/learning.html`. The command also writes a pending report, outcome JSON, a learning JSON projection and the earlier review demonstration. It uses scripted reviewer decisions, simulated acceptance, synthetic response labels and a simulated 28-day clock. It does not wait 28 real days or claim real customer performance. Its deterministic organization is separate from the operator's organization. No model key or model requests are needed.
 
 The default experiment enrolls 754 businesses: 680 simulated mailing recipients and 74 no-mail controls. The seeded labels produce 94 responses. Early positive results leave beliefs unchanged. Once the simulated window closes and all explicit outcomes exist, finalization writes six beliefs, one for each segment/arm pair. Replaying the demonstration returns the same finalization receipt without counting outcomes again. Synthetic labels deliberately favor A to demonstrate the recommendation path; this is not evidence that A is effective.
 
@@ -35,7 +35,7 @@ A finalized cohort is immutable. Late corrections, data retraction, recurrent ex
 
 ## Manual commands
 
-Use an existing accepted case from day three. The same database and organization must contain the configured operator and that case.
+Use an existing accepted case from the [review flow](reviews.md). The same database and organization must contain the configured operator and that case.
 
 ```sh
 PYTHONPATH=src python3 -m acquisition --db .local/manual.sqlite --organization demo-org learning-open --case CASE_ID --actor operator --request-id cohort-1
@@ -84,7 +84,7 @@ New model runs read all required organization/segment-scoped synthetic learning 
 
 Pooled memory uses finalized disjoint cohorts only and applies the prior once per creative group. These pooled response rates are descriptive. Recommendation comparisons remain within an individual randomized cohort; the system does not compare pooled treatments with pooled controls from different populations. Evidence finalized after the current clock is excluded from new model context.
 
-A copy rewrite gets its own content identity and does not inherit the old creative's support. The model can use historical evidence to propose a new hook; it cannot convert a synthetic result into verified product claims or an approval. Product grounding and day-three exact-subject review still apply to the new draft. No self-modifying code, prompt deployment or autonomous targeting change is introduced.
+A copy rewrite gets its own content identity and does not inherit the old creative's support. The model can use historical evidence to propose a new hook; it cannot convert a synthetic result into verified product claims or an approval. Product grounding and exact-subject review still apply to the new draft. No self-modifying code, prompt deployment or autonomous targeting change is introduced.
 
 ## Architecture and migration
 
@@ -92,26 +92,6 @@ A copy rewrite gets its own content identity and does not inherit the old creati
 
 Schema v5 adds cohorts, independent business membership, immutable outcomes, beliefs, commands and events under the existing initialization write lock. It preserves review records and the original schema-v3 legacy admission cutoff. Migration failure rolls back DDL and version changes; retry is tested. Older application versions reject schema v5. Mixed-version rollback is unsupported.
 
-## Verification ledger
+## Verification
 
-The current suite has 135 offline tests, including 24 new learning tests and three learning CLI/migration tests. Existing foundation tests now expect schema v5; their lifecycle and compatibility assertions are preserved. Architecture checks pass. The 19 declared mutation probes include the original five learning controls: maturity independent of completeness, full assigned population, assignment binding, immutable observations and atomic finalization.
-
-| Failure cluster | Executable evidence and independent oracle |
-| --- | --- |
-| Count semantics | Literal two-treatment/one-control example yields Beta(2,20) and Beta(1,20); exact counts reconcile with explicit rows. |
-| Uncertainty | Beta(1,19) sampled interval compared with analytic CDF quantiles; known strong/negative/small-sample cases exercise recommendation behavior. |
-| Lifecycle | Early partial results, complete-but-immature results, closed incomplete cohort, complete finalization and historical replay. |
-| Identity and scope | Unknown business, changed segment/arm/creative, wrong organization and wrong local role are rejected. |
-| Time | Half-open response window, explicit full-window non-response, non-finite timestamps and complete-through boundaries; future finalized evidence excluded from context. |
-| Duplication | Reordered batches, same-key replay, fresh-key duplicate observations and repeated finalization do not increase counts. Contradictions fail. |
-| Concurrency | Simultaneous finalizers produce one set of beliefs; conflicting imports produce one immutable winner. |
-| Faults | Mid-batch insertion fault rolls back all rows. Finalization-event fault rolls back beliefs and finalization state, then a clean retry succeeds. |
-| Compatibility | Schema-v4 upgrade preserves local roles and legacy cutoff; schema-v5 fault rolls back version and partial tables. |
-| Whole flow | Separate-process demo/replay retains 754 outcomes and six beliefs. Mature memory changes new contexts, preserves old contexts and issues no model calls. |
-| Report | Untrusted text is escaped. Desktop and mobile browser inspection checks layout and explicit synthetic clock labels. |
-
-These are bounded experiments, not exhaustive coverage. No line-coverage percentage, production-readiness claim or live model-quality result is asserted. No paid model calls were made for day-four verification.
-
-## Local review follow-up
-
-Two regression tests reproduce the reported defects against commit `fe28c3d`: finalization between independent segment reads creates mixed context evidence, and a different operator replaying finalization with a fresh key emits a false second effect event. The snapshot regression forces a real SQLite writer commit after the reader has established its snapshot. The audit regression checks exact historical events and receipt equality across actor/time changes and restart. Cohort-opening semantic replay also preserves its single effect event. Two additional mutation probes restore the old behaviors; the selected denominator is now **19**. These fixes do not rewrite existing historical events.
+See [validation](validation.md) for tests of count semantics, maturity, completeness, assignment identity, immutable observations, concurrent finalization, snapshot memory and historical replay. These tests do not calibrate the prior or establish real customer performance.

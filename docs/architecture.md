@@ -1,139 +1,123 @@
-# Modular monolith architecture
+# Architecture
 
-Decision accepted for day one, 25 October 2026: **one Python application, organized by business module, with a small set of ports and adapters**. The custom runtime schedules work; it does not own the campaign's business rules. SQLite is the local transactional adapter. The CLI is the first entry point.
+Direct Acquisition Agent is one deployable Python modular monolith with a React presentation client. Business modules own their rules and expose narrow public contracts. Application services depend on ports; SQLite, filesystem, synthetic data and OpenRouter adapters implement those ports. `bootstrap.py` is the composition root.
 
-This is a focused workflow architecture. The source implements a synthetic local dry run, including day-two OpenRouter tool calls, generated copy and frozen editorial memory. Day three adds local reviewer decisions and simulated acceptance through the reviews module. Day four adds persistent synthetic response cohorts and advisory Bayesian recommendations. Real outcome feeds, hosted identity and external agency delivery remain subsequent work. `AGENTS.md` and the executable import checks preserve the boundaries as those features arrive.
+The custom runtime persists tasks and schedules explicit workflow steps. The model reasons within a bounded copy workflow; code owns population policy, budget calculations, task state, artifact identity, approval and counted outcomes. This keeps model behavior replaceable without moving authority into prompts or browser state.
 
-## Why this shape
-
-The workflow needs coordinated state and reliable recovery, while the team and deployment remain small. One deployable process avoids unnecessary network transactions. Modules keep change and test boundaries explicit. Narrow protocols isolate the I/O we actually have; ordinary Python functions remain sufficient for rules and calculations.
-
-We chose this over horizontal global `domain/`, `services/` and `repositories/` folders because each business module should own its vocabulary and public surface. We also deferred microservices, generic repositories, a message bus, event-sourced state reconstruction and a custom workflow language. None is required for the demonstrated outcome.
-
-## Repository structure
-
-```text
-src/acquisition/
-  runtime/          lifecycle values, task-store port, bounded worker
-  audiences/        business records, immutable snapshot contract, storage port
-  campaigns/        campaign brief, selection/assignment rules, draft service and port
-  creative/         versioned creative values, bounded copy loop and editorial memory port
-  reasoning/        provider-independent inference limits, gateway and call journal ports
-  learning/         synthetic cohorts, counted posteriors, advisory recommendations and ports
-  reviews/          immutable proposals, review policy, decision and acceptance ports
-  workflows/        explicit monthly-mail integration through public module APIs
-  adapters/
-    sqlite/         task/audience/draft, frozen contexts, creative and inference persistence
-    openrouter.py   HTTP adapter; no orchestration or business-rule authority
-    review_report.py escaped read-only HTML review projection
-    synthetic.py    seeded synthetic source
-    files.py        rebuildable CSV, letters and manifest export
-  contracts.py      technical JSON/hash helpers and shared errors only
-  bootstrap.py      composition root
-  __main__.py       CLI entry point
-scripts/            architecture verification
-tests/              domain, persistence, process and import-boundary tests
-research/           standalone mathematical illustration
-docs/               decisions, operational guide and future design
-```
-
-Inside a module, use `domain.py` for pure values and invariants, `application.py` when a use case needs orchestration, and `ports.py` when I/O is required. A module need not contain all three files. Create new abstractions when a concrete consumer needs them.
-
-Cross-module imports use the provider module's `__init__.py` exports. The campaigns module currently consumes audience and creative contracts. Runtime imports neither campaigns nor learning. Domain code cannot import SQLite, filesystem adapters, workflow wiring or application services. Adapters may implement several ports in one deployable application, but their SQL stays private.
-
-The source of module truth is its public Python contract and tests, not file names alone. `scripts/check_architecture.py` checks declared dependencies, private cross-module imports, domain dependencies and cycles among business modules. It also tests seven deliberate boundary violations. This is static import enforcement; Python reflection and malicious in-process code are outside its protection.
-
-## Purpose through execution
+## System structure
 
 ```mermaid
-flowchart TD
-    CLI[Local operator CLI] --> ROOT[Composition root]
-    ROOT --> WORKFLOW[Monthly mail workflow]
-    ROOT --> WORKER[Custom worker]
-    WORKER --> PORT[Task store port]
-    PORT --> SQL[SQLite task adapter]
-    WORKER --> WORKFLOW
-    WORKFLOW --> AUD[Audience public contract]
-    WORKFLOW --> CAM[Campaign application service]
-    CAM --> RULES[Pure campaign rules]
-    RULES --> CREATIVE[Creative public values]
-    CAM --> DATA[Audience and draft ports]
-    DATA --> DB[SQLite audience and draft adapters]
-    CLI --> EXPORT[Rebuildable file export]
+flowchart LR
+    UI[React workspace] --> HTTP[Loopback API]
+    HTTP --> FACADE[Workspace facade]
+    CLI[Python CLI] --> ROOT[Composition root]
+    FACADE --> ROOT
+    ROOT --> WF[Explicit workflows]
+    ROOT --> RT[Custom runtime]
+    RT --> TASKS[Task store port]
+    RT --> WF
+    WF --> MODULES[Audience, campaign, creative, review and learning APIs]
+    MODULES --> PORTS[Narrow persistence and inference ports]
+    TASKS --> SQL[SQLite adapters]
+    PORTS --> SQL
+    PORTS --> OR[OpenRouter adapter]
+    PORTS --> FILES[Verified file projections]
 ```
 
-The first scenario is `inspect audience → build draft → wait for review checkpoint`. After an exact checkpoint acknowledgement, it records dry-run completion. Acknowledgement does not create approval or release authority. There is no send/print capability in this implementation.
+The browser and CLI are entry points to the same application rules. A single local server serializes workspace operations and holds a per-root POSIX file lock. The supported worker topology is one active worker. Selected concurrent database tests establish specific transaction invariants, not general multi-node readiness.
 
-## Ownership and transaction boundaries
+## Module ownership
 
-| State or claim | Authoritative owner | Commit/recovery behavior |
+| Module | Responsibility | Authority it does not own |
 | --- | --- | --- |
-| Request identity and task lifecycle | Runtime task store | Organization plus request ID binds exact task inputs; changed inputs conflict |
-| Current worker ownership | Task lease token and expiry | Checked again inside the transaction that writes a result or failure |
-| Run/task result and event history | Same SQLite transaction | A failed event insert rolls back the result and lifecycle changes |
-| Audience population | Content-addressed snapshot | Stored bytes, organization and snapshot identity checked on read |
-| Selection, exclusions, money, assignments | Campaign domain | Computed over complete supplied input; no LLM decision can bypass a rule |
-| Exact draft artifact | Content-addressed manifest and stored CSV bytes | A run's draft operation is unique; retries must produce the same artifact |
-| Filesystem export | Derived projection | Rebuilt from verified stored bytes; edits do not change the authoritative artifact |
-| Review checkpoint | Runtime waiting reference | Acknowledgement must match that exact reference and the current waiting state |
-| Model inference | Reasoning call journal | Reserve before dispatch, check current task lease, replay recorded responses, refuse uncertain automatic retries |
-| Editorial context and generated copy | Creative module | Organization-scoped examples, immutable context and content-bound creative identities; all output unreviewed |
-| Sourced product wording | Reviewed local fact pack inside frozen creative context | Checked official source, dated review window, exact text/qualifications and fact IDs; revalidated before draft persistence |
-| Semantic claim screen | Separate inference request, validated by creative module | Complete A/B verdict bound to exact copy/pack; a pass grants no approval authority |
-| Review authority | Reviews module and SQLite review adapter | Exact immutable subject, monotonic evidence/suppression epochs, reviewer generation, expiry and current validation at acceptance |
-| Simulated agency acceptance | Same local review transaction | One accepted job per case; acceptance, audit and command receipt commit together; replay observes that historical receipt |
-| Bayesian counts and creative support | Learning module and SQLite adapter | Full mature synthetic cohorts, immutable outcomes, disjoint business support, atomic finalization and traceable counts |
+| `runtime` | Run/task lifecycle, leases, attempts, waiting and result commits | Campaign policy, copy quality, approval or outcomes |
+| `audiences` | Business records, immutable snapshots and source contracts | Model-generated eligibility or inferred source completeness |
+| `campaigns` | Selection, exclusions, A/B/no-mail assignment, integer money and exact drafts | Reviewer decisions or external dispatch |
+| `creative` | Creative identities, frozen editorial context, bounded generation and grounding validation | Approval, targeting policy or outcome counts |
+| `reasoning` | Provider-independent limits, gateway contracts and inference journal | Business approval or automatic uncertain-call retries |
+| `reviews` | Proposals, subjects, decisions, invalidation and simulated acceptance | Hosted authentication or real agency effects |
+| `learning` | Cohort membership, immutable observations, counted posteriors and recommendations | Automatic campaign mutation or new product facts |
 
-We deliberately avoid a transaction spanning runtime and campaign internals. The campaign commits its deterministic artifact under a stable operation ID; the runtime then commits its task receipt. If the process dies between those commits, recovery retrieves the same artifact. This works because the operation is deterministic and idempotent. It is not an automatic pattern for non-idempotent external effects.
+`workflows` composes public module APIs. Cross-module imports use the provider's `__init__.py`; domain code uses pure standard-library values, declared domain contracts and technical serialization helpers. Runtime has no dependency on business modules. Adapters keep SQL private. The architecture checker rejects prohibited dependencies, private imports and cycles.
 
-Cancellation fences later task commits. A deterministic draft computation already in flight may still leave an unreferenced artifact; it grants no external authority. Real external effects will require separate authorization, idempotency and reconciliation at their own boundary.
+## Repository map
 
-The POC supports one active worker. Transactional claims were also tested under two simultaneous callers to establish that duplicate claims do not create two current owners. That test does not establish multi-node operational readiness. Leases use a clock supplied by the application; production deployment needs an agreed time source and lease/heartbeat policy for longer tasks.
+```text
+frontend/src/                 React views, API client and presentation styles
+src/acquisition/
+  runtime/                    task lifecycle and bounded worker
+  audiences/                  records and snapshot contracts
+  campaigns/                  campaign rules and draft service
+  creative/                   copy loop, evidence and editorial context
+  reasoning/                  inference contracts and reservation journal
+  reviews/                    proposal and approval services
+  learning/                   cohorts, outcomes and recommendations
+  workflows/                  integration through public contracts
+  adapters/                   SQLite, OpenRouter, files and report projections
+  bootstrap.py                composition root
+  workspace.py                local workspace facade
+  workspace_server.py         loopback transport and static asset serving
+  __main__.py                 CLI entry point
+config/                       editorial guidance, fact pack and evaluation cases
+tests/                        pure rules, SQLite, HTTP and process recovery
+frontend/tests/               real-backend client and Chromium regressions
+scripts/                      architecture, mutation and optional model evaluation
+docs/                         product guides and technical references
+```
+
+Within each business module, `domain.py` holds pure values and invariants, `application.py` coordinates use cases and `ports.py` defines required I/O. Extra abstractions are introduced only for an implemented consumer. There is no generic repository layer, message bus or workflow language.
+
+## Durable objects and transaction boundaries
+
+| Object | Binding and commit rule |
+| --- | --- |
+| Run and task plan | Organization/request identity binds exact inputs and capability versions; changed inputs conflict |
+| Worker lease | Current token and expiry are checked again in the result/failure transaction |
+| Audience snapshot | Content-addressed bytes and organization are verified on read |
+| Draft and creative | Exact content, assignments, money and file hashes bind identity; export files are rebuildable projections |
+| Inference call | Reserve before dispatch under the active lease; replay completed matching receipts; fence unknown outcomes |
+| Creative context | Freeze product evidence, editorial preferences and all required segment learning from one read snapshot |
+| Review subject | Bind immutable proposal, evidence/suppression epochs, policy, purpose and revision |
+| Approval | Bind subject, reviewer generation, reason and bounded lifetime; recheck at acceptance |
+| Simulator acceptance | Approval validation, one accepted job, audit and command receipt commit together |
+| Learning finalization | Complete mature observations, counts, digests, beliefs, event and receipt commit together |
+
+Domain artifacts and runtime receipts are separate commits under stable operation identities. A crash after draft persistence but before task acknowledgement recovers the same artifact. This works for these idempotent local operations; it is not a guarantee for future non-idempotent remote effects. Cancellation fences later task commits but may leave an unreferenced immutable artifact from computation already in flight.
+
+The workspace has a separate `workspace.sqlite` control store for session metadata and command fingerprints. Each sandbox owns its application database; descendant experiments share their parent's organization/database to reuse learning. Paths and organizations resolve from server-owned metadata. The control and domain stores do not share a distributed transaction. Durable command admission precedes execution; after a lost metadata write, the same request reconciles through original domain receipts. Browser session storage preserves pending identity per command signature after uncertain responses.
 
 ## Audience and experiment semantics
 
-Synthetic data contains stable record/business IDs, a frozen segment, model/version metadata, response propensity, suppression, address usability and contact history. Duplicate business identities are all excluded, rather than arbitrarily picking one record. Exclusions have one primary reason so counts reconcile; overlapping reasons are resolved by documented rule order in the domain function.
+A snapshot contains supplied segment, model/version, propensity, suppression, address and contact metadata. The agent does not train the segmentation model. Duplicate business identities are all excluded. Ordered exclusion reasons make terminal counts reconcile. The synthetic source's completeness flag describes its own batch; a real feed needs independent completeness and freshness checks.
 
-The snapshot's completeness flag attests the synthetic generator's supplied batch. This cannot prove completeness of a future warehouse feed; a real source adapter must verify partition inventory, expected counts and freshness independently.
+Selection enrolls a bounded high-score cohort before deterministic randomization within each segment. Integer-pence calculations reserve conservatively, including potential controls, so some budget may remain unused. Small segments may lack a control group; the manifest exposes that limitation. Assignments retain business, segment, arm and creative identity for outcome joins.
 
-The draft enrolls a bounded high-score cohort first, then deterministically randomizes within each segment into A/B/no-mail. Control and treatment therefore come from the same selected population. Integer pence calculations conservatively reserve enough budget for every enrolled business, including potential holdouts; the draft may leave budget unused. Small segments may not receive a holdout, and the manifest exposes that limitation.
+## Inference, memory and evidence
 
-CSV assignments retain segment, business, arm and creative identity for later outcome joins. Creative identity includes its exact content hash. The workflow pins the catalogue hash in its stored inputs so a changed catalogue cannot silently resume old work. Product fact/disclosure validation runs with grounded copy generation; local editorial decisions are separate day-three records.
+The workflow pins model, limits, guidance, catalogue and evidence identities. Worker eligibility is checked before claim, so incompatible model settings do not consume attempts or terminally fail resumable work. The journal reserves calls before dispatch and persists response/usage metadata. Unknown provider outcomes stop automatic retries.
 
-## Testability of the whole system
+Only aggregate synthetic audience context is supplied to the model. Editorial preferences are writing judgments. Finalized synthetic outcome memory carries explicit counts and creative/cohort provenance. Neither becomes source evidence or approval. New copy has a new identity and cannot inherit old approval or response counts. Grounded rendering and the separate semantic screen are described in [product grounding](product-grounding.md).
 
-Pure tests verify policy with hand-written expected populations and explore seeded budget boundaries. Persistence tests use actual SQLite transactions, concurrent connections, forced storage failure and lease recovery. A CLI test creates, works, inspects, exports, acknowledges and completes a run across separate OS processes. The same composition root is used by the CLI and tests.
+## Review and learning authority
 
-These layers are complementary. A module unit test cannot establish restart behavior, and a successful end-to-end run cannot establish every policy boundary. The [day-one validation ledger](day-one-validation.md) records the supported invariants and remaining gaps.
+Review decisions are distinct from the runtime's dry-run checkpoint acknowledgement. Read-only HTML and cached receipts cannot authorize acceptance. Current evidence, suppression epochs, reviewer generation, expiry and exact artifact integrity are checked transactionally. Restoring earlier evidence bytes cannot revive authority because epochs are monotonic. Accepted history is immutable. See [review reference](reviews.md).
 
-## Evolution without premature extraction
+Learning starts from verified accepted assignments, including controls. Missing rows stay unknown; full explicit coverage and a closed window are required before counting. Finalized cohorts and observations are immutable, and repeated business exposure within an organization is rejected. Finalization replay observes the original receipt without another effect event. All segment memories for a new copy run come from one read transaction. Recommendations are advisory and cannot mutate a campaign. See [learning reference](learning.md).
 
-Day two added copy generation and explicit wire validation behind the current capability surface, with a provider-independent reasoning module and an OpenRouter adapter. The workflow order remains explicit in code; the model chooses only context-read and copy-submission actions. See `docs/model-integration.md` for its controls and live evidence. Day four adds cohort/outcome ingestion and a persistent belief store inside learning. Neither addition requires runtime to import those modules.
+## Local transport and identity
 
-The current `monthly-mail/v3` extension adds source-bound product rendering and a separate semantic claim screen within creative. The workflow checks the frozen evidence's review date again before creating a campaign draft. See `docs/product-grounding.md` for the evidence/authority boundary, recovery tests and live results. The original v2 capabilities remain available for explicit historical replay.
+The server binds to `127.0.0.1`, checks Host and per-start browser token, and requires the exact local Origin for mutations. Absolute-form request targets are rejected before routing. JSON bodies are bounded, CORS is not permissive, static files are confined to compiled assets and downloads bind exact displayed subjects. Provider secrets remain server-side.
 
-The claim port accepts a worker-eligibility predicate. The composition root supplies model/configuration compatibility through the workflow; runtime contains no model-specific policy. The SQLite adapter evaluates eligibility before claim or expired-lease recovery. Configuration mistakes therefore leave a run resumable. Schema v3 freezes the exact plans present at migration and the task store checks that certificate before executing retired capabilities. It rejects new retired-capability admission and never refreshes certificates on restart. All durable timestamps and calculated lease/retry times must be finite. This migration is forward-only; older binaries reject newer schemas. Schema v4 adds review tables without refreshing the legacy admission cutoff.
+These are local transport controls. Organization flags and configured actors are trusted local administration, not hosted authentication or separation of duties. A public service needs the additional identity and operational controls in [scalability](scalability.md).
 
-Initialization takes a SQLite write lock before reading `user_version` and keeps that lock through every migration and version change. Migration statements use `execute` inside the transaction; `executescript` is excluded because it can commit a pending transaction. Failure rolls back the complete chain. If the earlier initialization race has left version 2 with a schema-v3 admission table, initialization restores the version marker without expanding the existing admission snapshot.
+## Schema and compatibility
 
-WAL activation happens after the migration commits because SQLite cannot change journal mode inside that transaction. A busy result during activation is retried on a fresh connection, with a ten-second retry deadline and a short per-attempt busy timeout. The retry does not reapply migrations. Other SQLite errors and exhausted contention are reported rather than hidden.
+The application database is schema v5. Initialization takes a write lock before reading `user_version` and holds it through the entire migration chain. DDL and version changes roll back together. Statements execute individually because `executescript` can commit an outer transaction. WAL activation runs after migration and retries only busy errors on fresh connections with a bounded deadline.
 
-Use the standard library for day one so the persistence/recovery slice runs without credentials or third-party installation. Python 3.11 or later is declared; the verification host ran Python 3.14.3. Introduce and pin external dependencies when they serve an implemented use case.
+Schema v3 froze exact legacy task-plan admissions; later migrations preserve that cutoff. Historical v2 workflows resume only with their original admission certificate. New v2 admission and capability/input downgrades are rejected. Repair of the known older stale-marker state preserves the original cutoff rather than certifying later records. Schema v4 added review state; v5 added learning state. Older binaries reject newer schemas, and mixed-version rollback is unsupported. Durable timestamps and derived lease/retry deadlines must be finite.
 
-Move SQLite behind the existing ports to PostgreSQL when deployment/concurrency requirements justify it, adding real migrations and compatibility tests. Add durable external dispatch through an outbox once the agency integration creates that need. This migration will require engineering and new evidence; the ports do not make it automatic.
+## Testability and evolution
 
-The local organization flag is a scope selector, not authentication. A hosted service needs identity, permissions, operational monitoring, retention and secret controls before exposure. Until then the application remains a local synthetic tool.
+Pure policy tests, real SQLite fault/concurrency tests, separate-process CLI recovery and real HTTP/browser journeys complement each other. None alone proves the entire system. See [validation](validation.md) for current evidence and gaps.
 
-## Day-three review boundary
-
-The reviews module consumes only public audience, campaign and creative contracts. Its pure domain validates exact candidates and hashes approval subjects. Its service coordinates refresh preparation through a narrow proposal-builder port; workflows implements that builder using existing campaign rules. The SQLite review adapter owns local roles, active evidence, cases, decisions and simulated acceptance. Runtime has no review-specific dependency.
-
-Approval is distinct from checkpoint acknowledgement and semantic screening. The model cannot issue a reviewer decision. Read-only HTML is a derived snapshot; all decisions and simulated acceptance recheck current state transactionally. Local actor registration is trusted administration, not hosted authentication. The active evidence registry requires manual source verification. See the [day-three guide](day-three.md) for the exact invalidation, replay and concurrency rules and their bounded test evidence.
-
-## Day-four learning boundary
-
-Accepted simulated assignments define the cohort and denominator. The learning service obtains them through a workflow adapter, while the persistence adapter checks exact accepted bytes again before admission. Mature explicit outcomes produce durable counts in one transaction. Statistical recommendations are read-only projections. New model contexts freeze the separate synthetic outcome memory, preserving historical editorial contexts. No recommendation mutates a campaign or grants approval. Schema v5 preserves previous review and legacy admission state. See the [day-four guide](day-four.md) for lifecycle, independence limits, priors and tests.
-
-## Day-five local interface
-
-React/TypeScript views consume a same-origin, loopback-only Python API. The workspace facade calls the existing composition root and public module APIs; frontend state never authorizes an effect. Exact displayed subjects bind review decisions and artifact downloads. A separate local control store persists sandbox metadata and command fingerprints, while original domain receipts reconcile retries across the two stores. Descendant experiments can share scoped learning, without inheriting approval. The core database remains schema v5. See the [interface guide](day-five.md) for deployment boundaries, simulated clocks, request controls and tests.
+The modular monolith remains the default until measured concurrency or operational requirements justify a change. Ports isolate dependencies, but a PostgreSQL migration, multi-worker operation or external dispatch still requires implementation and new failure/recovery evidence. The [scaling path](scalability.md) specifies those changes without presenting them as shipped capabilities.

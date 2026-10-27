@@ -1,0 +1,75 @@
+# Campaign user guide
+
+Use this guide with the local React workspace. [Local operations](workspace.md) covers installation and recovery. The workflow below uses offline fixtures and spends no provider credit.
+
+```mermaid
+flowchart TD
+    PREP[Prepare audience and copy] --> INSPECT[Inspect exact proposal and evidence]
+    INSPECT --> DECIDE[Human review]
+    DECIDE -->|Approve current subject| ACCEPT[Simulated handoff]
+    DECIDE -->|Request changes| REVISE[Prepare a new proposal]
+    REVISE --> INSPECT
+    ACCEPT --> WINDOW[Observe complete mature synthetic cohort]
+    WINDOW --> LEARN[Count outcomes and compare with control]
+    LEARN --> NEXT[Propose next experiment with memory]
+    NEXT --> PREP
+    DECIDE -->|Suppression or evidence changes| STALE[Old approval invalid]
+    STALE --> REVISE
+```
+
+## 1. Prepare a campaign
+
+Choose **New campaign**, select **Offline fixtures** and choose **Prepare campaign**. The workspace creates a separate synthetic sandbox with 1,000 business records, two audience segments and four fixture variants. The campaign displays a simulated clock. Independent new campaigns preserve previous campaigns in their own sandboxes.
+
+Model copy is optional. Selecting **Generate with GPT-OSS-120B** explicitly requests provider inference using the server's OpenRouter key and spending controls. Opening or navigating the interface alone makes no inference request. See [grounding](product-grounding.md) before evaluating generated copy.
+
+## 2. Inspect the audience and messages
+
+The **Campaign** view shows source population, mailing recipients, no-mail controls and synthetic cost. The **Audience** tab exposes business assignments, exclusions, suppressions and segment filters. Inspect the counts together; a control is an enrolled business deliberately receiving no mail, whereas an exclusion is outside the experiment.
+
+The **Copy variants** tab shows both treatments for each segment. Expand identity and evidence details to inspect provenance. Historical creative previews preserve their original presentation independently of workspace branding. Download the displayed manifest and assignment files when needed; the server checks the exact displayed subject so a newer revision cannot silently replace its export.
+
+## 3. Review evidence and record a decision
+
+Open **Product evidence** to inspect permitted factual wording, qualifications, source review dates and the active evidence registry. The source pack is manually reviewed; the interface does not monitor the live product page.
+
+Return to **Review & approval**. Read the exact audience, copy and cost, then approve or request changes with a reason. The dialog binds the proposal displayed when it opened. A stale dialog is rejected by the server. Generated copy remains a proposal even if its semantic screen passed.
+
+Approval authorizes only a local simulated handoff. A runtime checkpoint acknowledgement is a different operation and grants no approval authority.
+
+## 4. Exercise an approval invalidation
+
+Before accepting the job, suppress a selected mailing business and record a reason. The current approval becomes invalid. Choose **Rebuild draft**, inspect the revised audience and cost, then record a fresh decision. Rebuild preserves the copy; replacing copy or expired grounded evidence requires a new generated draft through the review/CLI workflow described in [review reference](reviews.md).
+
+Evidence and policy changes, expiry, reviewer changes, rejection and revocation can also invalidate authority. Refreshing the page or replaying an old command does not restore it. This is the important distinction between a historical decision and current permission to act.
+
+## 5. Simulate handoff
+
+Choose **Simulate agency handoff** after a valid approval. The backend checks the proposal, evidence, current suppression state and reviewer authority in the acceptance transaction. It records one simulated acceptance with its audit event and receipt.
+
+Nothing is printed or sent. Repeating the command observes its original receipt rather than creating another job. After acceptance, the case is historical and cannot acquire a new proposal or decision. A revocation can record withdrawn authority but cannot retract that accepted simulation.
+
+## 6. Observe and finalize outcomes
+
+In **Learning**, open the outcome window. Simulating early responses imports positives but does not update beliefs. Closing the simulated 28-day window imports explicit results for the complete assigned population and requests finalization. Time is advanced inside the sandbox; the demo does not wait 28 real days.
+
+Finalization requires maturity, completeness and valid assignment identities. A missing row is unknown, not an implied non-response. The learning view displays exact counts, posterior estimates and uncertainty for each segment/arm. Results deliberately favor one fixture variant to demonstrate recommendations; they are not customer performance measurements.
+
+## 7. Propose another experiment
+
+**Prepare a next experiment** retains scoped mature memory in the same sandbox while creating a separate campaign proposal. Model mode freezes that memory alongside editorial guidance. Approval never transfers. The current repeated-business rule prevents opening a second learning cohort over the same population; this path demonstrates memory reuse rather than a production repeated-exposure experiment.
+
+Inspect **Activity log** for committed events and historical receipts. A read-only export or saved report can become stale and does not authorize an operation.
+
+## When an operation stops
+
+| Situation | Operator response |
+| --- | --- |
+| Stale subject or invalid approval | Reload current state, inspect the change, rebuild or replace where appropriate and obtain a fresh decision |
+| Expired product evidence | Manually verify sources and activate an updated pack; regenerate grounded copy when required |
+| Server restarted | Reload to obtain the new local browser token |
+| Network interruption or server error after a command | Retry the same action in the same browser session so its pending request identity is retained; inspect the current state and receipt |
+| Incomplete model preparation | Resume the saved campaign with the pinned configuration; an uncertain provider call remains fenced and needs investigation |
+| Conflicting, incomplete or repeated outcome data | Inspect cohort membership and explicit results; the prototype does not support correcting finalized outcomes or repeated exposures |
+
+Do not bypass a failure by changing a clock, editing the database or treating a previous receipt as current permission. For CLI commands and exact invalidation conditions, use the [review](reviews.md), [learning](learning.md) and [model](model-integration.md) references.

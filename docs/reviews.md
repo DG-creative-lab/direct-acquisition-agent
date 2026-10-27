@@ -1,14 +1,14 @@
-# Day three: exact review and simulated acceptance
+# Review and approval reference
 
-Implemented 26 October 2026. The review module adds durable proposals, local reviewer decisions, invalidation and a local agency simulator. It leaves the custom runtime and campaign rules in their existing modules. No model calls are needed to review, approve, suppress or simulate acceptance.
+Review cases bind durable proposals to local reviewer decisions, invalidation rules and simulated acceptance. The custom runtime and campaign rules retain their own module boundaries. Reviewing, approving, suppressing and simulating acceptance require no model calls.
 
 ## Run the scripted demonstration
 
 ```sh
-PYTHONPATH=src python3 -m acquisition --db .local/review.sqlite demo-review --request-id day-three --out .local/day-three
+PYTHONPATH=src python3 -m acquisition --db .local/review.sqlite demo-review --request-id review-demo --out .local/review-demo
 ```
 
-Open `.local/day-three/review.html`. The command also writes `before-approval.html`, `suppression-blocked.html` and exact draft exports under `artifacts/`. These are read-only reports. Their decision examples invoke the CLI, which rechecks authoritative state.
+Open `.local/review-demo/review.html`. The command also writes `before-approval.html`, `suppression-blocked.html` and exact draft exports under `artifacts/`. These are read-only reports. Their decision examples invoke the CLI, which rechecks authoritative state.
 
 The demonstration uses an isolated synthetic organization and an explicitly scripted reviewer. It creates a draft, records an initial decision, suppresses a selected recipient, confirms that the old approval cannot authorize acceptance, rebuilds, records a fresh decision and accepts one simulated job. Repeating the same command returns the same acceptance receipt. The default 1,000-record fixture produces 681 initial recipients and 680 after suppression. The scripted decision demonstrates the protocol; it is not a human review of marketing copy.
 
@@ -76,20 +76,6 @@ A retry of an accepted job observes the original receipt, including after approv
 
 Schema v4 adds review tables under the existing initialization write lock. It preserves the schema-v3 legacy admission cutoff. A failed migration rolls back both DDL and version markers. Older binaries reject the newer schema; rollback compatibility is not promised.
 
-## Verification ledger
+## Verification
 
-The complete suite has 108 offline tests: the 77 merged foundation tests plus 27 review tests and four CLI/migration tests. `make arch-check` includes the review module and preserves public-module imports and the acyclic dependency graph. `make mutation-check` detects 12/12 declared mutations, including four new controls: expiry, current evidence epoch, reviewer generation and transactional decision persistence.
-
-| Failure space | Executable evidence |
-| --- | --- |
-| Wrong organization, role, case or subject | Scoped reads, decision/approval substitution probes and exact-subject checks |
-| Stale authority | Suppression, evidence ABA, policy, expiry boundary, reviewer disable/re-enable, revocation and later rejection |
-| Artifact and copy integrity | Stored-byte tampering, changed export projection, forged fixtures and generated copy replacement with a deterministic model double |
-| Transaction faults | Injected decision-event and acceptance-event failures leave neither partial authority nor duplicate effect |
-| Selected concurrency schedules | Two acceptors produce one job; suppression versus acceptance has a valid order; evidence update during preparation loses the compare-and-swap |
-| Time | Approval expiry clamps to the product review window; clock is read after lock acquisition; non-finite clocks leave state unchanged |
-| Recovery | Separate-process scripted journey, repeated command replay and accepted-receipt replay after expiry |
-| Compatibility | Actual schema-v3 upgrade preserves the original legacy cutoff; failed schema-v4 migration rolls back and clean retry succeeds |
-| Report | Escaped untrusted text, desktop and mobile browser inspection, exact immutable artifact links |
-
-These are selected failure schedules and mutation experiments. No overall coverage percentage, production readiness or general model claim-detection accuracy is asserted. No paid model requests were made for day-three verification. The saved HTML can become stale and is not an authorization token.
+See [validation](validation.md) for the current test portfolio and bounded evidence for review identity, expiry, revocation, concurrency, atomicity and replay.
