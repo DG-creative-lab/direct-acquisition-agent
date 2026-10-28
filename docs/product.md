@@ -38,7 +38,7 @@ The next experiment is another proposal, not an automatic campaign change. The c
 
 | Capability | Current behavior | Further work |
 | --- | --- | --- |
-| Conversation | Persistent chat and bounded brief planner, with synthetic fixture campaign preparation and human review | Real audience sources, model-copy preparation from chat and delivery |
+| Conversation | Persistent chat, bounded brief planner, fixture or explicitly generated grounded copy, synthetic campaign preparation and human review | Real audience sources and delivery |
 | Audience | Seeded synthetic source, supplied segment/score metadata, deterministic exclusions | Verified warehouse/CRM feeds, data rights and completeness contracts |
 | Copy | Offline fixtures or bounded OpenRouter generation with source pack and screen | Broader product packs, calibrated evaluation and editorial operations |
 | Approval | Exact-subject local decisions, expiry, invalidation and simulator recheck | Hosted identity, tenant membership and enforced separation of duties |

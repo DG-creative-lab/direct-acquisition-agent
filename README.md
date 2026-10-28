@@ -50,7 +50,7 @@ To try model copy, configure `OPENROUTER_API_KEY` in ignored `.env.local`, then 
 
 The server is loopback-only and intended for trusted local use. Startup, storage, recovery and CLI alternatives are in [local operations](docs/workspace.md).
 
-A [conversational assistant](docs/conversations.md) saves objectives and corrections, then can prepare a synthetic campaign draft from a validated brief. The React workspace includes a fixed offline example that makes no model calls. Free-text planning explicitly uses OpenRouter; this slice prepares copy from offline fixtures. Review and simulated acceptance remain separate human actions.
+A [conversational assistant](docs/conversations.md) saves objectives and corrections, then can prepare a synthetic campaign draft from a validated brief. The React workspace includes a fixed offline example that makes no model calls. Free-text planning explicitly uses OpenRouter. For a model-copy proposal, choose **Generate campaign copy** to generate and screen grounded copy for the selected segments. Review and simulated acceptance remain separate human actions.
 
 ## Documentation
 

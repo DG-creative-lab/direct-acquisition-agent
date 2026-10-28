@@ -526,3 +526,74 @@ test("unmarked conflict keeps the message pending", async ({ page }) => {
   ).toBeEnabled();
   await expect(page.getByLabel("Message Direct Acquisition")).toBeDisabled();
 });
+
+test("model copy waits for explicit generation and reports an uncertain failure", async ({
+  page,
+}) => {
+  let generationRequests = 0;
+  await page.route("**/api/conversations/*/plan", async (route) => {
+    const url = route
+      .request()
+      .url()
+      .replace(/\/plan$/, "");
+    const conversation = await (
+      await nativeFetch(url, {
+        headers: { "X-Workspace-Token": workspaceToken },
+      })
+    ).json();
+    const result = {
+      id: "brief_test",
+      outcome: "brief_proposal",
+      objective: "Test contractor responses.",
+      budget_pence: 60000,
+      segments: ["contractors"],
+      copy_mode: "model",
+      question: "",
+      unsupported_reason: "",
+    };
+    const plan = {
+      request_id: "plan_test",
+      revision: conversation.revision,
+      status: "succeeded",
+      mode: "model",
+      current: true,
+      result,
+      error: null,
+    };
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        ...conversation,
+        plans: [plan],
+        current_plan: plan,
+      }),
+    });
+  });
+  await page.route("**/api/conversations/*/draft", async (route) => {
+    generationRequests += 1;
+    await route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: "Generation outcome is uncertain. Inspect the saved run.",
+      }),
+    });
+  });
+  await page.goto("/");
+  await page
+    .getByLabel("Message Direct Acquisition")
+    .fill("Prepare a £600 contractor campaign with model copy.");
+  await page.getByRole("button", { name: "Send to agent" }).click();
+  await expect(
+    page.getByRole("button", { name: "Generate campaign copy" }),
+  ).toBeVisible();
+  expect(generationRequests).toBe(0);
+  await page.getByRole("button", { name: "Generate campaign copy" }).click();
+  await expect(
+    page.getByText("Generation outcome is uncertain. Inspect the saved run."),
+  ).toBeVisible();
+  expect(generationRequests).toBe(1);
+  await expect(
+    page.getByRole("button", { name: /Review campaign/ }),
+  ).toHaveCount(0);
+});

@@ -96,12 +96,16 @@ class SqliteReviews:
         inputs = json.loads(original[0]) if original else {}
         source = inputs.get("brief", {})
         brief = draft.manifest["brief"]
-        if inputs.get("workflow_version") != "conversation-mail/v1":
+        version = inputs.get("workflow_version")
+        if version not in {"conversation-mail/v1", "conversation-model-mail/v3"}:
             if "conversation_id" in brief:
                 raise Conflict("Conversation provenance cannot be added to another workflow")
             return
         if brief != source:
             raise Conflict("Campaign differs from its original conversation proposal")
+        expected_status = "generated_unreviewed" if version == "conversation-model-mail/v3" else "synthetic_fixture_unapproved"
+        if any(item.get("status") != expected_status for item in draft.manifest["creatives"]):
+            raise Conflict("Conversation copy mode cannot be substituted")
         conversation_scope = "local-conversations"
         conversation = db.execute("SELECT revision FROM conversations WHERE organization=? AND id=?",
                                   (conversation_scope, source["conversation_id"])).fetchone()
@@ -124,7 +128,7 @@ class SqliteReviews:
         except (KeyError, TypeError, ValueError):
             raise Conflict("Original conversation plan failed integrity checks") from None
         if (verified != result or result["id"] != source["plan_id"] or result["outcome"] != "brief_proposal"
-                or result["copy_mode"] != "fixture" or result["budget_pence"] != brief["budget_pence"]
+                or result["copy_mode"] != ("model" if version == "conversation-model-mail/v3" else "fixture") or result["budget_pence"] != brief["budget_pence"]
                 or result["segments"] != brief["segments"]):
             raise Conflict("Campaign does not match its validated conversation proposal")
 

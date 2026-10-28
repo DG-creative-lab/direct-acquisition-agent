@@ -43,6 +43,14 @@ type Conversation = {
     plan_id: string;
     revision: number;
     case_id: string | null;
+    generation?: {
+      run_id: string | null;
+      status: string;
+      provider_error: string | null;
+      outcome_uncertain?: boolean;
+      unresolved_calls?: { key: string; status: string }[];
+      failed_tasks: { capability: string; error_code: string }[];
+    };
   }[];
 };
 type ConversationSummary = { id: string; title: string; revision: number };
@@ -149,10 +157,6 @@ export default function ConversationWorkspace({
     return created;
   };
   const createDraft = async (id: string, revision: number, brief: Brief) => {
-    if (brief.copy_mode !== "fixture")
-      throw new Error(
-        "This version prepares campaigns with offline copy fixtures. Ask the agent to use offline copy to continue.",
-      );
     const state = await command<State>(`/api/conversations/${id}/draft`, {
       expected_revision: revision,
       plan_id: brief.id,
@@ -169,12 +173,11 @@ export default function ConversationWorkspace({
     accept(planned);
     if (
       plan?.status === "succeeded" &&
-      plan.result?.outcome === "brief_proposal"
+      plan.result?.outcome === "brief_proposal" &&
+      plan.result.copy_mode === "fixture"
     ) {
       setBusy("Preparing the campaign");
       await createDraft(id, revision, plan.result);
-    } else {
-      await load(id);
     }
   };
   const send = async () => {
@@ -295,7 +298,11 @@ export default function ConversationWorkspace({
   };
   const prepare = async (plan: Plan) => {
     if (!conversation || !plan.result) return;
-    setBusy("Preparing the campaign");
+    setBusy(
+      plan.result.copy_mode === "model"
+        ? "Generating and checking campaign copy"
+        : "Preparing the campaign",
+    );
     setError("");
     try {
       await createDraft(conversation.id, plan.revision, plan.result);
@@ -414,6 +421,11 @@ export default function ConversationWorkspace({
             const campaign = conversation.campaigns?.find(
               (c) => c.plan_id === plan?.result?.id,
             );
+            const generation = campaign?.generation;
+            const terminal =
+              generation &&
+              (["failed", "cancelled"].includes(generation.status) ||
+                generation.outcome_uncertain);
             return (
               <div className="conversation-turn" key={item.id}>
                 <div className="conversation-user">
@@ -483,6 +495,46 @@ export default function ConversationWorkspace({
                           >
                             Review campaign <ArrowUpRight size={15} />
                           </button>
+                        ) : terminal ? (
+                          <div className="generation-failure" role="status">
+                            <strong>
+                              {generation.outcome_uncertain
+                                ? "Generation outcome is uncertain"
+                                : `Campaign generation ${generation.status}`}
+                            </strong>
+                            <p>
+                              {generation.outcome_uncertain
+                                ? "The provider may have processed and charged for this request. Inspect the original run before requesting another generation."
+                                : generation.provider_error ===
+                                    "provider_http_401"
+                                  ? "OpenRouter rejected the API key (401). Update the server key, then send a new message to create a fresh proposal."
+                                  : generation.provider_error ===
+                                      "provider_outcome_unknown"
+                                    ? "The provider outcome is unknown. Inspect this run before explicitly requesting a new proposal."
+                                    : "This saved run cannot resume. Inspect the failure, then send a new message to create a fresh proposal."}
+                            </p>
+                            <details>
+                              <summary>Inspect generation run</summary>
+                              <p>
+                                Run: <code>{generation.run_id}</code>
+                              </p>
+                              <p>Status: {generation.status}</p>
+                              {generation.provider_error && (
+                                <p>Provider: {generation.provider_error}</p>
+                              )}
+                              {generation.failed_tasks.map((task) => (
+                                <p key={task.capability}>
+                                  {task.capability}: {task.error_code}
+                                </p>
+                              ))}
+                              {generation.unresolved_calls?.map((call) => (
+                                <p key={call.key}>
+                                  Unresolved call: <code>{call.key}</code> (
+                                  {call.status})
+                                </p>
+                              ))}
+                            </details>
+                          </div>
                         ) : (
                           plan.current && (
                             <button
@@ -490,12 +542,28 @@ export default function ConversationWorkspace({
                               onClick={() => prepare(plan)}
                               disabled={!!busy}
                             >
-                              Prepare campaign
+                              {campaign
+                                ? "Resume campaign preparation"
+                                : plan.result.copy_mode === "model"
+                                  ? "Generate campaign copy"
+                                  : "Prepare campaign"}
                             </button>
                           )
                         )}
+                        {plan.result.copy_mode === "model" &&
+                          !campaign?.case_id &&
+                          !terminal && (
+                            <small>
+                              Uses OpenRouter credit to generate and screen copy
+                              for the selected audience.
+                            </small>
+                          )}
                         <small>
-                          Unapproved synthetic draft. No mail is sent.
+                          {campaign?.case_id
+                            ? "Unapproved synthetic draft. No mail is sent."
+                            : terminal
+                              ? "No reviewable campaign was created."
+                              : "Brief proposal. No campaign has been generated yet."}
                         </small>
                       </div>
                     )}
@@ -568,7 +636,7 @@ export default function ConversationWorkspace({
           <p>
             {pendingMessage
               ? "The last message needs confirmation. Retry saving it before continuing."
-              : "Sending uses OpenRouter for planning. Campaign copy uses offline fixtures."}
+              : "Sending uses OpenRouter for planning. Model copy requires a separate generation step."}
           </p>
         </form>
         {!hasMessages && (
