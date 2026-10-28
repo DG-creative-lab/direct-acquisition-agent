@@ -7,6 +7,7 @@ from acquisition.runtime import LeaseLost
 
 from .database import Database
 from .tasks import scoped_run
+from .conversation_provenance import require_current_conversation
 
 
 class SqliteCalls:
@@ -22,6 +23,12 @@ class SqliteCalls:
             if (task is None or run["status"] != "running" or task["status"] != "running"
                     or task["token"] != scope.lease_token or task["lease_until"] <= now):
                 raise LeaseLost("Inference attempt has no active task lease")
+            inputs = json.loads(task["inputs"])
+            if inputs.get("workflow_version") == "conversation-model-mail/v3":
+                try:
+                    require_current_conversation(connection, inputs["brief"])
+                except Conflict:
+                    raise ModelError("conversation_changed_before_inference") from None
             row = connection.execute("SELECT * FROM model_calls WHERE organization=? AND run_id=? AND call_key=?",
                                      (scope.organization, scope.run_id, key)).fetchone()
             if row:

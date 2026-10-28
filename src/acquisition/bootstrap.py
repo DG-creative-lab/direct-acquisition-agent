@@ -20,7 +20,7 @@ from acquisition.creative import fixture_catalog, validate_fact_pack
 from acquisition.runtime import TaskStore, Worker
 from acquisition.reasoning import Inference, ModelConfig, ModelGateway
 from acquisition.workflows.monthly_mail import MonthlyMail, ConversationMail, conversation_task_plan, task_plan
-from acquisition.workflows.model_mail import ModelMonthlyMail, model_task_plan
+from acquisition.workflows.model_mail import ModelMonthlyMail, ConversationModelMail, model_task_plan, conversation_model_task_plan
 from acquisition.adapters.sqlite.reviews import SqliteReviews
 from acquisition.reviews import ReviewService
 from acquisition.workflows.review import ReviewProposalBuilder
@@ -54,7 +54,8 @@ class Application:
         return self.tasks.create(organization, request_id, task_plan(snapshot_id, brief, self.catalogue_hash), self.clock())
 
     def start_model(self, organization: str, request_id: str, size: int = 1000, seed: int = 42,
-                    budget_pence: int = 85000, as_of: str = "2026-10-25", campaign_id: str | None = None) -> str:
+                    budget_pence: int = 85000, as_of: str = "2026-10-25", campaign_id: str | None = None,
+                    conversation_brief: ConversationBrief | None = None, objective: str | None = None) -> str:
         if self.inference is None:
             raise ValueError("Configure a model adapter before starting a model run")
         snapshot = generate(organization, size, seed, as_of)
@@ -67,7 +68,7 @@ class Application:
             product_facts = current["pack"]
         validate_fact_pack(product_facts, datetime.fromtimestamp(self.clock(), timezone.utc).date())
         contexts = {}
-        segments = ("inventory", "contractors")
+        segments = conversation_brief.segments if conversation_brief else ("inventory", "contractors")
         learning_memory = self.learning.store.memory_snapshot(organization, segments)
         for segment in segments:
             example = guidance["reviewer_examples"][segment]
@@ -80,15 +81,21 @@ class Application:
                            "model_version": snapshot.model_version, "snapshot_id": snapshot.id,
                            "situation_hypothesis": guidance["situations"][segment],
                            "outcome_evidence": learning_memory[segment]}}
+            if conversation_brief:
+                context["campaign_brief"] = {"objective": objective, "budget_pence": conversation_brief.budget_pence,
+                                             "segments": list(segments), "plan_id": conversation_brief.plan_id}
             contexts[segment] = self.memory.put_context(organization, context)
-        specs = model_task_plan(snapshot_id, Brief(campaign_id or request_id, budget_pence), contexts, self.inference)
+        specs = (conversation_model_task_plan(snapshot_id, conversation_brief, contexts, self.inference) if conversation_brief
+                 else model_task_plan(snapshot_id, Brief(campaign_id or request_id, budget_pence), contexts, self.inference))
         return self.tasks.create(organization, request_id, specs, self.clock())
 
     def start_conversation(self, organization, request_id, plan, as_of):
-        snapshot_id = self.audiences.put(generate(organization, 1000, 42, as_of))
         brief = ConversationBrief(campaign_id=request_id, budget_pence=plan["budget_pence"],
                                   segments=tuple(plan["segments"]), conversation_id=plan["conversation_id"],
                                   conversation_revision=plan["revision"], plan_id=plan["id"])
+        if plan["copy_mode"] == "model":
+            return self.start_model(organization, request_id, as_of=as_of, conversation_brief=brief, objective=plan["objective"])
+        snapshot_id = self.audiences.put(generate(organization, 1000, 42, as_of))
         return self.tasks.create(organization, request_id, conversation_task_plan(snapshot_id, brief, self.catalogue_hash), self.clock())
 
     def export(self, organization: str, run_id: str, directory: Path) -> Path:
@@ -123,15 +130,16 @@ def build(path: str | Path, clock: Callable[[], float] = time.time,
     memory, calls = SqliteCreative(database), SqliteCalls(database)
     inference = Inference(gateway, calls, model_config, clock) if gateway is not None and model_config is not None else None
     model_workflow = ModelMonthlyMail(audiences, campaigns, memory, inference)
+    conversation_model = ConversationModelMail(audiences, campaigns, memory, inference)
     planner_config = replace(model_config, max_calls=2, force_tool_choice=True) if model_config else None
     planner_inference = Inference(gateway, calls, planner_config, clock) if gateway is not None and planner_config else None
     planner = ConversationPlanner(planner_inference)
     conversations = ConversationService(SqliteConversations(database), tasks, calls, clock,
                                         planner_config if planner_inference else None, planner.preflight)
-    capabilities = workflow.capabilities() | ConversationMail(audiences, campaigns).capabilities() | model_workflow.capabilities() | {PLANNER_CAPABILITY: planner.plan, FIXTURE_CAPABILITY: planner.fixture_plan}
+    capabilities = workflow.capabilities() | ConversationMail(audiences, campaigns).capabilities() | model_workflow.capabilities() | conversation_model.capabilities() | {PLANNER_CAPABILITY: planner.plan, FIXTURE_CAPABILITY: planner.fixture_plan}
     reviews = SqliteReviews(database, clock)
     return Application(tasks, audiences, drafts, Worker(tasks, capabilities, clock, lease_seconds=180 if inference else 60,
-                       eligible=lambda capability, inputs: model_workflow.eligible(capability, inputs) and planner.eligible(capability, inputs)), clock,
+                       eligible=lambda capability, inputs: model_workflow.eligible(capability, inputs) and conversation_model.eligible(capability, inputs) and planner.eligible(capability, inputs)), clock,
                        campaigns.catalogue_hash, memory, calls, inference,
                        ReviewService(reviews, ReviewProposalBuilder(audiences, drafts, campaigns)),
                        LearningService(SqliteLearning(database, clock), AcceptedCohortSource(reviews, drafts)), conversations)

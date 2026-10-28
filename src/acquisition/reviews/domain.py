@@ -63,10 +63,18 @@ def validate_candidate(draft: Draft, snapshot: Snapshot, contexts: dict[str, dic
         if not policy.allow_fixtures or set(creatives) != set(expected):
             raise Conflict("Only the known synthetic fixtures are permitted in fixture mode")
     elif all(c.status == "generated_unreviewed" and c.fact_pack_id == fact_pack_id(pack) for c in creatives):
-        for segment in ("inventory", "contractors"):
+        segments = brief.segments if isinstance(brief, ConversationBrief) else ("inventory", "contractors")
+        if {c.segment for c in creatives} != set(segments):
+            raise Conflict("Grounded copy must cover exactly the selected segments")
+        for segment in segments:
             group = tuple(sorted((c for c in creatives if c.segment == segment), key=lambda c: c.arm))
             if len({c.context_id for c in group}) != 1 or not group or group[0].context_id not in contexts:
                 raise Conflict("Grounded copy requires its exact frozen context")
+            if isinstance(brief, ConversationBrief):
+                frozen_brief = contexts[group[0].context_id].get("campaign_brief", {})
+                if any(frozen_brief.get(key) != value for key, value in {
+                    "plan_id": brief.plan_id, "budget_pence": brief.budget_pence, "segments": list(brief.segments)}.items()):
+                    raise Conflict("Grounded copy context differs from the conversation brief")
             validate_grounded_catalogue(group, contexts[group[0].context_id], today)
     else:
         raise Conflict("Copy must use current grounded evidence or the explicit synthetic fixtures")

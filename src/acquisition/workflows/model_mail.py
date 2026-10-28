@@ -1,7 +1,7 @@
 from dataclasses import asdict
 from datetime import datetime, timezone
 
-from acquisition.campaigns import Brief
+from acquisition.campaigns import Brief, brief_from
 from acquisition.creative import CopyAgent, CreativeMemory, GroundedCopyAgent, validate_grounded_catalogue
 from acquisition.reasoning import CallScope, Inference, ModelError
 from acquisition.runtime import Claim, Outcome, TaskSpec
@@ -46,7 +46,7 @@ class ModelMonthlyMail(MonthlyMail):
         self._check_version(claim)
         scope = CallScope(claim.organization, claim.run_id, claim.task_id, claim.token)
         context_id = claim.inputs["context_ids"][claim.inputs["segment"]]
-        if claim.inputs["workflow_version"] == "monthly-mail/v3":
+        if claim.inputs["workflow_version"].endswith("/v3"):
             variants = GroundedCopyAgent(self.inference, self.memory).generate(scope, context_id, self._today())
         else:
             variants = CopyAgent(self.inference, self.memory).generate(scope, context_id)
@@ -60,14 +60,14 @@ class ModelMonthlyMail(MonthlyMail):
             catalogue = self.memory.get_catalogue(claim.organization, claim.run_id + ":copy:" + context_id)
             if catalogue is None:
                 raise ModelError("required_creative_result_missing")
-            if claim.inputs["workflow_version"] == "monthly-mail/v3":
+            if claim.inputs["workflow_version"].endswith("/v3"):
                 context = self.memory.get_context(claim.organization, context_id)
                 if any(item.context_id != context_id for item in catalogue):
                     raise ModelError("creative_context_mismatch")
                 validate_grounded_catalogue(catalogue, context, self._today())
             variants.extend(catalogue)
         return self.campaigns.prepare_with_catalogue(claim.organization, claim.inputs["snapshot_id"],
-            Brief(**claim.inputs["brief"]), claim.run_id + ":draft", tuple(variants))
+            brief_from(claim.inputs["brief"]), claim.run_id + ":draft", tuple(variants))
 
     def capabilities(self):
         return {**{f"audiences.inspect_model.{version}": self.inspect for version in ("v2", "v3")},
@@ -77,3 +77,27 @@ class ModelMonthlyMail(MonthlyMail):
 
     def _today(self):
         return datetime.fromtimestamp(self.inference.clock(), timezone.utc).date()
+
+
+def conversation_model_task_plan(snapshot_id, brief, contexts, inference):
+    return [TaskSpec(spec.capability.replace(".v3", "_conversation.v3"),
+                     spec.inputs | {"workflow_version": "conversation-model-mail/v3"}, max_attempts=spec.max_attempts)
+            for spec in model_task_plan(snapshot_id, brief, contexts, inference)]
+
+
+class ConversationModelMail(ModelMonthlyMail):
+    def eligible(self, capability, inputs):
+        if capability not in self.capabilities():
+            return True
+        return self.inference is not None and inputs.get("model_config") == asdict(self.inference.config)
+
+    def _check_version(self, claim):
+        if (claim.inputs.get("workflow_version") != "conversation-model-mail/v3"
+                or claim.capability not in self.capabilities() or not self.eligible(claim.capability, claim.inputs)):
+            raise ModelError("configure_the_original_model_and_limits_before_resuming")
+
+    def capabilities(self):
+        return {"audiences.inspect_model_conversation.v3": self.inspect,
+                "creative.generate_conversation.v3": self.generate,
+                "campaigns.build_model_draft_conversation.v3": self.prepare,
+                "campaigns.model_review_checkpoint_conversation.v3": self.review}

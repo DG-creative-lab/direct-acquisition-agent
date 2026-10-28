@@ -140,9 +140,161 @@ class ConversationCampaignTests(unittest.TestCase):
         self.workspace.message_conversation(self.conversation, "m2", 1, "Use £300 and model copy.")
         self.model.results = [proposal(budget_pence=30000, copy_mode="model")]
         plan = self.workspace.plan_conversation(self.conversation, "p2", 2)["current_plan"]["result"]
+        from test_model_copy import FakeModel
+        model = FakeModel()
+        with patch("acquisition.workspace.OpenRouter", return_value=model):
+            state = self.workspace.draft_conversation(self.conversation, "model-draft", 2, plan["id"])
+        self.assertEqual(state["session"]["mode"], "model")
+        self.assertTrue(state["review"]["candidate_valid"], state["review"]["blocked_reasons"])
+        self.assertFalse(state["review"]["approval_valid"])
+        manifest = state["review"]["manifest"]
+        self.assertEqual(manifest["brief"]["budget_pence"], 30000)
+        self.assertEqual({c["segment"] for c in manifest["creatives"]}, {"contractors"})
+        self.assertEqual({c["status"] for c in manifest["creatives"]}, {"generated_unreviewed"})
+        self.assertEqual(len(model.requests), 3)
+        session = self.workspace._session(state["session"]["id"])
+        app = self.workspace._app(session)
+        context_id = state["tasks"]["tasks"][0]["inputs"]["context_ids"]["contractors"]
+        context = app.memory.get_context(session["organization"], context_id)
+        self.assertEqual(context["campaign_brief"]["plan_id"], plan["id"])
+        self.assertEqual(context["campaign_brief"]["objective"], plan["objective"])
+        from acquisition.campaigns import brief_from, build_draft
+        from acquisition.creative import fixture_catalog
+        scope = session["organization"]
+        snapshot = app.audiences.get(scope, manifest["snapshot_id"])
+        replacement = build_draft(snapshot, brief_from(manifest["brief"]), tuple(c for c in fixture_catalog() if c.segment == "contractors"))
+        replacement_id = app.drafts.put(scope, "fixture-downgrade", replacement)
+        with self.assertRaises(Conflict):
+            app.reviews.replace(scope, state["review"]["case_id"], state["review"]["subject"]["id"], replacement_id, "local-operator", "downgrade")
+        approved = self.workspace.action(session["id"], "approve", {"request_id": "model-approval", "subject_id": state["review"]["subject"]["id"], "reason": "Reviewed grounded copy."})
+        self.workspace.message_conversation(self.conversation, "m3", 2, "Use £200 instead.")
+        with self.assertRaises(Conflict):
+            self.workspace.action(session["id"], "handoff", {"request_id": "stale-model-handoff", "approval_id": approved["review"]["approval"]["id"]})
+
+    def test_model_draft_recovers_frozen_run_after_lost_case_metadata(self):
+        from test_model_copy import FakeModel
+        self.workspace.message_conversation(self.conversation, "m2", 1, "Use £300 and model copy.")
+        self.model.results = [proposal(budget_pence=30000, copy_mode="model")]
+        plan = self.workspace.plan_conversation(self.conversation, "p2", 2)["current_plan"]["result"]
+        model = FakeModel()
+        original = self.workspace._save
+        def fail_case(session):
+            if session["case_id"]:
+                raise OSError("lost case metadata")
+            original(session)
+        with patch("acquisition.workspace.OpenRouter", return_value=model):
+            with patch.object(self.workspace, "_save", side_effect=fail_case), self.assertRaises(OSError):
+                self.workspace.draft_conversation(self.conversation, "model-draft", 2, plan["id"])
+            restarted = Workspace(self.root, real_clock=lambda: 1792972800.0)
+            state = restarted.draft_conversation(self.conversation, "model-draft", 2, plan["id"])
+        self.assertTrue(state["review"]["candidate_valid"])
+        self.assertEqual(len(model.requests), 3)
+
+    def test_model_generation_requires_fresh_evidence_before_admission(self):
+        self.workspace.message_conversation(self.conversation, "m2", 1, "Use £300 and model copy.")
+        self.model.results = [proposal(budget_pence=30000, copy_mode="model")]
+        plan = self.workspace.plan_conversation(self.conversation, "p2", 2)["current_plan"]["result"]
+        self.workspace.real_clock = lambda: 1796083200.0
         with self.assertRaises(ValueError):
-            self.workspace.draft_conversation(self.conversation, "model-draft", 2, plan["id"])
+            self.workspace.draft_conversation(self.conversation, "expired-draft", 2, plan["id"])
         self.assertEqual(self.workspace.listing()["sessions"], [])
+
+    def test_edits_during_each_inference_phase_fence_further_calls_and_drafts(self):
+        from test_model_copy import FakeModel
+        for phase in (1, 2, 3):
+            with self.subTest(phase=phase):
+                conversation = self.workspace.create_conversation("interleave-" + str(phase), "Interleaving")["id"]
+                self.workspace.message_conversation(conversation, "message", 0, "Use £300 and model copy for contractors.")
+                self.model.results = [proposal(budget_pence=30000, copy_mode="model")]
+                plan = self.workspace.plan_conversation(conversation, "plan", 1)["current_plan"]["result"]
+                model = FakeModel()
+                original = model.complete
+                def edit_during_call(request):
+                    result = original(request)
+                    if len(model.requests) == phase:
+                        other = Workspace(self.root, real_clock=lambda: 1792972800.0)
+                        other.message_conversation(conversation, "edit", 1, "Use £200 instead.")
+                    return result
+                with patch("acquisition.workspace.OpenRouter", return_value=model), patch.object(model, "complete", side_effect=edit_during_call):
+                    with self.assertRaises(Conflict):
+                        self.workspace.draft_conversation(conversation, "draft", 1, plan["id"])
+                self.assertEqual(len(model.requests), phase)
+                session = next(s for s in self.workspace.listing()["sessions"] if s["name"].startswith("Conversation") and self.workspace._session(s["id"])["conversation_plan"]["conversation_id"] == conversation)
+                saved = self.workspace._session(session["id"])
+                app = self.workspace._app(saved)
+                with app.drafts.database.connect() as db:
+                    self.assertEqual(db.execute("SELECT COUNT(*) FROM drafts WHERE organization=?", (saved["organization"],)).fetchone()[0], 0)
+
+    def test_failed_generation_exposes_sanitized_saved_run_and_no_repeat(self):
+        from acquisition.reasoning import ModelError
+        self.workspace.message_conversation(self.conversation, "m2", 1, "Use £300 and model copy.")
+        self.model.results = [proposal(budget_pence=30000, copy_mode="model")]
+        plan = self.workspace.plan_conversation(self.conversation, "p2", 2)["current_plan"]["result"]
+        with patch.object(self.model, "complete", side_effect=ModelError("provider_http_401")) as calls:
+            with self.assertRaises(Conflict):
+                self.workspace.draft_conversation(self.conversation, "failed-draft", 2, plan["id"])
+            with self.assertRaises(Conflict):
+                self.workspace.draft_conversation(self.conversation, "failed-draft", 2, plan["id"])
+            self.assertEqual(calls.call_count, 1)
+        generation = self.workspace.conversation(self.conversation)["campaigns"][0]["generation"]
+        self.assertEqual(generation["status"], "failed")
+        self.assertEqual(generation["provider_error"], "provider_http_401")
+        self.assertEqual(generation["failed_tasks"], [{"capability": "creative.generate_conversation.v3", "error_code": "ModelError"}])
+        self.assertFalse(generation["outcome_uncertain"])
+
+    def test_network_failure_and_interrupted_reservation_remain_uncertain_after_recovery(self):
+        from acquisition.reasoning import ModelError
+        for kind in ("network", "reserved"):
+            with self.subTest(kind=kind):
+                conversation = self.workspace.create_conversation("uncertain-" + kind, "Uncertain generation")["id"]
+                self.workspace.message_conversation(conversation, "message", 0, "Use £300 and model copy for contractors.")
+                self.model.results = [proposal(budget_pence=30000, copy_mode="model")]
+                plan = self.workspace.plan_conversation(conversation, "plan", 1)["current_plan"]["result"]
+                error = ModelError("provider_request_failed") if kind == "network" else KeyboardInterrupt()
+                with patch.object(self.model, "complete", side_effect=error) as calls:
+                    with self.assertRaises(Conflict if kind == "network" else KeyboardInterrupt):
+                        self.workspace.draft_conversation(conversation, "draft", 1, plan["id"])
+                    before = self.workspace.conversation(conversation)["campaigns"][0]["generation"]
+                    self.assertTrue(before["outcome_uncertain"])
+                    self.assertEqual(before["unresolved_calls"][0]["status"], "unknown" if kind == "network" else "reserved")
+                    restarted = Workspace(self.root, real_clock=lambda: 1792973000.0)
+                    with self.assertRaises(Conflict):
+                        restarted.draft_conversation(conversation, "draft", 1, plan["id"])
+                    after = restarted.conversation(conversation)["campaigns"][0]["generation"]
+                    self.assertEqual(after["status"], "failed")
+                    self.assertTrue(after["outcome_uncertain"])
+                    self.assertEqual(calls.call_count, 1)
+
+    def test_two_segment_model_campaign_can_be_reviewed_and_accepted(self):
+        from test_model_copy import FakeModel
+        self.workspace.message_conversation(self.conversation, "m2", 1, "Use £300, both inventory and contractors, and model copy.")
+        self.model.results = [proposal(budget_pence=30000, segments=["inventory", "contractors"], copy_mode="model")]
+        plan = self.workspace.plan_conversation(self.conversation, "p2", 2)["current_plan"]["result"]
+        model = FakeModel()
+        with patch("acquisition.workspace.OpenRouter", return_value=model):
+            state = self.workspace.draft_conversation(self.conversation, "model-draft", 2, plan["id"])
+        self.assertTrue(state["review"]["candidate_valid"], state["review"]["blocked_reasons"])
+        self.assertEqual(len(state["review"]["manifest"]["creatives"]), 4)
+        self.assertEqual(len(model.requests), 6)
+        self.assertIsNotNone(self.accept_and_open(state, "model")["learning"])
+
+    def test_unknown_model_result_and_changed_conversation_do_not_spend_again(self):
+        from test_model_copy import FakeModel
+        from acquisition.reasoning import ModelError
+        self.workspace.message_conversation(self.conversation, "m2", 1, "Use £300 and model copy.")
+        self.model.results = [proposal(budget_pence=30000, copy_mode="model")]
+        plan = self.workspace.plan_conversation(self.conversation, "p2", 2)["current_plan"]["result"]
+        model = FakeModel()
+        with patch("acquisition.workspace.OpenRouter", return_value=model), patch.object(model, "complete", side_effect=ModelError("provider_outcome_unknown")) as calls:
+            with self.assertRaises(Conflict):
+                self.workspace.draft_conversation(self.conversation, "model-draft", 2, plan["id"])
+            with self.assertRaises(Conflict):
+                self.workspace.draft_conversation(self.conversation, "model-draft", 2, plan["id"])
+            self.assertEqual(calls.call_count, 1)
+            self.workspace.message_conversation(self.conversation, "m3", 2, "Use £200 instead.")
+            with self.assertRaises(Conflict):
+                self.workspace.draft_conversation(self.conversation, "model-draft", 2, plan["id"])
+            self.assertEqual(calls.call_count, 1)
 
     def test_lost_metadata_reuses_the_original_run_and_draft(self):
         original = self.workspace._save

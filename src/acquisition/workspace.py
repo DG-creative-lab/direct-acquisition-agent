@@ -3,6 +3,7 @@
 import csv
 import io
 import json
+import re
 import sqlite3
 import threading
 import time
@@ -87,8 +88,30 @@ class Workspace:
             with self.control() as db:
                 sessions = [json.loads(r[0]) for r in db.execute("SELECT payload FROM sessions ORDER BY rowid DESC")]
             return view | {"campaigns": [{"session_id": s["id"], "plan_id": s["conversation_plan"]["id"],
-                                          "revision": s["conversation_plan"]["revision"], "case_id": s["case_id"]}
+                                          "revision": s["conversation_plan"]["revision"], "case_id": s["case_id"],
+                                          "generation": self._generation(s)}
                                          for s in sessions if s.get("conversation_plan", {}).get("conversation_id") == conversation_id]}
+
+    def _generation(self, session):
+        app = self._app(session)
+        scope = session["organization"]
+        run = session["run_id"] or app.tasks.find_run(scope, session["id"])
+        if run is None:
+            return {"run_id": None, "status": "admitted", "failed_tasks": [], "provider_error": None,
+                    "outcome_uncertain": False, "unresolved_calls": []}
+        state = app.tasks.inspect(scope, run)
+        failures = [{"capability": task["capability"], "error_code": (task["output"] or {}).get("error_code")}
+                    for task in state["tasks"] if task["status"] == "failed"]
+        # Only explicit public codes leave the journal. Provider response bodies and task messages stay private.
+        receipts = app.calls.inspect(scope, run)
+        codes = [r["error"] for r in receipts if r["error"]]
+        provider_error = next((code for code in reversed(codes) if re.fullmatch(r"provider_http_[1-5][0-9]{2}", code)
+                               or code in {"provider_outcome_unknown", "provider_request_failed"}), None)
+        definitive_rejections = {"provider_http_400", "provider_http_401", "provider_http_403", "provider_http_404", "provider_http_422"}
+        unresolved = [{"key": r["key"], "status": r["status"]} for r in receipts
+                      if r["status"] == "reserved" or (r["status"] == "unknown" and r["error"] not in definitive_rejections)]
+        return {"run_id": run, "status": state["run"]["status"], "failed_tasks": failures, "provider_error": provider_error,
+                "outcome_uncertain": bool(unresolved), "unresolved_calls": unresolved}
 
     def create_conversation(self, request_id, title):
         with self.lock:
@@ -130,12 +153,13 @@ class Workspace:
             plan = current["result"] if current and current["status"] == "succeeded" else None
             if view["revision"] != expected_revision or not plan or plan["id"] != plan_id or plan["outcome"] != "brief_proposal":
                 raise Conflict("Select the exact current completed brief proposal")
-            if plan["copy_mode"] != "fixture":
-                raise ValueError("Conversation drafts currently support offline fixture copy only")
-            start = datetime.fromisoformat(self.pack["checked_on"]).replace(tzinfo=timezone.utc).timestamp() + 43200
-            session = {"id": session_id, "name": "Conversation / " + plan["objective"][:70], "mode": "fixture",
+            model_copy = plan["copy_mode"] == "model"
+            start = self.real_clock() if model_copy else datetime.fromisoformat(self.pack["checked_on"]).replace(tzinfo=timezone.utc).timestamp() + 43200
+            if model_copy:
+                validate_fact_pack(self.pack, datetime.fromtimestamp(start, timezone.utc).date())
+            session = {"id": session_id, "name": "Conversation / " + plan["objective"][:70], "mode": plan["copy_mode"],
                        "organization": session_id, "database_scope": "conversations", "clock": start, "parent_id": None,
-                       "clock_mode": "SIMULATED", "created_at": self.real_clock(), "run_id": None,
+                       "clock_mode": "REAL" if model_copy else "SIMULATED", "created_at": self.real_clock(), "run_id": None,
                        "case_id": None, "cohort_id": None, "conversation_plan": plan}
             with self.control() as db:
                 db.execute("BEGIN IMMEDIATE")
@@ -198,6 +222,11 @@ class Workspace:
             # Resume the admitted plan, including after a lost metadata write.
             # Recomputing context here could conflict with newly learned memory.
             run = session["run_id"] or app.tasks.find_run(scope, identity)
+            if session.get("conversation_plan") and session["mode"] == "model":
+                source = session["conversation_plan"]
+                current = app.conversations.view("local-conversations", source["conversation_id"])
+                if current["revision"] != source["revision"] or not current["current_plan"] or current["current_plan"]["result"] != source:
+                    raise Conflict("Conversation changed before campaign preparation")
             if run is None:
                 if session.get("conversation_plan"):
                     source = session["conversation_plan"]

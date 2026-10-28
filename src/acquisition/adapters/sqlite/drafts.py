@@ -5,6 +5,7 @@ from acquisition.campaigns import Draft
 from acquisition.contracts import Conflict, NotFound, canonical
 
 from .database import Database
+from .conversation_provenance import require_current_conversation
 
 
 def verify(organization: str, draft: Draft) -> None:
@@ -25,6 +26,7 @@ class SqliteDrafts:
     def put(self, organization: str, operation_id: str, draft: Draft) -> str:
         verify(organization, draft)
         with self.database.transaction() as connection:
+            require_current_conversation(connection, draft.manifest["brief"])
             old = connection.execute("SELECT draft_id FROM draft_operations WHERE organization=? AND operation_id=?",
                                      (organization, operation_id)).fetchone()
             if old and old[0] != draft.id:
