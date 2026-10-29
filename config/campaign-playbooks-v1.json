@@ -1,0 +1,10 @@
+{
+  "version": "campaign-playbooks/v1",
+  "status": "advisory_synthetic_only",
+  "purpose": "Support a direct-mail response experiment. Suggestions are hypotheses, not evidence about a recipient or permission to send.",
+  "playbooks": [
+    {"id": "inventory-planning/v1", "segment": "inventory", "title": "Stock and supplier timing", "guidance": "Consider an inventory segment when the objective concerns stock purchases or supplier payment timing. Frame the situation as a possibility, not a known need."},
+    {"id": "contractor-planning/v1", "segment": "contractors", "title": "Project and client payment timing", "guidance": "Consider a contractor segment when the objective concerns project expenses or client payment timing. Frame the situation as a possibility, not a known need."}
+  ],
+  "experiment": "Compare planning-ahead and payment-timing framing with a holdout. The outcome is response, not demonstrated incremental value."
+}

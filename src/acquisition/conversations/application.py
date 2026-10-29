@@ -24,8 +24,16 @@ class MessageRejectedNotFound(NotFound):
 
 class ConversationService:
     def __init__(self, store: ConversationStore, tasks: TaskStore, calls: CallJournal, clock: Callable[[], float],
-                 config: ModelConfig | None, preflight: Callable[[dict], None]):
+                 config: ModelConfig | None, preflight: Callable[[dict], None], guidance: Callable[[], dict] | None = None):
         self.store, self.tasks, self.calls, self.clock, self.config, self.preflight = store, tasks, calls, clock, config, preflight
+        self.guidance = guidance
+
+    def _knowledge(self, organization, conversation_id, request_id):
+        admissions = self.store.snapshot(organization, conversation_id)["admissions"]
+        old = next((item for item in admissions if item["request_id"] == request_id), None)
+        if old:
+            return old["knowledge"]
+        return KNOWLEDGE | ({"playbooks": self.guidance()} if self.guidance else {})
 
     def create(self, organization: str, request_id: str, title: str = "New campaign conversation") -> dict:
         conversation = self.store.create(organization, request_id, title, self.clock())
@@ -43,7 +51,8 @@ class ConversationService:
         if self.config is None:
             raise ValueError("Configure the planner model before explicitly requesting generation")
         previous = [p["result"] for p in self.view(organization, conversation_id)["plans"] if p["result"]]
-        context = {"knowledge": KNOWLEDGE, "knowledge_id": "knowledge_" + digest(KNOWLEDGE), "model_config": asdict(self.config),
+        knowledge = self._knowledge(organization, conversation_id, request_id)
+        context = {"knowledge": knowledge, "knowledge_id": "knowledge_" + digest(knowledge), "model_config": asdict(self.config),
                    "previous_results": previous}
         frozen = self.store.admit(organization, conversation_id, request_id, expected_revision, context, self.clock(), self.preflight)
         if frozen.get("fixture"):
@@ -51,7 +60,8 @@ class ConversationService:
         return self.tasks.create(organization, frozen["run_request_id"], [TaskSpec(CAPABILITY, frozen)], self.clock())
 
     def plan_fixture(self, organization: str, conversation_id: str, request_id: str, expected_revision: int) -> str:
-        context = {"knowledge": KNOWLEDGE, "knowledge_id": "knowledge_" + digest(KNOWLEDGE),
+        knowledge = self._knowledge(organization, conversation_id, request_id)
+        context = {"knowledge": knowledge, "knowledge_id": "knowledge_" + digest(knowledge),
                    "model_config": None, "previous_results": [], "fixture": "offline-example/v1"}
         def preflight(frozen):
             if len(frozen["messages"]) != 1 or frozen["messages"][0]["content"] != FIXTURE_MESSAGE:
@@ -65,6 +75,8 @@ class ConversationService:
         snapshot = self.store.snapshot(organization, conversation_id)
         plans = []
         for admission in snapshot.pop("admissions"):
+            if admission.get("knowledge_id") != "knowledge_" + digest(admission["knowledge"]):
+                raise Conflict("Frozen planning guidance failed integrity checks")
             run = self.tasks.find_run(organization, admission["run_request_id"])
             state = self.tasks.inspect(organization, run) if run else None
             task = state["tasks"][0] if state else None
@@ -75,6 +87,7 @@ class ConversationService:
                 if code and (re.fullmatch(r"provider_http_[1-5][0-9]{2}", code) or code in {"provider_request_failed", "provider_outcome_unknown"}):
                     error = error | {"provider_error": code}
             plans.append({"request_id": admission["request_id"], "revision": admission["revision"], "run_id": run,
+                          "guidance": {"id": admission["knowledge_id"], "content": admission["knowledge"]},
                           "mode": "fixture" if admission.get("fixture") else "model",
                           "status": state["run"]["status"] if state else "admitted",
                           "current": admission["revision"] == snapshot["revision"],

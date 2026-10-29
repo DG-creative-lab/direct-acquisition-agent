@@ -64,7 +64,9 @@ Each copy-call reservation checks the source conversation revision in the same S
 
 The generation projection also reports unresolved call keys and journal statuses. A reserved call without a recorded response, or an unknown result such as `provider_request_failed`, is uncertain even after its task becomes terminal. The interface warns that processing and charges may already have occurred and requires inspection of the original run before another generation is requested. Known authentication/input rejections retain their specific recovery guidance. These projections do not retry or reconcile provider work.
 
-The catalogue supplies procedures and supported capability metadata only. It is not a general knowledge base. Verified product facts, enforceable policy, editorial preference and counted outcome memory retain their existing owners. Retrieval of those sources for planning, richer objectives and campaign execution tools are deferred.
+The local knowledge base supplies versioned advisory playbooks for the two supported segments. The planner receives the bounded playbook set and can choose a relevant segment; it does not perform semantic retrieval. Each planning admission freezes the full guidance and its content hash. The conversation shows that exact snapshot, including historical snapshots after source changes. Its expandable complete saved snapshot includes every supplied field, such as playbook purpose and experiment instructions, segment mappings, metric and budget limit. Existing admissions created before playbooks remain readable and do not acquire retroactive guidance. Replay uses the original snapshot even if the current source is unavailable.
+
+The read-only knowledge view also shows the baseline product pack and editorial rules. These are separate sources: the planner does not receive the product pack, and generated copy and review use their existing frozen and current evidence controls. The displayed baseline is not a claim that a campaign's current review authority matches it. Reviewer preferences and synthetic outcome memory stay scoped to their campaign; learning remains advisory. General document ingestion, editable policies and real audience sources are deferred.
 
 ## HTTP API
 
@@ -73,6 +75,7 @@ All routes use the existing Host/token checks; mutations additionally require th
 | Method | Route | Body |
 | --- | --- | --- |
 | GET | `/api/conversations` | None |
+| GET | `/api/knowledge` | None |
 | POST | `/api/conversations` | `request_id`, `title` |
 | GET | `/api/conversations/{id}` | None |
 | POST | `/api/conversations/{id}/messages` | `request_id`, `expected_revision`, `content` |

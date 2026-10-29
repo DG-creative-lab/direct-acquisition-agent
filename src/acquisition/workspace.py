@@ -82,6 +82,15 @@ class Workspace:
         with self.lock:
             return {"conversations": self._conversation_app().conversations.store.listing("local-conversations")}
 
+    def knowledge(self):
+        config = Path(__file__).resolve().parents[2] / "config"
+        playbooks = json.loads((config / "campaign-playbooks-v1.json").read_text())
+        editorial = json.loads((config / "editorial-v3.json").read_text())
+        return {"playbooks": playbooks, "product_facts": self.pack,
+                "editorial": {"version": editorial["version"], "rules": editorial["rules"],
+                              "situations": editorial["situations"]},
+                "learning": "Synthetic outcome memory is scoped to each campaign and is advisory. Inspect it in Learning."}
+
     def conversation(self, conversation_id):
         with self.lock:
             view = self._conversation_app().conversations.view("local-conversations", conversation_id)

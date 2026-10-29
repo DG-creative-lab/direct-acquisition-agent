@@ -1,0 +1,88 @@
+.knowledge-page {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding-bottom: 72px;
+}
+.knowledge-heading {
+  padding: 8px 0 36px;
+  border-bottom: 1px solid var(--brand-rule);
+}
+.knowledge-heading h1 {
+  font-size: clamp(28px, 3vw, 38px);
+  letter-spacing: -0.04em;
+  margin: 10px 0;
+}
+.knowledge-heading p,
+.knowledge-sections p,
+.knowledge-sections li {
+  color: var(--brand-muted);
+  line-height: 1.65;
+}
+.knowledge-sections section {
+  padding: 34px 0;
+  border-bottom: 1px solid var(--brand-rule);
+}
+.knowledge-sections h2 {
+  font-size: 21px;
+  margin: 14px 0 10px;
+}
+.knowledge-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--brand-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+}
+.knowledge-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 24px;
+  border-top: 1px solid var(--brand-rule);
+  padding: 20px 0;
+  margin-top: 20px;
+}
+.knowledge-row small {
+  display: block;
+  color: var(--brand-muted);
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+}
+.knowledge-sections ul {
+  padding-left: 20px;
+}
+.knowledge-sections li {
+  margin: 8px 0;
+}
+.knowledge-note {
+  margin-top: 18px;
+  font-size: 12px;
+}
+.planning-guidance {
+  margin: 14px 0 0 31px;
+  border-top: 1px solid var(--brand-rule);
+  padding: 8px 0;
+  font-size: 12px;
+}
+.planning-guidance summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+}
+.planning-guidance p {
+  color: var(--brand-muted);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .knowledge-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .planning-guidance {
+    margin-left: 0;
+  }
+}

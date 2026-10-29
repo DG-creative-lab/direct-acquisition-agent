@@ -19,6 +19,7 @@ import {
   X,
   AlertTriangle,
   ArrowUpRight,
+  BookOpen,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { command, date, download, money, read } from "./api";
@@ -28,8 +29,10 @@ import { AudienceView, CopyView } from "./CampaignViews";
 import ReviewPanel from "./ReviewPanel";
 import LearningView from "./LearningView";
 import ConversationWorkspace from "./ConversationWorkspace";
+import KnowledgeView from "./KnowledgeView";
 
-type Page = "assistant" | "campaign" | "evidence" | "learning" | "activity";
+type Page =
+  "assistant" | "campaign" | "evidence" | "learning" | "activity" | "knowledge";
 type Tab = "audience" | "copy";
 
 export default function App() {
@@ -185,6 +188,7 @@ export default function App() {
           : "Awaiting review";
   const nav: { id: Page; label: string; icon: LucideIcon }[] = [
     { id: "campaign", label: "Campaign", icon: Layers3 },
+    { id: "knowledge", label: "Knowledge", icon: BookOpen },
     { id: "evidence", label: "Product evidence", icon: ShieldCheck },
     { id: "learning", label: "Learning", icon: BarChart3 },
     { id: "activity", label: "Activity log", icon: History },
@@ -347,7 +351,8 @@ export default function App() {
               }}
             />
           </div>
-          {page !== "assistant" && (
+          {page === "knowledge" && <KnowledgeView />}
+          {page !== "assistant" && page !== "knowledge" && (
             <>
               <div className="page-heading">
                 <div>
