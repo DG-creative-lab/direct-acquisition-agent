@@ -24,7 +24,7 @@ flowchart LR
     PORTS --> FILES[Verified file projections]
 ```
 
-The browser and CLI are entry points to the same application rules. A single local server serializes workspace operations and holds a per-root POSIX file lock. The supported worker topology is one active worker. Selected concurrent database tests establish specific transaction invariants, not general multi-node readiness.
+The browser and CLI are entry points to the same application rules. A single local server serializes worker execution and holds a per-root POSIX file lock. Revisioned message appends and read-only progress use their own SQLite transactions so they can proceed during inference. The supported worker topology is one active worker. Selected concurrent database tests establish specific transaction invariants, not general multi-node readiness.
 
 ## Module ownership
 
@@ -37,7 +37,7 @@ The browser and CLI are entry points to the same application rules. A single loc
 | `reasoning` | Provider-independent limits, gateway contracts and inference journal | Business approval or automatic uncertain-call retries |
 | `reviews` | Proposals, subjects, decisions, invalidation and simulated acceptance | Hosted authentication or real agency effects |
 | `learning` | Cohort membership, immutable observations, counted posteriors and recommendations | Automatic campaign mutation or new product facts |
-| `conversations` | Persistent user messages, revision-bound brief interpretation, scoped planning admission and read models | Campaign preparation, approval, dispatch or verified source facts |
+| `conversations` | Persistent user messages, revision-bound brief interpretation, scoped planning admission, bounded preparation continuation through host ports and read models | Campaign policy, approval, dispatch or verified source facts |
 
 `workflows` composes public module APIs. Cross-module imports use the provider's `__init__.py`; domain code uses pure standard-library values, declared domain contracts and technical serialization helpers. Runtime has no dependency on business modules. Adapters keep SQL private. The architecture checker rejects prohibited dependencies, private imports and cycles.
 
@@ -53,7 +53,7 @@ src/acquisition/
   reasoning/                  inference contracts and reservation journal
   reviews/                    proposal and approval services
   learning/                   cohorts, outcomes and recommendations
-  conversations/              persistent intent and bounded brief proposals
+  conversations/              persistent intent, bounded briefs and preparation coordination
   workflows/                  integration through public contracts
   adapters/                   SQLite, OpenRouter, files and report projections
   bootstrap.py                composition root
@@ -74,6 +74,7 @@ Within each business module, `domain.py` holds pure values and invariants, `appl
 
 | Object | Binding and commit rule |
 | --- | --- |
+| Preparation coordinator | Exact revision, request, frozen planning context and immutable copy permission commit before planning admission; restart reconciles the original run and stops at unapproved review |
 | Run and task plan | Organization/request identity binds exact inputs and capability versions; changed inputs conflict |
 | Worker lease | Current token and expiry are checked again in the result/failure transaction |
 | Audience snapshot | Content-addressed bytes and organization are verified on read |
@@ -87,7 +88,7 @@ Within each business module, `domain.py` holds pure values and invariants, `appl
 
 Domain artifacts and runtime receipts are separate commits under stable operation identities. A crash after draft persistence but before task acknowledgement recovers the same artifact. This works for these idempotent local operations; it is not a guarantee for future non-idempotent remote effects. Cancellation fences later task commits but may leave an unreferenced immutable artifact from computation already in flight.
 
-The workspace has a separate `workspace.sqlite` control store for session metadata and command fingerprints. Each sandbox owns its application database; descendant experiments share their parent's organization/database to reuse learning. Paths and organizations resolve from server-owned metadata. The control and domain stores do not share a distributed transaction. Durable command admission precedes execution; after a lost metadata write, the same request reconciles through original domain receipts. Browser session storage preserves pending identity per command signature after uncertain responses.
+The workspace has a separate `workspace.sqlite` control store for session metadata, command fingerprints and scoped preparation records. Each sandbox owns its application database; descendant experiments share their parent's organization/database to reuse learning. Paths and organizations resolve from server-owned metadata. The control and domain stores do not share a distributed transaction. Durable command admission precedes execution; after a lost metadata write, the same request reconciles through original domain receipts. Browser session storage preserves pending identity per command signature after uncertain responses.
 
 ## Audience and experiment semantics
 
@@ -124,6 +125,8 @@ Schema v3 froze exact legacy task-plan admissions; later migrations preserve tha
 `ConversationService` uses its persistence port and the public runtime task port. The composition root wires its SQLite adapter and `ConversationPlanner`; runtime remains business-agnostic. Each planning admission freezes the complete bounded message history, earlier planning results, capability guidance and model settings before creating one runtime task. If the process stops between those commits, retrying the original request creates or retrieves the same task plan. Results commit only through the runtime's lease-checked task/event transaction. They are immutable proposals, never review decisions.
 
 The planner exposes one tool, `submit_campaign_brief`, and returns a complete brief proposal, clarification or unsupported explanation. Code validates shape, supported segments, budget provenance and output bounds. A local structured playbook set is supplied at planning admission and frozen with the existing knowledge snapshot; the UI can inspect both that snapshot and the separate baseline product and editorial sources. React and the guarded loopback API can prepare a synthetic campaign from a current validated proposal, using fixture copy or explicitly requested grounded generation. The versioned conversational model workflow reuses the existing copy agent and inference journal, with scoped contexts and selected-segment tasks. The source brief and conversation revision are rechecked in the review transaction, so a later message blocks approval and acceptance of the older draft. General document retrieval, real audiences and delivery remain future work. See [conversation planning](conversations.md).
+
+The server advances saved active preparations through the existing targeted worker and campaign services outside the HTTP request. The conversation module owns continuation state through narrow host/store ports, with concrete wiring in `bootstrap.py`. It stops on source edits, missing consent, clarification or terminal failure, and never invokes review decisions or handoff. Unknown provider outcomes remain fenced after restart. See [continuous preparation](conversations.md#continuous-preparation).
 
 ## Testability and evolution
 

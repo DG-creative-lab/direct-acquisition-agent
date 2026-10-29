@@ -19,7 +19,11 @@ flowchart TD
 
 ## 1. Prepare a campaign
 
-Choose **New campaign**, select **Offline fixtures** and choose **Prepare campaign**. The workspace creates a separate synthetic sandbox with 1,000 business records, two audience segments and four fixture variants. The campaign displays a simulated clock. Independent new campaigns preserve previous campaigns in their own sandboxes.
+In a new chat, choose **Try the offline example**. The agent saves the brief, prepares the contractor experiment in the background, and offers **Review campaign**. Progress survives refresh.
+
+For a custom brief, describe the objective, audience and explicit GBP budget. Sending invokes bounded OpenRouter planning. To request generated copy, say so in the message and enable **Allow model copy for this request**. The agent continues through preparation and checks, asking only for missing input or permission. It ends at an unapproved review candidate. A new message stops continuation of the earlier brief.
+
+The manual campaign controls remain available: choose **New campaign**, select **Offline fixtures** and choose **Prepare campaign**. The workspace creates a separate synthetic sandbox with 1,000 business records, two audience segments and four fixture variants. The campaign displays a simulated clock. Independent new campaigns preserve previous campaigns in their own sandboxes.
 
 Model copy is optional. Selecting **Generate with GPT-OSS-120B** explicitly requests provider inference using the server's OpenRouter key and spending controls. Opening or navigating the interface alone makes no inference request. See [grounding](product-grounding.md) before evaluating generated copy.
 

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import {
   ArrowUpRight,
   Check,
+  CircleAlert,
   Loader2,
   MessageSquare,
   Plus,
@@ -42,10 +43,55 @@ type Plan = {
     };
   };
 };
+type Preparation = {
+  id: string;
+  request_id: string;
+  inputs: { revision: number; fixture: boolean; allow_model_copy: boolean };
+  current: boolean;
+  status: string;
+  detail: string | null;
+  run_id: string;
+  generation: {
+    run_id: string;
+    status: string;
+    provider_error: string | null;
+    outcome_uncertain: boolean;
+    unresolved_calls?: { key: string; status: string }[];
+    steps?: { capability: string; status: string }[];
+  } | null;
+};
+type PreparationIntent = {
+  conversationId: string;
+  expected_revision: number;
+  fixture: boolean;
+  allow_model_copy: boolean;
+};
+const preparationIntentKey = "conversation-preparation-intent";
+function savedPreparationIntent(): PreparationIntent | null {
+  try {
+    const value = JSON.parse(
+      sessionStorage.getItem(preparationIntentKey) ?? "null",
+    );
+    return value &&
+      typeof value.conversationId === "string" &&
+      Number.isInteger(value.expected_revision) &&
+      typeof value.fixture === "boolean" &&
+      typeof value.allow_model_copy === "boolean"
+      ? value
+      : null;
+  } catch {
+    return null;
+  }
+}
+const activePreparation = (status: string) =>
+  ["admitting", "planning", "preparing"].includes(status);
+
 type Conversation = {
+  preparations?: Preparation[];
   id: string;
   title: string;
   revision: number;
+  message_receipt?: { id: string; revision: number; replayed: boolean };
   messages: { id: string; revision: number; content: string }[];
   plans: Plan[];
   current_plan: Plan | null;
@@ -69,6 +115,7 @@ type PendingMessage = {
   conversationId: string;
   expected_revision: number;
   content: string;
+  allow_model_copy?: boolean;
 };
 const pendingMessageKey = "conversation-pending-message";
 function savedPendingMessage(): PendingMessage | null {
@@ -94,11 +141,13 @@ export default function ConversationWorkspace({
   navigationTarget,
   active,
   onNavigate,
+  onCampaignsChanged,
 }: {
   onOpenCampaign: (state: State) => void;
   navigationTarget: HTMLElement | null;
   active: boolean;
   onNavigate: () => void;
+  onCampaignsChanged: () => Promise<unknown>;
 }) {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [pendingMessage, setPendingMessage] = useState<PendingMessage | null>(
@@ -113,6 +162,10 @@ export default function ConversationWorkspace({
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [message, setMessage] = useState(
     () => savedPendingMessage()?.content ?? "",
+  );
+  const [allowModelCopy, setAllowModelCopy] = useState(false);
+  const [preparationIntent, setPreparationIntent] = useState(
+    savedPreparationIntent,
   );
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -156,6 +209,78 @@ export default function ConversationWorkspace({
       active = false;
     };
   }, [selected]);
+
+  useEffect(() => {
+    if (
+      !conversation ||
+      !preparationIntent ||
+      conversation.id !== preparationIntent.conversationId
+    )
+      return;
+    const saved = conversation.preparations?.find(
+      (p) =>
+        p.inputs.revision === preparationIntent.expected_revision &&
+        p.inputs.fixture === preparationIntent.fixture &&
+        p.inputs.allow_model_copy === preparationIntent.allow_model_copy,
+    );
+    if (saved) {
+      sessionStorage.removeItem(preparationIntentKey);
+      setPreparationIntent(null);
+    }
+  }, [conversation, preparationIntent]);
+
+  const preparedCampaigns =
+    conversation?.campaigns
+      ?.filter((c) => c.case_id)
+      .map((c) => c.session_id)
+      .sort()
+      .join(",") ?? "";
+  useEffect(() => {
+    if (preparedCampaigns)
+      onCampaignsChanged().catch((e) => setError(e.message));
+  }, [preparedCampaigns, onCampaignsChanged]);
+
+  const preparing =
+    conversation?.preparations?.some((p) => activePreparation(p.status)) ??
+    false;
+  useEffect(() => {
+    if (!selected || !preparing || !active) return;
+    let disposed = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      const stamp = epoch.current;
+      try {
+        const value = await read<Conversation>(
+          `/api/conversations/${selected}`,
+        );
+        if (!disposed && stamp === epoch.current) setConversation(value);
+      } catch {
+        // Keep the last saved progress and retry the read, never the model call.
+      }
+      if (!disposed) timer = setTimeout(poll, 600);
+    };
+    timer = setTimeout(poll, 300);
+    return () => {
+      disposed = true;
+      clearTimeout(timer);
+    };
+  }, [selected, preparing, active]);
+
+  const continuePreparation = async (intent: PreparationIntent) => {
+    sessionStorage.setItem(preparationIntentKey, JSON.stringify(intent));
+    setPreparationIntent(intent);
+    const value = await command<Conversation>(
+      `/api/conversations/${intent.conversationId}/preparations`,
+      {
+        expected_revision: intent.expected_revision,
+        fixture: intent.fixture,
+        allow_model_copy: intent.allow_model_copy,
+      },
+    );
+    sessionStorage.removeItem(preparationIntentKey);
+    setPreparationIntent(null);
+    accept(value);
+  };
 
   const newConversation = async (title = "Campaign conversation") => {
     const created = await command<Conversation>("/api/conversations", {
@@ -209,6 +334,7 @@ export default function ConversationWorkspace({
         conversationId: current.id,
         expected_revision: current.revision,
         content: message.trim(),
+        allow_model_copy: allowModelCopy,
       };
       if (pending.conversationId !== current.id)
         throw new Error(
@@ -232,16 +358,32 @@ export default function ConversationWorkspace({
         }
         throw error;
       }
+      const messageRevision = saved.message_receipt?.revision;
+      if (messageRevision !== pending.expected_revision + 1)
+        throw new Error(
+          "The original message receipt could not be confirmed. Retry saving the original message.",
+        );
+      const intent = {
+        conversationId: current.id,
+        expected_revision: messageRevision,
+        fixture: false,
+        allow_model_copy: pending.allow_model_copy === true,
+      };
+      if (saved.revision === messageRevision) {
+        sessionStorage.setItem(preparationIntentKey, JSON.stringify(intent));
+        setPreparationIntent(intent);
+      }
       sessionStorage.removeItem(pendingMessageKey);
       setPendingMessage(null);
       accept(saved);
       setMessage("");
-      setBusy("Planning with the agent");
-      const planned = await command<Conversation>(
-        `/api/conversations/${current.id}/plan`,
-        { expected_revision: saved.revision },
-      );
-      await finishPlan(current.id, saved.revision, planned);
+      setAllowModelCopy(false);
+      if (saved.revision !== messageRevision)
+        throw new Error(
+          "Your message was saved, but the brief has since changed. Review the latest messages and send a new request with its own copy permission.",
+        );
+      setBusy("Starting campaign preparation");
+      await continuePreparation(intent);
       await list();
     } catch (e) {
       setError((e as Error).message);
@@ -261,11 +403,17 @@ export default function ConversationWorkspace({
         { expected_revision: 0, content: example },
       );
       accept(saved);
-      const planned = await command<Conversation>(
-        `/api/conversations/${current.id}/plan-fixture`,
-        { expected_revision: saved.revision },
-      );
-      await finishPlan(current.id, saved.revision, planned);
+      const messageRevision = saved.message_receipt?.revision;
+      if (messageRevision !== 1 || saved.revision !== messageRevision)
+        throw new Error(
+          "The example brief changed. Review the latest messages before preparing a campaign.",
+        );
+      await continuePreparation({
+        conversationId: current.id,
+        expected_revision: messageRevision,
+        fixture: true,
+        allow_model_copy: false,
+      });
       await list();
     } catch (e) {
       setError((e as Error).message);
@@ -279,6 +427,10 @@ export default function ConversationWorkspace({
     setError("");
     setBusy("Resuming the request");
     try {
+      if (preparationIntent?.conversationId === conversation.id) {
+        await continuePreparation(preparationIntent);
+        return;
+      }
       const plan = conversation.current_plan;
       const offline =
         plan?.mode === "fixture" ||
@@ -432,9 +584,15 @@ export default function ConversationWorkspace({
             const campaign = conversation.campaigns?.find(
               (c) => c.plan_id === plan?.result?.id,
             );
+            const preparation = conversation.preparations?.find(
+              (p) => p.inputs.revision === item.revision,
+            );
+            const coordinated =
+              preparation && activePreparation(preparation.status);
             const generation = campaign?.generation;
             const terminal =
               generation &&
+              !coordinated &&
               (["failed", "cancelled"].includes(generation.status) ||
                 generation.outcome_uncertain);
             return (
@@ -443,6 +601,9 @@ export default function ConversationWorkspace({
                   <span>You</span>
                   <p>{item.content}</p>
                 </div>
+                {preparation && (
+                  <PreparationProgress preparation={preparation} />
+                )}
                 {plan && (
                   <div className="conversation-agent">
                     <div className="conversation-agent-label">
@@ -499,8 +660,10 @@ export default function ConversationWorkspace({
                       </p>
                     ) : !plan.result ? (
                       <p>
-                        Planning is {plan.status}. Resume this request to
-                        continue.
+                        Planning is {plan.status}.{" "}
+                        {coordinated
+                          ? "The agent is continuing this request."
+                          : "Resume this request to continue."}
                       </p>
                     ) : plan.result.outcome === "clarification" ? (
                       <p>{plan.result.question}</p>
@@ -585,7 +748,9 @@ export default function ConversationWorkspace({
                             </details>
                           </div>
                         ) : (
-                          plan.current && (
+                          plan.current &&
+                          !coordinated &&
+                          !preparation && (
                             <button
                               className="button secondary"
                               onClick={() => prepare(plan)}
@@ -601,7 +766,8 @@ export default function ConversationWorkspace({
                         )}
                         {plan.result.copy_mode === "model" &&
                           !campaign?.case_id &&
-                          !terminal && (
+                          !terminal &&
+                          !coordinated && (
                             <small>
                               Uses OpenRouter credit to generate and screen copy
                               for the selected audience.
@@ -612,7 +778,9 @@ export default function ConversationWorkspace({
                             ? "Unapproved synthetic draft. No mail is sent."
                             : terminal
                               ? "No reviewable campaign was created."
-                              : "Brief proposal. No campaign has been generated yet."}
+                              : coordinated
+                                ? "Preparation is in progress. No approval has been granted."
+                                : "Brief proposal. No campaign has been generated yet."}
                         </small>
                       </div>
                     )}
@@ -635,7 +803,9 @@ export default function ConversationWorkspace({
           {!pendingMessage &&
           conversation?.messages.length &&
           !busy &&
-          (!conversation.current_plan ||
+          !preparing &&
+          (preparationIntent?.conversationId === conversation.id ||
+            !conversation.current_plan ||
             ["queued", "running", "admitted"].includes(
               conversation.current_plan.status,
             )) ? (
@@ -643,7 +813,9 @@ export default function ConversationWorkspace({
               className="text-button conversation-resume"
               onClick={resume}
             >
-              Resume planning
+              {preparationIntent?.conversationId === conversation.id
+                ? "Resume preparation"
+                : "Resume planning"}
             </button>
           ) : null}
         </div>
@@ -682,10 +854,19 @@ export default function ConversationWorkspace({
               <Send size={18} />
             </button>
           </div>
+          <label className="conversation-consent">
+            <input
+              type="checkbox"
+              checked={allowModelCopy}
+              disabled={!!busy || !!pendingMessage}
+              onChange={(event) => setAllowModelCopy(event.target.checked)}
+            />
+            Allow model copy for this request
+          </label>
           <p>
             {pendingMessage
               ? "The last message needs confirmation. Retry saving it before continuing."
-              : "Sending uses OpenRouter for planning. Model copy requires a separate generation step."}
+              : "Sending allows up to 2 planning calls. If allowed and proposed, model copy adds up to 10 calls. Approval is always separate."}
           </p>
         </form>
         {!hasMessages && (
@@ -703,6 +884,120 @@ export default function ConversationWorkspace({
           </div>
         )}
       </div>
+    </section>
+  );
+}
+
+function PreparationProgress({ preparation }: { preparation: Preparation }) {
+  const running = activePreparation(preparation.status);
+  const uncertain =
+    preparation.status === "uncertain" ||
+    (!running && preparation.generation?.outcome_uncertain);
+  const headings: Record<string, string> = {
+    admitting: "Saving campaign preparation",
+    planning: "Planning your campaign",
+    preparing: "Preparing your campaign",
+    review_ready: "Ready for your review",
+    needs_input: "Your input is needed",
+    needs_consent: "Permission needed for model copy",
+    stale: "Stopped after a brief change",
+    uncertain: "Provider outcome is uncertain",
+    failed: "Preparation failed",
+    blocked: "Preparation needs attention",
+  };
+  const taskLabels: Record<string, string> = {
+    queued: "Queued",
+    running: "In progress",
+    succeeded: "Complete",
+    waiting: "Human review required",
+    failed: "Failed",
+    cancelled: "Stopped",
+  };
+  const stage = (capability: string) =>
+    capability.startsWith("conversations.")
+      ? "Interpret the brief"
+      : capability.startsWith("audiences.")
+        ? "Check the synthetic audience"
+        : capability.startsWith("creative.")
+          ? "Generate and screen audience copy"
+          : capability.includes("review")
+            ? "Prepare the review checkpoint"
+            : "Build and validate the draft";
+  return (
+    <section
+      className="preparation-progress"
+      aria-label="Campaign preparation progress"
+    >
+      <div className="preparation-heading" role="status">
+        {running ? (
+          <Loader2 className="spin" size={16} />
+        ) : preparation.status === "review_ready" ? (
+          <Check size={16} />
+        ) : (
+          <CircleAlert size={16} />
+        )}
+        <strong>
+          {uncertain
+            ? "Provider outcome is uncertain"
+            : (headings[preparation.status] ?? preparation.status)}
+        </strong>
+        {!preparation.current && <small>Earlier brief</small>}
+      </div>
+      {preparation.detail && <p>{preparation.detail}</p>}
+      {!preparation.current && (
+        <p>This brief has changed. Its preparation will not continue.</p>
+      )}
+      {uncertain && preparation.status !== "uncertain" && (
+        <p>
+          The provider may have processed and charged for this request. Inspect
+          the original run before requesting another generation.
+        </p>
+      )}
+      {running && (
+        <p>
+          You can leave this chat. Progress is saved. A new message stops
+          continuation of this brief.
+        </p>
+      )}
+      {preparation.generation?.steps && (
+        <ol className="preparation-steps">
+          {preparation.generation.steps.map((step) => (
+            <li key={step.capability}>
+              <span>{stage(step.capability)}</span>
+              <small>{taskLabels[step.status] ?? step.status}</small>
+            </li>
+          ))}
+        </ol>
+      )}
+      <details>
+        <summary>Inspect preparation</summary>
+        <p>
+          Preparation: <code>{preparation.id}</code>
+        </p>
+        <p>
+          Planning run: <code>{preparation.run_id}</code>
+        </p>
+        {preparation.generation && (
+          <p>
+            Current run: <code>{preparation.generation.run_id}</code>
+          </p>
+        )}
+        <p>
+          Model copy permission:{" "}
+          {preparation.inputs.allow_model_copy
+            ? "Granted for this request"
+            : "Not granted"}
+        </p>
+        {preparation.generation?.provider_error && (
+          <p>Provider: {preparation.generation.provider_error}</p>
+        )}
+        {preparation.generation?.unresolved_calls?.map((call) => (
+          <p key={call.key}>
+            Unresolved call: <code>{call.key}</code> ({call.status})
+          </p>
+        ))}
+        <p>Preparation grants no approval or delivery authority.</p>
+      </details>
     </section>
   );
 }
