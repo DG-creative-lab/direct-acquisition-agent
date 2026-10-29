@@ -52,6 +52,8 @@ The server is loopback-only and intended for trusted local use. Startup, storage
 
 A [conversational assistant](docs/conversations.md) saves objectives and corrections, then can prepare a synthetic campaign draft from a validated brief. The React workspace includes a fixed offline example that makes no model calls. Free-text planning explicitly uses OpenRouter. For a model-copy proposal, choose **Generate campaign copy** to generate and screen grounded copy for the selected segments. Review and simulated acceptance remain separate human actions.
 
+The workspace's **Knowledge** view shows advisory campaign playbooks, the baseline product fact pack and editorial guidance. Each conversation can show the guidance snapshot used for its planning request. Campaign-specific evidence and synthetic outcome memory remain separate from this baseline.
+
 ## Documentation
 
 | Reader need | Guide |

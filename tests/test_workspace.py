@@ -280,6 +280,10 @@ class WorkspaceHttpTests(unittest.TestCase):
 
     def test_conversations_keep_http_guards_and_fixed_server_scope(self):
         path = "/api/conversations"
+        self.assertEqual(self.request('/api/knowledge', headers={"X-Workspace-Token": ""})[0], 403)
+        status, knowledge, _ = self.request('/api/knowledge')
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(knowledge)['playbooks']['status'], 'advisory_synthetic_only')
         for headers in ({"X-Workspace-Token": "wrong"}, {"Origin": "https://attacker.invalid"}):
             self.assertEqual(self.request(path, {"request_id": "new", "title": "Contractors"}, headers)[0], 403)
         self.assertEqual(json.loads(self.request(path)[1])["conversations"], [])

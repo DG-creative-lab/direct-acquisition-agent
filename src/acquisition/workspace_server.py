@@ -89,6 +89,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, self.server.workspace.listing())
             if path == "/api/conversations":
                 return self._send(200, self.server.workspace.conversations())
+            if path == "/api/knowledge":
+                return self._send(200, self.server.workspace.knowledge())
             parts = path.strip("/").split("/")
             if len(parts) == 3 and parts[:2] == ["api", "conversations"]:
                 return self._send(200, self.server.workspace.conversation(parts[2]))

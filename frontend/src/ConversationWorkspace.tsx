@@ -30,6 +30,17 @@ type Plan = {
   current: boolean;
   result: Brief | null;
   error: { provider_error?: string } | null;
+  guidance?: {
+    id: string;
+    content: {
+      version?: string;
+      procedures?: string[];
+      playbooks?: {
+        version: string;
+        playbooks: { id: string; title: string; guidance: string }[];
+      };
+    };
+  };
 };
 type Conversation = {
   id: string;
@@ -441,6 +452,44 @@ export default function ConversationWorkspace({
                       Direct Acquisition
                       {!plan.current && <small>Earlier proposal</small>}
                     </div>
+                    {plan.guidance && (
+                      <details className="planning-guidance">
+                        <summary>Inspect planning guidance</summary>
+                        <p>
+                          Frozen for this planning request. Advisory guidance
+                          does not grant approval.
+                        </p>
+                        <p>
+                          Snapshot: <code>{plan.guidance.id}</code>
+                        </p>
+                        <p>Catalogue: {plan.guidance.content.version}</p>
+                        {plan.guidance.content.procedures?.map((rule) => (
+                          <p key={rule}>{rule}</p>
+                        ))}
+                        {plan.guidance.content.playbooks && (
+                          <div>
+                            <p>
+                              Playbooks:{" "}
+                              {plan.guidance.content.playbooks.version}
+                            </p>
+                            {plan.guidance.content.playbooks.playbooks.map(
+                              (item) => (
+                                <p key={item.id}>
+                                  <strong>{item.title}</strong> ·{" "}
+                                  {item.guidance}
+                                </p>
+                              ),
+                            )}
+                          </div>
+                        )}
+                        <details>
+                          <summary>Complete saved snapshot</summary>
+                          <pre aria-label="Complete frozen planning guidance">
+                            {JSON.stringify(plan.guidance.content, null, 2)}
+                          </pre>
+                        </details>
+                      </details>
+                    )}
                     {plan.status === "failed" ? (
                       <p>
                         Planning could not finish.{" "}

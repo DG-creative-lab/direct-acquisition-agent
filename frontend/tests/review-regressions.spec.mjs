@@ -357,6 +357,119 @@ test("offline assistant prepares a persistent draft without a model call", async
   ).toBeVisible();
 });
 
+test("knowledge sources and frozen planning guidance are inspectable", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await page.getByRole("button", { name: /Try the offline example/ }).click();
+  await expect(
+    page.getByRole("button", { name: /Review campaign/ }),
+  ).toBeVisible();
+  await page.getByText("Inspect planning guidance", { exact: true }).click();
+  await expect(
+    page.getByText("Playbooks: campaign-playbooks/v1"),
+  ).toBeVisible();
+  await expect(page.getByText(/Snapshot: knowledge_/)).toBeVisible();
+  await page.getByRole("button", { name: "Knowledge", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Campaign knowledge" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Campaign playbooks" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Editorial guidance" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/Campaign review checks its own current evidence/),
+  ).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
+    await page.evaluate(() => document.documentElement.clientWidth),
+  );
+  const target = await page
+    .getByRole("button", { name: "Knowledge", exact: true })
+    .boundingBox();
+  expect(target.width).toBeGreaterThanOrEqual(44);
+  expect(target.height).toBeGreaterThanOrEqual(44);
+  await page.setViewportSize({ width: 320, height: 700 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
+    await page.evaluate(() => document.documentElement.clientWidth),
+  );
+});
+
+test("historical guidance displays the complete saved content after a source change", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const plannedResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/plan-fixture") &&
+      response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: /Try the offline example/ }).click();
+  const planned = await (await plannedResponse).json();
+  const original = planned.current_plan.guidance.content;
+  await expect(
+    page.getByRole("button", { name: /Review campaign/ }),
+  ).toBeVisible();
+  // The source library changes after admission; the persisted planning result stays historical.
+  await page.route("**/api/knowledge", async (route) => {
+    const source = await (await route.fetch()).json();
+    await route.fulfill({
+      json: {
+        ...source,
+        playbooks: {
+          ...source.playbooks,
+          purpose: "Changed purpose after admission",
+        },
+      },
+    });
+  });
+  const response = await nativeFetch(
+    new URL(`/api/conversations/${planned.id}/messages`, base),
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Token": workspaceToken,
+        Origin: base,
+      },
+      body: JSON.stringify({
+        request_id: "history-correction",
+        expected_revision: 1,
+        content: "Use £300 instead.",
+      }),
+    },
+  );
+  expect(response.ok).toBeTruthy();
+  await page.reload();
+  await page.getByRole("button", { name: "Knowledge", exact: true }).click();
+  await expect(
+    page.getByText("Changed purpose after admission", { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("link", {
+      name: "Direct Acquisition by Dessi Georgieva",
+      exact: true,
+    })
+    .click();
+  await expect(
+    page.getByText("Earlier proposal", { exact: true }),
+  ).toBeVisible();
+  await page.getByText("Inspect planning guidance", { exact: true }).click();
+  await page.getByText("Complete saved snapshot", { exact: true }).click();
+  const snapshot = page.getByLabel("Complete frozen planning guidance");
+  await expect(snapshot).toBeVisible();
+  expect(JSON.parse(await snapshot.textContent())).toEqual(original);
+  expect(original.playbooks.purpose).not.toBe(
+    "Changed purpose after admission",
+  );
+  expect(original.playbooks.experiment).toBeTruthy();
+  expect(original.segments).toBeTruthy();
+  expect(original.budget_limit_pence).toBe(1000000);
+});
+
 test("conversation navigation opens a new chat and returns to recent work", async ({
   page,
 }) => {

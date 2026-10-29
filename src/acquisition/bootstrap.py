@@ -134,8 +134,10 @@ def build(path: str | Path, clock: Callable[[], float] = time.time,
     planner_config = replace(model_config, max_calls=2, force_tool_choice=True) if model_config else None
     planner_inference = Inference(gateway, calls, planner_config, clock) if gateway is not None and planner_config else None
     planner = ConversationPlanner(planner_inference)
+    def planning_guidance():
+        return json.loads((Path(__file__).resolve().parents[2] / "config/campaign-playbooks-v1.json").read_text())
     conversations = ConversationService(SqliteConversations(database), tasks, calls, clock,
-                                        planner_config if planner_inference else None, planner.preflight)
+                                        planner_config if planner_inference else None, planner.preflight, planning_guidance)
     capabilities = workflow.capabilities() | ConversationMail(audiences, campaigns).capabilities() | model_workflow.capabilities() | conversation_model.capabilities() | {PLANNER_CAPABILITY: planner.plan, FIXTURE_CAPABILITY: planner.fixture_plan}
     reviews = SqliteReviews(database, clock)
     return Application(tasks, audiences, drafts, Worker(tasks, capabilities, clock, lease_seconds=180 if inference else 60,

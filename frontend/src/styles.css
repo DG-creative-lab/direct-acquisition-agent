@@ -1977,11 +1977,15 @@ td small {
   }
   .sidebar nav {
     display: flex;
-    gap: 5px;
+    gap: 0;
+    min-width: 0;
+    overflow-x: auto;
   }
   .nav-item {
     padding: 9px;
-    width: 37px;
+    width: 44px;
+    min-height: 44px;
+    flex: 0 0 44px;
     margin: 0;
   }
   .nav-item svg {
