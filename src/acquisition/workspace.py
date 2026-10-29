@@ -11,7 +11,8 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
-from acquisition.bootstrap import build
+from acquisition.bootstrap import build, build_preparations
+from acquisition.conversations import ACTIVE_PREPARATION
 from acquisition.adapters.environment import openrouter_key
 from acquisition.adapters.openrouter import OpenRouter
 from acquisition.contracts import Conflict, NotFound, canonical, digest
@@ -31,6 +32,7 @@ class Workspace:
             db.execute("CREATE TABLE IF NOT EXISTS sessions(id TEXT PRIMARY KEY, request_hash TEXT NOT NULL, payload TEXT NOT NULL)")
             db.execute("CREATE TABLE IF NOT EXISTS commands(session_id TEXT NOT NULL, request_id TEXT NOT NULL, request_hash TEXT NOT NULL, done INTEGER NOT NULL, PRIMARY KEY(session_id,request_id))")
             db.execute("CREATE TABLE IF NOT EXISTS conversation_draft_requests(conversation_id TEXT NOT NULL, request_id TEXT NOT NULL, request_hash TEXT NOT NULL, session_id TEXT NOT NULL, PRIMARY KEY(conversation_id,request_id))")
+        self.preparations = build_preparations(self.root / "workspace.sqlite", self)
         self.pack = json.loads((Path(__file__).resolve().parents[2] / "config/iwoca-product-facts-v1.json").read_text())
 
     @contextmanager
@@ -67,7 +69,7 @@ class Workspace:
         return build(database, clock=lambda: max(self.real_clock(), session["clock"]) if session.get("clock_mode") == "REAL" else session["clock"], gateway=gateway, model_config=config)
 
     def listing(self):
-        with self.lock, self.control() as db:
+        with self.control() as db:
             sessions = [json.loads(r[0]) for r in db.execute("SELECT payload FROM sessions ORDER BY rowid DESC LIMIT 50")]
         return {"sessions": [{k: s[k] for k in ("id", "name", "mode", "created_at", "case_id")} for s in sessions],
                 "mode": "LOCAL_SYNTHETIC_SANDBOX", "hosted_authentication": False}
@@ -79,8 +81,7 @@ class Workspace:
         return build(self.root / "conversations.sqlite", clock=self.real_clock, gateway=gateway, model_config=config)
 
     def conversations(self):
-        with self.lock:
-            return {"conversations": self._conversation_app().conversations.store.listing("local-conversations")}
+        return {"conversations": self._conversation_app().conversations.store.listing("local-conversations")}
 
     def knowledge(self):
         config = Path(__file__).resolve().parents[2] / "config"
@@ -92,14 +93,13 @@ class Workspace:
                 "learning": "Synthetic outcome memory is scoped to each campaign and is advisory. Inspect it in Learning."}
 
     def conversation(self, conversation_id):
-        with self.lock:
-            view = self._conversation_app().conversations.view("local-conversations", conversation_id)
-            with self.control() as db:
-                sessions = [json.loads(r[0]) for r in db.execute("SELECT payload FROM sessions ORDER BY rowid DESC")]
-            return view | {"campaigns": [{"session_id": s["id"], "plan_id": s["conversation_plan"]["id"],
-                                          "revision": s["conversation_plan"]["revision"], "case_id": s["case_id"],
-                                          "generation": self._generation(s)}
-                                         for s in sessions if s.get("conversation_plan", {}).get("conversation_id") == conversation_id]}
+        view = self._conversation_app().conversations.view("local-conversations", conversation_id)
+        with self.control() as db:
+            sessions = [json.loads(r[0]) for r in db.execute("SELECT payload FROM sessions ORDER BY rowid DESC")]
+        return view | {"preparations": self.preparation_progress(conversation_id), "campaigns": [{"session_id": s["id"], "plan_id": s["conversation_plan"]["id"],
+                                      "revision": s["conversation_plan"]["revision"], "case_id": s["case_id"],
+                                      "generation": self._generation(s)}
+                                     for s in sessions if s.get("conversation_plan", {}).get("conversation_id") == conversation_id]}
 
     def _generation(self, session):
         app = self._app(session)
@@ -108,6 +108,10 @@ class Workspace:
         if run is None:
             return {"run_id": None, "status": "admitted", "failed_tasks": [], "provider_error": None,
                     "outcome_uncertain": False, "unresolved_calls": []}
+        return self._run_generation(app, scope, run)
+
+    @staticmethod
+    def _run_generation(app, scope, run):
         state = app.tasks.inspect(scope, run)
         failures = [{"capability": task["capability"], "error_code": (task["output"] or {}).get("error_code")}
                     for task in state["tasks"] if task["status"] == "failed"]
@@ -120,15 +124,83 @@ class Workspace:
         unresolved = [{"key": r["key"], "status": r["status"]} for r in receipts
                       if r["status"] == "reserved" or (r["status"] == "unknown" and r["error"] not in definitive_rejections)]
         return {"run_id": run, "status": state["run"]["status"], "failed_tasks": failures, "provider_error": provider_error,
-                "outcome_uncertain": bool(unresolved), "unresolved_calls": unresolved}
+                "outcome_uncertain": bool(unresolved), "unresolved_calls": unresolved,
+                "steps": [{"capability": t["capability"], "status": t["status"]} for t in state["tasks"]]}
 
     def create_conversation(self, request_id, title):
+        return self._conversation_app().conversations.create("local-conversations", request_id, title)
+
+    @staticmethod
+    def _preparation_scope(organization):
+        if organization != "local-conversations":
+            raise NotFound("Conversation organization is not available in this workspace")
+
+    def freeze_preparation_plan(self, organization, conversation_id, request_id, revision, fixture):
+        self._preparation_scope(organization)
+        app = self._conversation_app(with_model=not fixture)
+        return app.conversations.planning_context(organization, conversation_id, request_id, revision, fixture)
+
+    def admit_preparation_plan(self, organization, row):
+        self._preparation_scope(organization)
+        inputs = row["inputs"]
+        app = self._conversation_app(with_model=not inputs["fixture"])
+        plan = app.conversations.plan_fixture if inputs["fixture"] else app.conversations.plan
+        return plan(organization, inputs["conversation_id"], row["plan_request_id"], inputs["revision"],
+                    frozen_context=row["planning_context"])
+
+    def preparation_source(self, organization, conversation_id):
+        self._preparation_scope(organization)
+        return self._conversation_app().conversations.view(organization, conversation_id)
+
+    def step_preparation_plan(self, organization, row):
+        self._preparation_scope(organization)
         with self.lock:
-            return self._conversation_app().conversations.create("local-conversations", request_id, title)
+            app = self._conversation_app(with_model=not row["inputs"]["fixture"])
+            app.worker.tick(organization, run_id=row["run_id"])
+            return self._run_generation(app, organization, row["run_id"])
+
+    def step_preparation_campaign(self, organization, row, plan):
+        self._preparation_scope(organization)
+        return self.draft_conversation(row["inputs"]["conversation_id"], row["id"] + ":draft",
+                                       row["inputs"]["revision"], plan["id"], partial=True)
+
+    def preparation_generation(self, organization, row):
+        self._preparation_scope(organization)
+        with self.control() as db:
+            match = db.execute("SELECT session_id FROM conversation_draft_requests WHERE conversation_id=? AND request_id=?",
+                               (row["inputs"]["conversation_id"], row["id"] + ":draft")).fetchone()
+        if match:
+            return self._generation(self._session(match[0]))
+        app = self._conversation_app()
+        run_id = row["run_id"]
+        if run_id is None:
+            source = app.conversations.view(organization, row["inputs"]["conversation_id"])
+            plan = next((p for p in source["plans"] if p["request_id"] == row["plan_request_id"]), None)
+            run_id = plan["run_id"] if plan else None
+        return self._run_generation(app, organization, run_id) if run_id else None
+
+    def start_preparation(self, conversation_id, request_id, expected_revision, fixture, allow_model_copy):
+        self.preparations.admit("local-conversations", conversation_id, request_id, expected_revision, fixture, allow_model_copy)
+        return self.conversation(conversation_id)
+
+    def preparation_progress(self, conversation_id):
+        source = self.preparation_source("local-conversations", conversation_id)
+        values = []
+        for row in self.preparations.store.listing("local-conversations", conversation_id):
+            generation = self.preparation_generation("local-conversations", row)
+            # Frozen model inputs remain server-side. The plan's existing guidance
+            # projection is the public inspection surface for that content.
+            public = {k: v for k, v in row.items() if k != "planning_context"}
+            values.append(public | {"current": source["revision"] == row["inputs"]["revision"], "generation": generation})
+        return values
+
+    def advance_preparations(self):
+        for row in self.preparations.store.listing("local-conversations"):
+            if row["status"] in ACTIVE_PREPARATION:
+                self.preparations.step("local-conversations", row["id"])
 
     def message_conversation(self, conversation_id, request_id, expected_revision, content):
-        with self.lock:
-            return self._conversation_app().conversations.message("local-conversations", conversation_id, request_id, expected_revision, content)
+        return self._conversation_app().conversations.message("local-conversations", conversation_id, request_id, expected_revision, content)
 
     def plan_conversation(self, conversation_id, request_id, expected_revision):
         with self.lock:
@@ -144,7 +216,7 @@ class Workspace:
             app.worker.drain(organization="local-conversations", run_id=run_id)
             return app.conversations.view("local-conversations", conversation_id)
 
-    def draft_conversation(self, conversation_id, request_id, expected_revision, plan_id):
+    def draft_conversation(self, conversation_id, request_id, expected_revision, plan_id, *, partial=False):
         identifier(conversation_id), identifier(request_id), identifier(plan_id)
         if type(expected_revision) is not int or expected_revision < 1:
             raise ValueError("Select a current conversation revision")
@@ -156,7 +228,7 @@ class Workspace:
                 if prior_draft:
                     if prior_draft["request_hash"] != fingerprint:
                         raise Conflict("Draft request already binds different proposal inputs")
-                    return self.prepare(prior_draft["session_id"])
+                    return self.prepare(prior_draft["session_id"], partial=partial)
             view = self._conversation_app().conversations.view("local-conversations", conversation_id)
             current = view["current_plan"]
             plan = current["result"] if current and current["status"] == "succeeded" else None
@@ -187,7 +259,7 @@ class Workspace:
                 except BaseException:
                     db.rollback()
                     raise
-            return self.prepare(session_id)
+            return self.prepare(session_id, partial=partial)
 
     def create(self, request_id, mode, parent_id=None):
         identifier(request_id)
@@ -215,7 +287,7 @@ class Workspace:
                     db.execute("INSERT INTO sessions VALUES(?,?,?)", (identity, fingerprint, canonical(session)))
             return self.prepare(identity)
 
-    def prepare(self, identity):
+    def prepare(self, identity, *, partial=False):
         with self.lock:
             session = self._session(identity)
             if session["case_id"]:
@@ -253,9 +325,11 @@ class Workspace:
                 admitted = app.tasks.inspect(scope, run)
                 for context_id in admitted["tasks"][0]["inputs"]["context_ids"].values():
                     validate_fact_pack(app.memory.get_context(scope, context_id)["product_facts"], today)
-            app.worker.drain(scope, run_id=run)
+            app.worker.drain(scope, max_tasks=1 if partial else 20, run_id=run)
             state = app.tasks.inspect(scope, run)
             if state["run"]["status"] not in {"waiting", "succeeded"}:
+                if partial:
+                    return self.view(identity)
                 raise Conflict("Preparation has not reached review. Inspect the task status before resuming.")
             case = store.open_case(scope, run, "local-operator")
             session["case_id"] = case["case_id"]

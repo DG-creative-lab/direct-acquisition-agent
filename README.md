@@ -4,6 +4,8 @@ An acquisition workspace for preparing audience-specific direct-mail experiments
 
 Built by Dessi Georgieva. The current product is a local demonstration using synthetic businesses, simulated agency acceptance and synthetic responses. The example campaign uses public iwoca product evidence. It has no connection to iwoca production systems, sends no mail and makes no lending decisions.
 
+A chat request can continue through planning, synthetic audience checks and campaign preparation in the background. Allow model copy before sending to include bounded generation; the agent stops at an unapproved campaign for human review. Progress survives reload and process restart.
+
 ## What the product does
 
 - Prepares a campaign audience with traceable exclusions, a bounded mailing budget and randomized A/B/no-mail assignments.

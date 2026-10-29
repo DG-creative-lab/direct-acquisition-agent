@@ -2,7 +2,7 @@
 
 The conversational assistant saves campaign objectives and corrections, then uses a bounded model task to propose a campaign brief, ask for clarification or explain an unsupported request. The React workspace can prepare a synthetic campaign from a valid current proposal and open it for human review. The CLI and guarded local HTTP API remain available.
 
-Choose **Try the offline example** in the workspace to prepare a fixed £600 contractor campaign without a model call. Sending free-text messages uses OpenRouter for planning. To request generated copy, include that instruction in the message, then choose **Generate campaign copy** on the completed proposal. This separate action spends OpenRouter credit on generation and screening for the selected synthetic segments. No real audience is selected and no mail is sent.
+Choose **Try the offline example** in the workspace to prepare a fixed £600 contractor campaign without a model call. Sending free-text messages uses OpenRouter for planning. To request generated copy, include that instruction in the message and enable **Allow model copy for this request** before sending. Sending authorizes at most two planning calls and, if a model-copy proposal is returned and copy is allowed, at most ten copy-generation and screening calls. The saved coordinator continues to an unapproved review candidate without another preparation click. Without that permission, a model-copy proposal stops before copy generation. No real audience is selected and no mail is sent.
 
 ## Try the foundation
 
@@ -68,6 +68,37 @@ The local knowledge base supplies versioned advisory playbooks for the two suppo
 
 The read-only knowledge view also shows the baseline product pack and editorial rules. These are separate sources: the planner does not receive the product pack, and generated copy and review use their existing frozen and current evidence controls. The displayed baseline is not a claim that a campaign's current review authority matches it. Reviewer preferences and synthetic outcome memory stay scoped to their campaign; learning remains advisory. General document ingestion, editable policies and real audience sources are deferred.
 
+## Continuous preparation
+
+The React chat admits preparation through `POST /api/conversations/{id}/preparations`. The exact request binds the current revision, fixture mode and an explicit boolean copy permission. Guidance, messages and planner settings freeze before the coordinator record is saved. That record commits the request and copy permission in `admitting` state before any planning admission or task is created. Admission creates no inference reservation and invokes no provider. Startup can reconcile the original planning identity after an interruption before the plan record, between the plan record and task, or before the coordinator run-ID update. It uses the saved context and consent without the browser session or current guidance files. A failed coordinator write creates no plan or task.
+
+`PreparationCoordinator` depends on narrow store and host ports. Its SQLite journal lives in the workspace control store; `bootstrap.py` wires the store, and the workspace host delegates planning and campaign steps to existing services. It owns continuation and progress, never campaign validation, approval, assignment policy or inference accounting. The domain schema remains v6 and its legacy cutoff is unchanged.
+
+The server's single background executor advances one task per preparation per pass. It starts only after the per-root lock is acquired, resumes saved active work on restart, and releases the lock only after that executor stops. HTTP admission returns 202. Authenticated GET reads only project saved state; they do not advance work. Conversation reads and message appends use SQLite transactions without waiting for an in-flight model call. The interface polls while an active preparation is visible, so reload or navigation does not drive or repeat execution.
+
+| State | Meaning and next action |
+| --- | --- |
+| `admitting` | The request, consent and frozen context are saved; the original plan/task is being reconciled |
+| `planning` | The original planning task is queued or executing |
+| `preparing` | A validated current proposal is advancing through audience, copy and draft tasks |
+| `needs_input` | Answer the clarification or revise an unsupported request in a new message |
+| `needs_consent` | Enable copy permission and send a new message; the original permission is immutable |
+| `review_ready` | A valid unapproved review candidate was created; inspect its exact subject before deciding |
+| `stale` | A newer message stopped continuation of this revision |
+| `uncertain` | Provider processing or charging may have happened; inspect the original run before another generation |
+| `failed` | The original task ended in a known failure or cancellation; inspect its sanitized diagnostics |
+| `blocked` | Configuration or validation prevented continuation; inspect the original run and correct the cause before a revised request |
+
+A different key cannot admit another coordinator for the same revision. Exact replay returns the existing record even after it becomes historical; it never reactivates a terminal coordinator. There is no UI command to reactivate a blocked coordinator in this version. Its runtime records remain available to trusted local CLI inspection and explicit recovery. The ordinary restart path resumes only active records with their original IDs.
+
+At startup, an unresolved inference reservation from an interrupted executor becomes `uncertain` before any background task is attempted. Normal known task failures and unknown provider outcomes remain distinct. Active reservations observed while the current executor is running are displayed as ongoing work rather than prematurely called failures. Recorded receipts can be reused; reserved or unknown requests cannot be automatically dispatched again.
+
+A changed brief and an uncertain provider outcome are independent facts. A timed-out or interrupted request retains its original journal, unresolved call identities and possible-charge warning even when the brief has become historical. Read projections also preserve those diagnostics for older terminal records.
+
+The coordinator checks source revision before and after each step. Planner inference reservations now check it transactionally, including a second validation-repair call. Existing copy reservations and draft commits retain their transactional source checks. A request already dispatched when a message changes can still return a recorded observation; it cannot authorize further calls or an approved campaign. The final review and simulator acceptance remain explicit, separate operations with their existing current-authority checks.
+
+The browser preserves message admission identity and pending preparation intent separately. A lost message response retries the original append; a lost preparation response can be reconciled from the saved revision-bound record. The consent captured with that original request survives retry. After message replay, the browser binds preparation to the message receipt revision, never the conversation’s potentially newer revision. If another writer has advanced the brief, it confirms the original message and stops before admitting any preparation for the newer one. Progress is advisory evidence of task state, not an approval or a claim that real mail was sent.
+
 ## HTTP API
 
 All routes use the existing Host/token checks; mutations additionally require the exact local Origin. Each request must contain exactly the listed fields. Organization, provider configuration, credentials and database paths are never accepted in action payloads.
@@ -81,9 +112,10 @@ All routes use the existing Host/token checks; mutations additionally require th
 | POST | `/api/conversations/{id}/messages` | `request_id`, `expected_revision`, `content` |
 | POST | `/api/conversations/{id}/plan` | `request_id`, `expected_revision` |
 | POST | `/api/conversations/{id}/plan-fixture` | `request_id`, `expected_revision` |
+| POST | `/api/conversations/{id}/preparations` | `request_id`, `expected_revision`, `fixture`, `allow_model_copy` |
 | POST | `/api/conversations/{id}/draft` | `request_id`, `expected_revision`, `plan_id` |
 
-The plan route is explicit paid generation. The fixture route accepts only the fixed offline example. Listing, reading, message admission and fixture preparation do not call a model. API/CLI generation is synchronous in this local slice; background progress streaming is deferred. A response can contain a failed, queued or cancelled task, so clients must inspect the returned status. There are no conversation approval or dispatch routes.
+The plan route is explicit paid generation. The fixture route accepts only the fixed offline example. Listing, reading, message admission and fixture preparation do not call a model. The direct plan/draft API and CLI remain synchronous for compatibility. The preparation admission route uses the server background executor and read-only polling; progress streaming is deferred. A response can contain a failed, queued or cancelled task, so clients must inspect the returned status. There are no conversation approval or dispatch routes.
 
 ## Persistence and verification
 

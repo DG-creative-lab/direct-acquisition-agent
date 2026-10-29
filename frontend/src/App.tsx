@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowDownToLine,
   BarChart3,
@@ -56,12 +56,12 @@ export default function App() {
     generation = useRef(0),
     listGeneration = useRef(0);
   selectedRef.current = selected;
-  const loadList = async () => {
+  const loadList = useCallback(async () => {
     const epoch = ++listGeneration.current;
     const list = await read<{ sessions: Session[] }>("/api/sessions");
     if (epoch === listGeneration.current) setSessions(list.sessions);
     return list.sessions;
-  };
+  }, []);
   useEffect(() => {
     let alive = true;
     const initial = selectedRef.current;
@@ -338,6 +338,7 @@ export default function App() {
         <main id="workspace-main">
           <div hidden={page !== "assistant"}>
             <ConversationWorkspace
+              onCampaignsChanged={loadList}
               navigationTarget={conversationMount}
               active={page === "assistant"}
               onNavigate={() => setPage("assistant")}

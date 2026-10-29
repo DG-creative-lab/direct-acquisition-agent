@@ -5,6 +5,7 @@ import fcntl
 import json
 import mimetypes
 import secrets
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
@@ -21,15 +22,34 @@ class WorkspaceServer(ThreadingHTTPServer):
     def __init__(self, port, workspace, assets):
         self.workspace, self.assets = workspace, Path(assets).resolve()
         self.token = secrets.token_urlsafe(32)
+        self.preparation_stop = threading.Event()
+        self.preparation_worker = None
         self.root_lock = (workspace.root / "server.lock").open("a+")
         try:
             fcntl.flock(self.root_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             super().__init__(("127.0.0.1", port), Handler)
+            self.workspace.preparations.recover("local-conversations")
         except BaseException:
+            if hasattr(self, "socket"):
+                super().server_close()
             self.root_lock.close()
             raise
+        self.preparation_worker = threading.Thread(target=self._continue_preparations, daemon=True)
+        self.preparation_worker.start()
+
+    def _continue_preparations(self):
+        while not self.preparation_stop.wait(0.25):
+            try:
+                self.workspace.advance_preparations()
+            except Exception:
+                # A storage interruption leaves original durable identities intact.
+                # No alternate run/key is ever created by this scheduler.
+                continue
 
     def server_close(self):
+        self.preparation_stop.set()
+        if self.preparation_worker is not None:
+            self.preparation_worker.join()
         super().server_close()
         self.root_lock.close()
 
@@ -53,7 +73,10 @@ class Handler(BaseHTTPRequestHandler):
         if filename:
             self.send_header("Content-Disposition", 'attachment; filename="' + filename + '"')
         self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            pass  # A closed polling tab does not change committed work.
 
     def _guard(self, mutation=False):
         try:
@@ -142,6 +165,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, self.server.workspace.plan_conversation_fixture(parts[2], **data))
                 if parts[3] == "draft" and set(data) == {"request_id", "expected_revision", "plan_id"}:
                     return self._send(200, self.server.workspace.draft_conversation(parts[2], **data))
+                if parts[3] == "preparations" and set(data) == {"request_id", "expected_revision", "fixture", "allow_model_copy"}:
+                    return self._send(202, self.server.workspace.start_preparation(parts[2], **data))
                 raise ValueError("Use exact fields for a supported conversation action")
             if path == "/api/sessions":
                 if set(data) - {"request_id", "mode", "parent_id"}:

@@ -349,6 +349,31 @@ class WorkspaceHttpTests(unittest.TestCase):
             self.assertEqual(workspace.plan_conversation(second["id"], "plan", 1)["current_plan"]["status"], "succeeded")
             self.assertEqual(len(model.requests), 2)
 
+    def test_continuous_preparation_is_guarded_and_admission_never_runs_the_worker(self):
+        from acquisition.conversations import FIXTURE_MESSAGE
+        c = self.server.workspace.create_conversation("continuous", "Continuous")["id"]
+        self.server.workspace.message_conversation(c, "message", 0, FIXTURE_MESSAGE)
+        path = "/api/conversations/" + c + "/preparations"
+        payload = {"request_id": "prepare", "expected_revision": 1, "fixture": True, "allow_model_copy": False}
+        for headers in ({"X-Workspace-Token": ""}, {"Origin": "https://invalid.example"}, {"Host": "invalid.example"}):
+            self.assertEqual(self.request(path, payload, headers)[0], 403)
+        self.assertEqual(self.request(path, payload | {"organization": "other"})[0], 400)
+        self.assertEqual(self.request(path, payload | {"allow_model_copy": "yes"})[0], 400)
+        self.assertEqual(self.server.workspace.preparations.store.listing("local-conversations"), [])
+        # Stop only this fixture's background executor so the HTTP admission boundary is observable.
+        self.server.preparation_stop.set()
+        self.server.preparation_worker.join(5)
+        status, body, _ = self.request(path, payload)
+        self.assertEqual(status, 202)
+        original = json.loads(body)["preparations"][0]
+        self.assertEqual(original["status"], "planning")
+        self.assertEqual(json.loads(body)["current_plan"]["status"], "queued")
+        self.assertEqual(self.request(path, payload)[0], 202)
+        self.assertEqual(self.request(path, payload | {"allow_model_copy": True})[0], 400)
+        self.assertEqual(self.request(path, payload | {"request_id": "another-key"})[0], 409)
+        self.assertEqual(len(self.server.workspace.preparations.store.listing("local-conversations")), 1)
+        self.assertEqual(self.server.workspace.listing()["sessions"], [])
+
     def test_real_http_json_actions_artifacts_and_input_boundaries(self):
         status, body, _ = self.request('/api/sessions', {"request_id": "http", "mode": "fixture"})
         self.assertEqual(status, 200)

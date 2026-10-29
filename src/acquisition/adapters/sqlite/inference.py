@@ -24,6 +24,11 @@ class SqliteCalls:
                     or task["token"] != scope.lease_token or task["lease_until"] <= now):
                 raise LeaseLost("Inference attempt has no active task lease")
             inputs = json.loads(task["inputs"])
+            if task["capability"] == "conversations.plan.v1":
+                source = connection.execute("SELECT revision FROM conversations WHERE organization=? AND id=?",
+                                            (scope.organization, inputs["conversation_id"])).fetchone()
+                if source is None or source[0] != inputs["revision"]:
+                    raise ModelError("conversation_changed_before_inference")
             if inputs.get("workflow_version") == "conversation-model-mail/v3":
                 try:
                     require_current_conversation(connection, inputs["brief"])

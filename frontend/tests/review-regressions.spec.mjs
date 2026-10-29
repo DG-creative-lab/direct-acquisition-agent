@@ -341,7 +341,8 @@ test("offline assistant prepares a persistent draft without a model call", async
   await expect(
     page.getByRole("button", { name: /Review campaign/ }),
   ).toBeVisible();
-  expect(paths.some((path) => path.endsWith("/plan-fixture"))).toBe(true);
+  expect(paths.some((path) => path.endsWith("/preparations"))).toBe(true);
+  expect(paths.some((path) => path.endsWith("/draft"))).toBe(false);
   expect(paths.some((path) => path.endsWith("/plan"))).toBe(false);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
     await page.evaluate(() => document.documentElement.clientWidth),
@@ -404,7 +405,7 @@ test("historical guidance displays the complete saved content after a source cha
   await page.goto("/");
   const plannedResponse = page.waitForResponse(
     (response) =>
-      response.url().endsWith("/plan-fixture") &&
+      response.url().endsWith("/preparations") &&
       response.request().method() === "POST",
   );
   await page.getByRole("button", { name: /Try the offline example/ }).click();
@@ -536,7 +537,7 @@ test("lost message acknowledgement is retried with the original identity after r
       await route.abort("failed");
     } else await route.continue();
   });
-  await page.route("**/api/conversations/*/plan", (route) =>
+  await page.route("**/api/conversations/*/preparations", (route) =>
     route.fulfill({
       status: 503,
       contentType: "application/json",
@@ -591,7 +592,7 @@ test("stale message rejection unlocks the composer and allows revision", async (
     }
     await route.continue();
   });
-  await page.route("**/api/conversations/*/plan", (route) =>
+  await page.route("**/api/conversations/*/preparations", (route) =>
     route.fulfill({
       status: 503,
       contentType: "application/json",
@@ -644,11 +645,11 @@ test("model copy waits for explicit generation and reports an uncertain failure"
   page,
 }) => {
   let generationRequests = 0;
-  await page.route("**/api/conversations/*/plan", async (route) => {
+  await page.route("**/api/conversations/*/preparations", async (route) => {
     const url = route
       .request()
       .url()
-      .replace(/\/plan$/, "");
+      .replace(/\/preparations$/, "");
     const conversation = await (
       await nativeFetch(url, {
         headers: { "X-Workspace-Token": workspaceToken },

@@ -30,6 +30,12 @@ from acquisition.workflows.learning import AcceptedCohortSource
 from acquisition.adapters.sqlite.conversations import SqliteConversations
 from acquisition.conversations import ConversationService, CAPABILITY as PLANNER_CAPABILITY, FIXTURE_CAPABILITY
 from acquisition.workflows.conversation import ConversationPlanner
+from acquisition.adapters.sqlite.preparations import SqlitePreparations
+from acquisition.conversations import PreparationCoordinator
+
+
+def build_preparations(path, host):
+    return PreparationCoordinator(SqlitePreparations(path), host)
 
 
 @dataclass
