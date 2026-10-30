@@ -159,3 +159,29 @@ def build_draft(snapshot: Snapshot, brief: Brief, creatives: tuple[Creative, ...
     }
     canonical(manifest)  # Reject non-serializable/non-finite content before persistence.
     return Draft(manifest, mailing, assignments)
+
+
+def validate_copy_revision(base: Draft, candidate: Draft, target_id: str) -> None:
+    """Independent publication check of copy-only scope against the actual base."""
+    from acquisition.contracts import Conflict
+    for field in ("brief", "snapshot_id", "counts", "arm_counts", "variable_cost_pence", "exclusion_reasons"):
+        if base.manifest[field] != candidate.manifest[field]:
+            raise Conflict("Copy revision changed the campaign population, budget or assignments")
+    old = {(c["segment"], c["arm"]): c for c in base.manifest["creatives"]}
+    new = {(c["segment"], c["arm"]): c for c in candidate.manifest["creatives"]}
+    target = next((key for key, c in old.items() if c["id"] == target_id), None)
+    if target is None or set(old) != set(new) or old[target]["id"] == new[target]["id"]:
+        raise Conflict("Revision must replace the exact selected creative")
+    for key in old:
+        if key[0] != target[0] and old[key] != new[key]:
+            raise Conflict("Copy revision changed another segment")
+        if old[key].get("fact_id") != new[key].get("fact_id") or old[key].get("fact_pack_id") != new[key].get("fact_pack_id"):
+            raise Conflict("Copy revision changed product evidence")
+        if key != target:
+            for field in ("id", "headline", "opening", "locked_block", "hypothesis"):
+                if old[key].get(field) != new[key].get(field):
+                    raise Conflict("Copy revision changed an untargeted letter")
+    before = list(csv.DictReader(io.StringIO(base.assignments_csv)))
+    after = list(csv.DictReader(io.StringIO(candidate.assignments_csv)))
+    if [(r["business_id"], r["segment"], r["arm"]) for r in before] != [(r["business_id"], r["segment"], r["arm"]) for r in after]:
+        raise Conflict("Copy revision reassigned the audience")

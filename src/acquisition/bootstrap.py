@@ -22,7 +22,8 @@ from acquisition.reasoning import Inference, ModelConfig, ModelGateway
 from acquisition.workflows.monthly_mail import MonthlyMail, ConversationMail, conversation_task_plan, task_plan
 from acquisition.workflows.model_mail import ModelMonthlyMail, ConversationModelMail, model_task_plan, conversation_model_task_plan
 from acquisition.adapters.sqlite.reviews import SqliteReviews
-from acquisition.reviews import ReviewService
+from acquisition.reviews import ReviewService, CopyRevisionService
+from acquisition.workflows.copy_revision import CopyRevisionWorkflow
 from acquisition.workflows.review import ReviewProposalBuilder
 from acquisition.learning import LearningService
 from acquisition.adapters.sqlite.learning import SqliteLearning
@@ -52,6 +53,7 @@ class Application:
     reviews: ReviewService
     learning: LearningService
     conversations: ConversationService
+    revisions: CopyRevisionService
 
     def start(self, organization: str, request_id: str, size: int = 1000, seed: int = 42,
               budget_pence: int = 85000, as_of: str = "2026-10-25", campaign_id: str | None = None) -> str:
@@ -144,10 +146,14 @@ def build(path: str | Path, clock: Callable[[], float] = time.time,
         return json.loads((Path(__file__).resolve().parents[2] / "config/campaign-playbooks-v1.json").read_text())
     conversations = ConversationService(SqliteConversations(database), tasks, calls, clock,
                                         planner_config if planner_inference else None, planner.preflight, planning_guidance)
-    capabilities = workflow.capabilities() | ConversationMail(audiences, campaigns).capabilities() | model_workflow.capabilities() | conversation_model.capabilities() | {PLANNER_CAPABILITY: planner.plan, FIXTURE_CAPABILITY: planner.fixture_plan}
     reviews = SqliteReviews(database, clock)
+    revision_config = replace(model_config, max_calls=5, force_tool_choice=True) if model_config else None
+    revision_inference = Inference(gateway, calls, revision_config, clock) if inference else None
+    revision_workflow = CopyRevisionWorkflow(campaigns, drafts, memory, revision_inference, reviews)
+    revision_service = CopyRevisionService(reviews, drafts, memory, tasks, clock, revision_config)
+    capabilities = revision_workflow.capabilities() | workflow.capabilities() | ConversationMail(audiences, campaigns).capabilities() | model_workflow.capabilities() | conversation_model.capabilities() | {PLANNER_CAPABILITY: planner.plan, FIXTURE_CAPABILITY: planner.fixture_plan}
     return Application(tasks, audiences, drafts, Worker(tasks, capabilities, clock, lease_seconds=180 if inference else 60,
-                       eligible=lambda capability, inputs: model_workflow.eligible(capability, inputs) and conversation_model.eligible(capability, inputs) and planner.eligible(capability, inputs)), clock,
+                       eligible=lambda capability, inputs: model_workflow.eligible(capability, inputs) and conversation_model.eligible(capability, inputs) and planner.eligible(capability, inputs) and revision_workflow.eligible(capability, inputs)), clock,
                        campaigns.catalogue_hash, memory, calls, inference,
                        ReviewService(reviews, ReviewProposalBuilder(audiences, drafts, campaigns)),
-                       LearningService(SqliteLearning(database, clock), AcceptedCohortSource(reviews, drafts)), conversations)
+                       LearningService(SqliteLearning(database, clock), AcceptedCohortSource(reviews, drafts)), conversations, revision_service)

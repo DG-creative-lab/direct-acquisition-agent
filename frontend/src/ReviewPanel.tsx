@@ -21,12 +21,16 @@ export default function ReviewPanel({
   act,
   error,
   onEvidence,
+  allowHandoff = true,
+  readOnly = false,
 }: {
   state: State;
   busy: boolean;
   act: Act;
   error: string;
   onEvidence: () => void;
+  allowHandoff?: boolean;
+  readOnly?: boolean;
 }) {
   const review = state.review!;
   const [decision, setDecision] = useState<null | {
@@ -46,7 +50,7 @@ export default function ReviewPanel({
     });
   };
   const submit = async () => {
-    if (!decision || !reason.trim()) return;
+    if (!decision || !reason.trim() || readOnly) return;
     const payload =
       decision.kind === "revoke"
         ? { approval_id: decision.approval, reason: reason.trim() }
@@ -195,7 +199,7 @@ export default function ReviewPanel({
         <div className="review-actions">
           <button
             className="button primary wide"
-            disabled={busy || !review.candidate_valid}
+            disabled={busy || readOnly || !review.candidate_valid}
             onClick={() => begin("approve")}
           >
             <Check size={16} />
@@ -203,26 +207,28 @@ export default function ReviewPanel({
           </button>
           <button
             className="button secondary wide"
-            disabled={busy}
+            disabled={busy || readOnly}
             onClick={() => begin("reject")}
           >
             Request changes
           </button>
           {review.approval_valid && (
             <>
-              <button
-                className="button dark wide"
-                disabled={busy}
-                onClick={() =>
-                  act("handoff", { approval_id: review.approval!.id })
-                }
-              >
-                <Send size={15} />
-                Simulate agency handoff
-              </button>
+              {allowHandoff && (
+                <button
+                  className="button dark wide"
+                  disabled={busy}
+                  onClick={() =>
+                    act("handoff", { approval_id: review.approval!.id })
+                  }
+                >
+                  <Send size={15} />
+                  Simulate agency handoff
+                </button>
+              )}
               <button
                 className="text-button"
-                disabled={busy}
+                disabled={busy || readOnly}
                 onClick={() => begin("revoke")}
               >
                 Revoke approval
@@ -302,7 +308,7 @@ export default function ReviewPanel({
           </div>
           <button
             className="button primary wide"
-            disabled={busy || !reason.trim()}
+            disabled={busy || readOnly || !reason.trim()}
             onClick={submit}
           >
             {busy ? (

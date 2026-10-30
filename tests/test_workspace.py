@@ -374,6 +374,20 @@ class WorkspaceHttpTests(unittest.TestCase):
         self.assertEqual(len(self.server.workspace.preparations.store.listing("local-conversations")), 1)
         self.assertEqual(self.server.workspace.listing()["sessions"], [])
 
+    def test_copy_revision_route_preserves_transport_and_consent_boundaries(self):
+        state = self.server.workspace.create("revision-fixture", "fixture")
+        path = "/api/sessions/" + state["session"]["id"] + "/copy-revisions"
+        payload = {"request_id": "revision", "expected_subject": state["review"]["subject"]["id"],
+                   "target_id": state["review"]["manifest"]["creatives"][0]["id"], "feedback": "Make the hook shorter.", "allow_model_copy": True}
+        for bad in ({"X-Workspace-Token": ""}, {"Origin": "https://invalid.example"}, {"Host": "invalid.example"}):
+            self.assertEqual(self.request(path, payload, bad)[0], 403)
+        self.assertEqual(self.request(path, payload | {"organization": "other"})[0], 400)
+        self.assertEqual(self.request(path, payload | {"allow_model_copy": False})[0], 400)
+        self.assertEqual(self.request(path, payload)[0], 409)  # Fixtures cannot masquerade as generated revisions.
+        current = self.server.workspace.view(state["session"]["id"])
+        self.assertEqual(current["copy_revisions"], [])
+        self.assertEqual(current["review"]["subject"], state["review"]["subject"])
+
     def test_real_http_json_actions_artifacts_and_input_boundaries(self):
         status, body, _ = self.request('/api/sessions', {"request_id": "http", "mode": "fixture"})
         self.assertEqual(status, 200)

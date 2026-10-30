@@ -27,6 +27,8 @@ The manual campaign controls remain available: choose **New campaign**, select *
 
 Model copy is optional. Selecting **Generate with GPT-OSS-120B** explicitly requests provider inference using the server's OpenRouter key and spending controls. Opening or navigating the interface alone makes no inference request. See [grounding](product-grounding.md) before evaluating generated copy.
 
+Choose **Review campaign** in the conversation to inspect and decide on the prepared result without leaving chat. **Open campaign workspace** retains access to the full operational controls.
+
 ## 2. Inspect the audience and messages
 
 The **Campaign** view shows source population, mailing recipients, no-mail controls and synthetic cost. The **Audience** tab exposes business assignments, exclusions, suppressions and segment filters. Inspect the counts together; a control is an enrolled business deliberately receiving no mail, whereas an exclusion is outside the experiment.
@@ -40,6 +42,10 @@ Open **Product evidence** to inspect permitted factual wording, qualifications, 
 Return to **Review & approval**. Read the exact audience, copy and cost, then approve or request changes with a reason. The dialog binds the proposal displayed when it opened. A stale dialog is rejected by the server. Generated copy remains a proposal even if its semantic screen passed.
 
 Approval authorizes only a local simulated handoff. A runtime checkpoint acknowledgement is a different operation and grants no approval authority.
+
+For grounded model copy, **Revise copy** opens feedback tied to the displayed subject and selected variant. Enable generation permission and submit the request. The agent preserves the audience, budget, assignments and product wording, then generates and screens the chosen hook. It records the original subject as needing changes and presents a new unapproved subject. Inspect it before approving. Offline fixture copy cannot use this revision path.
+
+If a revision is **blocked**, inspect its recovery guidance. Restore the server-side key or original model settings to let the same saved request continue. Expired evidence requires reviewed current evidence and a new campaign. Reloading preserves the blocker; submitting duplicate feedback does not repair it. An uncertain outcome retains its separate warning about possible processing and charges.
 
 ## 4. Exercise an approval invalidation
 

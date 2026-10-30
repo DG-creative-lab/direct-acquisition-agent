@@ -29,6 +29,7 @@ class WorkspaceServer(ThreadingHTTPServer):
             fcntl.flock(self.root_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             super().__init__(("127.0.0.1", port), Handler)
             self.workspace.preparations.recover("local-conversations")
+            self.workspace.recover_copy_revisions()
         except BaseException:
             if hasattr(self, "socket"):
                 super().server_close()
@@ -174,6 +175,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, self.server.workspace.create(data["request_id"], data["mode"], data.get("parent_id")))
             parts = path.strip("/").split("/")
             if len(parts) == 4 and parts[:2] == ["api", "sessions"]:
+                if parts[3] == "copy-revisions" and set(data) == {"request_id", "expected_subject", "target_id", "feedback", "allow_model_copy"}:
+                    return self._send(202, self.server.workspace.request_copy_revision(parts[2], **data))
                 if parts[3] == "prepare":
                     return self._send(200, self.server.workspace.prepare(parts[2]))
                 return self._send(200, self.server.workspace.action(parts[2], parts[3], data))

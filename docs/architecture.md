@@ -35,7 +35,7 @@ The browser and CLI are entry points to the same application rules. A single loc
 | `campaigns` | Selection, exclusions, A/B/no-mail assignment, integer money and exact drafts | Reviewer decisions or external dispatch |
 | `creative` | Creative identities, frozen editorial context, bounded generation and grounding validation | Approval, targeting policy or outcome counts |
 | `reasoning` | Provider-independent limits, gateway contracts and inference journal | Business approval or automatic uncertain-call retries |
-| `reviews` | Proposals, subjects, decisions, invalidation and simulated acceptance | Hosted authentication or real agency effects |
+| `reviews` | Proposals, subjects, decisions, targeted copy-feedback admission, invalidation and simulated acceptance | Hosted authentication or real agency effects |
 | `learning` | Cohort membership, immutable observations, counted posteriors and recommendations | Automatic campaign mutation or new product facts |
 | `conversations` | Persistent user messages, revision-bound brief interpretation, scoped planning admission, bounded preparation continuation through host ports and read models | Campaign policy, approval, dispatch or verified source facts |
 
@@ -88,7 +88,7 @@ Within each business module, `domain.py` holds pure values and invariants, `appl
 
 Domain artifacts and runtime receipts are separate commits under stable operation identities. A crash after draft persistence but before task acknowledgement recovers the same artifact. This works for these idempotent local operations; it is not a guarantee for future non-idempotent remote effects. Cancellation fences later task commits but may leave an unreferenced immutable artifact from computation already in flight.
 
-The workspace has a separate `workspace.sqlite` control store for session metadata, command fingerprints and scoped preparation records. Each sandbox owns its application database; descendant experiments share their parent's organization/database to reuse learning. Paths and organizations resolve from server-owned metadata. The control and domain stores do not share a distributed transaction. Durable command admission precedes execution; after a lost metadata write, the same request reconciles through original domain receipts. Browser session storage preserves pending identity per command signature after uncertain responses.
+The workspace has a separate `workspace.sqlite` control store for session metadata, command fingerprints, scoped preparation records and scoped copy-revision blocker codes. Blocker metadata is a recoverable projection and grants no task, model or review authority. Each sandbox owns its application database; descendant experiments share their parent's organization/database to reuse learning. Paths and organizations resolve from server-owned metadata. The control and domain stores do not share a distributed transaction. Durable command admission precedes execution; after a lost metadata write, the same request reconciles through original domain receipts. Browser session storage preserves pending identity per command signature after uncertain responses.
 
 ## Audience and experiment semantics
 
@@ -127,6 +127,12 @@ Schema v3 froze exact legacy task-plan admissions; later migrations preserve tha
 The planner exposes one tool, `submit_campaign_brief`, and returns a complete brief proposal, clarification or unsupported explanation. Code validates shape, supported segments, budget provenance and output bounds. A local structured playbook set is supplied at planning admission and frozen with the existing knowledge snapshot; the UI can inspect both that snapshot and the separate baseline product and editorial sources. React and the guarded loopback API can prepare a synthetic campaign from a current validated proposal, using fixture copy or explicitly requested grounded generation. The versioned conversational model workflow reuses the existing copy agent and inference journal, with scoped contexts and selected-segment tasks. The source brief and conversation revision are rechecked in the review transaction, so a later message blocks approval and acceptance of the older draft. General document retrieval, real audiences and delivery remain future work. See [conversation planning](conversations.md).
 
 The server advances saved active preparations through the existing targeted worker and campaign services outside the HTTP request. The conversation module owns continuation state through narrow host/store ports, with concrete wiring in `bootstrap.py`. It stops on source edits, missing consent, clarification or terminal failure, and never invokes review decisions or handoff. Unknown provider outcomes remain fenced after restart. See [continuous preparation](conversations.md#continuous-preparation).
+
+## Copy revision composition
+
+The review module owns immutable copy-feedback admission through `ReviewStore`, `CreativeMemory`, `DraftStore` and the public runtime port. Runtime remains independent of business modules. The composition root wires `CopyRevisionService` and `CopyRevisionWorkflow`, which reuses the existing grounded-copy loop and the deterministic campaign builder. Each revision permits five calls, and its original admission must match both the task inputs and run identity at reservation. No domain schema migration is needed; admissions, rejections and their audit records commit together in the existing review journal.
+
+The selected letter gets a new identity; unchanged sibling text keeps its identity while the pair is screened in a new context. Publication compares actual base/candidate artifacts for copy-only scope, verifies the generation task's committed draft ID, checks current authority and checks the lease again after validation. The new subject needs a fresh review decision. See [targeted feedback](conversations.md#review-and-targeted-copy-feedback-in-chat).
 
 ## Testability and evolution
 

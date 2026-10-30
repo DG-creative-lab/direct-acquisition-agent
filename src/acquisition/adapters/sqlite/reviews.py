@@ -8,7 +8,7 @@ from datetime import datetime, timezone, timedelta
 from uuid import uuid4
 
 from acquisition.audiences import Business, Snapshot
-from acquisition.campaigns import Draft
+from acquisition.campaigns import Draft, validate_copy_revision
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.conversations import validate_result
 from acquisition.creative import fact_pack_id, validate_fact_pack
@@ -18,6 +18,7 @@ from .database import Database
 from .actors import require_actor
 from .drafts import verify
 from .tasks import scoped_run
+from .revision_provenance import require_revision_current, require_revision_lease
 
 
 class SqliteReviews:
@@ -388,10 +389,12 @@ class SqliteReviews:
             proposal = self._subject(db, organization, expected_subject)
             return {"subject": proposal, "authority": self._authority(db, organization), "suppressions": sorted(self._suppressed(db, organization))}
 
-    def propose(self, organization, case_id, expected_subject, draft_id, actor, request_id, audience_epoch, evidence_epoch, kind="replace"):
+    def propose(self, organization, case_id, expected_subject, draft_id, actor, request_id, audience_epoch, evidence_epoch, kind="replace", *, claim=None):
         with self.database.transaction() as db:
             now = self._now()
             self._actor(db, organization, actor, "operator")
+            if claim is not None:
+                require_revision_lease(db, organization, claim, now)
             payload = {"case_id": case_id, "expected_subject": expected_subject}
             if kind == "replace":
                 payload["draft_id"] = draft_id
@@ -400,6 +403,10 @@ class SqliteReviews:
             fingerprint, cached = self._cached(db, organization, actor, request_id, kind, payload)
             if cached:
                 return cached
+            if claim is not None:
+                require_revision_current(db, organization, claim.inputs, claim.run_id, now)
+                if (case_id, expected_subject, actor, request_id) != (claim.inputs["case_id"], claim.inputs["expected_subject"], claim.inputs["actor"], claim.inputs["revision_id"] + ":publish"):
+                    raise Conflict("Copy revision publication inputs changed")
             case = self._case(db, organization, case_id)
             if case["current_subject"] != expected_subject:
                 raise Conflict("A different review subject is current")
@@ -414,6 +421,16 @@ class SqliteReviews:
             original = self._bundle(db, organization, old["draft_id"])[0]
             if draft.manifest["brief"]["campaign_id"] != original.manifest["brief"]["campaign_id"]:
                 raise Conflict("Replacement belongs to a different campaign")
+            if claim is not None:
+                if original.id != claim.inputs["base_draft_id"]:
+                    raise Conflict("Copy revision base changed")
+                generated = db.execute("SELECT output FROM tasks WHERE run_id=? AND capability='creative.revise_copy.v3' AND status='succeeded'", (claim.run_id,)).fetchone()
+                if generated is None or json.loads(generated[0]).get("draft_id") != draft.id:
+                    raise Conflict("Publication differs from the leased generation result")
+                validate_copy_revision(original, draft, claim.inputs["target_id"])
+                now = self._now()
+                require_revision_lease(db, organization, claim, now)
+                validate_fact_pack(authority["pack"], datetime.fromtimestamp(now, timezone.utc).date())
             proposal = self._new_subject(db, organization, case_id, old["revision"] + 1, draft, authority, now)
             receipt = {"kind": "proposal_published", "actor": actor, "case_id": case_id, "subject_id": proposal["id"], "draft_id": draft_id, "at": now}
             self._event(db, organization, case_id, "proposal_revised", receipt | {"previous_subject": expected_subject}, now)
@@ -451,4 +468,99 @@ class SqliteReviews:
                 "recipients": draft.manifest["counts"]["mailed"], "accepted_at": now, "destination": "local_simulated_agency"}
             db.execute("INSERT INTO simulated_agency_jobs VALUES(?,?,?,?,?,?)", (organization, case_id, receipt["id"], approval_id, proposal["id"], canonical(receipt)))
             self._event(db, organization, case_id, "simulated_handoff_accepted", receipt, now)
+            return self._record(db, organization, request_id, fingerprint, receipt)
+
+    def revision_requests(self, organization, case_id):
+        with self.database.connect() as db:
+            self._case(db, organization, case_id)
+            return [r for row in db.execute("SELECT receipt FROM review_commands WHERE organization=? ORDER BY rowid", (organization,))
+                    if (r := json.loads(row[0])).get("kind") == "copy_revision_admission" and r["inputs"]["case_id"] == case_id]
+
+    def revision_request(self, organization, request_id):
+        with self.database.connect() as db:
+            row = db.execute("SELECT receipt FROM review_commands WHERE organization=? AND request_id=?", (organization, request_id)).fetchone()
+        if row is None:
+            return None
+        receipt = json.loads(row[0])
+        if receipt.get("kind") != "copy_revision_admission":
+            raise Conflict("Request identity already belongs to another review operation")
+        return receipt
+
+    def revision_publication(self, organization, revision_id):
+        with self.database.connect() as db:
+            row = db.execute("SELECT request_hash,receipt FROM review_commands WHERE organization=? AND request_id=?", (organization, revision_id + ":publish")).fetchone()
+            if row is None:
+                return None
+            receipt = json.loads(row["receipt"])
+            if receipt.get("kind") != "proposal_published":
+                return None
+            admission = next((r for item in db.execute("SELECT receipt FROM review_commands WHERE organization=?", (organization,))
+                              if (r := json.loads(item[0])).get("kind") == "copy_revision_admission" and r["id"] == revision_id), None)
+            generated = db.execute("""SELECT t.output FROM runs r JOIN tasks t ON t.run_id=r.id
+                WHERE r.organization=? AND r.request_id=? AND t.capability='creative.revise_copy.v3' AND t.status='succeeded'""", (organization, revision_id)).fetchone()
+            if admission is None or generated is None or json.loads(generated[0]).get("draft_id") != receipt.get("draft_id"):
+                return None
+            expected = digest({"actor": admission["inputs"]["actor"], "kind": "replace", "payload": {
+                "case_id": admission["inputs"]["case_id"], "expected_subject": admission["inputs"]["expected_subject"], "draft_id": receipt["draft_id"]}})
+            return receipt if row["request_hash"] == expected else None
+
+    def revision_current(self, organization, receipt):
+        try:
+            with self.database.connect() as db:
+                require_revision_current(db, organization, receipt["task_inputs"])
+            return True
+        except (Conflict, ValueError):
+            return False
+
+    def admit_revision(self, organization, request_id, inputs, context, model_config):
+        if inputs.get("allow_model_copy") is not True:
+            raise ValueError("A copy revision requires explicit generation permission")
+        with self.database.transaction() as db:
+            now = self._now()
+            operator = self._actor(db, organization, inputs["actor"], "operator")
+            reviewer = self._actor(db, organization, inputs["reviewer"], "reviewer")
+            fingerprint, cached = self._cached(db, organization, inputs["actor"], request_id, "copy_revision", inputs)
+            if cached:
+                return cached
+            case = self._case(db, organization, inputs["case_id"])
+            if case["current_subject"] != inputs["expected_subject"]:
+                raise Conflict("Select the exact current subject before revising copy")
+            authority = self._authority(db, organization)
+            proposal = self._subject(db, organization, case["current_subject"])
+            base = self._validate(db, organization, case, proposal["draft_id"], authority, now)
+            if current_reasons(proposal, authority):
+                raise Conflict("Evidence or suppressions changed; rebuild before revising copy")
+            self._run_ready(db, organization, case)
+            if db.execute("SELECT 1 FROM simulated_agency_jobs WHERE organization=? AND case_id=?", (organization, inputs["case_id"])).fetchone():
+                raise Conflict("Accepted campaigns cannot be revised")
+            old = [json.loads(r[0]) for r in db.execute("SELECT receipt FROM review_commands WHERE organization=? ORDER BY rowid", (organization,))]
+            old = [r for r in old if r.get("kind") == "copy_revision_admission" and r["inputs"]["case_id"] == inputs["case_id"]]
+            if any(r["inputs"]["expected_subject"] == inputs["expected_subject"] for r in old) or len(old) >= 3:
+                raise Conflict("This subject already has a copy request or the three-revision limit was reached")
+            target = next((c for c in base.manifest["creatives"] if c["id"] == inputs["target_id"]), None)
+            if target is None or target["status"] != "generated_unreviewed":
+                raise Conflict("Select grounded model copy for revision")
+            original_context = self._bundle(db, organization, base.id)[2][target["context_id"]]
+            expected = original_context | {"copy_revision": {"base_draft_id": base.id, "base_subject_id": proposal["id"],
+                "arm": target["arm"], "feedback": inputs["feedback"],
+                "base_variants": sorted([c for c in base.manifest["creatives"] if c["segment"] == target["segment"]], key=lambda c: c["arm"])}}
+            if context != expected:
+                raise Conflict("Revision context differs from its actual base draft")
+            revision_id = "revision_" + digest({"organization": organization, "request_id": request_id})[:32]
+            task_inputs = {"workflow_version": "copy-revision/v3", "revision_id": revision_id, "admission_request_id": request_id, **inputs,
+                "brief": base.manifest["brief"], "base_draft_id": base.id, "model_config": model_config,
+                "operator_generation": operator["generation"], "audience_epoch": authority["audience_epoch"],
+                "evidence_epoch": authority["evidence_epoch"], "segment": target["segment"]}
+            receipt = {"kind": "copy_revision_admission", "id": revision_id, "request_id": request_id,
+                       "inputs": inputs, "context": context, "task_inputs": task_inputs}
+            # Requesting a revision records an exact-subject rejection atomically.
+            # An earlier approval cannot authorize handoff while copy is revised.
+            decision = {"kind": "review_decision", "id": "decision_" + uuid4().hex, "case_id": inputs["case_id"],
+                "subject_id": proposal["id"], "actor": inputs["reviewer"], "actor_generation": reviewer["generation"],
+                "decision": "reject", "reason": inputs["feedback"], "at": now, "expires_at": now,
+                "purpose": "simulated_agency_handoff"}
+            db.execute("INSERT INTO review_decisions(organization,id,case_id,subject_id,payload) VALUES(?,?,?,?,?)",
+                       (organization, decision["id"], inputs["case_id"], proposal["id"], canonical(decision)))
+            self._event(db, organization, inputs["case_id"], "review_reject", decision, now)
+            self._event(db, organization, inputs["case_id"], "copy_revision_requested", {"id": revision_id, "subject_id": proposal["id"], "target_id": inputs["target_id"]}, now)
             return self._record(db, organization, request_id, fingerprint, receipt)
