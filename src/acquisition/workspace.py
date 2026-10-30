@@ -540,6 +540,13 @@ class Workspace:
             if review["subject"]["id"] != expected_subject:
                 raise Conflict("Campaign revision changed before download; refresh the workspace")
             draft = app.drafts.get(session["organization"], review["subject"]["draft_id"])
+            if kind == "handoff":
+                receipt = review["handoff"]
+                if receipt is None:
+                    raise Conflict("This campaign has no accepted simulated handoff")
+                if receipt["subject_id"] != expected_subject or receipt["draft_id"] != draft.id:
+                    raise Conflict("Acceptance receipt does not match the displayed subject")
+                return canonical(receipt).encode(), "application/json", "handoff.json"
             if kind == "manifest":
                 return canonical(draft.manifest).encode(), "application/json", "manifest.json"
             if kind in {"mailing", "assignments"}:

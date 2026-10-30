@@ -104,3 +104,13 @@ The [grounding reference](product-grounding.md) records a dated GPT-OSS-120B run
 There is no asserted line/branch coverage percentage or overall correctness percentage. Selected fault positions and concurrency schedules leave untested interleavings. General semantic claim detection, real data completeness, marketing impact, production authentication, external agency effects, multi-host throughput, disk-full/power-loss behavior, backup restoration, real outcome corrections and repeated-exposure attribution remain outside the demonstrated evidence.
 
 A UI review cannot establish approval correctness, and module unit tests cannot establish restart behavior. Preserve checks at the boundary where each real effect is authorized and persisted as the system evolves.
+
+## Conversational handoff boundary (issue 17)
+
+The approval and simulator transaction remain authoritative. The new chat surface captures the displayed approval and subject, saves the confirmation before command dispatch and uses the existing exact-input API request identity. A simulated acceptance is historical evidence, never authority for another effect. Receipt exports require the exact displayed accepted subject and draft.
+
+- Seven real-backend browser cases cover the offline end-to-end journey, receipt and artifact downloads, historical inspection after a brief edit, mobile overflow at 320px/390px, lost responses before and after commit with reload, and stale confirmations after refresh, revocation, suppression or message append. These cases make no model calls.
+- Real SQLite tests cover receipt export before acceptance, wrong subjects, byte-preserved accepted history after a source edit, expiry and disabled reviewer denial. A fresh OS process replays the original handoff after acceptance but before the control acknowledgement is marked complete, producing the same receipt and exactly one acceptance event.
+- Existing review tests continue to exercise evidence epochs, candidate integrity, cross-scope approval substitution, acceptance/audit/receipt rollback and transaction ordering. This slice adds no dispatch adapter, learning update, role or approval policy.
+
+The demonstrated topology remains one local server and simulated acceptance. Real delivery, browser storage loss and a production authentication/reconciliation service are outside this evidence.

@@ -44,7 +44,16 @@ export type Review = {
     at: number;
     expires_at: number;
   };
-  handoff: null | { id: string; recipients: number; accepted_at: number };
+  handoff: null | {
+    id: string;
+    recipients: number;
+    accepted_at: number;
+    subject_id: string;
+    approval_id: string;
+    draft_id: string;
+    destination: string;
+    mode: string;
+  };
   manifest: {
     brief: { budget_pence: number };
     counts: Record<string, number>;
@@ -277,7 +286,8 @@ export async function download(id: string, kind: string, subjectId: string) {
   const url = URL.createObjectURL(await response.blob());
   const link = document.createElement("a");
   link.href = url;
-  link.download = kind + (kind === "manifest" ? ".json" : ".csv");
+  link.download =
+    kind + (["manifest", "handoff"].includes(kind) ? ".json" : ".csv");
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
