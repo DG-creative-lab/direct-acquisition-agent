@@ -87,3 +87,17 @@
   min-height: 44px;
   padding: 10px;
 }
+.chat-handoff {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--brand-rule);
+}
+.chat-handoff-downloads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 16px;
+}
+.chat-handoff dd {
+  margin: 6px 0 12px;
+}

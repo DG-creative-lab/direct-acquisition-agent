@@ -4,6 +4,7 @@ import { command, money, read } from "./api";
 import type { Act, Creative, State } from "./api";
 import { CopyLetters } from "./CampaignViews";
 import ReviewPanel from "./ReviewPanel";
+import ConversationHandoff from "./ConversationHandoff";
 import { Modal, segmentName } from "./ui";
 import "./conversation-review.css";
 
@@ -74,7 +75,7 @@ export default function ConversationCampaignReview({
     };
   }, [pending, active, sessionId]);
   const act: Act = async (action, payload = {}) => {
-    if (busy || !interactive) return false;
+    if (busy || (!interactive && action !== "handoff")) return false;
     epoch.current += 1;
     setBusy(true);
     setError("");
@@ -87,9 +88,11 @@ export default function ConversationCampaignReview({
       epoch.current += 1;
       setState(value);
       setNotice(
-        value.command_replayed
-          ? "Existing decision receipt observed. Current campaign state refreshed."
-          : "Review decision recorded for the displayed subject.",
+        action === "handoff"
+          ? "Simulator acceptance receipt observed. Nothing was printed or sent."
+          : value.command_replayed
+            ? "Existing decision receipt observed. Current campaign state refreshed."
+            : "Review decision recorded for the displayed subject.",
       );
       return true;
     } catch (e) {
@@ -356,6 +359,14 @@ export default function ConversationCampaignReview({
         error={error}
         onEvidence={() => setShowEvidence(true)}
         allowHandoff={false}
+      />
+      <ConversationHandoff
+        key={sessionId}
+        state={state}
+        interactive={interactive}
+        busy={busy}
+        act={act}
+        error={error}
       />
       {feedback && (
         <Modal

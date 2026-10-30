@@ -15,6 +15,7 @@ from acquisition.workspace import Workspace
 from acquisition.workspace_server import WorkspaceServer
 from acquisition.reasoning import ModelError
 from test_copy_revisions import RevisionModel
+from acquisition.conversations import FIXTURE_MESSAGE
 model=RevisionModel()
 original=model.complete
 class Gateway:
@@ -33,8 +34,9 @@ patch('acquisition.workspace.openrouter_key', return_value='fake').start()
 patch('acquisition.workspace.OpenRouter', return_value=Gateway()).start()
 w=Workspace(sys.argv[1], real_clock=lambda:1792972800.0)
 c=w.create_conversation('c','Campaign for copy review')['id']
-w.message_conversation(c,'m',0,'Prepare a £600 contractor campaign with model copy.')
-w.start_preparation(c,'p',1,False,True)
+offline=sys.argv[2].startswith('handoff')
+w.message_conversation(c,'m',0,FIXTURE_MESSAGE if offline else 'Prepare a £600 contractor campaign with model copy.')
+w.start_preparation(c,'p',1,offline,not offline)
 [w.advance_preparations() for _ in range(6)]
 if sys.argv[2] in {'missing-key','recover-key'}:
     original_revision=w.request_copy_revision
@@ -177,7 +179,7 @@ test("chat reviews, revises and approves the exact new subject on desktop and mo
     ).toBeVisible();
     await expect(
       region.getByRole("button", { name: "Simulate agency handoff" }),
-    ).toHaveCount(0);
+    ).toBeVisible();
     await feedback(page, region);
     const request = page.waitForRequest(
       (r) => r.method() === "POST" && r.url().endsWith("/copy-revisions"),
@@ -473,3 +475,198 @@ test("a historical approval dialog disables submission but remains closable", as
     await expect(page.getByRole("dialog")).toHaveCount(0);
   });
 });
+
+async function handoffDialog(page, region) {
+  await region
+    .getByRole("button", { name: "Simulate agency handoff", exact: true })
+    .click();
+  await expect(
+    page.getByRole("dialog", { name: "Confirm simulated handoff" }),
+  ).toBeVisible();
+}
+
+test("offline chat confirms handoff, shows historical receipt and downloads exact accepted exports", async ({
+  page,
+}) => {
+  await workspace("handoff", async (url) => {
+    const errors = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    const region = await openReview(page, url),
+      sid = await selected(page);
+    await expect(
+      region.getByRole("button", { name: "Simulate agency handoff" }),
+    ).toHaveCount(0);
+    await approve(page, region);
+    const before = (await backend(page, `/api/sessions/${sid}`)).body;
+    await handoffDialog(page, region);
+    await expect(
+      page.getByRole("dialog").locator(".subject-preview"),
+    ).toContainText(before.review.subject.id);
+    await expect(
+      page.getByRole("dialog").locator(".subject-preview"),
+    ).toContainText(before.review.approval.id);
+    expect(
+      (await backend(page, `/api/sessions/${sid}`)).body.review.handoff,
+    ).toBeNull();
+    await page
+      .getByRole("button", { name: "Confirm simulated handoff", exact: true })
+      .click();
+    await expect(
+      region.getByRole("heading", { name: "Simulated handoff accepted" }),
+    ).toBeVisible();
+    const accepted = (await backend(page, `/api/sessions/${sid}`)).body;
+    expect(accepted.review.handoff.subject_id).toBe(before.review.subject.id);
+    expect(accepted.review.handoff.approval_id).toBe(before.review.approval.id);
+    for (const [label, kind] of [
+      ["acceptance receipt", "handoff"],
+      ["manifest", "manifest"],
+      ["mailing CSV", "mailing"],
+      ["assignments CSV", "assignments"],
+    ]) {
+      const request = page.waitForRequest((r) =>
+        r.url().includes(`/artifacts/${kind}?`),
+      );
+      const downloading = page.waitForEvent("download");
+      await region
+        .getByRole("button", { name: `Download ${label}`, exact: true })
+        .click();
+      expect(
+        new URL((await request).url()).searchParams.get("subject_id"),
+      ).toBe(before.review.subject.id);
+      expect((await downloading).suggestedFilename()).toBe(
+        kind + (["handoff", "manifest"].includes(kind) ? ".json" : ".csv"),
+      );
+    }
+    await backend(
+      page,
+      `/api/conversations/${before.review.manifest.brief.conversation_id}/messages`,
+      {
+        request_id: "later-edit",
+        expected_revision: 1,
+        content: "Use a different budget now.",
+      },
+    );
+    await page.reload();
+    await expect(
+      region.getByRole("heading", { name: "Simulated handoff accepted" }),
+    ).toBeVisible();
+    await expect(
+      region.getByRole("button", { name: "Simulate agency handoff" }),
+    ).toHaveCount(0);
+    for (const width of [1440, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+      ).toBe(await page.evaluate(() => document.documentElement.clientWidth));
+    }
+    await region.screenshot({ path: "../.local/chat-handoff-mobile.png" });
+    expect(errors).toEqual([]);
+  });
+});
+
+for (const committed of [false, true])
+  test(`lost handoff response recovers after reload with original identity, committed=${committed}`, async ({
+    page,
+  }) => {
+    await workspace("handoff", async (url) => {
+      const attempts = [];
+      await page.route("**/api/sessions/*/handoff", async (route) => {
+        attempts.push(route.request().postDataJSON());
+        if (attempts.length === 1) {
+          if (committed) await route.fetch();
+          await route.abort("failed");
+        } else await route.continue();
+      });
+      const region = await openReview(page, url),
+        sid = await selected(page);
+      await approve(page, region);
+      await handoffDialog(page, region);
+      await page
+        .getByRole("button", { name: "Confirm simulated handoff", exact: true })
+        .click();
+      await expect(page.getByRole("dialog").getByRole("alert")).toBeVisible();
+      await page.reload();
+      await region
+        .getByRole("button", { name: "Check saved handoff", exact: true })
+        .click();
+      await page
+        .getByRole("button", { name: "Check original handoff", exact: true })
+        .click();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(
+        region.getByRole("heading", { name: "Simulated handoff accepted" }),
+      ).toBeVisible();
+      expect(attempts).toHaveLength(2);
+      expect(attempts[1]).toEqual(attempts[0]);
+      const state = (await backend(page, `/api/sessions/${sid}`)).body;
+      expect(
+        state.review.events.filter(
+          (e) => e.kind === "simulated_handoff_accepted",
+        ),
+      ).toHaveLength(1);
+    });
+  });
+
+for (const change of ["refresh", "revoke", "suppress", "message"])
+  test(`open handoff confirmation cannot accept after ${change}`, async ({
+    page,
+  }) => {
+    await workspace("handoff", async (url) => {
+      const region = await openReview(page, url),
+        sid = await selected(page);
+      await approve(page, region);
+      const before = (await backend(page, `/api/sessions/${sid}`)).body;
+      await handoffDialog(page, region);
+      if (change === "message") {
+        const c = await page.evaluate(() =>
+          localStorage.getItem("conversation-selected"),
+        );
+        await backend(page, `/api/conversations/${c}/messages`, {
+          request_id: "edit",
+          expected_revision: 1,
+          content: "Use £300 instead.",
+        });
+      } else {
+        const fields =
+          change === "refresh"
+            ? { subject_id: before.review.subject.id }
+            : change === "revoke"
+              ? {
+                  approval_id: before.review.approval.id,
+                  reason: "Withdrawn before handoff.",
+                }
+              : {
+                  business_id: before.audience.find((r) =>
+                    ["A", "B"].includes(r.arm),
+                  ).id,
+                  reason: "Late suppression.",
+                };
+        expect(
+          (
+            await backend(page, `/api/sessions/${sid}/${change}`, {
+              request_id: "other-client",
+              ...fields,
+            })
+          ).status,
+        ).toBe(200);
+      }
+      await page
+        .getByRole("button", { name: "Confirm simulated handoff", exact: true })
+        .click();
+      await expect(page.getByRole("dialog").getByRole("alert")).toBeVisible();
+      await expect(
+        page.getByRole("dialog").locator(".subject-preview"),
+      ).toContainText(before.review.approval.id);
+      const after = (await backend(page, `/api/sessions/${sid}`)).body;
+      expect(after.review.handoff).toBeNull();
+      expect(
+        after.review.events.filter(
+          (e) => e.kind === "simulated_handoff_accepted",
+        ),
+      ).toHaveLength(0);
+      await page
+        .getByRole("button", { name: "Close handoff confirmation" })
+        .click();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+    });
+  });

@@ -55,7 +55,9 @@ Evidence and policy changes, expiry, reviewer changes, rejection and revocation 
 
 ## 5. Simulate handoff
 
-Choose **Simulate agency handoff** after a valid approval. The backend checks the proposal, evidence, current suppression state and reviewer authority in the acceptance transaction. It records one simulated acceptance with its audit event and receipt.
+In chat, choose **Simulate agency handoff** after a valid approval, inspect the bound subject and approval in the confirmation, then confirm. The full campaign workspace also retains its handoff control. The backend checks the proposal, evidence, current suppression state and reviewer authority in the acceptance transaction. It records one simulated acceptance with its audit event and receipt.
+
+The chat shows the saved receipt and downloads for the exact accepted campaign. If a response is lost, reload and choose **Check saved handoff** to reuse the original request. A dismissed reminder does not cancel or undo an acceptance.
 
 Nothing is printed or sent. Repeating the command observes its original receipt rather than creating another job. After acceptance, the case is historical and cannot acquire a new proposal or decision. A revocation can record withdrawn authority but cannot retract that accepted simulation.
 
