@@ -160,3 +160,15 @@ Before dispatch, the browser saves that confirmation alongside the API client's 
 The accepted view labels the result as historical local simulation and shows receipt, subject, approval, draft, time and destination. Receipt, manifest, mailing and assignment downloads bind the accepted subject. The server verifies the current subject and draft before serving artifacts, and a receipt download must match both. Later evidence or brief changes do not rewrite accepted artifacts or confer new permission. Downloads are observations and do not dispatch work.
 
 This flow is scoped in [issue 17](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/17). Real delivery and conversational outcome learning remain separate capabilities.
+
+## Conversational synthetic learning
+
+After accepted simulated handoff, the conversation exposes the existing Learning view. Opening the outcome window, simulating day-7 positive responses and closing the 28-day window each require explicit confirmation. Confirmations bind the displayed accepted job and, after opening, the cohort. The session endpoints accept these bound payloads while retaining the original workspace payloads for compatibility. Server-owned scope and accepted assignments still determine the population; supplied IDs cannot select another job or cohort.
+
+The browser saves the exact action and IDs before dispatch alongside the API client's request key. A lost response leaves a saved learning reminder across reload. Checking it requires explicit confirmation and replays the original request. Dismissal removes only the reminder, not outcome history or the command key. Reads and reloads do not simulate outcomes, advance time or generate model requests.
+
+Accepted historical work can continue learning after a later chat message or approval expiry. It does not renew approval. The simulation advances only the selected campaign's sandbox clock; early missing results remain unknown and beliefs unchanged. Closing imports explicit synthetic outcomes and requests existing maturity/completeness validation and atomic finalization. A failed operation can leave an advanced simulation clock without a learning update, as in the existing workspace flow; inspect the saved state before retrying.
+
+The view shows denominators, variant/control counts, posterior uncertainty, advisory recommendations and statistical limits. Finalized outcomes remain immutable and deduplicated. Learning does not generate a new campaign or grant approval. Preparing another experiment remains a separate workspace operation with its own review; repeated business membership within an organization remains prohibited.
+
+See [issue 19](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/19) and the [learning contract](learning.md). Real response feeds and conversational next-experiment preparation are deferred.

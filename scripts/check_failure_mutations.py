@@ -160,6 +160,12 @@ CASES = [
      '                        self._set_revision_block(scope, row["id"], None)\n                        configured.worker.tick(scope, run_id=run)',
      '                        configured.worker.tick(scope, run_id=run)\n                        self._set_revision_block(scope, row["id"], None)',
      "test_copy_revisions.CopyRevisionTests.test_restored_configuration_exposes_running_progress_during_a_delayed_provider_call"),
+    ("chat-learning-acceptance-binding", "workspace.py",
+     'if accepted["job_id"] != payload["handoff_id"]:', 'if False:',
+     "test_conversation_learning.ConversationLearningTests.test_bound_commands_reject_unaccepted_or_substituted_job_and_cohort_before_mutation"),
+    ("chat-learning-cohort-binding", "workspace.py",
+     'if action != "open-learning" and (payload["cohort_id"] != session["cohort_id"] or payload["cohort_id"] != accepted["id"]):', 'if False:',
+     "test_conversation_learning.ConversationLearningTests.test_bound_commands_reject_unaccepted_or_substituted_job_and_cohort_before_mutation"),
 ]
 
 

@@ -91,7 +91,7 @@ These are bounded schedules and fake-model responses. They do not establish sema
 
 Pure domain tests use literal expected populations, money and posterior values. Persistence tests use real temporary SQLite databases, controlled clocks, concurrent connections and injected failures. CLI tests cross OS process boundaries to exercise restart, review, export, learning and replay. HTTP tests send real requests to the loopback server. Frontend client tests use the real backend, and Chromium tests inspect the rendered interface.
 
-The mutation command creates temporary source copies and weakens 45 selected enforcement points, including leases, reservations, uncertain-call fencing, retired-workflow admission, timestamp validation, migration locking, review expiry/epochs, cohort maturity/completeness, atomic finalization, snapshot memory, Origin checks, exact-subject binding, planning budget provenance, current-revision projection, conversation scope, targeted execution, stale-budget correction handling and relative-budget recognition. Detection establishes that the targeted test distinguishes that weakened behavior. It is not a general mutation score. Frontend regressions are reported separately from these probes.
+The mutation command creates temporary source copies and weakens 47 selected enforcement points, including leases, reservations, uncertain-call fencing, retired-workflow admission, timestamp validation, migration locking, review expiry/epochs, cohort maturity/completeness, atomic finalization, snapshot memory, Origin checks, exact-subject binding, planning budget provenance, current-revision projection, conversation scope, targeted execution, stale-budget correction handling and relative-budget recognition. Detection establishes that the targeted test distinguishes that weakened behavior. It is not a general mutation score. Frontend regressions are reported separately from these probes.
 
 The analytic Beta(1,19) quantiles provide an independent check on sampled prior intervals. Count tests verify exact trials/successes and sequential/batch equivalence. This checks calculation behavior; it does not calibrate the prior or turn simulated results into real causal evidence.
 
@@ -114,3 +114,14 @@ The approval and simulator transaction remain authoritative. The new chat surfac
 - Existing review tests continue to exercise evidence epochs, candidate integrity, cross-scope approval substitution, acceptance/audit/receipt rollback and transaction ordering. This slice adds no dispatch adapter, learning update, role or approval policy.
 
 The demonstrated topology remains one local server and simulated acceptance. Real delivery, browser storage loss and a production authentication/reconciliation service are outside this evidence.
+
+## Conversational learning boundary (issue 19)
+
+The new surface reuses the Learning view and existing session operations. Chat confirmations bind accepted job/cohort IDs; the facade verifies them against the server-owned session and accepted cohort source before mutation. Legacy workspace payloads remain compatible. Domain cohort membership, maturity, completeness, operator authority, immutable outcomes and atomic finalization remain authoritative.
+
+- Real SQLite tests reject learning before acceptance and reject substituted job/cohort IDs without changing the clock or learning state. Changed request inputs and disabled operators cannot update beliefs.
+- Early synthetic responses preserve unknown denominators and leave beliefs/recommendations empty. Complete mature data yields counts summing to the accepted population, including A/B and controls. A later brief edit leaves accepted history usable for learning without authorizing another campaign.
+- A fresh OS process replays finalization after the domain commit but before control acknowledgement, preserving the exact projection and one finalization event.
+- Four backend browser cases cover the offline lifecycle, posterior/control display, mobile overflow, historical learning after an edit and loss of acknowledged open/observe/finalize responses with reload and exact request replay. No new model request or next experiment is generated.
+
+These are synthetic demonstration results. Real attribution, production calibration, repeated exposure and external feed reconciliation remain outside this slice.

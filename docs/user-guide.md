@@ -63,9 +63,9 @@ Nothing is printed or sent. Repeating the command observes its original receipt 
 
 ## 6. Observe and finalize outcomes
 
-In **Learning**, open the outcome window. Simulating early responses imports positives but does not update beliefs. Closing the simulated 28-day window imports explicit results for the complete assigned population and requests finalization. Time is advanced inside the sandbox; the demo does not wait 28 real days.
+In chat after acceptance, open **Synthetic campaign learning**, choose **Open outcome window** and confirm the bound acceptance. The **Learning** workspace retains the same controls. Simulating early responses imports positives but does not update beliefs. Confirming **Close window & learn** in chat closes the simulated 28-day window, imports explicit results for the complete assigned population and requests finalization. Time is advanced inside the sandbox; the demo does not wait 28 real days.
 
-Finalization requires maturity, completeness and valid assignment identities. A missing row is unknown, not an implied non-response. The learning view displays exact counts, posterior estimates and uncertainty for each segment/arm. Results deliberately favor one fixture variant to demonstrate recommendations; they are not customer performance measurements.
+Finalization requires maturity, completeness and valid assignment identities. A missing row is unknown, not an implied non-response. The learning view in chat displays exact counts, posterior estimates and uncertainty for each segment/arm. If a response is lost, reload and choose **Check saved learning request** to reuse the original action and cohort. Results deliberately favor one fixture variant to demonstrate recommendations; they are not customer performance measurements.
 
 ## 7. Propose another experiment
 

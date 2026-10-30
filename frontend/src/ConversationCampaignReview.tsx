@@ -5,6 +5,7 @@ import type { Act, Creative, State } from "./api";
 import { CopyLetters } from "./CampaignViews";
 import ReviewPanel from "./ReviewPanel";
 import ConversationHandoff from "./ConversationHandoff";
+import ConversationLearning from "./ConversationLearning";
 import { Modal, segmentName } from "./ui";
 import "./conversation-review.css";
 
@@ -75,7 +76,16 @@ export default function ConversationCampaignReview({
     };
   }, [pending, active, sessionId]);
   const act: Act = async (action, payload = {}) => {
-    if (busy || (!interactive && action !== "handoff")) return false;
+    const learningAction = ["open-learning", "observe", "finalize"].includes(
+      action,
+    );
+    if (
+      busy ||
+      (!interactive &&
+        action !== "handoff" &&
+        !(learningAction && state?.review?.handoff))
+    )
+      return false;
     epoch.current += 1;
     setBusy(true);
     setError("");
@@ -88,11 +98,13 @@ export default function ConversationCampaignReview({
       epoch.current += 1;
       setState(value);
       setNotice(
-        action === "handoff"
-          ? "Simulator acceptance receipt observed. Nothing was printed or sent."
-          : value.command_replayed
-            ? "Existing decision receipt observed. Current campaign state refreshed."
-            : "Review decision recorded for the displayed subject.",
+        learningAction
+          ? "Saved synthetic learning state loaded. Recommendations grant no campaign approval."
+          : action === "handoff"
+            ? "Simulator acceptance receipt observed. Nothing was printed or sent."
+            : value.command_replayed
+              ? "Existing decision receipt observed. Current campaign state refreshed."
+              : "Review decision recorded for the displayed subject.",
       );
       return true;
     } catch (e) {
@@ -361,13 +373,22 @@ export default function ConversationCampaignReview({
         allowHandoff={false}
       />
       <ConversationHandoff
-        key={sessionId}
+        key={`handoff:${sessionId}`}
         state={state}
         interactive={interactive}
         busy={busy}
         act={act}
         error={error}
       />
+      {review.handoff && (
+        <ConversationLearning
+          key={`learning:${sessionId}`}
+          state={state}
+          busy={busy}
+          act={act}
+          error={error}
+        />
+      )}
       {feedback && (
         <Modal
           label="copy-feedback-title"

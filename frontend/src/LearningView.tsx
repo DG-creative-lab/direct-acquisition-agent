@@ -20,7 +20,7 @@ export default function LearningView({
   busy: boolean;
   act: Act;
   onCampaign: () => void;
-  onNext: () => void;
+  onNext?: () => void;
 }) {
   const learning = state.learning;
   if (!state.review?.handoff)
@@ -257,7 +257,7 @@ export default function LearningView({
           </div>
         </aside>
       </div>
-      {complete && (
+      {complete && onNext && (
         <button className="button primary" disabled={busy} onClick={onNext}>
           Prepare a next experiment
           <ArrowRight size={15} />

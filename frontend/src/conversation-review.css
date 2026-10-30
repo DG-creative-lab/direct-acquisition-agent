@@ -101,3 +101,32 @@
 .chat-handoff dd {
   margin: 6px 0 12px;
 }
+.chat-learning {
+  margin-block: 24px;
+  padding-block: 24px;
+  border-top: 1px solid var(--brand-rule);
+  min-width: 0;
+}
+.chat-learning .learning-columns {
+  grid-template-columns: minmax(0, 1fr);
+}
+.chat-learning .observation-actions {
+  flex-wrap: wrap;
+}
+.chat-learning .table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+@media (max-width: 600px) {
+  .chat-learning .learning-metrics {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+  .chat-learning .learning-metrics > div {
+    padding: 0;
+    border: 0;
+  }
+  .chat-learning .learning-window {
+    flex-wrap: wrap;
+  }
+}

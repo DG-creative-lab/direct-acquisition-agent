@@ -670,3 +670,165 @@ for (const change of ["refresh", "revoke", "suppress", "message"])
       await expect(page.getByRole("dialog")).toHaveCount(0);
     });
   });
+
+async function acceptedLearning(page, url) {
+  const region = await openReview(page, url);
+  await approve(page, region);
+  await handoffDialog(page, region);
+  await page
+    .getByRole("button", { name: "Confirm simulated handoff", exact: true })
+    .click();
+  const learning = page.getByRole("region", {
+    name: "Campaign learning in conversation",
+  });
+  await expect(learning).toBeVisible();
+  return learning;
+}
+async function learningStep(page, learning, label) {
+  await learning.getByRole("button", { name: label, exact: true }).click();
+  await expect(
+    page.getByRole("dialog").locator(".subject-preview"),
+  ).toContainText("fake_job_");
+  await page
+    .getByRole("button", {
+      name: "Confirm synthetic learning step",
+      exact: true,
+    })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+}
+
+test("offline conversational learning preserves unknown results then shows complete mature advisory counts", async ({
+  page,
+}) => {
+  await workspace("handoff-learning", async (url) => {
+    const errors = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    const learning = await acceptedLearning(page, url),
+      sid = await selected(page);
+    expect(
+      (await backend(page, `/api/sessions/${sid}`)).body.learning,
+    ).toBeNull();
+    await learningStep(page, learning, "Open outcome window");
+    const opened = (await backend(page, `/api/sessions/${sid}`)).body;
+    await expect(
+      page.getByRole("region", { name: "Campaign handoff" }),
+    ).toHaveCount(1);
+    await expect(learning).toHaveCount(1);
+    expect(opened.learning.enrolled).toBe(
+      opened.review.manifest.counts.mailed +
+        opened.review.manifest.counts.holdout,
+    );
+    await learningStep(page, learning, "Simulate day 7 responses");
+    await expect(
+      learning.getByRole("heading", { name: "Beliefs are unchanged" }),
+    ).toBeVisible();
+    const early = (await backend(page, `/api/sessions/${sid}`)).body;
+    expect(early.learning.missing).toBeGreaterThan(0);
+    expect(early.learning.beliefs).toEqual([]);
+    const c = await page.evaluate(() =>
+      localStorage.getItem("conversation-selected"),
+    );
+    await backend(page, `/api/conversations/${c}/messages`, {
+      request_id: "edit-after-accept",
+      expected_revision: 1,
+      content: "Prepare a different budget next time.",
+    });
+    await page.reload();
+    await learningStep(page, learning, "Close window & learn");
+    await expect(
+      learning.getByText("Finalized", { exact: true }),
+    ).toBeVisible();
+    const final = (await backend(page, `/api/sessions/${sid}`)).body;
+    expect(final.learning.missing).toBe(0);
+    expect(final.learning.beliefs.reduce((sum, b) => sum + b.trials, 0)).toBe(
+      final.learning.enrolled,
+    );
+    expect(final.learning.beliefs.map((b) => b.arm).sort()).toEqual([
+      "A",
+      "B",
+      "no_mail",
+    ]);
+    expect(final.review.handoff).toEqual(opened.review.handoff);
+    await expect(
+      learning.getByText("No-mail control", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      learning.getByRole("button", { name: "Prepare a next experiment" }),
+    ).toHaveCount(0);
+    for (const width of [1440, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+      ).toBe(await page.evaluate(() => document.documentElement.clientWidth));
+    }
+    await learning.screenshot({
+      path: "../.local/conversation-learning-mobile.png",
+    });
+    await page.reload();
+    await expect(
+      learning.getByText("Finalized", { exact: true }),
+    ).toBeVisible();
+    expect((await backend(page, `/api/sessions/${sid}`)).body.learning).toEqual(
+      final.learning,
+    );
+    expect(errors).toEqual([]);
+  });
+});
+
+for (const action of ["open-learning", "observe", "finalize"])
+  test(`lost ${action} response replays original learning identity after reload`, async ({
+    page,
+  }) => {
+    await workspace("handoff-learning", async (url) => {
+      const learning = await acceptedLearning(page, url),
+        sid = await selected(page);
+      if (action !== "open-learning")
+        await learningStep(page, learning, "Open outcome window");
+      const attempts = [];
+      await page.route(`**/api/sessions/*/${action}`, async (route) => {
+        attempts.push(route.request().postDataJSON());
+        if (attempts.length === 1) {
+          await route.fetch();
+          await route.abort("failed");
+        } else await route.continue();
+      });
+      const label = {
+        "open-learning": "Open outcome window",
+        observe: "Simulate day 7 responses",
+        finalize: "Close window & learn",
+      }[action];
+      await learning.getByRole("button", { name: label, exact: true }).click();
+      await page
+        .getByRole("button", {
+          name: "Confirm synthetic learning step",
+          exact: true,
+        })
+        .click();
+      await expect(page.getByRole("dialog").getByRole("alert")).toBeVisible();
+      const first = (await backend(page, `/api/sessions/${sid}`)).body.learning;
+      await page.reload();
+      await learning
+        .getByRole("button", {
+          name: "Check saved learning request",
+          exact: true,
+        })
+        .click();
+      await page
+        .getByRole("button", {
+          name: "Check original learning request",
+          exact: true,
+        })
+        .click();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      expect(attempts).toHaveLength(2);
+      expect(attempts[1]).toEqual(attempts[0]);
+      const replay = (await backend(page, `/api/sessions/${sid}`)).body
+        .learning;
+      expect(replay).toEqual(first);
+      if (action === "finalize")
+        expect(
+          replay.events.filter((e) => e.kind === "cohort_finalized"),
+        ).toHaveLength(1);
+    });
+  });

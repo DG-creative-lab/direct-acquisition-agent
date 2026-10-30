@@ -474,10 +474,21 @@ class Workspace:
                 "refresh": {"subject_id"}, "revoke": {"approval_id", "reason"},
                 "suppress": {"business_id", "reason"}, "handoff": {"approval_id"},
                 "open-learning": set(), "observe": set(), "finalize": set()}
+            # Chat binds each explicit simulation decision to the displayed
+            # accepted job/cohort. Retain the existing workspace payloads.
+            bound_learning = action in {"open-learning", "observe", "finalize"} and "handoff_id" in payload
+            if bound_learning:
+                fields[action] = {"handoff_id"} if action == "open-learning" else {"handoff_id", "cohort_id"}
             if action not in fields or set(payload) != fields[action] | {"request_id"}:
                 raise ValueError("Use the exact fields for this workspace action")
             for field in fields[action]:
                 text(payload[field]) if field == "reason" else identifier(payload[field])
+            if bound_learning:
+                accepted = app.learning.source.accepted(scope, case)
+                if accepted["job_id"] != payload["handoff_id"]:
+                    raise Conflict("Learning request refers to a different accepted job")
+                if action != "open-learning" and (payload["cohort_id"] != session["cohort_id"] or payload["cohort_id"] != accepted["id"]):
+                    raise Conflict("Learning request refers to a different outcome cohort")
             request_id = payload["request_id"]
             identifier(request_id)
             fingerprint = digest({"action": action, "payload": payload})
