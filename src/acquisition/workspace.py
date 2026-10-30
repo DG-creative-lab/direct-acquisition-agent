@@ -22,6 +22,13 @@ from acquisition.creative import validate_fact_pack
 from acquisition.reviews import ReviewPolicy, text
 
 
+REVISION_BLOCKS = {
+    "evidence_unavailable": "Product evidence is unavailable or outside its review window. Review verified evidence and prepare a current campaign before requesting another revision. This request keeps its frozen inputs.",
+    "configuration_unavailable": "Restore the server-side OpenRouter key and the original model settings. This saved request will resume automatically when its configuration is available. Do not submit another revision to retry it.",
+    "continuation_unavailable": "Revision continuation is unavailable. Inspect the original run and server storage. The server will recheck this saved request; it will not repeat an uncertain provider call.",
+}
+
+
 class Workspace:
     def __init__(self, root, real_clock=time.time):
         self.real_clock = real_clock
@@ -32,6 +39,7 @@ class Workspace:
             db.execute("CREATE TABLE IF NOT EXISTS sessions(id TEXT PRIMARY KEY, request_hash TEXT NOT NULL, payload TEXT NOT NULL)")
             db.execute("CREATE TABLE IF NOT EXISTS commands(session_id TEXT NOT NULL, request_id TEXT NOT NULL, request_hash TEXT NOT NULL, done INTEGER NOT NULL, PRIMARY KEY(session_id,request_id))")
             db.execute("CREATE TABLE IF NOT EXISTS conversation_draft_requests(conversation_id TEXT NOT NULL, request_id TEXT NOT NULL, request_hash TEXT NOT NULL, session_id TEXT NOT NULL, PRIMARY KEY(conversation_id,request_id))")
+            db.execute("CREATE TABLE IF NOT EXISTS copy_revision_blocks(organization TEXT NOT NULL, revision_id TEXT NOT NULL, code TEXT NOT NULL, PRIMARY KEY(organization,revision_id))")
         self.preparations = build_preparations(self.root / "workspace.sqlite", self)
         self.pack = json.loads((Path(__file__).resolve().parents[2] / "config/iwoca-product-facts-v1.json").read_text())
 
@@ -198,6 +206,94 @@ class Workspace:
         for row in self.preparations.store.listing("local-conversations"):
             if row["status"] in ACTIVE_PREPARATION:
                 self.preparations.step("local-conversations", row["id"])
+        self.advance_copy_revisions()
+
+    def request_copy_revision(self, identity, request_id, expected_subject, target_id, feedback, allow_model_copy):
+        if allow_model_copy is not True:
+            raise ValueError("Explicit model-copy permission is required for a revision")
+        with self.lock:
+            session = self._session(identity)
+            if session["mode"] != "model" or not session["case_id"]:
+                raise Conflict("Prepare a grounded model campaign before revising copy")
+            app = self._app(session)
+            prior = app.reviews.store.revision_request(session["organization"], request_id)
+            if prior is None:
+                app = self._app(session, with_model=True)
+            app.revisions.admit(session["organization"], session["case_id"], request_id, expected_subject, target_id, feedback, allow_model_copy)
+            return self.view(identity) | {"command_replayed": prior is not None}
+
+    def _copy_revision_progress(self, app, scope, case):
+        rows = app.revisions.view(scope, case)
+        for row in rows:
+            generation = self._run_generation(app, scope, row["run_id"]) if row["run_id"] else None
+            row["generation"] = generation
+            with self.control() as db:
+                block = db.execute("SELECT code FROM copy_revision_blocks WHERE organization=? AND revision_id=?", (scope, row["id"])).fetchone()
+            code = block[0] if block and block[0] in REVISION_BLOCKS else None
+            row["block"] = {"code": code, "detail": REVISION_BLOCKS[code]} if code else None
+            if code and row["status"] in {"admitted", "queued", "running"}:
+                row["status"] = "blocked"
+            if generation and generation["outcome_uncertain"] and row["status"] not in {"queued", "running"}:
+                row["status"] = "uncertain"
+        return rows
+
+    def _set_revision_block(self, scope, revision_id, code):
+        with self.control() as db:
+            if code is None:
+                db.execute("DELETE FROM copy_revision_blocks WHERE organization=? AND revision_id=?", (scope, revision_id))
+            else:
+                if code not in REVISION_BLOCKS:
+                    raise ValueError("Use a public revision blocker code")
+                db.execute("INSERT INTO copy_revision_blocks VALUES(?,?,?) ON CONFLICT(organization,revision_id) DO UPDATE SET code=excluded.code WHERE code<>excluded.code", (scope, revision_id, code))
+
+    def recover_copy_revisions(self):
+        with self.control() as db:
+            sessions = [json.loads(r[0]) for r in db.execute("SELECT payload FROM sessions")]
+        for session in sessions:
+            if not session["case_id"]:
+                continue
+            app, scope = self._app(session), session["organization"]
+            for row in app.revisions.view(scope, session["case_id"]):
+                if row["run_id"] and app.tasks.inspect(scope, row["run_id"])["run"]["status"] not in {"failed", "cancelled", "succeeded"} and self._run_generation(app, scope, row["run_id"])["outcome_uncertain"]:
+                    app.tasks.cancel(scope, row["run_id"], app.clock())
+
+    def advance_copy_revisions(self):
+        with self.control() as db:
+            sessions = [json.loads(r[0]) for r in db.execute("SELECT payload FROM sessions")]
+        for session in sessions:
+            if not session["case_id"]:
+                continue
+            app, scope = self._app(session), session["organization"]
+            for row in app.revisions.view(scope, session["case_id"]):
+                blocker = "continuation_unavailable"
+                try:
+                    if row["status"] == "stale":
+                        if row["run_id"]:
+                            app.tasks.cancel(scope, row["run_id"], app.clock())
+                        continue
+                    if row["status"] not in {"admitted", "queued", "running", "complete"}:
+                        continue
+                    if row["status"] == "complete" and app.tasks.inspect(scope, row["run_id"])["run"]["status"] in {"succeeded", "failed", "cancelled"}:
+                        continue
+                    with self.lock:
+                        receipt = app.reviews.store.revision_request(scope, row["request_id"])
+                        blocker = "evidence_unavailable"
+                        today = datetime.fromtimestamp(app.clock(), timezone.utc).date()
+                        for pack in (self.pack, receipt["context"]["product_facts"], app.reviews.store.evidence(scope)["pack"]):
+                            validate_fact_pack(pack, today)
+                        blocker = "configuration_unavailable"
+                        configured = self._app(session, with_model=True)
+                        run = configured.revisions.reconcile(scope, receipt)
+                        blocker = "continuation_unavailable"
+                        # Configuration is restored before dispatch. Do not let
+                        # its old blocker relabel a live reserved call as uncertain.
+                        self._set_revision_block(scope, row["id"], None)
+                        configured.worker.tick(scope, run_id=run)
+                except Exception:
+                    # Projection metadata is not task authority. Keep original
+                    # admission/consent, leases and inference journals intact.
+                    # Raw configuration/provider errors never leave this boundary.
+                    self._set_revision_block(scope, row["id"], blocker)
 
     def message_conversation(self, conversation_id, request_id, expected_revision, content):
         return self._conversation_app().conversations.message("local-conversations", conversation_id, request_id, expected_revision, content)
@@ -336,27 +432,36 @@ class Workspace:
             self._save(session)
             return self.view(identity)
 
-    def view(self, identity):
-        with self.lock:
-            session = self._session(identity)
-            app = self._app(session)
-            scope = session["organization"]
-            public = {k: v for k, v in session.items() if k != "organization"}
-            public["clock"] = app.clock()
-            if not session["case_id"]:
-                return {"session": public, "review": None, "audience": [], "learning": None,
-                        "tasks": app.tasks.inspect(scope, session["run_id"]) if session["run_id"] else None}
-            review = app.reviews.store.view(session["organization"], session["case_id"])
-            draft = app.drafts.get(session["organization"], review["subject"]["draft_id"])
-            snapshot = app.audiences.get(scope, review["subject"]["snapshot_id"])
-            assignments = {r["business_id"]: r for r in csv.DictReader(io.StringIO(draft.assignments_csv))}
-            population = [{"id": r.business_id, "segment": r.segment, "country": r.country,
-                "entity_type": r.entity_type, "suppressed": r.suppressed or r.business_id in review["suppressions"],
-                "arm": assignments.get(r.business_id, {}).get("arm", "excluded"),
-                "score": r.propensity_ppm, "address": r.address} for r in snapshot.records]
-            return {"session": public, "review": review, "audience": population,
-                "learning": app.learning.store.view(scope, session["cohort_id"]) if session["cohort_id"] else None,
-                "tasks": app.tasks.inspect(scope, session["run_id"])}
+    def view(self, identity, *, _attempt=0):
+        session = self._session(identity)
+        app = self._app(session)
+        scope = session["organization"]
+        public = {k: v for k, v in session.items() if k != "organization"}
+        public["clock"] = app.clock()
+        if not session["case_id"]:
+            return {"session": public, "review": None, "audience": [], "learning": None,
+                    "tasks": app.tasks.inspect(scope, session["run_id"]) if session["run_id"] else None}
+        review = app.reviews.store.view(session["organization"], session["case_id"])
+        draft = app.drafts.get(session["organization"], review["subject"]["draft_id"])
+        snapshot = app.audiences.get(scope, review["subject"]["snapshot_id"])
+        assignments = {r["business_id"]: r for r in csv.DictReader(io.StringIO(draft.assignments_csv))}
+        population = [{"id": r.business_id, "segment": r.segment, "country": r.country,
+            "entity_type": r.entity_type, "suppressed": r.suppressed or r.business_id in review["suppressions"],
+            "arm": assignments.get(r.business_id, {}).get("arm", "excluded"),
+            "score": r.propensity_ppm, "address": r.address} for r in snapshot.records]
+        revisions = self._copy_revision_progress(app, scope, session["case_id"])
+        # Admission can reject an approval without changing the subject. Recheck
+        # the whole transactional review projection, including decisions and
+        # current authority, after reading progress. Only the read time may vary.
+        current_review = app.reviews.store.view(scope, session["case_id"])
+        if {k: v for k, v in current_review.items() if k != "as_of"} != {k: v for k, v in review.items() if k != "as_of"}:
+            if _attempt >= 3:
+                raise Conflict("Campaign changed while loading; refresh the review")
+            return self.view(identity, _attempt=_attempt + 1)
+        return {"session": public, "review": review, "audience": population,
+            "copy_revisions": revisions,
+            "learning": app.learning.store.view(scope, session["cohort_id"]) if session["cohort_id"] else None,
+            "tasks": app.tasks.inspect(scope, session["run_id"])}
 
     def action(self, identity, action, payload):
         with self.lock:

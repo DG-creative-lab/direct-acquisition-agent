@@ -20,7 +20,7 @@ The campaign manifest binds source snapshot, creative identities, experiment ass
 
 Offline mode supplies known fixture messages. Model mode reads frozen segment context and proposes contrasting copy. Code controls allowed product facts, required qualifications, fixed CTA, output contracts and deterministic claim constraints. A separate model request screens framing against the fact pack. A passing screen is advisory and can be wrong.
 
-Reviewer preferences and counted outcome memory are different inputs. A preference describes writing judgment; an outcome contributes statistical support only after a complete cohort matures. Neither changes verified product facts. Rewritten copy receives a new identity and does not inherit approval or response counts.
+Reviewer preferences and counted outcome memory are different inputs. A preference describes writing judgment; an outcome contributes statistical support only after a complete cohort matures. Neither changes verified product facts. Rewritten copy receives a new identity and does not inherit approval or response counts. A targeted copy request preserves the existing audience, assignments, budget and product wording while changing the selected hook; the new subject requires review.
 
 ## Review and change control
 
@@ -38,7 +38,7 @@ The next experiment is another proposal, not an automatic campaign change. The c
 
 | Capability | Current behavior | Further work |
 | --- | --- | --- |
-| Conversation | Persistent chat, bounded brief planner, continuous background preparation with explicit copy consent, saved progress and human review | Real audience sources and delivery |
+| Conversation | Persistent chat, bounded brief planner, continuous background preparation with explicit copy consent, saved progress, in-chat review and targeted copy revision | Real audience sources and delivery |
 | Audience | Seeded synthetic source, supplied segment/score metadata, deterministic exclusions | Verified warehouse/CRM feeds, data rights and completeness contracts |
 | Copy | Offline fixtures or bounded OpenRouter generation with source pack and screen | Broader product packs, calibrated evaluation and editorial operations |
 | Approval | Exact-subject local decisions, expiry, invalidation and simulator recheck | Hosted identity, tenant membership and enforced separation of duties |

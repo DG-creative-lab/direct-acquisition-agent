@@ -294,7 +294,6 @@ export function AudienceView({
 }
 
 export function CopyView({ state }: { state: State }) {
-  const view = state.review!;
   return (
     <div
       className="tab-content"
@@ -312,42 +311,49 @@ export function CopyView({ state }: { state: State }) {
           </p>
         </div>
       </div>
-      <div className="copy-grid">
-        {view.manifest.creatives.map((c) => (
-          <article className="letter" key={c.id}>
-            <div className="letter-top">
-              <span>{segmentName(c.segment)}</span>
-              <Badge>Variant {c.arm}</Badge>
+      <CopyLetters state={state} />
+    </div>
+  );
+}
+
+export function CopyLetters({ state }: { state: State }) {
+  const view = state.review!;
+  return (
+    <div className="copy-grid">
+      {view.manifest.creatives.map((c) => (
+        <article className="letter" key={c.id}>
+          <div className="letter-top">
+            <span>{segmentName(c.segment)}</span>
+            <Badge>Variant {c.arm}</Badge>
+          </div>
+          <div className="letter-paper">
+            <div className="letter-brand">
+              iwoca<span>Independent demonstration</span>
             </div>
-            <div className="letter-paper">
-              <div className="letter-brand">
-                iwoca<span>Independent demonstration</span>
-              </div>
-              <p className="letter-label">SYNTHETIC DIRECT MAIL</p>
-              <h3>{c.headline || "Offline message fixture"}</h3>
-              <p className="letter-opening">{c.opening}</p>
-              <p className="letter-disclosure">
-                {c.locked_block ||
-                  "SYNTHETIC FIXTURE. HUMAN REVIEW REQUIRED. Nothing will be printed or sent."}
-              </p>
-            </div>
-            <details className="copy-provenance">
-              <summary>
-                Copy identity and evidence
-                <ChevronDown size={13} />
-              </summary>
-              <code>{c.id}</code>
-              <p>
-                {c.hypothesis ||
-                  "Fixed demonstration input. No outcome support is implied."}
-              </p>
-              <small>
-                {c.model || "Offline fixture"} · {c.status.replaceAll("_", " ")}
-              </small>
-            </details>
-          </article>
-        ))}
-      </div>
+            <p className="letter-label">SYNTHETIC DIRECT MAIL</p>
+            <h3>{c.headline || "Offline message fixture"}</h3>
+            <p className="letter-opening">{c.opening}</p>
+            <p className="letter-disclosure">
+              {c.locked_block ||
+                "SYNTHETIC FIXTURE. HUMAN REVIEW REQUIRED. Nothing will be printed or sent."}
+            </p>
+          </div>
+          <details className="copy-provenance">
+            <summary>
+              Copy identity and evidence
+              <ChevronDown size={13} />
+            </summary>
+            <code>{c.id}</code>
+            <p>
+              {c.hypothesis ||
+                "Fixed demonstration input. No outcome support is implied."}
+            </p>
+            <small>
+              {c.model || "Offline fixture"} · {c.status.replaceAll("_", " ")}
+            </small>
+          </details>
+        </article>
+      ))}
     </div>
   );
 }

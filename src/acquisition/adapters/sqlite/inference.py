@@ -8,6 +8,7 @@ from acquisition.runtime import LeaseLost
 from .database import Database
 from .tasks import scoped_run
 from .conversation_provenance import require_current_conversation
+from .revision_provenance import require_revision_current
 
 
 class SqliteCalls:
@@ -24,6 +25,11 @@ class SqliteCalls:
                     or task["token"] != scope.lease_token or task["lease_until"] <= now):
                 raise LeaseLost("Inference attempt has no active task lease")
             inputs = json.loads(task["inputs"])
+            if inputs.get("workflow_version") == "copy-revision/v3":
+                try:
+                    require_revision_current(connection, scope.organization, inputs, scope.run_id, now)
+                except (Conflict, ValueError):
+                    raise ModelError("copy_revision_source_changed") from None
             if task["capability"] == "conversations.plan.v1":
                 source = connection.execute("SELECT revision FROM conversations WHERE organization=? AND id=?",
                                             (scope.organization, inputs["conversation_id"])).fetchone()

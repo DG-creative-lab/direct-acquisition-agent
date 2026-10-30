@@ -46,6 +46,7 @@ export type Review = {
   };
   handoff: null | { id: string; recipients: number; accepted_at: number };
   manifest: {
+    brief: { budget_pence: number };
     counts: Record<string, number>;
     variable_cost_pence: number;
     exclusion_reasons: Record<string, number>;
@@ -124,7 +125,25 @@ export type Session = {
   run_id: string | null;
   cohort_id: string | null;
 };
+export type CopyRevision = {
+  id: string;
+  request_id: string;
+  run_id: string | null;
+  status: string;
+  base_subject_id: string;
+  target_id: string;
+  feedback: string;
+  published_subject_id: string | null;
+  block: null | { code: string; detail: string };
+  generation: null | {
+    provider_error: string | null;
+    outcome_uncertain: boolean;
+    unresolved_calls: { key: string; status: string }[];
+    failed_tasks: { capability: string; error_code: string }[];
+  };
+};
 export type State = {
+  copy_revisions?: CopyRevision[];
   command_replayed?: boolean;
   session: Session;
   review: Review | null;

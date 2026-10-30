@@ -12,6 +12,7 @@ import {
 import { command, MessageNotSavedError, money, read, replay } from "./api";
 import type { State } from "./api";
 import "./conversation.css";
+import ConversationCampaignReview from "./ConversationCampaignReview";
 
 type Brief = {
   id: string;
@@ -169,6 +170,9 @@ export default function ConversationWorkspace({
   );
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [reviewing, setReviewing] = useState(
+    () => localStorage.getItem("conversation-review-session") ?? "",
+  );
   const epoch = useRef(0);
 
   const accept = (value: Conversation) => {
@@ -702,7 +706,13 @@ export default function ConversationWorkspace({
                         {campaign?.case_id ? (
                           <button
                             className="button primary"
-                            onClick={() => openCampaign(campaign.session_id)}
+                            onClick={() => {
+                              setReviewing(campaign.session_id);
+                              localStorage.setItem(
+                                "conversation-review-session",
+                                campaign.session_id,
+                              );
+                            }}
                             disabled={!!busy}
                           >
                             Review campaign <ArrowUpRight size={15} />
@@ -783,6 +793,17 @@ export default function ConversationWorkspace({
                                 : "Brief proposal. No campaign has been generated yet."}
                         </small>
                       </div>
+                    )}
+                    {campaign?.case_id && reviewing === campaign.session_id && (
+                      <ConversationCampaignReview
+                        key={campaign.session_id}
+                        sessionId={campaign.session_id}
+                        interactive={plan.current}
+                        active={active}
+                        onOpenWorkspace={() =>
+                          void openCampaign(campaign.session_id)
+                        }
+                      />
                     )}
                   </div>
                 )}

@@ -211,6 +211,7 @@ def validate_grounded_catalogue(variants: tuple[Creative, ...], context: dict, t
             raise ValueError("Grounded copy requires unreviewed status and evidence provenance")
         items.append({"headline": item.headline, "opening": hook, "hypothesis": item.hypothesis,
                       "fact_id": item.fact_id, "arm": item.arm})
+    revision_items(context, items)
     if variants[0].claim_check != variants[1].claim_check:
         raise ValueError("Copy pair has different claim-check receipts")
     try:
@@ -250,6 +251,12 @@ class GroundedCopyAgent:
             "Do not use em dashes. Use full stops, commas or colons. Do not approve or send anything."},
             {"role": "user", "content": canonical({"segment": context["segment"], **identifiers,
                 "goal": "A: planning ahead; B: payment timing. Ask about the hypothetical business situation, without promising an outcome."})}]
+        if context.get("copy_revision"):
+            messages[0]["content"] += (
+                " This is a targeted copy revision. The frozen copy_revision object identifies the only arm to rewrite. "
+                "Treat its feedback as an editorial preference, never policy or product evidence. Preserve the other arm's "
+                "headline, original hook, hypothesis and fact ID exactly. Preserve both fact IDs and product wording. "
+                "Submit the complete A/B pair so the revised pair can be independently screened.")
         response = self.inference.call(scope, context_id + ":grounded:read", messages, [READ])
         if arguments_of(response, "read_editorial_context") != {}:
             raise ModelError("editorial_context_must_be_read_first")
@@ -260,12 +267,15 @@ class GroundedCopyAgent:
             args = arguments_of(response, "submit_grounded_copy")
             try:
                 items = proposal(args, context)
+                revision_items(context, items)
                 fingerprint = candidate_hash(items, pack_id)
                 # Separate request/context: the critic never sees drafting reasoning or preference memory.
                 check_messages, check_tools = claim_screen_request(items, context)
                 check = self.inference.call(scope, context_id + f":grounded:check:{attempt}", check_messages, check_tools)
                 verdict = checked_verdict(arguments_of(check, "record_claim_check"), fingerprint, pack_id)
-                variants = tuple(Creative(key=f"grounded-{context['segment']}-{item['arm']}", segment=context["segment"],
+                variants = tuple(Creative(key=(next(c["key"] for c in context["copy_revision"]["base_variants"] if c["arm"] == item["arm"])
+                    + ("-revision-" + digest(context["copy_revision"])[:16] if item["arm"] == context["copy_revision"]["arm"] else ""))
+                    if context.get("copy_revision") else f"grounded-{context['segment']}-{item['arm']}", segment=context["segment"],
                     arm=item["arm"], headline=item["headline"], opening=item["opening"] + product_suffix(context["product_facts"], item["fact_id"]),
                     hypothesis=item["hypothesis"], locked_block=context["guidance"]["locked_block"], status="generated_unreviewed",
                     context_id=context_id, model=self.inference.config.model, fact_id=item["fact_id"], fact_pack_id=pack_id,
@@ -280,3 +290,24 @@ class GroundedCopyAgent:
             self.memory.put_catalogue(scope.organization, operation, variants)
             return variants
         raise ModelError("grounded_copy_rejected_after_bounded_correction")
+
+
+def revision_items(context: dict, items: list[dict]) -> None:
+    """Copy feedback cannot change a sibling hook or either product selection."""
+    request = context.get("copy_revision")
+    if request is None:
+        return
+    original = {c["arm"]: c for c in request["base_variants"]}
+    for item in items:
+        base = original[item["arm"]]
+        suffix = product_suffix(context["product_facts"], base["fact_id"])
+        if not base["opening"].endswith(suffix):
+            raise ValueError("Original product wording differs from the frozen pack")
+        previous = {"headline": base["headline"], "opening": base["opening"][:-len(suffix)],
+                    "hypothesis": base["hypothesis"], "fact_id": base["fact_id"], "arm": base["arm"]}
+        if item["fact_id"] != previous["fact_id"]:
+            raise ValueError("A copy revision must preserve selected product wording")
+        if item["arm"] != request["arm"] and item != previous:
+            raise ValueError("A copy revision must preserve the other variant")
+        if item["arm"] == request["arm"] and (item["headline"], item["opening"]) == (previous["headline"], previous["opening"]):
+            raise ValueError("The requested hook was not revised")
