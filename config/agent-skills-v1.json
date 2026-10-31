@@ -1,0 +1,41 @@
+{
+  "version": "acquisition-skills/v1",
+  "skills": [
+    {
+      "id": "prepare-campaign/v1", "version": "v1",
+      "purpose": "Interpret a supported synthetic direct-mail task as a brief, clarification or unsupported request.",
+      "applicable_intents": ["prepare_campaign"],
+      "required_source_kinds": ["authored_guidance"],
+      "guidance": ["Use supported segment playbooks and preserve the user's objective.", "Ask for an explicit absolute GBP budget when missing or ambiguous.", "Return a proposal only. Never infer approval or execution permission."],
+      "tool_ids": ["submit_campaign_brief/v1"],
+      "expected_outputs": ["brief_proposal", "clarification", "unsupported"],
+      "validation_requirements": ["exact_brief_schema", "literal_budget_provenance", "supported_segments", "current_revision"],
+      "stop_conditions": ["material_ambiguity", "unsupported_request", "unknown_provider_outcome", "planning_budget_exhausted"],
+      "authority": "none"
+    },
+    {
+      "id": "grounded-copy/v1", "version": "v1",
+      "purpose": "Draft contrasting audience hooks using frozen context and source-bound product wording.",
+      "applicable_intents": ["generate_copy"],
+      "required_source_kinds": ["authored_guidance", "product_evidence", "reviewer_preference", "synthetic_observation", "audience_summary"],
+      "guidance": ["Read editorial context before submitting a pair.", "Generate situational framing, select supplied fact IDs and leave factual wording to code.", "Treat preferences and synthetic outcomes as advisory. Screen the pair before publication."],
+      "tool_ids": ["read_editorial_context/v1", "submit_grounded_copy/v3", "record_claim_check/v1"],
+      "expected_outputs": ["generated_unreviewed_A_B_pair"],
+      "validation_requirements": ["grounded_catalogue", "evidence_freshness", "paired_claim_screen", "exact_source_ids"],
+      "stop_conditions": ["expired_evidence", "bounded_repair_exhausted", "unknown_provider_outcome"],
+      "authority": "none"
+    },
+    {
+      "id": "revise-grounded-copy/v1", "version": "v1",
+      "purpose": "Revise a selected hook while preserving the sibling, product wording and experiment.",
+      "applicable_intents": ["revise_copy"],
+      "required_source_kinds": ["authored_guidance", "product_evidence", "reviewer_preference", "synthetic_observation", "audience_summary"],
+      "guidance": ["Apply the explicit targeted feedback as a preference, never policy or product evidence.", "Preserve the sibling hook and both selected fact IDs. Screen the resulting complete pair.", "A rewrite is unapproved and cannot inherit outcomes."],
+      "tool_ids": ["read_editorial_context/v1", "submit_grounded_copy/v3", "record_claim_check/v1"],
+      "expected_outputs": ["generated_unreviewed_revised_pair"],
+      "validation_requirements": ["exact_target", "sibling_preserved", "product_wording_preserved", "paired_claim_screen"],
+      "stop_conditions": ["stale_subject", "expired_evidence", "unknown_provider_outcome"],
+      "authority": "none"
+    }
+  ]
+}

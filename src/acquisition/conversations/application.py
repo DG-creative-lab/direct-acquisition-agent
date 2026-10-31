@@ -24,16 +24,17 @@ class MessageRejectedNotFound(NotFound):
 
 class ConversationService:
     def __init__(self, store: ConversationStore, tasks: TaskStore, calls: CallJournal, clock: Callable[[], float],
-                 config: ModelConfig | None, preflight: Callable[[dict], None], guidance: Callable[[], dict] | None = None):
+                 config: ModelConfig | None, preflight: Callable[[dict], None], guidance: Callable[[], dict] | None = None, assets: Callable[[str, dict], dict] | None = None):
         self.store, self.tasks, self.calls, self.clock, self.config, self.preflight = store, tasks, calls, clock, config, preflight
-        self.guidance = guidance
+        self.guidance, self.assets = guidance, assets
 
     def _knowledge(self, organization, conversation_id, request_id):
         admissions = self.store.snapshot(organization, conversation_id)["admissions"]
         old = next((item for item in admissions if item["request_id"] == request_id), None)
         if old:
             return old["knowledge"]
-        return KNOWLEDGE | ({"playbooks": self.guidance()} if self.guidance else {})
+        knowledge = KNOWLEDGE | ({"playbooks": self.guidance()} if self.guidance else {})
+        return knowledge | {"agent_assets": self.assets(organization, knowledge)} if self.assets else knowledge
 
     def create(self, organization: str, request_id: str, title: str = "New campaign conversation") -> dict:
         conversation = self.store.create(organization, request_id, title, self.clock())

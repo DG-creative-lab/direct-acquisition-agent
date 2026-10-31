@@ -11,7 +11,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
-from acquisition.bootstrap import build, build_preparations
+from acquisition.bootstrap import build, build_preparations, agent_catalogue
 from acquisition.conversations import ACTIVE_PREPARATION
 from acquisition.adapters.environment import openrouter_key
 from acquisition.adapters.openrouter import OpenRouter
@@ -98,7 +98,7 @@ class Workspace:
         config = Path(__file__).resolve().parents[2] / "config"
         playbooks = json.loads((config / "campaign-playbooks-v1.json").read_text())
         editorial = json.loads((config / "editorial-v3.json").read_text())
-        return {"playbooks": playbooks, "product_facts": self.pack,
+        return {"agent_catalogue": agent_catalogue(), "playbooks": playbooks, "product_facts": self.pack,
                 "editorial": {"version": editorial["version"], "rules": editorial["rules"],
                               "situations": editorial["situations"]},
                 "learning": "Synthetic outcome memory is scoped to each campaign and is advisory. Inspect it in Learning."}

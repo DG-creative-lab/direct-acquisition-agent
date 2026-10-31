@@ -34,7 +34,7 @@ The browser and CLI are entry points to the same application rules. A single loc
 | `audiences` | Business records, immutable snapshots and source contracts | Model-generated eligibility or inferred source completeness |
 | `campaigns` | Selection, exclusions, A/B/no-mail assignment, integer money and exact drafts | Reviewer decisions or external dispatch |
 | `creative` | Creative identities, frozen editorial context, bounded generation and grounding validation | Approval, targeting policy or outcome counts |
-| `reasoning` | Provider-independent limits, gateway contracts and inference journal | Business approval or automatic uncertain-call retries |
+| `reasoning` | Provider-independent limits, gateway contracts, inference journal and pure versioned reasoning-asset serialization/integrity contracts | Business approval or automatic uncertain-call retries |
 | `reviews` | Proposals, subjects, decisions, targeted copy-feedback admission, invalidation and simulated acceptance | Hosted authentication or real agency effects |
 | `learning` | Cohort membership, immutable observations, counted posteriors and recommendations | Automatic campaign mutation or new product facts |
 | `conversations` | Persistent user messages, revision-bound brief interpretation, scoped planning admission, bounded preparation continuation through host ports and read models | Campaign policy, approval, dispatch or verified source facts |
@@ -145,3 +145,7 @@ The modular monolith remains the default until measured concurrency or operation
 A follow-up brief binds a content-addressed proposal and selected segments. The campaign port owns scoped proposal persistence and population reads; its SQLite adapter uses the existing review command journal, with no schema migration. Bootstrap supplies the bounded synthetic inventory and freezes copy contexts, then reuses existing fixture/model task plans. The workspace composes source learning, proposal inspection and explicit child preparation. Runtime remains business-agnostic.
 
 SQLite checks proposal identity, immutable brief/snapshot, current epochs and independent enrollment at inference reservation, draft commit and review/acceptance. The acceptance write transaction prevents another follow-up from concurrently consuming the same population without detection. Accepted history may observe its own allocated cohort; cohort opening still forbids repeated independent business outcomes. Child cases cannot strip the source brief to bypass these checks.
+
+## Authored reasoning assets
+
+[Versioned agent contracts](agent-contracts.md) freeze skills, installed model-tool descriptions and distinct knowledge-source manifests inside existing planning admissions and creative contexts. Composition selects local assets; provider modules enforce supported skill IDs, installed schemas and source roles. These descriptions introduce no new executor or approval authority.
