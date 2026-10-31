@@ -10,6 +10,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ("audience-source-checksum", "adapters/local_audiences.py",
+     'if hashlib.sha256(raw).hexdigest()!=checksum:', 'if False:',
+     "test_audience_catalogue.AudienceCatalogueTests.test_source_change_after_listing_cannot_replace_selected_bytes"),
+    ("audience-manifest-selection", "adapters/local_audiences.py",
+     'checksum != manifest.checksum or manifest_id != manifest.id', 'checksum != manifest.checksum',
+     "test_audience_catalogue.AudienceCatalogueTests.test_scope_version_and_manifest_substitutions_are_rejected"),
+    ("audience-source-completeness", "audiences/domain.py",
+     'not snapshot.complete or snapshot.schema_version != manifest.schema_version',
+     'snapshot.schema_version != manifest.schema_version',
+     "test_audience_catalogue.AudienceCatalogueTests.test_declared_checksum_does_not_excuse_incomplete_or_substituted_population"),
     ("validation-readiness-gate", "reviews/domain.py",
      'all(c["status"] == "passed" for c in checks if c["required"])', 'True',
      "test_validation_reports.ValidationReportTests.test_gate_rejects_missing_downgraded_unknown_and_not_evaluated_required_checks"),

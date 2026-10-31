@@ -1,8 +1,13 @@
 from typing import Protocol
 
-from .domain import Snapshot
+from .domain import Snapshot, DatasetVersion
 
 
 class AudienceStore(Protocol):
     def put(self, snapshot: Snapshot) -> str: ...
     def get(self, organization: str, snapshot_id: str) -> Snapshot: ...
+
+
+class AudienceSource(Protocol):
+    def listing(self, organization: str) -> tuple['DatasetVersion', ...]: ...
+    def read(self, organization: str, dataset_id: str, version: str, checksum: str, manifest_id: str) -> tuple['DatasetVersion', Snapshot]: ...

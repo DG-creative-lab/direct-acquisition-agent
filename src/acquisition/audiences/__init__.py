@@ -1,4 +1,5 @@
-from .domain import Business, Snapshot
-from .ports import AudienceStore
+from .application import AudienceDiscovery
+from .domain import Business, Snapshot, DatasetVersion, validate_dataset, catalogue_identity
+from .ports import AudienceStore, AudienceSource
 
-__all__ = ["Business", "Snapshot", "AudienceStore"]
+__all__ = ["AudienceDiscovery", "AudienceSource", "DatasetVersion", "validate_dataset", "catalogue_identity", "Business", "Snapshot", "AudienceStore"]

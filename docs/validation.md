@@ -145,3 +145,11 @@ Legacy copy compatibility also has an exact-input-limit regression with a record
 ## Unified readiness report (issue 25, second slice)
 
 Seven required checks compose exact artifact integrity, source-run state, brief provenance, current epochs, evidence freshness, deterministic population/money and copy contracts. The report requires every check to pass; missing/downgraded checks are invalid and unknown results block readiness. Human editorial suitability and real performance remain explicitly unevaluated/unknown. SQLite tests cover stale sources, validator unavailability, exact model/source bindings, read-only restart observations and amendment invalidation. A real-backend browser journey imports a suppression and checks readiness and approval blocking at responsive sizes. Mutation probes remove the required-check gate and coverage check. See [campaign validation](campaign-validation.md) for the observation and authority contract.
+
+## Versioned audience source boundary (issue 26)
+
+Discovery never resolves ambiguity by ordering. Retrieval requires a scoped dataset/version, content checksum and metadata identity. Raw-file integrity is separate from completeness, model provenance, declared population coverage and source freshness. Synthetic source data grants no targeting, approval or delivery authority. Reads make no model calls and create no campaign effects.
+
+Real-file regressions reject changed bytes and metadata, another organization, incomplete or mismatched coverage, expired/future sources, unsafe paths, symlinks, duplicate fields/versions and oversized payloads. Real SQLite checks show that retrieval leaves audiences, runs, decisions and agency jobs unchanged; an explicitly saved immutable snapshot survives a fresh process. Protected loopback API tests verify exact query fields, scope resolution and metadata-only results. Mutation probes remove checksum, manifest matching and source completeness. See [audience catalogue](audience-catalogue.md) for implemented scope and deferred campaign binding.
+
+Verified for the audience-catalogue slice: 298 backend tests, architecture checks, all 59 declared mutation probes and whitespace checks passed. The frontend was unchanged; no live model or external storage call was made.
