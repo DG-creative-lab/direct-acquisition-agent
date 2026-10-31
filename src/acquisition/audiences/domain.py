@@ -58,3 +58,80 @@ class Snapshot:
     @property
     def id(self) -> str:
         return "aud_" + digest(asdict(self))
+
+
+def catalogue_identity(value: str) -> str:
+    import re
+    if type(value) is not str or not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", value) or value in {'.','..'}:
+        raise ValueError('Use a bounded catalogue identity')
+    return value
+
+
+@dataclass(frozen=True)
+class DatasetVersion:
+    organization: str
+    dataset_id: str
+    version: str
+    campaign_key: str
+    title: str
+    description: str
+    segments: tuple[str, ...]
+    record_count: int
+    business_count: int
+    checksum: str
+    as_of: str
+    generated_on: str
+    review_by: str
+    model_version: str
+    schema_version: str = 'audience/v1'
+    channel: str = 'postal_direct_mail'
+    mode: str = 'SYNTHETIC_ONLY'
+
+    def __post_init__(self):
+        import re
+        for value in (self.organization,self.dataset_id,self.version,self.campaign_key):
+            catalogue_identity(value)
+        if any(type(v) is not str or not 1 <= len(v.strip()) <= 600 or any(ord(c)<32 for c in v)
+               for v in (self.title,self.description,self.model_version)):
+            raise ValueError('Invalid dataset description or model version')
+        if (type(self.segments) is not tuple or not self.segments or len(set(self.segments)) != len(self.segments)
+                or not set(self.segments) <= {'inventory','contractors'}):
+            raise ValueError('Declare distinct supported dataset segments')
+        if (type(self.record_count) is not int or not 1 <= self.record_count <= 10000
+                or type(self.business_count) is not int or not 1 <= self.business_count <= self.record_count):
+            raise ValueError('Invalid bounded dataset population')
+        if not re.fullmatch(r'[a-f0-9]{64}',self.checksum):
+            raise ValueError('Dataset requires a SHA-256 content checksum')
+        for value in (self.as_of,self.generated_on,self.review_by):
+            if date.fromisoformat(value).isoformat() != value:
+                raise ValueError('Dataset dates must use YYYY-MM-DD')
+        if not date.fromisoformat(self.as_of) <= date.fromisoformat(self.generated_on) <= date.fromisoformat(self.review_by):
+            raise ValueError('Invalid dataset source dates')
+        if self.schema_version != 'audience/v1' or self.channel != 'postal_direct_mail' or self.mode != 'SYNTHETIC_ONLY':
+            raise ValueError('Unsupported dataset schema, channel or source mode')
+
+    @property
+    def id(self):
+        return 'dataset_' + digest(asdict(self))
+
+
+def validate_dataset(manifest: DatasetVersion, snapshot: Snapshot, organization: str, today: date):
+    from acquisition.contracts import Conflict
+    if manifest.organization != organization or snapshot.organization != organization:
+        raise Conflict('Dataset is not available in this organization')
+    if not date.fromisoformat(manifest.generated_on) <= today <= date.fromisoformat(manifest.review_by):
+        raise Conflict('Dataset is outside its declared review window')
+    if (not snapshot.complete or snapshot.schema_version != manifest.schema_version
+            or snapshot.model_version != manifest.model_version or snapshot.as_of != manifest.as_of
+            or snapshot.score_semantics != 'synthetic_response_propensity_not_uplift'):
+        raise Conflict('Dataset metadata or completeness differs from its manifest')
+    if (len(snapshot.records) != manifest.record_count
+            or len({r.business_id for r in snapshot.records}) != manifest.business_count
+            or {r.segment for r in snapshot.records} != set(manifest.segments)):
+        raise Conflict('Dataset population differs from its declared coverage')
+    for record in snapshot.records:
+        for value, maximum in ((record.record_id,200),(record.business_id,200),(record.country,2),(record.entity_type,50),(record.address,300)):
+            if type(value) is not str or not 1 <= len(value) <= maximum or any(ord(c)<32 for c in value):
+                raise ValueError('Invalid bounded audience record text')
+        if not record.address.startswith('DEMO ONLY DO NOT POST:'):
+            raise ValueError('This audience source accepts only synthetic contact addresses')

@@ -31,7 +31,7 @@ The browser and CLI are entry points to the same application rules. A single loc
 | Module | Responsibility | Authority it does not own |
 | --- | --- | --- |
 | `runtime` | Run/task lifecycle, leases, attempts, waiting and result commits | Campaign policy, copy quality, approval or outcomes |
-| `audiences` | Business records, immutable snapshots and source contracts | Model-generated eligibility or inferred source completeness |
+| `audiences` | Business records, immutable snapshots, versioned source discovery and exact dataset validation | Model-generated eligibility or inferred source completeness |
 | `campaigns` | Selection, exclusions, A/B/no-mail assignment, integer money and exact drafts | Reviewer decisions or external dispatch |
 | `creative` | Creative identities, frozen editorial context, bounded generation and grounding validation | Approval, targeting policy or outcome counts |
 | `reasoning` | Provider-independent limits, gateway contracts, inference journal and pure versioned reasoning-asset serialization/integrity contracts | Business approval or automatic uncertain-call retries |
@@ -47,7 +47,7 @@ The browser and CLI are entry points to the same application rules. A single loc
 frontend/src/                 React views, API client and presentation styles
 src/acquisition/
   runtime/                    task lifecycle and bounded worker
-  audiences/                  records and snapshot contracts
+  audiences/                  records, snapshot contracts and versioned source discovery
   campaigns/                  campaign rules and draft service
   creative/                   copy loop, evidence and editorial context
   reasoning/                  inference contracts and reservation journal
@@ -153,3 +153,5 @@ SQLite checks proposal identity, immutable brief/snapshot, current epochs and in
 ## Review-readiness evidence
 
 [Campaign validation reports](campaign-validation.md) compose existing domain validators into a versioned, exact-subject read projection inside the review transaction. Reports gate preparation/readiness presentation, while approval and simulator acceptance retain independent transactional validation. No report store or new authority token is introduced.
+
+The read-only [audience catalogue](audience-catalogue.md) uses an `AudienceSource` port and an installed local adapter. Source metadata and payload identities are checked separately. The source service returns snapshots without admitting campaigns; conversational source binding remains a later slice.

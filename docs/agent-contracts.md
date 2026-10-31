@@ -78,3 +78,7 @@ After these review corrections: 279 backend tests, 51 browser tests, 53/53 decla
 Legacy input-boundary correction: unprojected contexts do not preflight an invented read exchange. They replay the original recorded provider response and size each actual request through the original inference path. A real-SQLite regression sets the limit to the exact original submission size, proves the synthetic exchange is larger, and completes replay with no duplicate read call. New projected contexts retain stable full-submission preflight before dispatch. A mutation that applies synthetic preflight to legacy contexts must fail this regression.
 
 Verified after the legacy boundary correction: all 280 backend tests and 54/54 declared mutation probes passed, alongside architecture and whitespace checks. No paid model calls were made.
+
+## Read-only audience source contracts
+
+The installed catalogue also describes `list_audience_datasets/v1` and `read_audience_dataset/v1`, backed by the scoped audience source service. Their replay and limits describe read-only source access rather than model-call journal replay. They are not offered to the current planner or copy tool loops and do not change historical asset bundles. See [audience catalogue](audience-catalogue.md) for exact selection and the deferred conversational binding.

@@ -1,0 +1,71 @@
+{
+  "schema": "audience-catalogue/v1",
+  "entries": [
+    {
+      "organization": "local-conversations",
+      "dataset_id": "project-contractors",
+      "version": "v1",
+      "campaign_key": "contractor-project-costs",
+      "title": "Synthetic contractors audience",
+      "description": "Demonstration records with supplied synthetic segment and propensity metadata. Not an iwoca customer feed.",
+      "segments": [
+        "contractors"
+      ],
+      "record_count": 100,
+      "business_count": 100,
+      "checksum": "e3fa8ad7ae0fd9d74398a6a3dd36901ab8c5fd05edf3421b88a729534bd0ee65",
+      "as_of": "2026-10-25",
+      "generated_on": "2026-10-25",
+      "review_by": "2026-11-24",
+      "model_version": "synthetic-segmentation/v1",
+      "schema_version": "audience/v1",
+      "channel": "postal_direct_mail",
+      "mode": "SYNTHETIC_ONLY",
+      "file": "project-contractors-v1.json"
+    },
+    {
+      "organization": "local-conversations",
+      "dataset_id": "project-contractors",
+      "version": "v2",
+      "campaign_key": "contractor-project-costs",
+      "title": "Synthetic contractors audience",
+      "description": "Demonstration records with supplied synthetic segment and propensity metadata. Not an iwoca customer feed.",
+      "segments": [
+        "contractors"
+      ],
+      "record_count": 200,
+      "business_count": 200,
+      "checksum": "e1bfb4f61db8f2262e26bb6111832de8c41f28a105de962a6ffa1405d52b5942",
+      "as_of": "2026-10-30",
+      "generated_on": "2026-10-30",
+      "review_by": "2026-11-24",
+      "model_version": "synthetic-segmentation/v1",
+      "schema_version": "audience/v1",
+      "channel": "postal_direct_mail",
+      "mode": "SYNTHETIC_ONLY",
+      "file": "project-contractors-v2.json"
+    },
+    {
+      "organization": "local-conversations",
+      "dataset_id": "stock-inventory",
+      "version": "v1",
+      "campaign_key": "inventory-supplier-timing",
+      "title": "Synthetic inventory audience",
+      "description": "Demonstration records with supplied synthetic segment and propensity metadata. Not an iwoca customer feed.",
+      "segments": [
+        "inventory"
+      ],
+      "record_count": 100,
+      "business_count": 100,
+      "checksum": "529184ca18947db031f1dbc93da7901492cc1819ea2ec1553ce1ee7936d6e07e",
+      "as_of": "2026-10-25",
+      "generated_on": "2026-10-25",
+      "review_by": "2026-11-24",
+      "model_version": "synthetic-segmentation/v1",
+      "schema_version": "audience/v1",
+      "channel": "postal_direct_mail",
+      "mode": "SYNTHETIC_ONLY",
+      "file": "stock-inventory-v1.json"
+    }
+  ]
+}

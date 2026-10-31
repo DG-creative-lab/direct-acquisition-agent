@@ -115,6 +115,16 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, self.server.workspace.conversations())
             if path == "/api/knowledge":
                 return self._send(200, self.server.workspace.knowledge())
+            if path == "/api/audience-catalogue":
+                query = parse_qs(self.parsed_target.query, keep_blank_values=True)
+                if set(query) - {"campaign_key"} or any(len(v) != 1 for v in query.values()):
+                    raise ValueError("Use one optional campaign key")
+                return self._send(200, self.server.workspace.audience_catalogue(query.get("campaign_key", [None])[0]))
+            if path == "/api/audience-dataset":
+                query = parse_qs(self.parsed_target.query, keep_blank_values=True)
+                if set(query) != {"dataset_id", "version", "checksum", "manifest_id"} or any(len(v) != 1 for v in query.values()):
+                    raise ValueError("Select the exact dataset version, checksum and manifest")
+                return self._send(200, self.server.workspace.audience_dataset(**{k:v[0] for k,v in query.items()}))
             parts = path.strip("/").split("/")
             if len(parts) == 3 and parts[:2] == ["api", "conversations"]:
                 return self._send(200, self.server.workspace.conversation(parts[2]))

@@ -7,6 +7,7 @@ import threading
 import unittest
 import urllib.request
 import urllib.error
+from urllib.parse import urlencode
 from contextlib import redirect_stderr
 from pathlib import Path
 from unittest.mock import patch
@@ -239,6 +240,36 @@ class WorkspaceHttpTests(unittest.TestCase):
                 self.assertEqual(status, 403)
         self.assertEqual(self.server.workspace.listing()["sessions"], [])
         self.assertEqual(self.request('/api/sessions', headers={"X-Workspace-Token": ""})[0], 403)
+
+    def test_audience_discovery_is_guarded_read_only_and_exactly_selected(self):
+        self.server.workspace.real_clock=lambda:1793404800.
+        route='/api/audience-catalogue?campaign_key=contractor-project-costs'
+        self.assertEqual(self.request(route,headers={"X-Workspace-Token":""})[0],403)
+        self.assertEqual(self.request(route,headers={"Host":"attacker.invalid"})[0],403)
+        status,body,_=self.request(route)
+        self.assertEqual(status,200)
+        result=json.loads(body);self.assertEqual(result['resolution'],'ambiguous')
+        entry=result['entries'][0]
+        selection={'dataset_id':entry['dataset_id'],'version':entry['version'],
+                   'checksum':entry['checksum'],'manifest_id':entry['id']}
+        selected='/api/audience-dataset?'+urlencode(selection)
+        self.assertEqual(self.request(selected,headers={"X-Workspace-Token":""})[0],403)
+        status,body,_=self.request(selected)
+        self.assertEqual(status,200)
+        summary=json.loads(body)
+        self.assertEqual(summary['source']['id'],entry['id'])
+        self.assertEqual(summary['status'],'retrieved_not_campaign_selected')
+        self.assertEqual(summary['authority'],'none')
+        self.assertNotIn('records',summary);self.assertNotIn('address',body.decode())
+        for bad in ('/api/audience-catalogue?organization=other',
+                    route+'&campaign_key=inventory-supplier-timing',
+                    '/api/audience-dataset?dataset_id='+entry['dataset_id'],
+                    selected+'&version=v2',selected+'&organization=other'):
+            self.assertEqual(self.request(bad)[0],409,bad)
+        self.assertEqual(self.request('/api/audience-dataset?'+urlencode(selection|{'checksum':'0'*64}))[0],409)
+        self.assertEqual(self.request('/api/audience-dataset?'+urlencode(selection|{'version':'missing'}))[0],404)
+        self.assertEqual(self.server.workspace.listing()['sessions'],[])
+        self.assertEqual(self.server.workspace.conversations()['conversations'],[])
 
     def absolute_request(self, method, headers):
         connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port, timeout=10)

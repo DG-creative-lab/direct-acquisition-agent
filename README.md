@@ -68,6 +68,7 @@ The workspace's **Knowledge** view shows advisory campaign playbooks, the baseli
 | Run and recover the local application | [Workspace operations](docs/workspace.md) |
 | Inspect approval and invalidation semantics | [Review reference](docs/reviews.md) |
 | Inspect outcome contracts and Bayesian assumptions | [Learning reference](docs/learning.md) |
+| Inspect versioned synthetic audience sources | [Audience catalogue](docs/audience-catalogue.md) |
 | Inspect inference controls and evidence | [Model integration](docs/model-integration.md), [grounding](docs/product-grounding.md) |
 | Assess verification and remaining gaps | [Validation](docs/validation.md) |
 | Reuse the visual system and trace the shared mark | [Branding](docs/branding.md) |

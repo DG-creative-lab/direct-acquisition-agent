@@ -15,6 +15,9 @@ from acquisition.adapters.sqlite.database import Database
 from acquisition.adapters.sqlite.drafts import SqliteDrafts
 from acquisition.adapters.sqlite.tasks import SqliteTasks
 from acquisition.adapters.synthetic import generate
+from acquisition.adapters.local_audiences import LocalAudienceSource
+from acquisition.audiences import AudienceDiscovery
+from acquisition.workflows.audience_discovery import audience_tool_contracts
 from acquisition.adapters.sqlite.creative import SqliteCreative
 from acquisition.adapters.sqlite.inference import SqliteCalls
 from acquisition.campaigns import Brief, ConversationBrief, CampaignService, brief_from
@@ -40,7 +43,7 @@ from acquisition.conversations import PreparationCoordinator
 
 def agent_catalogue():
     skills = json.loads((Path(__file__).resolve().parents[2] / "config/agent-skills-v1.json").read_text())
-    return skills | {"tools": planner_tool_contracts() + grounded_tool_contracts(),
+    return skills | {"tools": planner_tool_contracts() + grounded_tool_contracts() + audience_tool_contracts(),
                      "authority": "none", "status": "installed_contracts_not_dynamic_dispatch"}
 
 
@@ -90,6 +93,7 @@ class Application:
     conversations: ConversationService
     revisions: CopyRevisionService
     followups: FollowupStore
+    audience_discovery: AudienceDiscovery
 
     def start(self, organization: str, request_id: str, size: int = 1000, seed: int = 42,
               budget_pence: int = 85000, as_of: str = "2026-10-25", campaign_id: str | None = None) -> str:
@@ -227,4 +231,5 @@ def build(path: str | Path, clock: Callable[[], float] = time.time,
                        eligible=lambda capability, inputs: model_workflow.eligible(capability, inputs) and conversation_model.eligible(capability, inputs) and planner.eligible(capability, inputs) and revision_workflow.eligible(capability, inputs)), clock,
                        campaigns.catalogue_hash, memory, calls, inference,
                        ReviewService(reviews, ReviewProposalBuilder(audiences, drafts, campaigns)),
-                       LearningService(SqliteLearning(database, clock), AcceptedCohortSource(reviews, drafts)), conversations, revision_service, SqliteFollowups(database))
+                       LearningService(SqliteLearning(database, clock), AcceptedCohortSource(reviews, drafts)), conversations, revision_service, SqliteFollowups(database),
+                       AudienceDiscovery(LocalAudienceSource(Path(__file__).resolve().parents[2] / "config/audience-catalogue"), clock))

@@ -94,6 +94,12 @@ class Workspace:
     def conversations(self):
         return {"conversations": self._conversation_app().conversations.store.listing("local-conversations")}
 
+    def audience_catalogue(self, campaign_key=None):
+        return self._conversation_app().audience_discovery.discover("local-conversations", campaign_key)
+
+    def audience_dataset(self, dataset_id, version, checksum, manifest_id):
+        return self._conversation_app().audience_discovery.inspect("local-conversations", dataset_id, version, checksum, manifest_id)
+
     def knowledge(self):
         config = Path(__file__).resolve().parents[2] / "config"
         playbooks = json.loads((config / "campaign-playbooks-v1.json").read_text())
