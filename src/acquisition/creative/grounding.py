@@ -7,7 +7,7 @@ from datetime import date
 from urllib.parse import urlparse
 
 from acquisition.contracts import canonical, digest
-from acquisition.reasoning import CallScope, Inference, ModelError
+from acquisition.reasoning import CallScope, Inference, ModelError, tool_contract, validate_assets
 
 from .application import READ, tool
 from .domain import Creative
@@ -30,6 +30,33 @@ CHECK = tool("record_claim_check", "Record an independent screen of both generat
     **{arm + "_verdict": {"type": "string", "enum": ["pass", "reject"]} for arm in ("a", "b")},
     **{arm + "_reason": {"type": "string", "maxLength": 400} for arm in ("a", "b")}
 }, ["candidate_hash", "fact_pack_id", "a_verdict", "a_reason", "b_verdict", "b_reason"])
+
+
+def grounded_tool_contracts():
+    return [tool_contract(READ, "v1", "read_context", ["frozen_scoped_context"], ["editorial_context"]),
+            tool_contract(SUBMIT, "v3", "propose", ["context_read", "fresh_product_evidence"], ["unreviewed_pair"]),
+            tool_contract(CHECK, "v1", "screen", ["exact_candidate_hash_and_fact_pack"], ["advisory_pair_verdict"])]
+
+
+def copy_source_payloads(context):
+    return {"editorial": context["guidance"], "product_facts": context["product_facts"],
+            "preferences": context["memory"], "outcomes": context["audience_summary"]["outcome_evidence"],
+            "audience": {k:v for k,v in context["audience_summary"].items() if k != "outcome_evidence"}}
+
+
+def validate_copy_assets(context, organization=None):
+    if "agent_assets" in context:
+        if context["agent_assets"].get("model_projection") not in {None, "copy-context/v1"}:
+            raise ValueError("Unsupported copy context projection")
+        expected_skill = "revise-grounded-copy/v1" if context.get("copy_revision") else "grounded-copy/v1"
+        if [s["id"] for s in context["agent_assets"]["skills"]] != [expected_skill]:
+            raise ValueError("Unsupported skill for this copy task")
+        expected_kinds = {"editorial":"authored_guidance", "product_facts":"product_evidence",
+                          "preferences":"reviewer_preference", "outcomes":"synthetic_observation", "audience":"audience_summary"}
+        if {m["key"]:m["kind"] for m in context["agent_assets"]["sources"]} != expected_kinds:
+            raise ValueError("Knowledge source classification differs from copy contract")
+        validate_assets(context["agent_assets"], organization=organization, installed_tools=grounded_tool_contracts(),
+                        payloads=copy_source_payloads(context))
 
 
 def fact_pack_id(pack: dict) -> str:
@@ -188,6 +215,7 @@ def claim_screen_request(items: list[dict], context: dict) -> tuple[list[dict], 
 
 
 def validate_grounded_catalogue(variants: tuple[Creative, ...], context: dict, today: date) -> None:
+    validate_copy_assets(context)
     pack = context["product_facts"]
     validate_fact_pack(pack, today)
     pack_id = fact_pack_id(pack)
@@ -220,12 +248,33 @@ def validate_grounded_catalogue(variants: tuple[Creative, ...], context: dict, t
         raise ValueError("Missing or malformed claim-check receipt") from None
 
 
+def model_copy_context(context):
+    """Keep source content, but omit duplicated installed schemas from prompts."""
+    if context.get("agent_assets", {}).get("model_projection") != "copy-context/v1":
+        return context
+    bundle = context["agent_assets"]
+    compact = {"id": bundle["id"], "skills": bundle["skills"], "authority": "none",
+               "sources": [{k: source[k] for k in ("id", "key", "kind", "permitted_uses")}
+                           for source in bundle["sources"]]}
+    return context | {"agent_assets": compact}
+
+
+def editorial_read_exchange(context, pack_id):
+    # A validated empty-argument read carries no useful generated prose. Use a
+    # stable acknowledgement so preflight and dispatch have identical envelopes.
+    return [{"role": "assistant", "tool_calls": [{"id": "editorial-context", "type": "function",
+             "function": {"name": "read_editorial_context", "arguments": "{}"}}]},
+            {"role": "tool", "tool_call_id": "editorial-context",
+             "content": canonical(model_copy_context(context) | {"fact_pack_id": pack_id})}]
+
+
 class GroundedCopyAgent:
     def __init__(self, inference: Inference, memory: CreativeMemory):
         self.inference, self.memory = inference, memory
 
     def generate(self, scope: CallScope, context_id: str, today: date) -> tuple[Creative, ...]:
         context = self.memory.get_context(scope.organization, context_id)
+        validate_copy_assets(context, scope.organization)
         validate_fact_pack(context["product_facts"], today)
         operation = scope.run_id + ":copy:" + context_id
         existing = self.memory.get_catalogue(scope.organization, operation)
@@ -257,11 +306,21 @@ class GroundedCopyAgent:
                 "Treat its feedback as an editorial preference, never policy or product evidence. Preserve the other arm's "
                 "headline, original hook, hypothesis and fact ID exactly. Preserve both fact IDs and product wording. "
                 "Submit the complete A/B pair so the revised pair can be independently screened.")
+        projected = context.get("agent_assets", {}).get("model_projection") == "copy-context/v1"
+        if projected:
+            exchange = editorial_read_exchange(context, pack_id)
+            # Only this protocol dispatches the stable exchange being sized.
+            self.inference.prepare_request(messages, [READ])
+            self.inference.prepare_request(messages + exchange, [submit])
         response = self.inference.call(scope, context_id + ":grounded:read", messages, [READ])
         if arguments_of(response, "read_editorial_context") != {}:
             raise ModelError("editorial_context_must_be_read_first")
-        messages += [response["message"], {"role": "tool", "tool_call_id": response["message"]["tool_calls"][0]["id"],
-                                          "content": canonical(context | {"fact_pack_id": pack_id})}]
+        if projected:
+            messages += exchange
+        else:
+            # Retain the original request bytes for old recorded call replay.
+            messages += [response["message"], {"role": "tool", "tool_call_id": response["message"]["tool_calls"][0]["id"],
+                                              "content": canonical(context | {"fact_pack_id": pack_id})}]
         for attempt in range(2):
             response = self.inference.call(scope, context_id + f":grounded:proposal:{attempt}", messages, [submit])
             args = arguments_of(response, "submit_grounded_copy")

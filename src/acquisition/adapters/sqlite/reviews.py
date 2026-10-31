@@ -11,7 +11,7 @@ from acquisition.audiences import Business, Snapshot
 from acquisition.campaigns import Draft, validate_copy_revision
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.conversations import validate_result
-from acquisition.creative import fact_pack_id, validate_fact_pack
+from acquisition.creative import fact_pack_id, validate_fact_pack, validate_copy_assets
 from acquisition.reviews import ReviewPolicy, current_reasons, subject, text, timestamp, validate_candidate
 
 from .followups import require_followup
@@ -551,7 +551,13 @@ class SqliteReviews:
                 "arm": target["arm"], "feedback": inputs["feedback"],
                 "base_variants": sorted([c for c in base.manifest["creatives"] if c["segment"] == target["segment"]], key=lambda c: c["arm"])}}
             if context != expected:
-                raise Conflict("Revision context differs from its actual base draft")
+                # A new revision may freeze its own authored procedure, while
+                # every actual base input and the feedback contract stay exact.
+                if ({k:v for k,v in context.items() if k != "agent_assets"}
+                        != {k:v for k,v in expected.items() if k != "agent_assets"}
+                        or "agent_assets" not in context):
+                    raise Conflict("Revision context differs from its actual base draft")
+            validate_copy_assets(context, organization)
             revision_id = "revision_" + digest({"organization": organization, "request_id": request_id})[:32]
             task_inputs = {"workflow_version": "copy-revision/v3", "revision_id": revision_id, "admission_request_id": request_id, **inputs,
                 "brief": base.manifest["brief"], "base_draft_id": base.id, "model_config": model_config,

@@ -5,7 +5,7 @@ from dataclasses import asdict
 
 from acquisition.contracts import canonical, digest
 from acquisition.conversations import CAPABILITY, FIXTURE_MESSAGE, validate_result
-from acquisition.reasoning import CallScope, Inference, ModelError
+from acquisition.reasoning import CallScope, Inference, ModelError, tool_contract, validate_assets
 from acquisition.runtime import Outcome
 
 
@@ -23,6 +23,23 @@ SUBMIT = {"type": "function", "function": {
                        "assumptions": {"type": "array", "maxItems": 5, "items": {"type": "string", "maxLength": 240}},
                        "unsupported_reason": {"type": "string", "maxLength": 600}},
                    "required": ["outcome", "objective", "budget_pence", "segments", "copy_mode", "question", "assumptions", "unsupported_reason"]}}}
+
+
+def planner_tool_contracts():
+    return [tool_contract(SUBMIT, "v1", "propose", ["frozen_current_brief", "explicit_planning_request"],
+                          ["brief_proposal", "clarification", "unsupported"])]
+
+
+def validate_planning_assets(frozen, organization=None):
+    knowledge = frozen["knowledge"]
+    if "agent_assets" in knowledge:
+        if [s["id"] for s in knowledge["agent_assets"]["skills"]] != ["prepare-campaign/v1"]:
+            raise ValueError("Unsupported planning skill")
+        if any(m["kind"] != "authored_guidance" for m in knowledge["agent_assets"]["sources"]):
+            raise ValueError("Planning source classification mismatch")
+        validate_assets(knowledge["agent_assets"], organization=organization, installed_tools=planner_tool_contracts(),
+                        payloads={"planning": {k:v for k,v in knowledge.items() if k not in {"playbooks","agent_assets"}},
+                                  "playbooks": knowledge["playbooks"]})
 
 
 class ConversationPlanner:
@@ -52,12 +69,14 @@ class ConversationPlanner:
                                                    "previous_results": frozen["previous_results"]})}]
 
     def preflight(self, frozen):
+        validate_planning_assets(frozen)
         if self.inference is None:
             raise ModelError("configure_the_original_planner_before_resuming")
         self.inference.prepare_request(self.messages(frozen), [SUBMIT])
 
     def fixture_plan(self, claim):
         frozen = claim.inputs
+        validate_planning_assets(frozen, claim.organization)
         if (frozen.get("fixture") != "offline-example/v1" or len(frozen.get("messages", [])) != 1
                 or frozen["messages"][0]["content"] != FIXTURE_MESSAGE
                 or frozen.get("knowledge_id") != "knowledge_" + digest(frozen["knowledge"])):
@@ -72,6 +91,7 @@ class ConversationPlanner:
         if not self.eligible(claim.capability, claim.inputs):
             raise ModelError("configure_the_original_planner_before_resuming")
         frozen = claim.inputs
+        validate_planning_assets(frozen, claim.organization)
         if frozen.get("knowledge_id") != "knowledge_" + digest(frozen["knowledge"]):
             raise ModelError("planning_knowledge_integrity_failure")
         messages = self.messages(frozen)

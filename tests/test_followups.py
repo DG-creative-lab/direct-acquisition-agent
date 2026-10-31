@@ -167,3 +167,27 @@ print(json.dumps(s['session']))
             self.assertEqual(dispatch.call_count,1)
         row=self.w.view(self.sid)['followups'][0]
         self.assertTrue(row['generation']['outcome_uncertain'])
+
+    def test_saved_model_proposal_ignores_changed_or_unavailable_current_assets(self):
+        import shutil
+        from acquisition.bootstrap import agent_catalogue
+        p=self.finalized()
+        changed=agent_catalogue()
+        changed['skills']=[]
+        for unavailable in (False,True):
+            with self.subTest(unavailable=unavailable), tempfile.TemporaryDirectory() as folder:
+                root=Path(folder)/'saved'
+                shutil.copytree(self.root,root)
+                w=Workspace(root,real_clock=lambda:1792972800.)
+                model=RevisionModel()
+                catalogue_patch=(patch('acquisition.bootstrap.agent_catalogue',side_effect=ValueError('Catalogue unavailable'))
+                                 if unavailable else patch('acquisition.bootstrap.agent_catalogue',return_value=changed))
+                with catalogue_patch as catalogue, patch('acquisition.bootstrap.copy_assets',side_effect=AssertionError('Must use frozen contexts')) as rebuild, patch('acquisition.workspace.openrouter_key',return_value='fake'),patch('acquisition.workspace.OpenRouter',return_value=model):
+                    child=w.prepare_followup(self.sid,'frozen-copy',p['id'],'model',True)
+                    self.assertTrue(child['review']['candidate_valid'],child['review']['blocked_reasons'])
+                    self.assertFalse(child['review']['approval_valid'])
+                    catalogue.assert_not_called()
+                    rebuild.assert_not_called()
+                app=w._app(w._session(child['session']['id']))
+                task=app.tasks.inspect(self.scope,child['session']['run_id'])['tasks'][0]
+                self.assertEqual(task['inputs']['context_ids'],p['contexts'])

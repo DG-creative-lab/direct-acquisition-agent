@@ -10,6 +10,25 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ("legacy-copy-envelope-boundary", "creative/grounding.py",
+     '        if projected:\n            exchange = editorial_read_exchange(context, pack_id)',
+     '        if True:\n            exchange = editorial_read_exchange(context, pack_id)',
+     "test_agent_assets.AgentAssetTests.test_recorded_legacy_read_replays_at_exact_original_input_limit"),
+
+    ("copy-full-envelope-preflight", "creative/grounding.py",
+     '        self.inference.prepare_request(messages + exchange, [submit])', '        pass',
+     "test_agent_assets.AgentAssetTests.test_over_budget_full_copy_envelope_is_rejected_before_read_or_reservation"),
+    ("followup-frozen-contexts", "bootstrap.py",
+     '        if contexts_override is not None:', '        if False:',
+     "test_followups.FollowupTests.test_saved_model_proposal_ignores_changed_or_unavailable_current_assets"),
+
+    ("asset-installed-tool-schema", "reasoning/catalogue.py",
+     'if installed_tools is not None and canonical(tools) != canonical(installed_tools):', 'if False:',
+     "test_agent_assets.AgentAssetTests.test_changed_wire_schema_and_missing_source_coverage_rejected"),
+    ("asset-tool-membership", "reasoning/catalogue.py",
+     "not set(s['tool_ids']) <= set(ids)", 'False',
+     "test_agent_assets.AgentAssetTests.test_unknown_skill_tool_and_missing_source_fail_before_admission"),
+
     ("task-lease-expiry", "adapters/sqlite/tasks.py",
      '                or row["token"] != claim.token or row["lease_until"] <= now):',
      '                or row["token"] != claim.token):',

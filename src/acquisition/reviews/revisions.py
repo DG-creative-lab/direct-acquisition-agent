@@ -10,9 +10,9 @@ from .domain import text
 
 
 class CopyRevisionService:
-    def __init__(self, store: ReviewStore, drafts: DraftStore, memory: CreativeMemory, tasks: TaskStore, clock, config):
+    def __init__(self, store: ReviewStore, drafts: DraftStore, memory: CreativeMemory, tasks: TaskStore, clock, config, asset_context=None):
         self.store, self.drafts, self.memory, self.tasks = store, drafts, memory, tasks
-        self.clock, self.config = clock, config
+        self.clock, self.config, self.asset_context = clock, config, asset_context
 
     def admit(self, organization, case_id, request_id, expected_subject, target_id, feedback, allow_model_copy,
               actor="local-operator", reviewer="local-reviewer"):
@@ -41,6 +41,8 @@ class CopyRevisionService:
         context = original_context | {"copy_revision": {"base_draft_id": base.id, "base_subject_id": expected_subject,
             "arm": target["arm"], "feedback": feedback,
             "base_variants": sorted([c for c in base.manifest["creatives"] if c["segment"] == target["segment"]], key=lambda c: c["arm"])}}
+        if self.asset_context:
+            context = self.asset_context(organization, context, revision=True)
         return self.store.admit_revision(organization, request_id, inputs, context, asdict(self.config))
 
     def reconcile(self, organization, receipt):

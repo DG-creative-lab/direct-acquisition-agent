@@ -186,3 +186,7 @@ The existing scoped review command journal stores proposals under content identi
 The original campaign, approval, outcomes and frozen contexts remain historical. The follow-up receives no inherited approval or outcome counts, even when it reuses fixture creative text. It needs a new review and explicit simulated handoff. Its outcomes count only after its own complete mature cohort finalizes. The older manual next-experiment flow remains available with its existing overlap limitation.
 
 `POST /api/sessions/{id}/followup-proposal` accepts exactly `request_id` and `cohort_id`. `POST /api/sessions/{id}/followup-prepare` accepts exactly `request_id`, `proposal_id`, `mode` and `allow_model_copy`. Both retain Host/token/Origin checks and server-side scope resolution. Reading proposals and selecting a child makes no inference request.
+
+## Versioned planning assets
+
+New planning requests freeze the authored preparation skill, the installed brief-submission contract and manifests for procedures/playbooks alongside the existing knowledge snapshot. Historical requests keep their original bytes and can resume without current skill files. The read-only knowledge API also exposes the current catalogue. See [agent contracts](agent-contracts.md) for copy/revision source binding, compatibility and remaining scope.
