@@ -149,3 +149,7 @@ SQLite checks proposal identity, immutable brief/snapshot, current epochs and in
 ## Authored reasoning assets
 
 [Versioned agent contracts](agent-contracts.md) freeze skills, installed model-tool descriptions and distinct knowledge-source manifests inside existing planning admissions and creative contexts. Composition selects local assets; provider modules enforce supported skill IDs, installed schemas and source roles. These descriptions introduce no new executor or approval authority.
+
+## Review-readiness evidence
+
+[Campaign validation reports](campaign-validation.md) compose existing domain validators into a versioned, exact-subject read projection inside the review transaction. Reports gate preparation/readiness presentation, while approval and simulator acceptance retain independent transactional validation. No report store or new authority token is introduced.

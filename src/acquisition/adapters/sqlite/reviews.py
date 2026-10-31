@@ -12,7 +12,7 @@ from acquisition.campaigns import Draft, validate_copy_revision
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.conversations import validate_result
 from acquisition.creative import fact_pack_id, validate_fact_pack, validate_copy_assets
-from acquisition.reviews import ReviewPolicy, current_reasons, subject, text, timestamp, validate_candidate
+from acquisition.reviews import ReviewPolicy, current_reasons, subject, text, timestamp, validate_candidate, validate_population, validate_copy, validation_report
 
 from .followups import require_followup
 from .database import Database
@@ -134,16 +134,58 @@ class SqliteReviews:
                 or result["segments"] != brief["segments"]):
             raise Conflict("Campaign does not match its validated conversation proposal")
 
-    def _validate(self, db, organization, case, draft_id, authority, now):
-        bundle = self._bundle(db, organization, draft_id)
+    def _validate_source(self, db, organization, case, draft_id, bundle):
         original = db.execute("SELECT inputs FROM tasks WHERE run_id=? ORDER BY position LIMIT 1", (case["run_id"],)).fetchone()
         source_brief = json.loads(original[0]).get("brief",{}) if original else {}
         if source_brief.get("followup_id") and canonical(source_brief) != canonical(bundle[0].manifest["brief"]):
             raise Conflict("Follow-up differs from its admitted proposal")
         require_followup(db, organization, bundle[0].manifest, draft_id)
         self._conversation_source(db, organization, case, bundle[0])
+
+    def _validate(self, db, organization, case, draft_id, authority, now):
+        bundle = self._bundle(db, organization, draft_id)
+        self._validate_source(db, organization, case, draft_id, bundle)
         validate_candidate(*bundle, authority["pack"], ReviewPolicy(**authority["policy"]), self._suppressed(db, organization), now)
         return bundle[0]
+
+    def _validation_report(self, db, organization, case, proposal, authority, bundle, now):
+        draft, snapshot, contexts = bundle
+        checks = []
+        def check(identity, label, action):
+            try:
+                action()
+            except (ValueError, NotFound) as error:
+                checks.append({"id":identity,"label":label,"required":True,"status":"failed","detail":str(error)})
+            except Exception:
+                checks.append({"id":identity,"label":label,"required":True,"status":"unknown",
+                               "detail":"Validation could not complete. Inspect the original campaign and server state."})
+            else:
+                checks.append({"id":identity,"label":label,"required":True,"status":"passed","detail":"Check passed for this exact campaign."})
+        check("artifact_integrity", "Artifact and source integrity", lambda: None)  # _bundle already verified exact hashes.
+        check("source_run", "Preparation reached its review checkpoint", lambda: self._run_ready(db, organization, case))
+        check("source_provenance", "Bound brief and source provenance", lambda: self._validate_source(db, organization, case, draft.id, bundle))
+        def epochs():
+            reasons = current_reasons(proposal, authority)
+            if reasons:
+                raise Conflict(". ".join(reasons))
+        check("current_epochs", "Current evidence and suppression versions", epochs)
+        check("product_evidence", "Product evidence and review window",
+              lambda: validate_fact_pack(authority["pack"], datetime.fromtimestamp(now, timezone.utc).date()))
+        check("population_budget", "Audience, assignments and budget",
+              lambda: validate_population(draft, snapshot, self._suppressed(db, organization)))
+        check("copy_contract", "Copy contract and grounding",
+              lambda: validate_copy(draft, contexts, authority["pack"], ReviewPolicy(**authority["policy"]), now))
+        generated = all(c.get("status") == "generated_unreviewed" for c in draft.manifest["creatives"])
+        copy_passed = checks[-1]["status"] == "passed"
+        checks += [
+            {"id":"semantic_screen","label":"Recorded semantic claim screen","required":False,
+             "status":("passed" if copy_passed else "unknown") if generated else "not_evaluated",
+             "detail":"Advisory recorded screen, not human approval." if generated else "Offline fixtures have no model claim screen."},
+            {"id":"editorial_judgment","label":"Editorial suitability for the objective","required":False,"status":"not_evaluated",
+             "detail":"Requires human judgment. Structural brief validation does not establish marketing quality."},
+            {"id":"real_performance","label":"Real customer performance","required":False,"status":"unknown",
+             "detail":"Synthetic preparation and model scores do not establish campaign performance."}]
+        return validation_report(proposal, authority, checks, contexts, now, draft.manifest["brief"])
 
     def _event(self, db, organization, case_id, kind, payload, now):
         db.execute("INSERT INTO review_events(organization,case_id,kind,payload,at) VALUES(?,?,?,?,?)",
@@ -275,15 +317,12 @@ class SqliteReviews:
             case = self._case(db, organization, case_id)
             proposal = self._subject(db, organization, case["current_subject"])
             authority = self._authority(db, organization)
-            draft = self._bundle(db, organization, proposal["draft_id"])[0]
+            bundle = self._bundle(db, organization, proposal["draft_id"])
+            draft = bundle[0]
+            report = self._validation_report(db, organization, case, proposal, authority, bundle, now)
             approval = self._latest(db, organization, case_id, proposal["id"])
             reasons = self._approval_reasons(db, organization, case, proposal, authority, approval, now)
-            candidate_reasons = current_reasons(proposal, authority)
-            try:
-                self._run_ready(db, organization, case)
-                self._validate(db, organization, case, proposal["draft_id"], authority, now)
-            except (ValueError, NotFound) as error:
-                candidate_reasons.append(str(error))
+            candidate_reasons = [c["detail"] for c in report["checks"] if c["required"] and c["status"] != "passed"]
             reasons.extend(candidate_reasons)
             job = db.execute("SELECT payload FROM simulated_agency_jobs WHERE organization=? AND case_id=?", (organization, case_id)).fetchone()
             revisions = [json.loads(r[0]) for r in db.execute("SELECT payload FROM review_subjects WHERE organization=? AND case_id=? ORDER BY revision", (organization, case_id))]
@@ -301,7 +340,7 @@ class SqliteReviews:
                 "SELECT * FROM review_events WHERE organization=? AND (case_id=? OR case_id IS NULL) ORDER BY sequence", (organization, case_id))]
             return {"case_id": case_id, "run_id": case["run_id"], "subject": proposal, "authority": authority,
                 "manifest": draft.manifest, "approval": approval, "approval_valid": not reasons,
-                "candidate_valid": not candidate_reasons, "changes": changes,
+                "candidate_valid": report["review_ready"], "validation_report": report, "changes": changes,
                 "blocked_reasons": list(dict.fromkeys(reasons)), "handoff": json.loads(job[0]) if job else None,
                 "suppressions": sorted(self._suppressed(db, organization)), "revisions": revisions,
                 "events": events, "as_of": now, "mode": "local_synthetic_review_not_lender_approval"}

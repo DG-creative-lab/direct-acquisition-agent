@@ -96,7 +96,7 @@ class PreparationCoordinator:
                 if source["revision"] != inputs["revision"]:
                     return self._stale(organization, row)
                 if campaign["review"]:
-                    valid = campaign["review"]["candidate_valid"]
+                    valid = campaign["review"]["candidate_valid"] and campaign["review"].get("validation_report", {}).get("review_ready", False)
                     return self.store.update(organization, row, "review_ready" if valid else "blocked",
                                              "Unapproved synthetic campaign ready for human review." if valid else "Campaign validation blocked review. Inspect the campaign.")
                 generation = self.host.preparation_generation(organization, row)

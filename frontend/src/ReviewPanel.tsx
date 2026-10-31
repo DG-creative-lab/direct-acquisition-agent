@@ -14,6 +14,7 @@ import {
 import type { Act, State } from "./api";
 import { date, money } from "./api";
 import { Badge, Modal } from "./ui";
+import ValidationPanel from "./ValidationPanel";
 
 export default function ReviewPanel({
   state,
@@ -58,8 +59,25 @@ export default function ReviewPanel({
     if (await act(decision.kind, payload)) setDecision(null);
   };
   const checks = [
-    { label: "Audience and artifact integrity", good: review.candidate_valid },
-    { label: "Product facts and review window", good: review.candidate_valid },
+    {
+      label: "Audience and artifact integrity",
+      good:
+        review.validation_report?.checks.filter((c) =>
+          ["artifact_integrity", "population_budget"].includes(c.id),
+        ).length === 2 &&
+        review.validation_report.checks
+          .filter((c) =>
+            ["artifact_integrity", "population_budget"].includes(c.id),
+          )
+          .every((c) => c.status === "passed"),
+    },
+    {
+      label: "Product facts and review window",
+      good:
+        review.validation_report?.checks.find(
+          (c) => c.id === "product_evidence",
+        )?.status === "passed",
+    },
     {
       label: "Exact revision reviewed",
       good: review.approval_valid || !!review.handoff,
@@ -87,6 +105,7 @@ export default function ReviewPanel({
         A decision applies to the exact audience, copy and evidence in this
         revision.
       </div>
+      <ValidationPanel report={review.validation_report} />
       <div className="check-list">
         {checks.map((c) => (
           <div key={c.label}>
@@ -199,7 +218,12 @@ export default function ReviewPanel({
         <div className="review-actions">
           <button
             className="button primary wide"
-            disabled={busy || readOnly || !review.candidate_valid}
+            disabled={
+              busy ||
+              readOnly ||
+              !review.candidate_valid ||
+              !review.validation_report?.review_ready
+            }
             onClick={() => begin("approve")}
           >
             <Check size={16} />

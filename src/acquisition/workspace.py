@@ -202,6 +202,18 @@ class Workspace:
             # Frozen model inputs remain server-side. The plan's existing guidance
             # projection is the public inspection surface for that content.
             public = {k: v for k, v in row.items() if k != "planning_context"}
+            if row["status"] == "review_ready":
+                with self.control() as db:
+                    admitted = db.execute("SELECT session_id FROM conversation_draft_requests WHERE conversation_id=? AND request_id=?",
+                                          (conversation_id, row["id"] + ":draft")).fetchone()
+                ready = False
+                if admitted:
+                    session = self._session(admitted[0])
+                    if session["case_id"]:
+                        report = self._app(session).reviews.store.view(session["organization"], session["case_id"])["validation_report"]
+                        ready = report["review_ready"]
+                if not ready:
+                    public = public | {"status":"blocked", "detail":"Current campaign validation blocks review. Inspect the campaign validation report."}
             values.append(public | {"current": source["revision"] == row["inputs"]["revision"], "generation": generation})
         return values
 
@@ -555,7 +567,11 @@ class Workspace:
         # the whole transactional review projection, including decisions and
         # current authority, after reading progress. Only the read time may vary.
         current_review = app.reviews.store.view(scope, session["case_id"])
-        if {k: v for k, v in current_review.items() if k != "as_of"} != {k: v for k, v in review.items() if k != "as_of"}:
+        def stable_projection(value):
+            report = value.get("validation_report", {})
+            return {k:v for k,v in value.items() if k not in {"as_of", "validation_report"}} | {
+                "validation_report": {k:v for k,v in report.items() if k not in {"id", "evaluated_at"}}}
+        if stable_projection(current_review) != stable_projection(review):
             if _attempt >= 3:
                 raise Conflict("Campaign changed while loading; refresh the review")
             return self.view(identity, _attempt=_attempt + 1)
