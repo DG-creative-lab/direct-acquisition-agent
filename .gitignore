@@ -34,3 +34,5 @@ dist/
 !/docs/user-guide.md
 !/docs/validation.md
 !/docs/workspace.md
+
+!/docs/demo-evaluation.md

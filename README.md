@@ -84,6 +84,8 @@ pnpm --dir frontend exec playwright install chromium
 make interface-check
 ```
 
+Run `make evaluate-offline` for a repeatable synthetic journey with saved JSON evidence. See the [demo and evaluation guide](docs/demo-evaluation.md) for the browser walkthrough, observed usability gaps and the limits of offline evaluation.
+
 Offline checks need no provider credentials. Live model quality is evaluated separately. A [recorded generated-copy example](examples/grounded-run/letters.txt) is supplied for inspection, with its limitations described in the grounding guide.
 
 Development branches use `feature/...`. Build history is available in Git; the guides describe the current product and label future work explicitly. No license terms have been selected yet.
