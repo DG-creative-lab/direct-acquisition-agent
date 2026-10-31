@@ -44,10 +44,22 @@ class ConversationBrief(Brief):
             raise ValueError("A conversation brief requires supported segments and exact proposal provenance")
 
 
+@dataclass(frozen=True)
+class FollowupBrief(Brief):
+    segments: tuple[str, ...] = ()
+    followup_id: str = ""
+
+    def __post_init__(self):
+        super().__post_init__()
+        if not self.followup_id.startswith("followup_") or not self.segments or set(self.segments) - {"inventory", "contractors"}:
+            raise ValueError("Follow-up requires a frozen proposal and supported segments")
+
+
 def brief_from(payload: dict) -> Brief:
     if "segments" not in payload:
         return Brief(**payload)
-    return ConversationBrief(**(payload | {"segments": tuple(payload["segments"])}))
+    kind = FollowupBrief if "followup_id" in payload else ConversationBrief
+    return kind(**(payload | {"segments": tuple(payload["segments"])}))
 
 
 @dataclass(frozen=True)
@@ -78,7 +90,7 @@ def build_draft(snapshot: Snapshot, brief: Brief, creatives: tuple[Creative, ...
     catalogue = {(item.segment, item.arm): item for item in creatives}
     if len(catalogue) != len(creatives) or len({item.id for item in creatives}) != len(creatives):
         raise ValueError("Duplicate creative identity or segment/arm")
-    segments = brief.segments if isinstance(brief, ConversationBrief) else ("inventory", "contractors")
+    segments = brief.segments if isinstance(brief, (ConversationBrief, FollowupBrief)) else ("inventory", "contractors")
     if set(catalogue) != {(s, a) for s in segments for a in ("A", "B")}:
         raise ValueError("Incomplete creative catalogue")
     identity_counts = Counter(row.business_id for row in snapshot.records)
@@ -101,7 +113,7 @@ def build_draft(snapshot: Snapshot, brief: Brief, creatives: tuple[Creative, ...
             reason = "contact_cap"
         elif row.last_contact and (as_of - date.fromisoformat(row.last_contact)).days < 30:
             reason = "contact_cooldown"
-        elif isinstance(brief, ConversationBrief) and row.segment not in segments:
+        elif isinstance(brief, (ConversationBrief, FollowupBrief)) and row.segment not in segments:
             reason = "outside_selected_segment"
         if reason:
             reasons[reason] += 1
@@ -136,7 +148,7 @@ def build_draft(snapshot: Snapshot, brief: Brief, creatives: tuple[Creative, ...
     if counts["input"] != sum(value for key, value in counts.items() if key != "input"):
         raise AssertionError("Population did not reconcile")
     brief_data = asdict(brief)
-    if isinstance(brief, ConversationBrief):
+    if isinstance(brief, (ConversationBrief, FollowupBrief)):
         brief_data["segments"] = list(brief.segments)
     manifest = {
         "schema": "draft/v1", "mode": "SYNTHETIC_DRY_RUN_UNAPPROVED",

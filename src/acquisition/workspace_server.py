@@ -175,6 +175,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, self.server.workspace.create(data["request_id"], data["mode"], data.get("parent_id")))
             parts = path.strip("/").split("/")
             if len(parts) == 4 and parts[:2] == ["api", "sessions"]:
+                if parts[3] == "followup-proposal" and set(data) == {"request_id", "cohort_id"}:
+                    return self._send(200, self.server.workspace.propose_followup(parts[2], **data))
+                if parts[3] == "followup-prepare" and set(data) == {"request_id", "proposal_id", "mode", "allow_model_copy"}:
+                    return self._send(200, self.server.workspace.prepare_followup(parts[2], **data))
                 if parts[3] == "copy-revisions" and set(data) == {"request_id", "expected_subject", "target_id", "feedback", "allow_model_copy"}:
                     return self._send(202, self.server.workspace.request_copy_revision(parts[2], **data))
                 if parts[3] == "prepare":

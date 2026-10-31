@@ -5,6 +5,7 @@ import type { Act, Creative, State } from "./api";
 import { CopyLetters } from "./CampaignViews";
 import ReviewPanel from "./ReviewPanel";
 import ConversationHandoff from "./ConversationHandoff";
+import ConversationFollowup from "./ConversationFollowup";
 import ConversationLearning from "./ConversationLearning";
 import { Modal, segmentName } from "./ui";
 import "./conversation-review.css";
@@ -25,7 +26,7 @@ export default function ConversationCampaignReview({
   sessionId: string;
   interactive: boolean;
   active: boolean;
-  onOpenWorkspace: () => void;
+  onOpenWorkspace: (sessionId?: string) => void;
 }) {
   const [state, setState] = useState<State | null>(null);
   const [busy, setBusy] = useState(false),
@@ -171,7 +172,10 @@ export default function ConversationCampaignReview({
             Revision {review.subject.revision}. Synthetic data. No mail is sent.
           </p>
         </div>
-        <button className="text-button" onClick={onOpenWorkspace}>
+        <button
+          className="text-button"
+          onClick={() => onOpenWorkspace(sessionId)}
+        >
           Open campaign workspace <ArrowUpRight size={14} />
         </button>
         <button
@@ -387,6 +391,20 @@ export default function ConversationCampaignReview({
           busy={busy}
           act={act}
           error={error}
+        />
+      )}
+      {state.learning?.status === "finalized" && (
+        <ConversationFollowup
+          state={state}
+          onRefresh={() => setReload((n) => n + 1)}
+          renderChild={(id) => (
+            <ConversationCampaignReview
+              sessionId={id}
+              interactive={true}
+              active={active}
+              onOpenWorkspace={onOpenWorkspace}
+            />
+          )}
         />
       )}
       {feedback && (

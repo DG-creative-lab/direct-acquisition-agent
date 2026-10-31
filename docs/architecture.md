@@ -139,3 +139,9 @@ The selected letter gets a new identity; unchanged sibling text keeps its identi
 Pure policy tests, real SQLite fault/concurrency tests, separate-process CLI recovery and real HTTP/browser journeys complement each other. None alone proves the entire system. See [validation](validation.md) for current evidence and gaps.
 
 The modular monolith remains the default until measured concurrency or operational requirements justify a change. Ports isolate dependencies, but a PostgreSQL migration, multi-worker operation or external dispatch still requires implementation and new failure/recovery evidence. The [scaling path](scalability.md) specifies those changes without presenting them as shipped capabilities.
+
+## Follow-up proposal composition
+
+A follow-up brief binds a content-addressed proposal and selected segments. The campaign port owns scoped proposal persistence and population reads; its SQLite adapter uses the existing review command journal, with no schema migration. Bootstrap supplies the bounded synthetic inventory and freezes copy contexts, then reuses existing fixture/model task plans. The workspace composes source learning, proposal inspection and explicit child preparation. Runtime remains business-agnostic.
+
+SQLite checks proposal identity, immutable brief/snapshot, current epochs and independent enrollment at inference reservation, draft commit and review/acceptance. The acceptance write transaction prevents another follow-up from concurrently consuming the same population without detection. Accepted history may observe its own allocated cohort; cohort opening still forbids repeated independent business outcomes. Child cases cannot strip the source brief to bypass these checks.

@@ -151,7 +151,30 @@ export type CopyRevision = {
     failed_tasks: { capability: string; error_code: string }[];
   };
 };
+export type Followup = {
+  id: string;
+  source_cohort: string;
+  eligible: boolean;
+  source_label: string;
+  hypothesis: string;
+  brief: { budget_pence: number; segments: string[] };
+  counts: Record<string, number>;
+  cost_pence: number;
+  snapshot_id: string;
+  contexts: Record<string, string>;
+  memory: unknown;
+  learning: unknown;
+  session_id: string | null;
+  mode?: string;
+  case_id?: string | null;
+  generation?: {
+    status: string;
+    outcome_uncertain: boolean;
+    provider_error: string | null;
+  };
+};
 export type State = {
+  followups?: Followup[];
   copy_revisions?: CopyRevision[];
   command_replayed?: boolean;
   session: Session;

@@ -14,6 +14,7 @@ from acquisition.conversations import validate_result
 from acquisition.creative import fact_pack_id, validate_fact_pack
 from acquisition.reviews import ReviewPolicy, current_reasons, subject, text, timestamp, validate_candidate
 
+from .followups import require_followup
 from .database import Database
 from .actors import require_actor
 from .drafts import verify
@@ -135,6 +136,11 @@ class SqliteReviews:
 
     def _validate(self, db, organization, case, draft_id, authority, now):
         bundle = self._bundle(db, organization, draft_id)
+        original = db.execute("SELECT inputs FROM tasks WHERE run_id=? ORDER BY position LIMIT 1", (case["run_id"],)).fetchone()
+        source_brief = json.loads(original[0]).get("brief",{}) if original else {}
+        if source_brief.get("followup_id") and canonical(source_brief) != canonical(bundle[0].manifest["brief"]):
+            raise Conflict("Follow-up differs from its admitted proposal")
+        require_followup(db, organization, bundle[0].manifest, draft_id)
         self._conversation_source(db, organization, case, bundle[0])
         validate_candidate(*bundle, authority["pack"], ReviewPolicy(**authority["policy"]), self._suppressed(db, organization), now)
         return bundle[0]

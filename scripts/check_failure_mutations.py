@@ -166,6 +166,12 @@ CASES = [
     ("chat-learning-cohort-binding", "workspace.py",
      'if action != "open-learning" and (payload["cohort_id"] != session["cohort_id"] or payload["cohort_id"] != accepted["id"]):', 'if False:',
      "test_conversation_learning.ConversationLearningTests.test_bound_commands_reject_unaccepted_or_substituted_job_and_cohort_before_mutation"),
+    ("followup-independent-population", "adapters/sqlite/followups.py",
+     "if set(p['population']) & excluded_businesses(db, organization, own_draft):", "if False:",
+     "test_followups.FollowupTests.test_later_population_allocation_blocks_review_and_cannot_be_removed_from_brief"),
+    ("followup-source-cannot-be-stripped", "adapters/sqlite/reviews.py",
+     'if source_brief.get("followup_id") and canonical(source_brief) != canonical(bundle[0].manifest["brief"]):', 'if False:',
+     "test_followups.FollowupTests.test_later_population_allocation_blocks_review_and_cannot_be_removed_from_brief"),
 ]
 
 

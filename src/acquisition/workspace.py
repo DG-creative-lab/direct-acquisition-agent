@@ -18,7 +18,9 @@ from acquisition.adapters.openrouter import OpenRouter
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.learning import identifier
 from acquisition.reasoning import ModelConfig
-from acquisition.creative import validate_fact_pack
+from acquisition.creative import validate_fact_pack, fixture_catalog
+from acquisition.campaigns import FollowupBrief, build_draft, brief_from
+from dataclasses import replace, asdict
 from acquisition.reviews import ReviewPolicy, text
 
 
@@ -39,6 +41,7 @@ class Workspace:
             db.execute("CREATE TABLE IF NOT EXISTS sessions(id TEXT PRIMARY KEY, request_hash TEXT NOT NULL, payload TEXT NOT NULL)")
             db.execute("CREATE TABLE IF NOT EXISTS commands(session_id TEXT NOT NULL, request_id TEXT NOT NULL, request_hash TEXT NOT NULL, done INTEGER NOT NULL, PRIMARY KEY(session_id,request_id))")
             db.execute("CREATE TABLE IF NOT EXISTS conversation_draft_requests(conversation_id TEXT NOT NULL, request_id TEXT NOT NULL, request_hash TEXT NOT NULL, session_id TEXT NOT NULL, PRIMARY KEY(conversation_id,request_id))")
+            db.execute("CREATE TABLE IF NOT EXISTS followup_prepare_requests(organization TEXT NOT NULL, request_id TEXT NOT NULL, request_hash TEXT NOT NULL, session_id TEXT NOT NULL, PRIMARY KEY(organization,request_id))")
             db.execute("CREATE TABLE IF NOT EXISTS copy_revision_blocks(organization TEXT NOT NULL, revision_id TEXT NOT NULL, code TEXT NOT NULL, PRIMARY KEY(organization,revision_id))")
         self.preparations = build_preparations(self.root / "workspace.sqlite", self)
         self.pack = json.loads((Path(__file__).resolve().parents[2] / "config/iwoca-product-facts-v1.json").read_text())
@@ -357,6 +360,94 @@ class Workspace:
                     raise
             return self.prepare(session_id, partial=partial)
 
+    def _followup_progress(self, app, scope, identity):
+        rows = []
+        for p in app.followups.listing(scope,identity):
+            sid = "workspace_" + digest({"followup":p["id"]})[:24]
+            try:
+                child = self._session(sid)
+                p = p | {"session_id":sid,"mode":child["mode"],"case_id":child["case_id"],"generation":self._generation(child)}
+            except NotFound:
+                p = p | {"session_id":None}
+            rows.append(p)
+        return rows
+
+    def propose_followup(self, identity, request_id, cohort_id):
+        identifier(request_id), identifier(cohort_id)
+        with self.lock:
+            parent = self._session(identity)
+            app, scope = self._app(parent), parent["organization"]
+            try:
+                old = app.followups.get(scope, "followup-request:" + request_id)
+                if old["parent_id"] != identity or old["source_cohort"] != cohort_id:
+                    raise Conflict("Follow-up request already binds different source inputs")
+                return old
+            except NotFound:
+                pass
+            if parent["cohort_id"] != cohort_id:
+                raise Conflict("Select the displayed source cohort")
+            source = app.learning.store.view(scope, cohort_id)
+            if source["status"] != "finalized":
+                raise Conflict("Finalize complete mature learning before proposing a follow-up")
+            view = app.reviews.store.view(scope, parent["case_id"])
+            segments = tuple(sorted({c["segment"] for c in view["manifest"]["creatives"]}))
+            budget = view["manifest"]["brief"]["budget_pence"]
+            snapshot = app.followup_population(scope, datetime.fromtimestamp(app.clock(), timezone.utc).date().isoformat())
+            excluded = app.followups.excluded(scope)
+            snapshot = replace(snapshot, records=tuple(r for r in snapshot.records if r.business_id not in excluded))
+            preview_brief = FollowupBrief("preview",budget,segments=segments,followup_id="followup_preview")
+            creatives = tuple(c for c in fixture_catalog() if c.segment in segments)
+            preview = build_draft(snapshot, preview_brief, creatives)
+            hypothesis = "Retest the source recommendation with contrasting A/B hooks and a no-mail control on a disjoint synthetic population; retain A/B comparison and do not assume the earlier lift will repeat."
+            memory = app.learning.store.memory_snapshot(scope, segments)
+            p = {"parent_id":identity, "source_cohort":cohort_id, "learning":source,
+                "model_config":asdict(ModelConfig("openai/gpt-oss-120b",max_calls=10,force_tool_choice=True)), "memory":memory, "brief":{"budget_pence":budget,"unit_cost_pence":85,"max_candidates":1000,"policy_version":"demo-marketing/v1","segments":list(segments)},
+                "hypothesis":hypothesis, "snapshot_id":app.audiences.put(snapshot),
+                "population":sorted({r["business_id"] for r in csv.DictReader(io.StringIO(preview.assignments_csv))}),
+                "contexts":app.followup_contexts(scope,snapshot,segments,memory,hypothesis),
+                "epochs":[view["authority"]["evidence_epoch"],view["authority"]["audience_epoch"]],
+                "counts":preview.manifest["counts"], "cost_pence":preview.manifest["variable_cost_pence"],
+                "eligible":preview.manifest["counts"]["mailed"] > 0 and preview.manifest["counts"]["holdout"] > 0,
+                "source_label":"SYNTHETIC_ONLY: bounded 2,000-record inventory, preserving original business identities"}
+            return app.followups.put(scope, request_id, p)
+
+    def prepare_followup(self, identity, request_id, proposal_id, mode, allow_model_copy):
+        identifier(request_id), identifier(proposal_id)
+        if mode not in {"fixture","model"} or type(allow_model_copy) is not bool or (mode == "model" and not allow_model_copy) or (mode == "fixture" and allow_model_copy):
+            raise ValueError("Choose fixture copy or explicit model-copy permission")
+        with self.lock:
+            parent = self._session(identity)
+            app = self._app(parent)
+            p = app.followups.get(parent["organization"],proposal_id)
+            if p["parent_id"] != identity or not p["eligible"]:
+                raise Conflict("This proposal belongs to another campaign or has insufficient independent population")
+            sid = "workspace_" + digest({"followup":proposal_id})[:24]
+            fingerprint = digest({"parent":identity,"proposal":proposal_id,"mode":mode,"allow_model_copy":allow_model_copy})
+            session_fingerprint = digest({"proposal":proposal_id,"mode":mode,"allow_model_copy":allow_model_copy})
+            with self.control() as db:
+                db.execute("BEGIN IMMEDIATE")
+                try:
+                    request = db.execute("SELECT * FROM followup_prepare_requests WHERE organization=? AND request_id=?",(parent["organization"],request_id)).fetchone()
+                    if request and (request["request_hash"] != fingerprint or request["session_id"] != sid):
+                        raise Conflict("Follow-up preparation request already binds different inputs")
+                    old = db.execute("SELECT * FROM sessions WHERE id=?",(sid,)).fetchone()
+                    if old and old["request_hash"] != session_fingerprint:
+                        raise Conflict("Follow-up already binds its original copy mode and permission")
+                    if not old:
+                        app.followups.check(parent["organization"],p,sid)
+                        child = {"id":sid,"name":"Follow-up experiment","mode":mode,"organization":parent["organization"],
+                            "clock":max(parent["clock"],self.real_clock()),"clock_mode":"SIMULATED","created_at":self.real_clock(),
+                            "parent_id":identity,"database_scope":parent.get("database_scope","campaign"),
+                            "run_id":None,"case_id":None,"cohort_id":None,"followup_id":proposal_id}
+                        db.execute("INSERT INTO sessions VALUES(?,?,?)",(sid,session_fingerprint,canonical(child)))
+                    if not request:
+                        db.execute("INSERT INTO followup_prepare_requests VALUES(?,?,?,?)",(parent["organization"],request_id,fingerprint,sid))
+                    db.commit()
+                except BaseException:
+                    db.rollback()
+                    raise
+            return self.prepare(sid)
+
     def create(self, request_id, mode, parent_id=None):
         identifier(request_id)
         if type(mode) is not str or mode not in {"fixture", "model"}:
@@ -405,7 +496,17 @@ class Workspace:
                 if current["revision"] != source["revision"] or not current["current_plan"] or current["current_plan"]["result"] != source:
                     raise Conflict("Conversation changed before campaign preparation")
             if run is None:
-                if session.get("conversation_plan"):
+                if session.get("followup_id"):
+                    p = app.followups.get(scope,session["followup_id"])
+                    app.followups.check(scope,p,identity)
+                    brief = brief_from(p["brief"] | {"campaign_id":identity,"followup_id":p["id"]})
+                    if session["mode"] == "model":
+                        if asdict(app.inference.config) != p["model_config"]:
+                            raise Conflict("Restore the model settings frozen in this follow-up proposal")
+                        run = app.start_model(scope, identity, snapshot_override=app.audiences.get(scope,p["snapshot_id"]),brief_override=brief,contexts_override=p["contexts"])
+                    else:
+                        run = app.start_followup(scope,identity,p["snapshot_id"],brief)
+                elif session.get("conversation_plan"):
                     source = session["conversation_plan"]
                     current = app.conversations.view("local-conversations", source["conversation_id"])
                     if current["revision"] != source["revision"] or not current["current_plan"] or current["current_plan"]["result"] != source:
@@ -459,7 +560,7 @@ class Workspace:
                 raise Conflict("Campaign changed while loading; refresh the review")
             return self.view(identity, _attempt=_attempt + 1)
         return {"session": public, "review": review, "audience": population,
-            "copy_revisions": revisions,
+            "copy_revisions": revisions, "followups": self._followup_progress(app,scope,identity),
             "learning": app.learning.store.view(scope, session["cohort_id"]) if session["cohort_id"] else None,
             "tasks": app.tasks.inspect(scope, session["run_id"])}
 

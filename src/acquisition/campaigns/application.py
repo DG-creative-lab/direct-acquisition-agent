@@ -15,7 +15,7 @@ class CampaignService:
         return digest([creative_record(item) for item in self.creatives])
 
     def prepare(self, organization: str, snapshot_id: str, brief: Brief, operation_id: str) -> dict:
-        return self.prepare_with_catalogue(organization, snapshot_id, brief, operation_id, self.creatives)
+        return self.prepare_with_catalogue(organization, snapshot_id, brief, operation_id, tuple(c for c in self.creatives if not hasattr(brief, "segments") or c.segment in brief.segments))
 
     def prepare_with_catalogue(self, organization: str, snapshot_id: str, brief: Brief,
                                operation_id: str, creatives: tuple[Creative, ...]) -> dict:

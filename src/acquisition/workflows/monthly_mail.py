@@ -36,7 +36,7 @@ class MonthlyMail:
 
     def _draft(self, claim: Claim) -> dict:
         return self.campaigns.prepare(claim.organization, claim.inputs["snapshot_id"],
-                                      Brief(**claim.inputs["brief"]), claim.run_id + ":draft")
+                                      brief_from(claim.inputs["brief"]), claim.run_id + ":draft")
 
     def review(self, claim: Claim) -> Outcome:
         self._check_version(claim)

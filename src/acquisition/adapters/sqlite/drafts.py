@@ -1,3 +1,4 @@
+from .followups import require_followup
 import hashlib
 import json
 
@@ -27,6 +28,7 @@ class SqliteDrafts:
         verify(organization, draft)
         with self.database.transaction() as connection:
             require_current_conversation(connection, draft.manifest["brief"])
+            require_followup(connection, organization, draft.manifest, draft.id)
             old = connection.execute("SELECT draft_id FROM draft_operations WHERE organization=? AND operation_id=?",
                                      (organization, operation_id)).fetchone()
             if old and old[0] != draft.id:

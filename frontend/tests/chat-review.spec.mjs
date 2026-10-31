@@ -832,3 +832,150 @@ for (const action of ["open-learning", "observe", "finalize"])
         ).toHaveLength(1);
     });
   });
+
+async function finalizedFollowup(page, url) {
+  const learning = await acceptedLearning(page, url);
+  const sid = await selected(page);
+  await learningStep(page, learning, "Open outcome window");
+  await learningStep(page, learning, "Close window & learn");
+  const followup = page.getByRole("region", {
+    name: "Next experiment in conversation",
+  });
+  await followup
+    .getByRole("button", { name: "Propose follow-up experiment", exact: true })
+    .click();
+  await expect(
+    followup.getByRole("heading", { name: "Follow-up proposal", exact: true }),
+  ).toBeVisible();
+  return { followup, sid };
+}
+
+test("finalized chat proposes a frozen disjoint next campaign requiring fresh approval", async ({
+  page,
+}) => {
+  await workspace("handoff-followup", async (url) => {
+    const { followup, sid } = await finalizedFollowup(page, url);
+    const parent = (await backend(page, `/api/sessions/${sid}`)).body;
+    const p = parent.followups[0];
+    await expect(
+      followup.getByRole("button", {
+        name: "Generate grounded follow-up",
+        exact: true,
+      }),
+    ).toBeDisabled();
+    await followup
+      .getByRole("button", { name: "Prepare offline follow-up", exact: true })
+      .click();
+    const child = followup.getByRole("region", {
+      name: "Campaign review in conversation",
+    });
+    await expect(
+      child.getByRole("button", { name: "Approve this revision", exact: true }),
+    ).toBeVisible();
+    const next = (await backend(page, "/api/sessions")).body.sessions.find(
+      (s) => s.id !== sid,
+    );
+    const state = (await backend(page, `/api/sessions/${next.id}`)).body;
+    expect(state.review.approval_valid).toBe(false);
+    expect(state.review.subject.id).not.toBe(parent.review.subject.id);
+    const old = new Set(
+      parent.audience.filter((r) => r.arm !== "excluded").map((r) => r.id),
+    );
+    expect(
+      state.audience
+        .filter((r) => r.arm !== "excluded")
+        .every((r) => !old.has(r.id)),
+    ).toBe(true);
+    expect((await backend(page, `/api/sessions/${sid}`)).body.learning).toEqual(
+      parent.learning,
+    );
+    await approve(page, child, "Reviewed the distinct follow-up experiment.");
+    await expect(
+      child.getByText("Approval recorded", { exact: true }),
+    ).toBeVisible();
+    for (const width of [1440, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+      ).toBe(await page.evaluate(() => document.documentElement.clientWidth));
+    }
+    await followup.screenshot({ path: "../.local/followup-mobile.png" });
+    await page.reload();
+    await followup
+      .getByRole("button", { name: "Inspect or resume follow-up", exact: true })
+      .click();
+    await expect(
+      child.getByText("Approval recorded", { exact: true }),
+    ).toBeVisible();
+    expect(
+      (await backend(page, `/api/sessions/${sid}`)).body.followups[0].id,
+    ).toBe(p.id);
+  });
+});
+
+test("lost follow-up preparation response resumes original campaign after reload", async ({
+  page,
+}) => {
+  await workspace("handoff-followup", async (url) => {
+    const { followup, sid } = await finalizedFollowup(page, url);
+    const attempts = [];
+    await page.route("**/api/sessions/*/followup-prepare", async (route) => {
+      attempts.push(route.request().postDataJSON());
+      if (attempts.length === 1) {
+        await route.fetch();
+        await route.abort("failed");
+      } else await route.continue();
+    });
+    await followup
+      .getByRole("button", { name: "Prepare offline follow-up", exact: true })
+      .click();
+    await expect(followup.getByRole("alert")).toBeVisible();
+    await page.reload();
+    await followup
+      .getByRole("button", { name: "Inspect or resume follow-up", exact: true })
+      .click();
+    await expect(
+      followup.getByRole("region", { name: "Campaign review in conversation" }),
+    ).toBeVisible();
+    const listing = (await backend(page, "/api/sessions")).body.sessions;
+    expect(listing).toHaveLength(2);
+    expect(
+      (await backend(page, `/api/sessions/${sid}`)).body.followups,
+    ).toHaveLength(1);
+    expect(attempts).toHaveLength(1); // Read the already committed child, without resubmission.
+  });
+});
+
+test("generation consent is separate for each frozen follow-up proposal", async ({
+  page,
+}) => {
+  await workspace("handoff-followup", async (url) => {
+    const { followup, sid } = await finalizedFollowup(page, url);
+    await followup.getByRole("checkbox").check();
+    const state = (await backend(page, `/api/sessions/${sid}`)).body;
+    expect(
+      (
+        await backend(page, `/api/sessions/${sid}/suppress`, {
+          request_id: "new-population",
+          business_id: state.followups[0].population[0],
+          reason: "Change the next population.",
+        })
+      ).status,
+    ).toBe(200);
+    await followup
+      .getByRole("button", {
+        name: "Propose follow-up experiment",
+        exact: true,
+      })
+      .click();
+    const proposals = followup.locator(":scope > article");
+    await expect(proposals).toHaveCount(2);
+    await expect(proposals.nth(0).getByRole("checkbox")).toBeChecked();
+    await expect(proposals.nth(1).getByRole("checkbox")).not.toBeChecked();
+    await expect(
+      proposals
+        .nth(1)
+        .getByRole("button", { name: "Generate grounded follow-up" }),
+    ).toBeDisabled();
+  });
+});
