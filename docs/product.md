@@ -32,7 +32,7 @@ A late suppression invalidates the current subject. Rebuilding produces a new pr
 
 A cohort opens from accepted assignments, including no-mail controls. Missing observations remain unknown. Complete, mature synthetic outcomes update Beta posterior counts once and support a within-cohort comparison between variants and control. Recommendations explain their sample support and uncertainty.
 
-The next experiment is another proposal, not an automatic campaign change. The current independence rule rejects a second learning cohort containing a business already counted in that organization. A descendant campaign can demonstrate reuse of memory, but repeated exposure prevents treating its outcomes as new independent support.
+The next experiment is another proposal, not an automatic campaign change. The current independence rule rejects a second learning cohort containing a business already counted in that organization. The conversational follow-up excludes previously allocated businesses from its bounded synthetic inventory and requires fresh approval. The older manual path demonstrates memory reuse, but repeated exposure prevents treating those outcomes as new independent support.
 
 ## Implemented scope and limits
 

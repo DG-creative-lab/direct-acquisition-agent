@@ -171,7 +171,7 @@ Accepted historical work can continue learning after a later chat message or app
 
 The view shows denominators, variant/control counts, posterior uncertainty, advisory recommendations and statistical limits. Finalized outcomes remain immutable and deduplicated. Learning does not generate a new campaign or grant approval. Preparing another experiment remains a separate workspace operation with its own review; repeated business membership within an organization remains prohibited.
 
-See [issue 19](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/19) and the [learning contract](learning.md). Real response feeds and conversational next-experiment preparation are deferred.
+See [issue 19](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/19) and the [learning contract](learning.md). Real response feeds are deferred. Conversational next-experiment preparation is described below.
 
 ## Conversational next experiment (issue 21)
 

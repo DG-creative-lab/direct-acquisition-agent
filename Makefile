@@ -25,3 +25,7 @@ interface-check:
 	pnpm --dir frontend run build
 	pnpm --dir frontend run format:check
 	pnpm --dir frontend test
+
+.PHONY: evaluate-offline
+evaluate-offline:
+	PYTHONPATH=src python3 scripts/evaluate_offline.py
