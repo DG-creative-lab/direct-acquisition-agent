@@ -69,7 +69,11 @@ Finalization requires maturity, completeness and valid assignment identities. A 
 
 ## 7. Propose another experiment
 
-**Prepare a next experiment** retains scoped mature memory in the same sandbox while creating a separate campaign proposal. Model mode freezes that memory alongside editorial guidance. Approval never transfers. The current repeated-business rule prevents opening a second learning cohort over the same population; this path demonstrates memory reuse rather than a production repeated-exposure experiment.
+In chat, choose **Propose follow-up experiment** after finalization. Inspect the frozen learning, budget, hypothesis and independent population. Choose offline fixtures or explicitly permit bounded model generation. Inspect the resulting new campaign and record a fresh approval. Reload exposes an existing child through **Inspect or resume follow-up**; an uncertain provider result must be investigated before another generation.
+
+The chat demonstration expands to a labeled 2,000-record synthetic inventory while preserving and excluding previously allocated business identities. Exhausted or stale populations block preparation. A later chat edit does not change a saved follow-up proposal; use the displayed source budget when deciding whether to prepare it.
+
+The manual **Prepare a next experiment** control retains scoped mature memory in the same sandbox while creating a separate campaign proposal. Model mode freezes that memory alongside editorial guidance. Approval never transfers. The current repeated-business rule prevents opening a second learning cohort over the same population; this path demonstrates memory reuse rather than a production repeated-exposure experiment.
 
 Inspect **Activity log** for committed events and historical receipts. A read-only export or saved report can become stale and does not authorize an operation.
 

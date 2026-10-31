@@ -800,8 +800,8 @@ export default function ConversationWorkspace({
                         sessionId={campaign.session_id}
                         interactive={plan.current}
                         active={active}
-                        onOpenWorkspace={() =>
-                          void openCampaign(campaign.session_id)
+                        onOpenWorkspace={(targetId) =>
+                          void openCampaign(targetId ?? campaign.session_id)
                         }
                       />
                     )}

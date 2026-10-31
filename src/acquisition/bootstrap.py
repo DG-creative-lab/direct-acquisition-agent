@@ -7,6 +7,8 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from datetime import datetime, timezone
 
+from acquisition.adapters.sqlite.followups import SqliteFollowups
+from acquisition.campaigns import FollowupStore
 from acquisition.adapters.files import export_draft
 from acquisition.adapters.sqlite.audiences import SqliteAudiences
 from acquisition.adapters.sqlite.database import Database
@@ -15,7 +17,7 @@ from acquisition.adapters.sqlite.tasks import SqliteTasks
 from acquisition.adapters.synthetic import generate
 from acquisition.adapters.sqlite.creative import SqliteCreative
 from acquisition.adapters.sqlite.inference import SqliteCalls
-from acquisition.campaigns import Brief, ConversationBrief, CampaignService
+from acquisition.campaigns import Brief, ConversationBrief, CampaignService, brief_from
 from acquisition.creative import fixture_catalog, validate_fact_pack
 from acquisition.runtime import TaskStore, Worker
 from acquisition.reasoning import Inference, ModelConfig, ModelGateway
@@ -54,6 +56,7 @@ class Application:
     learning: LearningService
     conversations: ConversationService
     revisions: CopyRevisionService
+    followups: FollowupStore
 
     def start(self, organization: str, request_id: str, size: int = 1000, seed: int = 42,
               budget_pence: int = 85000, as_of: str = "2026-10-25", campaign_id: str | None = None) -> str:
@@ -63,10 +66,11 @@ class Application:
 
     def start_model(self, organization: str, request_id: str, size: int = 1000, seed: int = 42,
                     budget_pence: int = 85000, as_of: str = "2026-10-25", campaign_id: str | None = None,
-                    conversation_brief: ConversationBrief | None = None, objective: str | None = None) -> str:
+                    conversation_brief: ConversationBrief | None = None, objective: str | None = None,
+                    snapshot_override=None, brief_override=None, contexts_override=None) -> str:
         if self.inference is None:
             raise ValueError("Configure a model adapter before starting a model run")
-        snapshot = generate(organization, size, seed, as_of)
+        snapshot = snapshot_override or generate(organization, size, seed, as_of)
         snapshot_id = self.audiences.put(snapshot)
         config_root = Path(__file__).resolve().parents[2] / "config"
         guidance = json.loads((config_root / "editorial-v3.json").read_text())
@@ -76,7 +80,7 @@ class Application:
             product_facts = current["pack"]
         validate_fact_pack(product_facts, datetime.fromtimestamp(self.clock(), timezone.utc).date())
         contexts = {}
-        segments = conversation_brief.segments if conversation_brief else ("inventory", "contractors")
+        segments = (brief_override or conversation_brief).segments if (brief_override or conversation_brief) else ("inventory", "contractors")
         learning_memory = self.learning.store.memory_snapshot(organization, segments)
         for segment in segments:
             example = guidance["reviewer_examples"][segment]
@@ -93,9 +97,35 @@ class Application:
                 context["campaign_brief"] = {"objective": objective, "budget_pence": conversation_brief.budget_pence,
                                              "segments": list(segments), "plan_id": conversation_brief.plan_id}
             contexts[segment] = self.memory.put_context(organization, context)
+        if contexts_override is not None:
+            contexts = contexts_override
         specs = (conversation_model_task_plan(snapshot_id, conversation_brief, contexts, self.inference) if conversation_brief
-                 else model_task_plan(snapshot_id, Brief(campaign_id or request_id, budget_pence), contexts, self.inference))
+                 else model_task_plan(snapshot_id, brief_override or Brief(campaign_id or request_id, budget_pence), contexts, self.inference))
         return self.tasks.create(organization, request_id, specs, self.clock())
+
+    def followup_population(self, organization, as_of):
+        return generate(organization, 2000, 42, as_of)
+
+    def start_followup(self, organization, identity, snapshot_id, brief):
+        return self.tasks.create(organization,identity,task_plan(snapshot_id,brief,self.catalogue_hash),self.clock())
+
+    def followup_contexts(self, organization, snapshot, segments, learning_memory, hypothesis):
+        root = Path(__file__).resolve().parents[2] / "config"
+        guidance = json.loads((root / "editorial-v3.json").read_text())
+        facts = self.reviews.store.evidence(organization)["pack"]
+        contexts = {}
+        for segment in segments:
+            example = guidance["reviewer_examples"][segment]
+            if not self.memory.examples(organization, segment):
+                self.memory.remember(organization, segment, **example)
+            context = {"segment":segment, "guidance":guidance, "product_facts":facts,
+                "memory":self.memory.examples(organization,segment), "audience_summary":{
+                    "input_records":sum(r.segment == segment for r in snapshot.records),
+                    "model_version":snapshot.model_version, "snapshot_id":snapshot.id,
+                    "situation_hypothesis":guidance["situations"][segment], "outcome_evidence":learning_memory[segment],
+                    "followup_hypothesis":hypothesis}}
+            contexts[segment] = self.memory.put_context(organization,context)
+        return contexts
 
     def start_conversation(self, organization, request_id, plan, as_of):
         brief = ConversationBrief(campaign_id=request_id, budget_pence=plan["budget_pence"],
@@ -156,4 +186,4 @@ def build(path: str | Path, clock: Callable[[], float] = time.time,
                        eligible=lambda capability, inputs: model_workflow.eligible(capability, inputs) and conversation_model.eligible(capability, inputs) and planner.eligible(capability, inputs) and revision_workflow.eligible(capability, inputs)), clock,
                        campaigns.catalogue_hash, memory, calls, inference,
                        ReviewService(reviews, ReviewProposalBuilder(audiences, drafts, campaigns)),
-                       LearningService(SqliteLearning(database, clock), AcceptedCohortSource(reviews, drafts)), conversations, revision_service)
+                       LearningService(SqliteLearning(database, clock), AcceptedCohortSource(reviews, drafts)), conversations, revision_service, SqliteFollowups(database))

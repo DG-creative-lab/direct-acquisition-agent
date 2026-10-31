@@ -1,3 +1,4 @@
+from .followups import require_followup
 import json
 import math
 
@@ -48,6 +49,10 @@ class SqliteCalls:
                 if row["status"] != "recorded":
                     raise ModelError("previous_inference_failed_or_unknown_no_retry")
                 return json.loads(row["response"])
+            task_inputs = json.loads(task["inputs"])
+            require_followup(connection, scope.organization, task_inputs)
+            if task_inputs.get("brief",{}).get("followup_id") and "context_ids" in task_inputs and run["request_id"] != task_inputs["brief"]["campaign_id"]:
+                raise ModelError("followup_run_identity_changed")
             count = connection.execute("SELECT COUNT(*) FROM model_calls WHERE organization=? AND run_id=?",
                                        (scope.organization, scope.run_id)).fetchone()[0]
             if count >= limit:

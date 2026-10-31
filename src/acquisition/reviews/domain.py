@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 
 from acquisition.audiences import Snapshot
-from acquisition.campaigns import ConversationBrief, Draft, brief_from, build_draft
+from acquisition.campaigns import ConversationBrief, FollowupBrief, Draft, brief_from, build_draft
 from acquisition.contracts import Conflict, digest
 from acquisition.creative import Creative, fact_pack_id, fixture_catalog, validate_fact_pack, validate_grounded_catalogue
 
@@ -59,11 +59,11 @@ def validate_candidate(draft: Draft, snapshot: Snapshot, contexts: dict[str, dic
     if mailed & suppressions:
         raise Conflict("Current suppressions affect this draft; rebuild before review")
     if all(c.status == "synthetic_fixture_unapproved" for c in creatives):
-        expected = tuple(c for c in fixture_catalog() if not isinstance(brief, ConversationBrief) or c.segment in brief.segments)
+        expected = tuple(c for c in fixture_catalog() if not isinstance(brief, (ConversationBrief, FollowupBrief)) or c.segment in brief.segments)
         if not policy.allow_fixtures or set(creatives) != set(expected):
             raise Conflict("Only the known synthetic fixtures are permitted in fixture mode")
     elif all(c.status == "generated_unreviewed" and c.fact_pack_id == fact_pack_id(pack) for c in creatives):
-        segments = brief.segments if isinstance(brief, ConversationBrief) else ("inventory", "contractors")
+        segments = brief.segments if isinstance(brief, (ConversationBrief, FollowupBrief)) else ("inventory", "contractors")
         if {c.segment for c in creatives} != set(segments):
             raise Conflict("Grounded copy must cover exactly the selected segments")
         for segment in segments:
