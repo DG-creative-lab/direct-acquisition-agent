@@ -1,3 +1,19 @@
+export type ValidationReport = {
+  id: string;
+  subject_id: string;
+  draft_id: string;
+  snapshot_id: string;
+  evaluated_at: number;
+  review_ready: boolean;
+  authority: "none";
+  checks: {
+    id: string;
+    label: string;
+    required: boolean;
+    status: "passed" | "failed" | "unknown" | "not_evaluated";
+    detail: string;
+  }[];
+};
 export type Act = (
   action: string,
   payload?: Record<string, unknown>,
@@ -34,6 +50,7 @@ export type Review = {
   case_id: string;
   subject: Subject;
   candidate_valid: boolean;
+  validation_report: ValidationReport;
   approval_valid: boolean;
   blocked_reasons: string[];
   approval: null | {

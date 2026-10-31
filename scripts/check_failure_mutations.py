@@ -10,6 +10,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ("validation-readiness-gate", "reviews/domain.py",
+     'all(c["status"] == "passed" for c in checks if c["required"])', 'True',
+     "test_validation_reports.ValidationReportTests.test_gate_rejects_missing_downgraded_unknown_and_not_evaluated_required_checks"),
+    ("validation-required-coverage", "reviews/domain.py",
+     'not REQUIRED_VALIDATION_CHECKS <= {c["id"] for c in checks}', 'False',
+     "test_validation_reports.ValidationReportTests.test_gate_rejects_missing_downgraded_unknown_and_not_evaluated_required_checks"),
+
     ("legacy-copy-envelope-boundary", "creative/grounding.py",
      '        if projected:\n            exchange = editorial_read_exchange(context, pack_id)',
      '        if True:\n            exchange = editorial_read_exchange(context, pack_id)',
@@ -166,7 +173,7 @@ CASES = [
      '            db.execute("INSERT INTO review_decisions(organization,id,case_id,subject_id,payload) VALUES(?,?,?,?,?)",\n                       (organization, decision["id"], inputs["case_id"], proposal["id"], canonical(decision)))', '',
      "test_copy_revisions.CopyRevisionTests.test_revision_preserves_population_other_letter_product_wording_and_money"),
     ("revision-review-projection-consistency", "workspace.py",
-     'if {k: v for k, v in current_review.items() if k != "as_of"} != {k: v for k, v in review.items() if k != "as_of"}:',
+     'if stable_projection(current_review) != stable_projection(review):',
      'if current_review["subject"]["id"] != review["subject"]["id"]:',
      "test_copy_revisions.CopyRevisionTests.test_read_packet_cannot_combine_old_approval_with_an_admitted_revision"),
     ("revision-blocked-projection", "workspace.py",

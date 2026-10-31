@@ -1,0 +1,29 @@
+.validation-report {
+  grid-column: 1 / -1;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+.validation-report > p {
+  margin-top: 8px;
+  line-height: 1.5;
+}
+.validation-report .validation-checks {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0;
+}
+.validation-checks li {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.validation-checks p {
+  margin: 6px 0 0;
+}
+.validation-report summary {
+  min-height: 44px;
+  padding: 12px 0;
+  cursor: pointer;
+}

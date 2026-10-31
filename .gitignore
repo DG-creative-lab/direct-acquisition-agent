@@ -36,3 +36,5 @@ dist/
 !/docs/workspace.md
 
 !/docs/agent-contracts.md
+
+!/docs/campaign-validation.md

@@ -711,3 +711,61 @@ test("model copy waits for explicit generation and reports an uncertain failure"
     page.getByRole("button", { name: /Review campaign/ }),
   ).toHaveCount(0);
 });
+
+test("validation shows exact checks and blocks review after a real suppression", async ({
+  page,
+}) => {
+  const state = await campaign();
+  await page.addInitScript(
+    (id) => localStorage.setItem("workspace-selected", id),
+    state.session.id,
+  );
+  await page.goto("/");
+  await page
+    .getByRole("navigation", { name: "Workspace navigation" })
+    .getByRole("button", { name: /^Campaign/ })
+    .click();
+  const panel = page.getByRole("region", { name: "Campaign validation" });
+  await expect(
+    panel.getByText("Checks passed for review", { exact: true }),
+  ).toBeVisible();
+  await panel.getByText("Inspect campaign validation", { exact: true }).click();
+  await expect(
+    panel.getByText("Recorded semantic claim screen: Not evaluated", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    panel.getByText("Real customer performance: Unknown", { exact: true }),
+  ).toBeVisible();
+  await panel
+    .getByText("Complete validation snapshot", { exact: true })
+    .click();
+  await expect(panel.locator("pre")).toContainText(state.review.subject.id);
+  await expect(
+    page.getByRole("button", { name: "Approve this revision", exact: true }),
+  ).toBeEnabled();
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBe(await page.evaluate(() => document.documentElement.clientWidth));
+  }
+  expect((await panel.boundingBox()).width).toBeGreaterThanOrEqual(220);
+  await panel.screenshot({ path: "../.local/validation-report-mobile.png" });
+  const recipient = state.audience.find((row) => ["A", "B"].includes(row.arm));
+  await command(`/api/sessions/${state.session.id}/suppress`, {
+    business_id: recipient.id,
+    reason: "Late suppression in validation journey.",
+  });
+  await page
+    .getByRole("button", { name: "Refresh current state", exact: true })
+    .click();
+  await expect(
+    panel.getByText("Validation needs attention", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Approve this revision", exact: true }),
+  ).toBeDisabled();
+  await expect(panel.locator("pre")).toContainText('"status": "failed"');
+});
