@@ -85,7 +85,7 @@ class SqliteConversationActions:
                 if conversation['revision']!=expected_revision:raise Conflict('The proposed change belongs to an older brief')
                 task=db.execute('''SELECT t.output,t.inputs FROM runs r JOIN tasks t ON t.run_id=r.id
                     WHERE r.organization=? AND r.request_id=? AND r.status='succeeded' AND t.status='succeeded' AND t.capability=?''',
-                    (organization,frozen['run_request_id'],ACTION_CAPABILITY)).fetchone()
+                    (organization,frozen['run_request_id'],frozen.get('capability',ACTION_CAPABILITY))).fetchone()
                 if task is None:raise Conflict('A completed amendment proposal is required')
                 result=json.loads(task['output'])
                 if (result.get('kind')!='amend_brief' or validate_action({'action':'amend_brief'},frozen)!=result
@@ -127,7 +127,7 @@ class SqliteConversationActions:
             frozen=json.loads(row['payload'])
             task=db.execute('''SELECT t.output,t.inputs FROM runs r JOIN tasks t ON t.run_id=r.id
                 WHERE r.organization=? AND r.request_id=? AND r.status='succeeded' AND t.status='succeeded' AND t.capability=?''',
-                (organization,frozen['run_request_id'],ACTION_CAPABILITY)).fetchone()
+                (organization,frozen['run_request_id'],frozen.get('capability',ACTION_CAPABILITY))).fetchone()
             if task is None:raise Conflict('A completed clarification exchange is required')
             result=json.loads(task['output'])
             if (result.get('kind') not in {'clarify','amend_brief'} or validate_action({'action':result['kind']},frozen)!=result

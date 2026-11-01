@@ -1,8 +1,9 @@
 """A one-call routing proposal. No mutation or approval tool is exposed."""
 import json
+from copy import deepcopy
 from dataclasses import asdict
 from acquisition.contracts import canonical
-from acquisition.conversations import ACTION_CAPABILITY, ACTION_KINDS, validate_action
+from acquisition.conversations import ACTION_CAPABILITY, COPY_ACTION_CAPABILITY, ACTION_KINDS, validate_action
 from acquisition.reasoning import CallScope, ModelError, tool_contract, validate_assets
 from acquisition.runtime import Outcome
 
@@ -12,15 +13,21 @@ SUBMIT_ACTION={'type':'function','function':{'name':'propose_conversation_action
                   'properties':{'action':{'type':'string','enum':list(ACTION_KINDS)}}}}}
 
 
-def action_tool_contracts():
-    return [tool_contract(SUBMIT_ACTION,'v1','propose',['frozen_current_brief_target','explicit_followup_request'],['typed_action_without_execution_authority'])]
+def action_tool(modern=False):
+    value=deepcopy(SUBMIT_ACTION)
+    if modern:value['function']['parameters']['properties']['action']['enum'].append('revise_copy')
+    return value
+
+
+def action_tool_contracts(modern=False):
+    return [tool_contract(action_tool(modern),'v2' if modern else 'v1','propose',['frozen_current_brief_target','explicit_followup_request'],['typed_action_without_execution_authority'])]
 
 
 class ConversationRouter:
     def __init__(self,inference):self.inference=inference
 
     def eligible(self, capability, inputs):
-        if capability!=ACTION_CAPABILITY:return True
+        if capability not in {ACTION_CAPABILITY,COPY_ACTION_CAPABILITY}:return True
         return self.inference is not None and self.inference.gateway is not None and inputs.get('model_config')==asdict(self.inference.config)
 
     @staticmethod
@@ -48,12 +55,29 @@ class ConversationRouter:
             payload=json.loads(messages[1]['content'])
             payload['dialogue']=frozen['context']['dialogue']
             messages[1]['content']=canonical(payload)
-            if frozen['context']['dialogue']['version']=='routing-dialogue/v2':
+            if frozen['context']['dialogue']['version'] in {'routing-dialogue/v2','routing-dialogue/v3','routing-dialogue/v4'}:
                 messages[0]['content'] += (
                     ' The dialogue also records router follow-ups and their clarification questions. '
                     'Interpret a reply to those questions using clarification_exchange and action_exchange. '
                     'For amend_brief, confirmation will display and carry the pending clarification and amendment requests and this reply '
                     'into planning together, in order. No earlier inspection result becomes a brief instruction.'
+                )
+        if frozen.get('capability')==COPY_ACTION_CAPABILITY:
+            messages[0]['content'] += (
+                ' You may also propose revise_copy for a wording-only edit of the current campaign. '
+                'Choose revise_copy even if the variant needs clarification; code resolves names against the supplied targets. '
+                'Use copy_exchange to interpret variant or segment answers. Do not turn a copy-only edit into amend_brief. '
+                'A mixed copy and budget/audience change needs clarification. No copy generation is performed by routing. '
+                'Separate exact-target confirmation and five-call permission are required before revision.'
+            )
+            payload=json.loads(messages[1]['content'])
+            payload['copy_revision_targets']=frozen['context']['copy_revision_targets']
+            messages[1]['content']=canonical(payload)
+            if frozen['context']['dialogue']['version']=='routing-dialogue/v4':
+                messages[0]['content'] += (
+                    ' copy_exchange contains unanswered clarification turns only, including a variant selected before wording was supplied. '
+                    'A ready proposal is awaiting its own exact confirmation, not more feedback. '
+                    'Treat a self-contained target and wording request as a new independent edit; do not combine it with earlier editorial instructions.'
                 )
         return messages
 
@@ -61,21 +85,22 @@ class ConversationRouter:
     def validate_context(frozen):
         validate_action({'action':'clarify'},frozen)
         context=frozen['context'];bundle=context['agent_assets']
-        if [s['id'] for s in bundle['skills']]!=['route-followup/v1']:raise ValueError('Unsupported routing skill')
-        validate_assets(bundle,organization=frozen['organization'],installed_tools=action_tool_contracts(),payloads={
+        modern=frozen.get('capability')==COPY_ACTION_CAPABILITY
+        if [s['id'] for s in bundle['skills']]!=['route-followup/v2' if modern else 'route-followup/v1']:raise ValueError('Unsupported routing skill')
+        validate_assets(bundle,organization=frozen['organization'],installed_tools=action_tool_contracts(modern),payloads={
             'routing':context['routing_guidance'],'task_state':{k:v for k,v in context.items() if k not in {'id','agent_assets','routing_guidance'}}})
 
     def preflight(self, frozen):
         self.validate_context(frozen)
         if self.inference is None:raise ModelError('configure_the_original_router_before_resuming')
-        self.inference.prepare_request(self.messages(frozen),[SUBMIT_ACTION])
+        self.inference.prepare_request(self.messages(frozen),[action_tool(frozen.get('capability')==COPY_ACTION_CAPABILITY)])
 
     def route(self, claim):
         if not self.eligible(claim.capability,claim.inputs):raise ModelError('configure_the_original_router_before_resuming')
         frozen=claim.inputs
         if frozen['organization']!=claim.organization:raise ValueError('Cross-organization action context')
         self.validate_context(frozen)
-        response=self.inference.call(CallScope(claim.organization,claim.run_id,claim.task_id,claim.token),'route:0',self.messages(frozen),[SUBMIT_ACTION])
+        response=self.inference.call(CallScope(claim.organization,claim.run_id,claim.task_id,claim.token),'route:0',self.messages(frozen),[action_tool(claim.capability==COPY_ACTION_CAPABILITY)])
         calls=response.get('message',{}).get('tool_calls',[])
         if len(calls)!=1 or calls[0].get('function',{}).get('name')!='propose_conversation_action':
             raise ModelError('unsupported_routing_tool')

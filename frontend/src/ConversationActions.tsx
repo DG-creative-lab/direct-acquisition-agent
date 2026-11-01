@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { command, read } from "./api";
+import type { CopyRevision } from "./api";
+import ConversationCopyRevision from "./ConversationCopyRevision";
 
 export type ConversationAction = {
   id: string;
@@ -8,12 +10,18 @@ export type ConversationAction = {
   method: string;
   status: string;
   current: boolean;
+  target_current?: boolean;
+  copy_revision_progress?: CopyRevision;
   detail?: string;
   run_id: string | null;
   allow_model_copy: boolean;
   continuation_pending?: boolean;
   continuation_reason?: string;
-  confirmed: null | { message_receipt: { revision: number } };
+  confirmed: null | {
+    kind?: string;
+    message_receipt?: { revision: number };
+    session_id?: string;
+  };
   result: null | {
     kind: string;
     text: string;
@@ -21,6 +29,21 @@ export type ConversationAction = {
     target: { id: string; revision: number };
     requires_confirmation: boolean;
     evidence: unknown;
+    id: string;
+    copy_revision?: {
+      status: string;
+      reason: string;
+      feedback: string;
+      target: null | {
+        session_id: string;
+        subject_id: string;
+        id: string;
+        segment: string;
+        arm: string;
+        headline: string;
+        opening: string;
+      };
+    };
     amendment_exchange?: {
       action_id: string | null;
       content: string;
@@ -38,11 +61,13 @@ export default function ConversationActions<T>({
   conversationId,
   disabled,
   onChanged,
+  onReview,
 }: {
   actions: ConversationAction[];
   conversationId: string;
   disabled: boolean;
   onChanged: (value: T) => void;
+  onReview?: (sessionId: string) => void;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -90,17 +115,26 @@ export default function ConversationActions<T>({
           key={action.id}
           aria-label="Saved follow-up"
         >
-          {!action.confirmed && (
+          {(!action.confirmed ||
+            action.confirmed.kind === "copy_revision_confirmation") && (
             <div className="conversation-user">
               <span>You</span>
               <p>{action.content}</p>
             </div>
           )}
           <div className="conversation-assistant">
-            {action.confirmed ? (
+            {action.result?.kind === "revise_copy" ? (
+              <ConversationCopyRevision<T>
+                action={action}
+                conversationId={conversationId}
+                disabled={disabled}
+                onChanged={onChanged}
+                onReview={onReview}
+              />
+            ) : action.confirmed ? (
               <p>
                 Change applied as brief revision{" "}
-                {action.confirmed.message_receipt.revision}.
+                {action.confirmed.message_receipt?.revision}.
               </p>
             ) : action.result ? (
               <>

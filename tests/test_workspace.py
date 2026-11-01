@@ -292,6 +292,20 @@ class WorkspaceHttpTests(unittest.TestCase):
         self.assertEqual(self.request('/api/conversations/not-this-conversation/confirm-action',decision)[0],404)
         self.assertEqual(self.server.workspace.conversation(cid)['revision'],1)
 
+    def test_copy_confirmation_route_preserves_transport_scope_and_action_type(self):
+        _,body,_=self.request('/api/conversations',{'request_id':'copy-http','title':'Copy inspection'})
+        cid=json.loads(body)['id']
+        self.request('/api/conversations/'+cid+'/messages',{'request_id':'m','expected_revision':0,'content':'Prepare a £600 contractor campaign.'})
+        _,body,_=self.request('/api/conversations/'+cid+'/actions',{'request_id':'inspect','expected_revision':1,'content':'status?','allow_model_copy':False})
+        action=json.loads(body)['actions'][0]
+        payload={'request_id':'copy-confirm','action_id':action['id'],'result_id':action['result']['id'],'expected_revision':1,'allow_model_copy':True}
+        path='/api/conversations/'+cid+'/confirm-copy-action'
+        for bad in ({'X-Workspace-Token':''},{'Host':'attacker.invalid'},{'Origin':'https://attacker.invalid'}):
+            self.assertEqual(self.request(path,payload,bad)[0],403)
+        self.assertEqual(self.request(path,payload)[0],409)
+        self.assertEqual(self.request('/api/conversations/not-this-chat/confirm-copy-action',payload)[0],404)
+        self.assertEqual(self.server.workspace.conversation(cid)['revision'],1)
+
     def absolute_request(self, method, headers):
         connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port, timeout=10)
         try:

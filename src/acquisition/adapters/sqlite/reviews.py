@@ -21,6 +21,7 @@ from .actors import require_actor
 from .drafts import verify
 from .tasks import scoped_run
 from .revision_provenance import require_revision_current, require_revision_lease
+from .conversation_copy import check_copy_confirmation, record_copy_confirmation
 
 
 class SqliteReviews:
@@ -559,16 +560,31 @@ class SqliteReviews:
         except (Conflict, ValueError):
             return False
 
-    def admit_revision(self, organization, request_id, inputs, context, model_config):
+    def observe_revision_confirmation(self, organization, confirmation_request_id, inputs, receipt):
+        with self.database.transaction() as db:
+            saved=db.execute('SELECT receipt FROM review_commands WHERE organization=? AND request_id=?',
+                             (organization,receipt['request_id'])).fetchone()
+            if saved is None or json.loads(saved['receipt'])!=receipt:
+                raise Conflict('Historical copy admission differs from its durable receipt')
+            checked=check_copy_confirmation(db,organization,inputs,receipt['request_id'],confirmation_request_id)
+            if checked['confirmed'] is None:raise Conflict('Copy admission lacks its atomic conversation confirmation')
+            record_copy_confirmation(db,checked,receipt,self._now())
+
+    def admit_revision(self, organization, request_id, inputs, context, model_config, *, confirmation_request_id=None):
         if inputs.get("allow_model_copy") is not True:
             raise ValueError("A copy revision requires explicit generation permission")
         with self.database.transaction() as db:
             now = self._now()
+            checked=(check_copy_confirmation(db,organization,inputs,request_id,confirmation_request_id)
+                     if inputs.get('conversation_action') is not None else None)
             operator = self._actor(db, organization, inputs["actor"], "operator")
             reviewer = self._actor(db, organization, inputs["reviewer"], "reviewer")
             fingerprint, cached = self._cached(db, organization, inputs["actor"], request_id, "copy_revision", inputs)
             if cached:
+                if checked:record_copy_confirmation(db,checked,cached,now)
                 return cached
+            if checked and checked['confirmed']:
+                raise Conflict('Saved copy confirmation lacks its original revision admission')
             case = self._case(db, organization, inputs["case_id"])
             if case["current_subject"] != inputs["expected_subject"]:
                 raise Conflict("Select the exact current subject before revising copy")
@@ -587,6 +603,9 @@ class SqliteReviews:
             target = next((c for c in base.manifest["creatives"] if c["id"] == inputs["target_id"]), None)
             if target is None or target["status"] != "generated_unreviewed":
                 raise Conflict("Select grounded model copy for revision")
+            if checked and (checked['target']['draft_id']!=base.id or any(
+                    checked['target'][k]!=target[k] for k in ('id','segment','arm','headline','opening'))):
+                raise Conflict('The displayed copy preview differs from the actual base draft')
             original_context = self._bundle(db, organization, base.id)[2][target["context_id"]]
             expected = original_context | {"copy_revision": {"base_draft_id": base.id, "base_subject_id": proposal["id"],
                 "arm": target["arm"], "feedback": inputs["feedback"],
@@ -616,4 +635,6 @@ class SqliteReviews:
                        (organization, decision["id"], inputs["case_id"], proposal["id"], canonical(decision)))
             self._event(db, organization, inputs["case_id"], "review_reject", decision, now)
             self._event(db, organization, inputs["case_id"], "copy_revision_requested", {"id": revision_id, "subject_id": proposal["id"], "target_id": inputs["target_id"]}, now)
-            return self._record(db, organization, request_id, fingerprint, receipt)
+            result=self._record(db, organization, request_id, fingerprint, receipt)
+            if checked:record_copy_confirmation(db,checked,receipt,now)
+            return result

@@ -15,7 +15,7 @@ class CopyRevisionService:
         self.clock, self.config, self.asset_context = clock, config, asset_context
 
     def admit(self, organization, case_id, request_id, expected_subject, target_id, feedback, allow_model_copy,
-              actor="local-operator", reviewer="local-reviewer"):
+              actor="local-operator", reviewer="local-reviewer", *, conversation_action=None, confirmation_request_id=None):
         if allow_model_copy is not True:
             raise ValueError("Explicit model-copy permission is required")
         for value in (organization, case_id, request_id, expected_subject, target_id):
@@ -23,10 +23,13 @@ class CopyRevisionService:
         text(feedback)
         inputs = {"case_id": case_id, "expected_subject": expected_subject, "target_id": target_id,
                   "feedback": feedback, "allow_model_copy": True, "actor": actor, "reviewer": reviewer}
+        if conversation_action is not None:inputs['conversation_action']=conversation_action
         old = self.store.revision_request(organization, request_id)
         if old:
             if old["inputs"] != inputs:
                 raise Conflict("Copy request already binds different feedback or subject")
+            if conversation_action is not None:
+                self.store.observe_revision_confirmation(organization, confirmation_request_id, inputs, old)
             return old
         if self.config is None:
             raise ValueError("Configure the copy model before requesting a revision")
@@ -43,7 +46,8 @@ class CopyRevisionService:
             "base_variants": sorted([c for c in base.manifest["creatives"] if c["segment"] == target["segment"]], key=lambda c: c["arm"])}}
         if self.asset_context:
             context = self.asset_context(organization, context, revision=True)
-        return self.store.admit_revision(organization, request_id, inputs, context, asdict(self.config))
+        return self.store.admit_revision(organization, request_id, inputs, context, asdict(self.config),
+                                         confirmation_request_id=confirmation_request_id)
 
     def reconcile(self, organization, receipt):
         if self.config is None or asdict(self.config) != receipt["task_inputs"]["model_config"]:

@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from acquisition.bootstrap import build, build_preparations, agent_catalogue
-from acquisition.conversations import ACTIVE_PREPARATION, AudienceSelectionRejected, ActionNotSaved
+from acquisition.conversations import ACTIVE_PREPARATION, AudienceSelectionRejected, ActionNotSaved, pending_copy_clarification
 from acquisition.adapters.environment import openrouter_key
 from acquisition.adapters.openrouter import OpenRouter
 from acquisition.contracts import Conflict, NotFound, canonical, digest
@@ -67,11 +67,11 @@ class Workspace:
             raise NotFound("Campaign not found in this workspace")
         return json.loads(row[0])
 
-    def _app(self, session, with_model=False):
+    def _app(self, session, with_model=False, *, revision_admission=False):
         gateway, config = None, None
-        if with_model and session["mode"] == "model":
+        if (with_model or revision_admission) and session["mode"] == "model":
             validate_fact_pack(self.pack, datetime.fromtimestamp(self.real_clock(), timezone.utc).date())
-            gateway = OpenRouter(openrouter_key(Path(".env.local")))
+            if with_model:gateway = OpenRouter(openrouter_key(Path(".env.local")))
             config = ModelConfig("openai/gpt-oss-120b", max_calls=10, force_tool_choice=True)
         # Each sandbox has its own durable clock. Live generation starts at real
         # time; explicit outcome simulation alone can advance the sandbox clock.
@@ -169,8 +169,19 @@ class Workspace:
         answers['explain_validation']={'text':validation,'evidence':refs|{'report':report}}
         target={'organization':'local-conversations','conversation_id':conversation_id,'revision':expected_revision}
         target['id']='brief_target_'+digest(target)[:32]
-        context={'schema':'routing-context/v1','target':target,'observed_at':self.real_clock(),'answers':answers,
+        context={'schema':'routing-context/v2','target':target,'observed_at':self.real_clock(),'answers':answers,
                  'brief':{k:plan[k] for k in ('objective','segments','budget_pence','copy_mode')} if plan else None}
+        copy_targets={'available':False,'reason':'Prepare a grounded model campaign before requesting copy revisions.', 'creatives':[]}
+        if review and session['mode']=='model':
+            revisions=self._app(session).revisions.view(session['organization'],session['case_id'])
+            reason=('Accepted simulated campaigns cannot be revised.' if review['handoff'] else
+                    'Restore current evidence and a valid campaign before requesting a revision.' if not review['candidate_valid'] else
+                    'A saved revision already owns this subject, or the three-revision limit was reached. Inspect the original request.'
+                    if len(revisions)>=3 or any(r['base_subject_id']==review['subject']['id'] for r in revisions) else '')
+            copy_targets|={'available':not reason,'reason':reason,'session_id':session['id'],'organization':session['organization'],
+                'case_id':session['case_id'],'subject_id':review['subject']['id'],'draft_id':review['subject']['draft_id'],
+                'creatives':[{k:c[k] for k in ('id','segment','arm','headline','opening')} for c in review['manifest']['creatives']]}
+        context['copy_revision_targets']=copy_targets
         latest_response=next((p for p in reversed(source['plans']) if p['result']),None)
         action_exchange=[]
         for row in app.actions.store.listing('local-conversations',conversation_id):
@@ -183,11 +194,24 @@ class Workspace:
         for exchange in reversed(action_exchange):
             if exchange['response']['kind']=='unsupported':break
             if exchange['response']['kind'] in {'clarify','amend_brief'}:clarifications.insert(0,exchange)
+        copy_exchange=[]
+        for row in app.actions.store.listing('local-conversations',conversation_id):
+            if row['confirmed'] or row['inputs']['revision']!=expected_revision:continue
+            old_targets=row['context'].get('copy_revision_targets',{})
+            if not old_targets.get('subject_id') or old_targets.get('subject_id')!=copy_targets.get('subject_id'):continue
+            action=app.actions.view('local-conversations',row)
+            if action['result'] and action['result']['kind']=='revise_copy':
+                if not pending_copy_clarification(action['result']['copy_revision']):
+                    copy_exchange=[]
+                else:
+                    copy_exchange.append({'action_id':row['id'],'content':row['inputs']['content'],
+                        'response':{k:action['result'][k] for k in ('id','kind','text')}})
         context['dialogue']={
-            'version':'routing-dialogue/v2',
+            'version':'routing-dialogue/v4',
             'messages':[{k:m[k] for k in ('id','revision','role','content')} for m in source['messages'][-2:]],
             'action_exchange':action_exchange[-2:],
             'clarification_exchange':clarifications,
+            'copy_exchange':copy_exchange,
             'planner_response':({'current':latest_response['revision']==expected_revision,
                 **{k:latest_response['result'][k] for k in ('id','revision','outcome','question','unsupported_reason')}}
                 if latest_response else None),
@@ -212,6 +236,32 @@ class Workspace:
         self._continue_confirmed_action(receipt)
         return self.conversation(conversation_id)|{'action_confirmation':receipt}
 
+    def confirm_copy_followup(self, conversation_id, action_id, request_id, result_id, expected_revision, allow_model_copy):
+        if allow_model_copy is not True:raise ValueError('Allow up to five model calls for this exact revision before confirming')
+        app=self._conversation_app()
+        row=app.actions.store.get('local-conversations',action_id)
+        if row['inputs']['conversation_id']!=conversation_id:raise NotFound('Copy action belongs to another conversation')
+        value=app.actions.view('local-conversations',row)
+        result=value['result']
+        if (type(expected_revision) is not int or expected_revision!=row['inputs']['revision'] or not result
+                or result['id']!=result_id or result['kind']!='revise_copy' or result['copy_revision']['status']!='ready'):
+            raise Conflict('Confirm the exact completed copy-edit proposal')
+        proposal=result['copy_revision'];target=proposal['target']
+        session=self._session(target['session_id'])
+        source=session.get('conversation_plan',{})
+        if (source.get('conversation_id')!=conversation_id or source.get('revision')!=expected_revision
+                or session['case_id']!=target['case_id'] or session['organization']!=target['organization']):
+            raise Conflict('Copy target differs from its original conversation campaign')
+        revision_request_id=action_id+':copy'
+        native=self._app(session)
+        if native.reviews.store.revision_request(session['organization'],revision_request_id) is None:
+            native=self._app(session,revision_admission=True)
+        reference={'organization':'local-conversations','conversation_id':conversation_id,'action_id':action_id,
+                   'result_id':result_id,'revision':expected_revision}
+        native.revisions.admit(session['organization'],session['case_id'],revision_request_id,target['subject_id'],
+            target['id'],proposal['feedback'],True,conversation_action=reference,confirmation_request_id=request_id)
+        return self.conversation(conversation_id)
+
     def _continue_confirmed_action(self, receipt):
         source=self.preparation_source('local-conversations',receipt['conversation_id'])
         revision=receipt['message_receipt']['revision']
@@ -230,6 +280,11 @@ class Workspace:
             value=app.actions.view('local-conversations',row)
             generation=self._run_generation(app,'local-conversations',value['run_id']) if value['run_id'] else None
             value|={'current':row['inputs']['revision']==source['revision'],'generation':generation}
+            if value['result'] and value['result']['kind']=='revise_copy' and value['result']['copy_revision']['target']:
+                target=value['result']['copy_revision']['target']
+                current_review=self.view(target['session_id'])['review']
+                value['target_current']=(value['current'] and current_review['subject']['id']==target['subject_id']
+                                         and current_review['candidate_valid'] and not current_review['handoff'])
             if value['status'] in {'admitted','queued'} and not row['alias']:
                 if row['model_config']!=asdict(app.actions.config):
                     value['status']='blocked'
@@ -240,6 +295,12 @@ class Workspace:
                         value['status']='blocked'
                         value['detail']='Routing is waiting for the server-side OpenRouter key. Restore it to resume this saved request.'
             if value['confirmed']:
+                if value['confirmed'].get('kind')=='copy_revision_confirmation':
+                    session=self._session(value['confirmed']['session_id'])
+                    progress=self._copy_revision_progress(self._app(session),session['organization'],session['case_id'])
+                    value['copy_revision_progress']=next((r for r in progress if r['id']==value['confirmed']['revision_id']),None)
+                    values.append(value)
+                    continue
                 revision=value['confirmed']['message_receipt']['revision']
                 admitted=self.preparations.store.for_revision('local-conversations',conversation_id,revision)
                 value['continuation_pending']=source['revision']==revision and admitted is None
@@ -263,7 +324,8 @@ class Workspace:
         for row in app.actions.store.listing('local-conversations'):
             try:
                 if row['confirmed']:
-                    self._continue_confirmed_action(row['confirmed']);continue
+                    if row['confirmed'].get('kind')!='copy_revision_confirmation':self._continue_confirmed_action(row['confirmed'])
+                    continue
                 if row['alias']:continue
                 source=app.conversations.view('local-conversations',row['inputs']['conversation_id'])
                 if source['revision']!=row['inputs']['revision']:continue

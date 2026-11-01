@@ -4,7 +4,7 @@ An acquisition workspace for preparing audience-specific direct-mail experiments
 
 Built by Dessi Georgieva. The current product is a local demonstration using synthetic businesses, simulated agency acceptance and synthetic responses. The example campaign uses public iwoca product evidence. It has no connection to iwoca production systems, sends no mail and makes no lending decisions.
 
-A chat request continues through planning, then asks you to confirm an exact synthetic audience dataset before campaign preparation proceeds in the background. Allow model copy before sending to include bounded generation; the agent stops at an unapproved campaign for human review. Progress survives reload and process restart. Inspect and approve the result in chat, or request a targeted grounded-copy revision tied to the displayed subject. Follow-up inspection questions preserve the current brief; proposed brief changes require exact confirmation before replanning.
+A chat request continues through planning, then asks you to confirm an exact synthetic audience dataset before campaign preparation proceeds in the background. Allow model copy before sending to include bounded generation; the agent stops at an unapproved campaign for human review. Progress survives reload and process restart. Inspect and approve the result in chat, or [request a targeted copy edit conversationally](docs/conversational-copy-revision.md), with exact-target confirmation and separate model-call consent. Follow-up inspection questions preserve the current brief; proposed brief changes require exact confirmation before replanning.
 
 ## What the product does
 
