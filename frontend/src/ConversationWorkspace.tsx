@@ -19,6 +19,9 @@ import {
 } from "./api";
 import type { State } from "./api";
 import "./conversation.css";
+import ConversationActions, {
+  type ConversationAction,
+} from "./ConversationActions";
 import ConversationCampaignReview from "./ConversationCampaignReview";
 
 type Brief = {
@@ -127,6 +130,7 @@ const activePreparation = (status: string) =>
   ["admitting", "planning", "selecting_audience", "preparing"].includes(status);
 
 type Conversation = {
+  actions?: ConversationAction[];
   preparations?: Preparation[];
   id: string;
   title: string;
@@ -156,6 +160,7 @@ type PendingMessage = {
   expected_revision: number;
   content: string;
   allow_model_copy?: boolean;
+  route?: boolean;
 };
 const pendingMessageKey = "conversation-pending-message";
 function savedPendingMessage(): PendingMessage | null {
@@ -286,8 +291,15 @@ export default function ConversationWorkspace({
   }, [preparedCampaigns, onCampaignsChanged]);
 
   const preparing =
-    conversation?.preparations?.some((p) => activePreparation(p.status)) ??
-    false;
+    (conversation?.preparations?.some((p) => activePreparation(p.status)) ??
+      false) ||
+    (conversation?.actions?.some(
+      (a) =>
+        (a.current &&
+          ["admitted", "queued", "running", "blocked"].includes(a.status)) ||
+        a.continuation_pending,
+    ) ??
+      false);
   useEffect(() => {
     if (!selected || !preparing || !active) return;
     let disposed = false;
@@ -383,6 +395,7 @@ export default function ConversationWorkspace({
         expected_revision: current.revision,
         content: message.trim(),
         allow_model_copy: allowModelCopy,
+        route: current.revision > 0,
       };
       if (pending.conversationId !== current.id)
         throw new Error(
@@ -393,10 +406,13 @@ export default function ConversationWorkspace({
       let saved: Conversation;
       try {
         saved = await command<Conversation>(
-          `/api/conversations/${current.id}/messages`,
+          `/api/conversations/${current.id}/${pending.route ? "actions" : "messages"}`,
           {
             expected_revision: pending.expected_revision,
             content: pending.content,
+            ...(pending.route
+              ? { allow_model_copy: pending.allow_model_copy === true }
+              : {}),
           },
         );
       } catch (error) {
@@ -405,6 +421,14 @@ export default function ConversationWorkspace({
           setPendingMessage(null);
         }
         throw error;
+      }
+      if (pending.route) {
+        sessionStorage.removeItem(pendingMessageKey);
+        setPendingMessage(null);
+        setMessage("");
+        setAllowModelCopy(false);
+        accept(saved);
+        return;
       }
       const messageRevision = saved.message_receipt?.revision;
       if (messageRevision !== pending.expected_revision + 1)
@@ -861,6 +885,14 @@ export default function ConversationWorkspace({
                     )}
                   </div>
                 )}
+                <ConversationActions<Conversation>
+                  actions={(conversation.actions ?? []).filter(
+                    (a) => a.revision === item.revision,
+                  )}
+                  conversationId={conversation.id}
+                  disabled={!!busy || !!pendingMessage}
+                  onChanged={accept}
+                />
               </div>
             );
           })}
@@ -941,7 +973,7 @@ export default function ConversationWorkspace({
           <p>
             {pendingMessage
               ? "The last message needs confirmation. Retry saving it before continuing."
-              : "Sending allows up to 2 planning calls. If allowed and proposed, model copy adds up to 10 calls. Approval is always separate."}
+              : "First requests allow up to 2 planning calls. Follow-ups may use 1 routing call; brief changes need confirmation. If allowed, model copy adds up to 10 calls. Approval is separate."}
           </p>
         </form>
         {!hasMessages && (

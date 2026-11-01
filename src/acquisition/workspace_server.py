@@ -11,7 +11,7 @@ from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
 
 from acquisition.contracts import Conflict, NotFound
-from acquisition.conversations import AudienceSelectionRejected, MessageRejectedConflict, MessageRejectedInvalid, MessageRejectedNotFound
+from acquisition.conversations import ActionNotSaved, AudienceSelectionRejected, MessageRejectedConflict, MessageRejectedInvalid, MessageRejectedNotFound
 from acquisition.reasoning import ModelError
 from acquisition.workspace import Workspace
 
@@ -30,6 +30,7 @@ class WorkspaceServer(ThreadingHTTPServer):
             super().__init__(("127.0.0.1", port), Handler)
             self.workspace.preparations.recover("local-conversations")
             self.workspace.recover_copy_revisions()
+            self.workspace.recover_actions()
         except BaseException:
             if hasattr(self, "socket"):
                 super().server_close()
@@ -168,6 +169,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, self.server.workspace.create_conversation(data["request_id"], data["title"]))
             parts = path.strip("/").split("/")
             if len(parts) == 4 and parts[:2] == ["api", "conversations"]:
+                if parts[3] == 'actions' and set(data)=={'request_id','expected_revision','content','allow_model_copy'}:
+                    return self._send(202,self.server.workspace.route_followup(parts[2],**data))
+                if parts[3] == 'confirm-action' and set(data)=={'request_id','action_id','target_id','expected_revision'}:
+                    return self._send(200,self.server.workspace.confirm_followup(parts[2],**data))
                 if parts[3] == "messages" and set(data) == {"request_id", "expected_revision", "content"}:
                     return self._send(200, self.server.workspace.message_conversation(parts[2], **data))
                 if parts[3] == "plan" and set(data) == {"request_id", "expected_revision"}:
@@ -197,6 +202,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, self.server.workspace.prepare(parts[2]))
                 return self._send(200, self.server.workspace.action(parts[2], parts[3], data))
             raise NotFound("Unknown workspace route")
+        except ActionNotSaved as error:
+            self._send(409,{"error":str(error),"action_not_saved":True})
         except AudienceSelectionRejected as error:
             self._send(409, {"error":str(error), "audience_not_saved":True})
         except (MessageRejectedConflict, MessageRejectedInvalid, MessageRejectedNotFound) as error:

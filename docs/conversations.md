@@ -200,3 +200,11 @@ Choose a dataset version inside the chat. The server binds the exact plan/revisi
 `POST /api/conversations/{id}/audience` accepts exactly `request_id`, `expected_revision`, `plan_id`, `dataset_id`, `version`, `checksum` and `manifest_id`. Scope remains server-owned. Exact-input command replay cannot change the selection or repeat preparation. The response includes `audience_receipt`; preparation progress exposes the confirmed provenance or current candidate metadata without contact rows. Definitive pre-commit rejections return `audience_not_saved`; post-commit projection failures remain uncertain and retain replay identity.
 
 Existing direct planning and unsourced historical flows remain supported. A catalogue-based coordinator cannot be bypassed with the older draft endpoint. See [audience catalogue](audience-catalogue.md) for persistence, source validation and limitations.
+
+## Follow-up routing and brief continuity
+
+The chat sends subsequent messages to `POST /api/conversations/{id}/actions` with exactly `request_id`, `expected_revision`, `content` and `allow_model_copy`. Inspection is persisted separately from the brief history. Common inspection aliases use no model; other follow-ups permit one routing call. An `action_not_saved` response marks a definitive pre-commit rejection; uncertain acknowledgements retain the original client identity.
+
+A completed amendment proposal requires `POST /api/conversations/{id}/confirm-action` with exactly `request_id`, `action_id`, `target_id` and `expected_revision`. The server rechecks the original task output, frozen inputs and current revision before committing the displayed user messages and confirmation together. A reply to router clarification carries its displayed earlier requests and agent responses through replanning. User texts enter the brief in order, with a revision for each, while agent responses remain labeled context. It then continues the existing preparation workflow at the final revision using the final follow-up's saved permission. Reads, approval-help responses and stale proposals cannot be applied as amendments.
+
+See [conversational follow-ups](conversational-actions.md) for limits, observation semantics and restart behavior. Existing direct message and planning endpoints retain their original explicit amendment behavior for older clients.

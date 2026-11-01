@@ -271,6 +271,27 @@ class WorkspaceHttpTests(unittest.TestCase):
         self.assertEqual(self.server.workspace.listing()['sessions'],[])
         self.assertEqual(self.server.workspace.conversations()['conversations'],[])
 
+    def test_followup_routes_are_scoped_guarded_and_do_not_advance_the_brief(self):
+        status,body,_=self.request('/api/conversations',{'request_id':'followup','title':'Inspection'})
+        self.assertEqual(status,200);cid=json.loads(body)['id']
+        from acquisition.conversations import FIXTURE_MESSAGE
+        self.request('/api/conversations/'+cid+'/messages',{'request_id':'m','expected_revision':0,'content':FIXTURE_MESSAGE})
+        payload={'request_id':'q','expected_revision':1,'content':'status?','allow_model_copy':False}
+        path='/api/conversations/'+cid+'/actions'
+        for headers in ({'X-Workspace-Token':''},{'Origin':'https://attacker.invalid'}):
+            self.assertEqual(self.request(path,payload,headers)[0],403)
+        status,body,_=self.request(path,payload);self.assertEqual(status,202)
+        view=json.loads(body);action=view['actions'][0]
+        self.assertEqual(view['revision'],1);self.assertEqual(len(view['messages']),1)
+        self.assertIsNone(action['run_id']);self.assertEqual(action['result']['kind'],'inspect_progress')
+        changed=payload|{'content':'explain validation'}
+        status,body,_=self.request(path,changed)
+        self.assertEqual(status,409);self.assertTrue(json.loads(body)['action_not_saved'])
+        decision={'request_id':'confirm','action_id':action['id'],'target_id':action['result']['target']['id'],'expected_revision':1}
+        self.assertEqual(self.request('/api/conversations/'+cid+'/confirm-action',decision)[0],409)
+        self.assertEqual(self.request('/api/conversations/not-this-conversation/confirm-action',decision)[0],404)
+        self.assertEqual(self.server.workspace.conversation(cid)['revision'],1)
+
     def absolute_request(self, method, headers):
         connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port, timeout=10)
         try:

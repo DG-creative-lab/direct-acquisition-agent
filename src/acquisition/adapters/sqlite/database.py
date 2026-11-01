@@ -154,6 +154,19 @@ PRAGMA user_version=7;
 """
 
 
+CONVERSATION_ACTIONS = """
+CREATE TABLE IF NOT EXISTS conversation_actions (
+ organization TEXT NOT NULL, id TEXT NOT NULL, conversation_id TEXT NOT NULL, request_id TEXT NOT NULL,
+ revision INTEGER NOT NULL, payload TEXT NOT NULL, confirmed TEXT, created_at REAL NOT NULL,
+ PRIMARY KEY(organization,id), UNIQUE(organization,conversation_id,request_id),
+ FOREIGN KEY(organization,conversation_id) REFERENCES conversations(organization,id));
+CREATE TABLE IF NOT EXISTS conversation_action_commands (
+ organization TEXT NOT NULL, request_id TEXT NOT NULL, inputs TEXT NOT NULL, receipt TEXT NOT NULL,
+ PRIMARY KEY(organization,request_id));
+PRAGMA user_version=8;
+"""
+
+
 class Database:
     def __init__(self, path: str | Path):
         self.path = Path(path)
@@ -161,7 +174,7 @@ class Database:
         with self.transaction() as connection:
             # Version discovery and every migration share one SQLite write lock.
             version = connection.execute("PRAGMA user_version").fetchone()[0]
-            if version not in {0, 1, 2, 3, 4, 5, 6, 7}:
+            if version not in {0, 1, 2, 3, 4, 5, 6, 7, 8}:
                 raise ValueError(f"Unsupported database schema {version}")
             if version == 0:
                 self._apply_migration(connection, SCHEMA)
@@ -179,7 +192,15 @@ class Database:
             if version < 7:
                 self._apply_migration(connection, AUDIENCE_SELECTIONS)
                 self._validate_audience_selection_schema(connection)
+            if version < 8:
+                self._apply_migration(connection, CONVERSATION_ACTIONS)
+                self._validate_action_schema(connection)
         self._enable_wal()
+
+    @staticmethod
+    def _validate_action_schema(connection):
+        connection.execute("SELECT organization,id,conversation_id,request_id,revision,payload,confirmed,created_at FROM conversation_actions LIMIT 0")
+        connection.execute("SELECT organization,request_id,inputs,receipt FROM conversation_action_commands LIMIT 0")
 
     @staticmethod
     def _validate_audience_selection_schema(connection):

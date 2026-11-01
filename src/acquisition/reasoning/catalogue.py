@@ -3,13 +3,14 @@ import json
 
 from acquisition.contracts import canonical, digest
 
-KINDS = {'authored_guidance', 'product_evidence', 'reviewer_preference', 'synthetic_observation', 'audience_summary'}
+KINDS = {'authored_guidance', 'product_evidence', 'reviewer_preference', 'synthetic_observation', 'audience_summary', 'task_observation'}
 USES = {
     'authored_guidance': {'guide_reasoning'},
     'product_evidence': {'ground_product_copy'},
     'reviewer_preference': {'guide_style'},
     'synthetic_observation': {'inform_hypothesis'},
     'audience_summary': {'describe_synthetic_population'},
+    'task_observation': {'explain_recorded_state'},
 }
 
 
@@ -20,7 +21,7 @@ def source_manifest(organization, key, kind, payload, version, provenance, fresh
     source = {'key': key, 'kind': kind, 'organization': organization, 'version': version,
               'owner': {'authored_guidance':'project-maintainer', 'product_evidence':'official-source-with-local-review',
                         'reviewer_preference':'local-reviewer', 'synthetic_observation':'local-synthetic-learning',
-                        'audience_summary':'local-synthetic-source'}[kind],
+                        'audience_summary':'local-synthetic-source', 'task_observation':'local-task-journal'}[kind],
               'status': 'advisory' if kind != 'product_evidence' else 'recorded_evidence_not_approval',
               'content_hash': digest(payload), 'provenance': provenance, 'freshness': freshness,
               'permitted_uses': sorted(USES[kind])}

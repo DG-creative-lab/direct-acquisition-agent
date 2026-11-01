@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from acquisition.bootstrap import build, build_preparations, agent_catalogue
-from acquisition.conversations import ACTIVE_PREPARATION, AudienceSelectionRejected
+from acquisition.conversations import ACTIVE_PREPARATION, AudienceSelectionRejected, ActionNotSaved
 from acquisition.adapters.environment import openrouter_key
 from acquisition.adapters.openrouter import OpenRouter
 from acquisition.contracts import Conflict, NotFound, canonical, digest
@@ -113,10 +113,170 @@ class Workspace:
         view = self._conversation_app().conversations.view("local-conversations", conversation_id)
         with self.control() as db:
             sessions = [json.loads(r[0]) for r in db.execute("SELECT payload FROM sessions ORDER BY rowid DESC")]
-        return view | {"preparations": self.preparation_progress(conversation_id), "campaigns": [{"session_id": s["id"], "plan_id": s["conversation_plan"]["id"],
+        return view | {"actions":self.action_progress(conversation_id), "preparations": self.preparation_progress(conversation_id), "campaigns": [{"session_id": s["id"], "plan_id": s["conversation_plan"]["id"],
                                       "revision": s["conversation_plan"]["revision"], "case_id": s["case_id"],
                                       "generation": self._generation(s)}
                                      for s in sessions if s.get("conversation_plan", {}).get("conversation_id") == conversation_id]}
+
+    def action_context(self, conversation_id, expected_revision):
+        app=self._conversation_app();source=app.conversations.view('local-conversations',conversation_id)
+        if source['revision']!=expected_revision:raise Conflict('The brief changed before action admission')
+        plan=source['current_plan']['result'] if source['current_plan'] else None
+        with self.control() as db:
+            sessions=[json.loads(r[0]) for r in db.execute('SELECT payload FROM sessions ORDER BY rowid DESC')]
+        session=next((s for s in sessions if s.get('conversation_plan',{}).get('conversation_id')==conversation_id
+                      and s['conversation_plan']['revision']==expected_revision),None)
+        review=self._app(session).reviews.store.view(session['organization'],session['case_id']) if session and session['case_id'] else None
+        preparation=self.preparations.store.for_revision('local-conversations',conversation_id,expected_revision)
+        phase=preparation['status'] if preparation else 'not_started'
+        if review and not review['validation_report']['review_ready']:phase='blocked'
+        if review and review['handoff']:phase='simulated_accepted'
+        labels={'selecting_audience':'awaiting audience confirmation','planning':'interpreting the brief',
+                'preparing':'preparing the campaign','review_ready':'ready for human review','not_started':'not started',
+                'admitting':'saving the preparation request','needs_input':'waiting for clarification',
+                'needs_consent':'waiting for generation permission','blocked':'blocked pending inspection',
+                'failed':'stopped after a failure','uncertain':'awaiting provider reconciliation',
+                'stale':'stopped after a brief change','simulated_accepted':'accepted by the local handoff simulator'}
+        refs={'plan_id':plan['id'] if plan else None,'session_id':session['id'] if session else None,
+              'subject_id':review['subject']['id'] if review else None,'draft_id':review['subject']['draft_id'] if review else None}
+        answers={'inspect_progress':{'text':'Preparation was '+labels.get(phase,phase.replace('_',' '))+' when this snapshot was recorded.',
+                    'evidence':refs|{'status':phase,'preparation_id':preparation['id'] if preparation else None}}}
+        selected=(review['manifest']['brief'].get('audience_source') if review else
+                  app.conversation_audiences.store.get('local-conversations',conversation_id,expected_revision))
+        counts=review['manifest']['counts'] if review else None
+        if selected:
+            audience_text=f"The confirmed synthetic audience is {selected['source']['title']}, version {selected['source']['version']}, with {selected['source']['record_count']} input records. Its segments match the proposed brief."
+        elif review:
+            audience_text=f"This campaign uses its original generated synthetic audience, with {counts['input']} input records."
+        else:audience_text='A source audience has not been confirmed for this brief.'
+        if counts:audience_text+=f" The validated draft has {counts['mailed']} mailed assignments and {counts['holdout']} no-mail controls."
+        answers['explain_audience']={'text':audience_text,'evidence':refs|{'selection':selected,'counts':counts}}
+        reasons=review['manifest']['exclusion_reasons'] if review else None
+        explanation='The validated draft is not available yet, so exclusion counts have not been established.'
+        if counts:
+            explanation=f"The draft excluded {counts['excluded']} input records. "
+            reason_labels={'duplicate_business':'duplicate business identity','suppressed':'suppression','product_scope':'outside supported country or entity type',
+                'unusable_demo_address':'unusable demo address','missing_score':'missing supplied score','contact_cap':'contact frequency limit',
+                'contact_cooldown':'recent contact cooldown','outside_selected_segment':'outside selected segment'}
+            explanation+='Recorded reasons: '+', '.join(f"{reason_labels.get(k,k.replace('_',' '))}: {v}" for k,v in sorted(reasons.items()))+'.' if reasons else 'No exclusion reasons were recorded.'
+        answers['explain_exclusions']={'text':explanation,'evidence':refs|{'counts':counts,'exclusion_reasons':reasons}}
+        report=review['validation_report'] if review else None
+        validation='No exact-draft validation report is available yet.'
+        if report:
+            blocked=[c['label'] for c in report['checks'] if c['required'] and c['status']!='passed']
+            validation=('At the recorded check, required machine checks passed and the draft was ready for human review. Approval remains a separate decision.'
+                        if report['review_ready'] else 'At the recorded check, review was blocked by: '+', '.join(blocked)+'.')
+        answers['explain_validation']={'text':validation,'evidence':refs|{'report':report}}
+        target={'organization':'local-conversations','conversation_id':conversation_id,'revision':expected_revision}
+        target['id']='brief_target_'+digest(target)[:32]
+        context={'schema':'routing-context/v1','target':target,'observed_at':self.real_clock(),'answers':answers,
+                 'brief':{k:plan[k] for k in ('objective','segments','budget_pence','copy_mode')} if plan else None}
+        latest_response=next((p for p in reversed(source['plans']) if p['result']),None)
+        action_exchange=[]
+        for row in app.actions.store.listing('local-conversations',conversation_id):
+            if row['inputs']['revision']!=expected_revision or row['confirmed']:continue
+            action=app.actions.view('local-conversations',row)
+            if action['result']:
+                action_exchange.append({'action_id':row['id'],'content':row['inputs']['content'],
+                    'response':{k:action['result'][k] for k in ('id','kind','text')}})
+        clarifications=[]
+        for exchange in reversed(action_exchange):
+            if exchange['response']['kind']=='unsupported':break
+            if exchange['response']['kind'] in {'clarify','amend_brief'}:clarifications.insert(0,exchange)
+        context['dialogue']={
+            'version':'routing-dialogue/v2',
+            'messages':[{k:m[k] for k in ('id','revision','role','content')} for m in source['messages'][-2:]],
+            'action_exchange':action_exchange[-2:],
+            'clarification_exchange':clarifications,
+            'planner_response':({'current':latest_response['revision']==expected_revision,
+                **{k:latest_response['result'][k] for k in ('id','revision','outcome','question','unsupported_reason')}}
+                if latest_response else None),
+        }
+        return context|{'id':'action_context_'+digest(context)}
+
+    def route_followup(self, conversation_id, request_id, expected_revision, content, allow_model_copy):
+        app=self._conversation_app();old=app.actions.store.request('local-conversations',conversation_id,request_id)
+        try:
+            context=old['context'] if old else self.action_context(conversation_id,expected_revision)
+            row=app.actions.admit('local-conversations',conversation_id,request_id,expected_revision,content,allow_model_copy,context)
+        except (Conflict,ValueError,NotFound) as error:raise ActionNotSaved(str(error)) from error
+        # Admission is durable before any task or provider request. Recovery can
+        # reconcile the same identity if this next write is interrupted.
+        if old is None and not row['alias']:app.actions.reconcile('local-conversations',row)
+        return self.conversation(conversation_id)|{'action_receipt':{'id':row['id'],'revision':row['inputs']['revision']}}
+
+    def confirm_followup(self, conversation_id, action_id, request_id, target_id, expected_revision):
+        app=self._conversation_app();row=app.actions.store.get('local-conversations',action_id)
+        if row['inputs']['conversation_id']!=conversation_id:raise NotFound('Action belongs to another conversation')
+        receipt=app.actions.store.confirm('local-conversations',action_id,request_id,target_id,expected_revision,self.real_clock())
+        self._continue_confirmed_action(receipt)
+        return self.conversation(conversation_id)|{'action_confirmation':receipt}
+
+    def _continue_confirmed_action(self, receipt):
+        source=self.preparation_source('local-conversations',receipt['conversation_id'])
+        revision=receipt['message_receipt']['revision']
+        if source['revision']!=revision or len(source['plans'])>=6:return
+        try:
+            self.preparations.admit('local-conversations',receipt['conversation_id'],receipt['preparation_request_id'],revision,False,receipt['allow_model_copy'],True)
+        except (ValueError,Conflict,NotFound):
+            # The confirmed amendment and consent remain discoverable for restart
+            # or configuration recovery. Never choose a replacement request ID.
+            return
+
+    def action_progress(self, conversation_id):
+        app=self._conversation_app();source=app.conversations.view('local-conversations',conversation_id)
+        values=[]
+        for row in app.actions.store.listing('local-conversations',conversation_id):
+            value=app.actions.view('local-conversations',row)
+            generation=self._run_generation(app,'local-conversations',value['run_id']) if value['run_id'] else None
+            value|={'current':row['inputs']['revision']==source['revision'],'generation':generation}
+            if value['status'] in {'admitted','queued'} and not row['alias']:
+                if row['model_config']!=asdict(app.actions.config):
+                    value['status']='blocked'
+                    value['detail']='Restore the original routing model and limits to resume this saved request. Its inputs have been preserved.'
+                else:
+                    try:openrouter_key(Path('.env.local'))
+                    except ValueError:
+                        value['status']='blocked'
+                        value['detail']='Routing is waiting for the server-side OpenRouter key. Restore it to resume this saved request.'
+            if value['confirmed']:
+                revision=value['confirmed']['message_receipt']['revision']
+                admitted=self.preparations.store.for_revision('local-conversations',conversation_id,revision)
+                value['continuation_pending']=source['revision']==revision and admitted is None
+                value['continuation_reason']='planning_budget_exhausted' if len(source['plans'])>=6 else 'configuration_or_admission_unavailable'
+            values.append(value)
+        return values
+
+    def recover_actions(self):
+        # Only call after obtaining the deployment's exclusive server lock.
+        # A reserved call from the previous executor is uncertain, not a retry.
+        app=self._conversation_app()
+        for row in app.actions.store.listing('local-conversations'):
+            run=app.tasks.find_run('local-conversations',row['run_request_id']) if not row['alias'] else None
+            if run:
+                generation=self._run_generation(app,'local-conversations',run)
+                if generation['status']=='running' and generation['outcome_uncertain']:
+                    app.tasks.cancel('local-conversations',run,self.real_clock())
+
+    def advance_actions(self):
+        app=self._conversation_app()
+        for row in app.actions.store.listing('local-conversations'):
+            try:
+                if row['confirmed']:
+                    self._continue_confirmed_action(row['confirmed']);continue
+                if row['alias']:continue
+                source=app.conversations.view('local-conversations',row['inputs']['conversation_id'])
+                if source['revision']!=row['inputs']['revision']:continue
+                current=app.actions.view('local-conversations',row)
+                if current['status'] not in {'admitted','queued','running'}:continue
+                with self.lock:
+                    configured=self._conversation_app(with_model=True)
+                    run=configured.actions.reconcile('local-conversations',row)
+                    configured.worker.tick('local-conversations',run_id=run)
+            except Exception:
+                # The durable admission/runtime journal owns recovery. Do not
+                # repeat unknown inference or let one unavailable action starve others.
+                continue
 
     def _generation(self, session):
         app = self._app(session)
@@ -249,6 +409,7 @@ class Workspace:
         return values
 
     def advance_preparations(self):
+        self.advance_actions()
         for row in self.preparations.store.listing("local-conversations"):
             if row["status"] in ACTIVE_PREPARATION:
                 self.preparations.step("local-conversations", row["id"])

@@ -497,6 +497,9 @@ test("offline chat confirms handoff, shows historical receipt and downloads exac
       region.getByRole("button", { name: "Simulate agency handoff" }),
     ).toHaveCount(0);
     await approve(page, region);
+    await expect(
+      region.getByText("Approval recorded", { exact: true }),
+    ).toBeVisible();
     const before = (await backend(page, `/api/sessions/${sid}`)).body;
     await handoffDialog(page, region);
     await expect(
@@ -615,6 +618,9 @@ for (const change of ["refresh", "revoke", "suppress", "message"])
       const region = await openReview(page, url),
         sid = await selected(page);
       await approve(page, region);
+      await expect(
+        region.getByText("Approval recorded", { exact: true }),
+      ).toBeVisible();
       const before = (await backend(page, `/api/sessions/${sid}`)).body;
       await handoffDialog(page, region);
       if (change === "message") {

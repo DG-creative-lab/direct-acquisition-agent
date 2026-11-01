@@ -277,6 +277,17 @@ export async function command<T = State>(
   const result = await response.json();
   if (
     !response.ok &&
+    response.status === 409 &&
+    result.action_not_saved === true &&
+    /^\/api\/conversations\/[^/]+\/actions$/.test(path)
+  ) {
+    sessionStorage.removeItem(key);
+    throw new MessageNotSavedError(
+      result.error ?? "The follow-up was not saved.",
+    );
+  }
+  if (
+    !response.ok &&
     [400, 404, 409].includes(response.status) &&
     result.message_not_saved === true &&
     /^\/api\/conversations\/[^/]+\/messages$/.test(path)
