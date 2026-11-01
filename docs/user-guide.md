@@ -95,3 +95,11 @@ Do not bypass a failure by changing a clock, editing the database or treating a 
 After the agent prepares a complete brief, choose the synthetic dataset version to use. Each candidate shows its population, source date and review window. **Inspect dataset** reveals the manifest and checksum. A future-dated or expired version is unavailable for confirmation. If no dataset covers the proposed segments, revise the brief or ask the workspace owner to publish a suitable source.
 
 Confirmation resumes preparation using those saved records. **Inspect confirmed source** shows the exact selection after reload. You still review and approve the complete campaign separately. To choose another dataset, send a new message and confirm a new proposal. Existing approval does not carry forward.
+
+## Asking about current work
+
+After your first request, ask `status?`, `Why did you choose this audience?`, `Why were these businesses excluded?` or `Explain validation`. These shortcuts read saved evidence without a model call and leave the brief, audience selection and approval intact. Other follow-ups may use one model-routing call. Answers include their observation time; **Inspect follow-up** shows the evidence and frozen guidance.
+
+To amend the brief, describe the change and review **Apply brief change** before confirming. Confirmation saves a new brief revision and authorizes planning for that change. It stops obsolete preparation; the new campaign still needs source confirmation and its own review. Set model-copy permission before sending the follow-up if you want to allow it for the proposed change. Approval and simulated handoff continue through their existing exact-campaign controls.
+
+If the agent asks whether to explain or change a campaign, your short reply retains the earlier request. Review all carried requests and agent responses in the confirmation before applying it. The displayed user texts enter the brief in order, so the final revision can advance by more than one. Earlier model-copy permission does not override the permission saved with your final reply.

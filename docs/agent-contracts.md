@@ -82,3 +82,9 @@ Verified after the legacy boundary correction: all 280 backend tests and 54/54 d
 ## Read-only audience source contracts
 
 The installed catalogue also describes `list_audience_datasets/v1` and `read_audience_dataset/v1`, backed by the scoped audience source service. Their replay and limits describe read-only source access rather than model-call journal replay. They are composed by the host workflow for segment-guided discovery and exact audience confirmation in chat. They are not offered to the current planner or copy tool loops and do not change historical asset bundles. The confirmed source identities enter new copy contexts and campaign briefs. See [audience catalogue](audience-catalogue.md) for selection and provenance checks.
+
+## Follow-up routing assets
+
+`route-followup/v1` supplies authored inspection/amendment guidance and references only `propose_conversation_action/v1`. A model can select a typed proposal, never execute approval or another service directly. Common aliases freeze the same guidance alongside their deterministic decision.
+
+Routing context separates authored guidance from `task_observation` manifests. The latter describes saved progress, source selections, exclusion counts and validation results, with observation time and exact artifact references. It permits explaining recorded state; it cannot ground product wording, establish a preference or count as a learning outcome. Model requests receive the follow-up, brief summary, target and selected skill. The deterministic answer uses the saved observation, with frozen asset inspection available in chat.

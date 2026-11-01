@@ -133,3 +133,57 @@ def validate_result(candidate: dict, frozen: dict, organization: str) -> dict:
               "knowledge_id": frozen["knowledge_id"], "mode": "SYNTHETIC_PLANNING_ONLY",
               "approval": "not_granted", "execution": "not_performed"}
     return result | {"id": "brief_" + digest({"organization": organization, "request_id": frozen["request_id"], "result": result})}
+
+
+ACTION_CAPABILITY = 'conversations.route.v1'
+ACTION_KINDS = ('inspect_progress', 'explain_audience', 'explain_exclusions', 'explain_validation',
+                'amend_brief', 'approval_help', 'clarify', 'unsupported')
+ACTION_ALIASES = {
+    'status':'inspect_progress', 'progress':'inspect_progress',
+    'show progress':'inspect_progress', 'show status':'inspect_progress',
+    'how is the campaign progressing':'inspect_progress', "what's the status":'inspect_progress',
+    'what is the status':'inspect_progress', 'how is it going':'inspect_progress',
+    'why did you choose this audience':'explain_audience', 'explain the audience':'explain_audience',
+    'which audience are we using':'explain_audience',
+    'why were these businesses excluded':'explain_exclusions', 'explain exclusions':'explain_exclusions',
+    'why is review blocked':'explain_validation', 'explain validation':'explain_validation',
+    'looks good':'approval_help', 'approve it':'approval_help', 'send it':'approval_help',
+}
+
+
+def action_alias(content):
+    return ACTION_ALIASES.get(' '.join(content.casefold().replace('’', "'").strip(' .?!').split()))
+
+
+def validate_action(candidate, frozen):
+    if type(candidate) is not dict or set(candidate) != {'action'} or candidate['action'] not in ACTION_KINDS:
+        raise ValueError('Choose one installed conversational action')
+    kind=candidate['action'];context=frozen['context']
+    target=context['target']
+    expected={'organization':frozen['organization'],'conversation_id':frozen['inputs']['conversation_id'],'revision':frozen['inputs']['revision']}
+    expected['id']='brief_target_'+digest(expected)[:32]
+    if context.get('schema')!='routing-context/v1' or target!=expected:
+        raise ValueError('Action context targets another brief')
+    if context.get('id') != 'action_context_' + digest({k:v for k,v in context.items() if k!='id'}):
+        raise ValueError('Frozen action context failed integrity checks')
+    fixed={
+        'amend_brief':'I can apply this as a brief change. Confirm the exact text below before I stop existing preparation and plan again.',
+        'approval_help':'Use the campaign review and handoff confirmations for the exact campaign. This message grants no approval or delivery authority.',
+        'clarify':'Would you like an explanation of the existing campaign, or do you want to change its brief?',
+        'unsupported':'I can inspect progress, explain the audience, exclusions or validation, or propose a brief change. Other actions still use the existing campaign controls.',
+    }
+    result={'kind':kind,'text':fixed.get(kind) or context['answers'][kind]['text'],
+            'evidence':context['answers'].get(kind,{}).get('evidence',{}),
+            'observed_at':context['observed_at'],'target':context['target'],
+            'context_id':context['id'],'requires_confirmation':kind=='amend_brief','authority':'none'}
+    dialogue=context.get('dialogue',{})
+    if kind=='amend_brief' and dialogue.get('version')=='routing-dialogue/v2' and dialogue['clarification_exchange']:
+        exchange=dialogue['clarification_exchange']
+        if len(exchange)>4 or len({e['action_id'] for e in exchange})!=len(exchange):
+            raise ValueError('Use at most four distinct clarification exchanges')
+        for entry in exchange:
+            identity(entry['action_id']);text(entry['content'])
+            if entry['response']['kind'] not in {'clarify','amend_brief'}:
+                raise ValueError('Only pending clarification or amendment requests can enter this amendment')
+        result['amendment_exchange']=exchange+[{'action_id':None,'content':frozen['inputs']['content'],'response':None}]
+    return result | {'id':'action_result_'+digest(result)}

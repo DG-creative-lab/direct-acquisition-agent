@@ -20,6 +20,7 @@ from acquisition.audiences import AudienceDiscovery
 from acquisition.workflows.audience_discovery import audience_tool_contracts
 from acquisition.adapters.sqlite.creative import SqliteCreative
 from acquisition.adapters.sqlite.inference import SqliteCalls
+from acquisition.contracts import digest
 from acquisition.campaigns import Brief, ConversationBrief, SourcedConversationBrief, CampaignService, brief_from
 from acquisition.creative import fixture_catalog, validate_fact_pack, grounded_tool_contracts, copy_source_payloads
 from acquisition.runtime import TaskStore, Worker
@@ -37,14 +38,16 @@ from acquisition.adapters.sqlite.conversations import SqliteConversations
 from acquisition.conversations import ConversationService, CAPABILITY as PLANNER_CAPABILITY, FIXTURE_CAPABILITY
 from acquisition.workflows.conversation import ConversationPlanner, planner_tool_contracts
 from acquisition.adapters.sqlite.preparations import SqlitePreparations
-from acquisition.conversations import PreparationCoordinator, ConversationAudiences
+from acquisition.conversations import PreparationCoordinator, ConversationAudiences, ConversationActions, ACTION_CAPABILITY, ACTION_ALIASES
+from acquisition.adapters.sqlite.conversation_actions import SqliteConversationActions
+from acquisition.workflows.conversational_actions import ConversationRouter, action_tool_contracts
 from acquisition.adapters.sqlite.audience_selections import SqliteAudienceSelections
 
 
 
 def agent_catalogue():
     skills = json.loads((Path(__file__).resolve().parents[2] / "config/agent-skills-v1.json").read_text())
-    return skills | {"tools": planner_tool_contracts() + grounded_tool_contracts() + audience_tool_contracts(),
+    return skills | {"tools": planner_tool_contracts() + grounded_tool_contracts() + audience_tool_contracts() + action_tool_contracts(),
                      "authority": "none", "status": "installed_contracts_not_dynamic_dispatch"}
 
 
@@ -74,6 +77,17 @@ def copy_assets(organization, context, *, revision=False):
                            ["revise-grounded-copy/v1" if revision else "grounded-copy/v1"], sources, model_projection="copy-context/v1")
     return context | {"agent_assets": assets}
 
+def routing_assets(organization, context):
+    catalogue=agent_catalogue()
+    skill=next(s for s in catalogue['skills'] if s['id']=='route-followup/v1')
+    guidance={'version':'routing-guidance/v1','skill':skill,'aliases':ACTION_ALIASES}
+    state={k:v for k,v in context.items() if k not in {'id','agent_assets','routing_guidance'}}
+    sources=[source_manifest(organization,'routing','authored_guidance',guidance,'v1','project-authored routing skill and aliases',{'basis':'frozen_at_admission'}),
+             source_manifest(organization,'task_state','task_observation',state,'v1','saved local task and campaign observations',{'basis':'observed_at','at':context['observed_at']})]
+    value=state|{'routing_guidance':guidance,'agent_assets':freeze_assets(organization,catalogue,action_tool_contracts(),['route-followup/v1'],sources)}
+    return value|{'id':'action_context_'+digest(value)}
+
+
 def build_preparations(path, host):
     return PreparationCoordinator(SqlitePreparations(path), host)
 
@@ -96,6 +110,7 @@ class Application:
     followups: FollowupStore
     audience_discovery: AudienceDiscovery
     conversation_audiences: ConversationAudiences
+    actions: ConversationActions
 
     def start(self, organization: str, request_id: str, size: int = 1000, seed: int = 42,
               budget_pence: int = 85000, as_of: str = "2026-10-25", campaign_id: str | None = None) -> str:
@@ -227,6 +242,10 @@ def build(path: str | Path, clock: Callable[[], float] = time.time,
     planner_config = replace(model_config, max_calls=2, force_tool_choice=True) if model_config else None
     planner_inference = Inference(gateway, calls, planner_config, clock) if gateway is not None and planner_config else None
     planner = ConversationPlanner(planner_inference)
+    router_config = replace(model_config,max_calls=1,force_tool_choice=True) if model_config else ModelConfig("openai/gpt-oss-120b",max_calls=1,force_tool_choice=True)
+    router_inference = Inference(gateway,calls,router_config,clock)
+    router = ConversationRouter(router_inference)
+    actions = ConversationActions(SqliteConversationActions(database,clock),tasks,clock,router_config,router.preflight,routing_assets)
     def planning_guidance():
         return json.loads((Path(__file__).resolve().parents[2] / "config/campaign-playbooks-v1.json").read_text())
     conversations = ConversationService(SqliteConversations(database), tasks, calls, clock,
@@ -237,10 +256,10 @@ def build(path: str | Path, clock: Callable[[], float] = time.time,
     revision_workflow = CopyRevisionWorkflow(campaigns, drafts, memory, revision_inference, reviews)
     revision_service = CopyRevisionService(reviews, drafts, memory, tasks, clock, revision_config, copy_assets)
     discovery = AudienceDiscovery(LocalAudienceSource(Path(__file__).resolve().parents[2] / "config/audience-catalogue"), clock)
-    capabilities = revision_workflow.capabilities() | workflow.capabilities() | ConversationMail(audiences, campaigns).capabilities() | model_workflow.capabilities() | conversation_model.capabilities() | {PLANNER_CAPABILITY: planner.plan, FIXTURE_CAPABILITY: planner.fixture_plan}
+    capabilities = revision_workflow.capabilities() | workflow.capabilities() | ConversationMail(audiences, campaigns).capabilities() | model_workflow.capabilities() | conversation_model.capabilities() | {PLANNER_CAPABILITY: planner.plan, FIXTURE_CAPABILITY: planner.fixture_plan, ACTION_CAPABILITY:router.route}
     return Application(tasks, audiences, drafts, Worker(tasks, capabilities, clock, lease_seconds=180 if inference else 60,
-                       eligible=lambda capability, inputs: model_workflow.eligible(capability, inputs) and conversation_model.eligible(capability, inputs) and planner.eligible(capability, inputs) and revision_workflow.eligible(capability, inputs)), clock,
+                       eligible=lambda capability, inputs: model_workflow.eligible(capability, inputs) and conversation_model.eligible(capability, inputs) and planner.eligible(capability, inputs) and revision_workflow.eligible(capability, inputs) and router.eligible(capability, inputs)), clock,
                        campaigns.catalogue_hash, memory, calls, inference,
                        ReviewService(reviews, ReviewProposalBuilder(audiences, drafts, campaigns)),
                        LearningService(SqliteLearning(database, clock), AcceptedCohortSource(reviews, drafts)), conversations, revision_service, SqliteFollowups(database),
-                       discovery, ConversationAudiences(conversations, discovery, SqliteAudienceSelections(database, clock), audiences, clock))
+                       discovery, ConversationAudiences(conversations, discovery, SqliteAudienceSelections(database, clock), audiences, clock), actions)

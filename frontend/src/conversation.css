@@ -497,3 +497,42 @@
     min-height: 44px;
   }
 }
+
+.conversation-action {
+  margin-top: 28px;
+}
+.conversation-action .conversation-assistant {
+  border-top: 1px solid var(--brand-rule);
+  padding-block: 18px;
+}
+.conversation-action p {
+  line-height: 1.65;
+}
+.conversation-action small {
+  color: var(--brand-muted);
+}
+.conversation-action details {
+  margin-top: 12px;
+}
+.conversation-action summary {
+  min-height: 44px;
+  cursor: pointer;
+  padding-block: 12px;
+}
+.conversation-action pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+  font-size: 11px;
+}
+.action-amendment {
+  border-left: 2px solid var(--brand-ink);
+  padding-left: 18px;
+  margin-block: 18px;
+}
+.action-amendment blockquote {
+  margin: 12px 0;
+  font-weight: 600;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

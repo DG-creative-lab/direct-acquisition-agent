@@ -583,7 +583,7 @@ test("lost message acknowledgement is retried with the original identity after r
   ).toHaveCount(1);
 });
 
-test("stale message rejection unlocks the composer and allows revision", async ({
+test("stale message rejection unlocks the composer and allows a follow-up request", async ({
   page,
 }) => {
   let advanced = false;
@@ -608,13 +608,18 @@ test("stale message rejection unlocks the composer and allows revision", async (
     }
     await route.continue();
   });
-  await page.route("**/api/conversations/*/preparations", (route) =>
-    route.fulfill({
-      status: 503,
+  const followups = [];
+  await page.route("**/api/conversations/*/actions", (route) => {
+    followups.push(route.request().postDataJSON());
+    return route.fulfill({
+      status: 409,
       contentType: "application/json",
-      body: JSON.stringify({ error: "Model disabled for test" }),
-    }),
-  );
+      body: JSON.stringify({
+        error: "Routing disabled for test",
+        action_not_saved: true,
+      }),
+    });
+  });
   await page.goto("/");
   const composer = page.getByLabel("Message Direct Acquisition");
   await composer.fill("Plan a £600 campaign for contractors.");
@@ -631,10 +636,11 @@ test("stale message rejection unlocks the composer and allows revision", async (
   ).toBeVisible();
   await composer.fill("Plan a £300 campaign for contractors.");
   await page.getByRole("button", { name: "Send to agent" }).click();
-  await expect(page.getByText("Model disabled for test")).toBeVisible();
-  await expect(
-    page.getByText("Plan a £300 campaign for contractors.", { exact: true }),
-  ).toHaveCount(1);
+  await expect(page.getByText("Routing disabled for test")).toBeVisible();
+  await expect(composer).toBeEnabled();
+  expect(followups).toHaveLength(1);
+  expect(followups[0].content).toBe("Plan a £300 campaign for contractors.");
+  expect(followups[0].expected_revision).toBe(1);
 });
 
 test("unmarked conflict keeps the message pending", async ({ page }) => {

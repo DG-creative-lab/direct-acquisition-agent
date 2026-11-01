@@ -14,6 +14,7 @@ from .tasks import scoped_run
 from .conversation_provenance import require_current_conversation
 from .selected_audience import require_selected_audience
 from .revision_provenance import require_revision_current
+from .action_provenance import require_action_admission
 
 
 class SqliteCalls:
@@ -40,10 +41,13 @@ class SqliteCalls:
                     audience_source = require_revision_current(connection, scope.organization, inputs, scope.run_id, now)
                 except (Conflict, ValueError):
                     raise ModelError("copy_revision_source_changed") from None
-            if task["capability"] == "conversations.plan.v1":
+            if task["capability"] == "conversations.route.v1":
+                require_action_admission(connection, scope.organization, inputs, run)
+            if task["capability"] in {"conversations.plan.v1", "conversations.route.v1"}:
+                intent = inputs["inputs"] if task["capability"] == "conversations.route.v1" else inputs
                 source = connection.execute("SELECT revision FROM conversations WHERE organization=? AND id=?",
-                                            (scope.organization, inputs["conversation_id"])).fetchone()
-                if source is None or source[0] != inputs["revision"]:
+                                            (scope.organization, intent["conversation_id"])).fetchone()
+                if source is None or source[0] != intent["revision"]:
                     raise ModelError("conversation_changed_before_inference")
             if inputs.get("workflow_version") == "conversation-model-mail/v3":
                 try:

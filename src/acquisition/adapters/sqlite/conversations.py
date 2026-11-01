@@ -47,26 +47,21 @@ class SqliteConversations:
             conversation = dict(scoped_conversation(db, organization, conversation_id))
             conversation.pop("organization")
             conversation.pop("request_id")
+            exchanges=[]
+            for row in db.execute('SELECT id,confirmed FROM conversation_actions WHERE organization=? AND conversation_id=? AND confirmed IS NOT NULL ORDER BY rowid',
+                                  (organization,conversation_id)):
+                receipt=json.loads(row['confirmed'])
+                if receipt.get('exchange'):
+                    exchanges.append({'action_id':row['id'],'revision':receipt['message_receipt']['revision'],
+                                      'exchange':receipt['exchange'],'message_receipts':receipt['message_receipts']})
+            if exchanges:conversation['confirmed_action_exchanges']=exchanges
             return conversation | {"messages": messages(db, organization, conversation_id),
                                    "admissions": [json.loads(r[0]) for r in db.execute("SELECT payload FROM conversation_plans WHERE organization=? AND conversation_id=? ORDER BY revision", (organization, conversation_id))]}
 
     def append(self, organization, conversation_id, request_id, expected_revision, content, now):
         identity(organization), identity(conversation_id), identity(request_id), revision_number(expected_revision), text(content), finite_time(now)
         with self.database.transaction() as db:
-            conversation = scoped_conversation(db, organization, conversation_id)
-            old = db.execute("SELECT * FROM conversation_messages WHERE organization=? AND conversation_id=? AND request_id=?", (organization, conversation_id, request_id)).fetchone()
-            if old:
-                if old["content"] != content or old["revision"] != expected_revision + 1:
-                    raise Conflict("Message request already binds different inputs")
-                return {"id": request_id, "revision": old["revision"], "replayed": True}
-            if conversation["revision"] != expected_revision:
-                raise Conflict("Conversation changed; reload before appending this message")
-            history = messages(db, organization, conversation_id)
-            if len(history) >= 30 or sum(len(m["content"].encode()) for m in history) + len(content.encode()) > 12000:
-                raise ValueError("Conversation context limit reached; start a new conversation")
-            db.execute("INSERT INTO conversation_messages VALUES(?,?,?,?,?,?)", (organization, conversation_id, request_id, expected_revision + 1, content, now))
-            db.execute("UPDATE conversations SET revision=revision+1 WHERE organization=? AND id=?", (organization, conversation_id))
-            return {"id": request_id, "revision": expected_revision + 1, "replayed": False}
+            return append_message(db, organization, conversation_id, request_id, expected_revision, content, now)
 
     def admit(self, organization, conversation_id, request_id, expected_revision, context, now, preflight):
         identity(organization), identity(conversation_id), identity(request_id), revision_number(expected_revision), finite_time(now)
@@ -95,3 +90,21 @@ class SqliteConversations:
             preflight(frozen)
             db.execute("INSERT INTO conversation_plans VALUES(?,?,?,?,?,?)", (organization, conversation_id, request_id, expected_revision, canonical(frozen), now))
             return frozen
+
+
+def append_message(db, organization, conversation_id, request_id, expected_revision, content, now):
+    identity(organization), identity(conversation_id), identity(request_id), revision_number(expected_revision), text(content), finite_time(now)
+    conversation = scoped_conversation(db, organization, conversation_id)
+    old = db.execute("SELECT * FROM conversation_messages WHERE organization=? AND conversation_id=? AND request_id=?", (organization, conversation_id, request_id)).fetchone()
+    if old:
+        if old["content"] != content or old["revision"] != expected_revision + 1:
+            raise Conflict("Message request already binds different inputs")
+        return {"id": request_id, "revision": old["revision"], "replayed": True}
+    if conversation["revision"] != expected_revision:
+        raise Conflict("Conversation changed; reload before appending this message")
+    history = messages(db, organization, conversation_id)
+    if len(history) >= 30 or sum(len(m["content"].encode()) for m in history) + len(content.encode()) > 12000:
+        raise ValueError("Conversation context limit reached; start a new conversation")
+    db.execute("INSERT INTO conversation_messages VALUES(?,?,?,?,?,?)", (organization, conversation_id, request_id, expected_revision + 1, content, now))
+    db.execute("UPDATE conversations SET revision=revision+1 WHERE organization=? AND id=?", (organization, conversation_id))
+    return {"id": request_id, "revision": expected_revision + 1, "replayed": False}

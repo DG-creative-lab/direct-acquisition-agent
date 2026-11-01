@@ -68,6 +68,8 @@ class ConversationService:
         else:
             if self.config is None:
                 raise ValueError("Configure the planner before admitting preparation")
+            if source.get('confirmed_action_exchanges'):
+                context['confirmed_action_exchanges']=source['confirmed_action_exchanges']
             self.preflight(context)
         return context
 
@@ -75,10 +77,13 @@ class ConversationService:
         if self.config is None:
             raise ValueError("Configure the planner model before explicitly requesting generation")
         if frozen_context is None:
-            previous = [p["result"] for p in self.view(organization, conversation_id)["plans"] if p["result"]]
+            source=self.view(organization, conversation_id)
+            previous = [p["result"] for p in source["plans"] if p["result"]]
             knowledge = self._knowledge(organization, conversation_id, request_id)
             context = {"knowledge": knowledge, "knowledge_id": "knowledge_" + digest(knowledge), "model_config": asdict(self.config),
                        "previous_results": previous}
+            if source.get('confirmed_action_exchanges'):
+                context['confirmed_action_exchanges']=source['confirmed_action_exchanges']
         else:
             context = frozen_context
             if context["model_config"] != asdict(self.config):

@@ -49,3 +49,5 @@ The next experiment is another proposal, not an automatic campaign change. The c
 Synthetic mailing cost and provider inference cost are separate. Neither demonstrates incremental revenue or profit. The product does not assess lending eligibility, make credit decisions, approve a financial promotion, autonomously modify code or train its model weights.
 
 Start with the [user guide](user-guide.md), then inspect [architecture](architecture.md) and the [scaling path](scalability.md). The [validation guide](validation.md) states what the existing tests establish and what remains unproven.
+
+Follow-up questions can inspect progress and explain the saved audience, exclusions and validation without changing the current brief. A requested brief amendment is a typed proposal requiring exact confirmation before existing work is superseded. The first slice uses authored shortcuts and a bounded model classifier; its live semantic accuracy has not been evaluated. See [conversational follow-ups](conversational-actions.md).

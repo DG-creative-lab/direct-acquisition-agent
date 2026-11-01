@@ -36,6 +36,19 @@
       "validation_requirements": ["exact_target", "sibling_preserved", "product_wording_preserved", "paired_claim_screen"],
       "stop_conditions": ["stale_subject", "expired_evidence", "unknown_provider_outcome"],
       "authority": "none"
+    },
+    {
+      "id": "route-followup/v1",
+      "version": "v1",
+      "purpose": "Distinguish inspection from a proposed brief change while preserving current work.",
+      "applicable_intents": ["inspect_progress", "explain_audience", "explain_exclusions", "explain_validation", "amend_brief"],
+      "required_source_kinds": ["authored_guidance", "task_observation"],
+      "guidance": ["Inspection never advances the brief revision.", "Propose a brief change only for a requested amendment; confirmation is a separate capability.", "Resolve mixed intent through clarification. Use saved observations for explanations, never invented execution or approval."],
+      "tool_ids": ["propose_conversation_action/v1"],
+      "expected_outputs": ["typed_action_proposal"],
+      "validation_requirements": ["exact_action_kind", "bound_brief_revision", "frozen_observation_identity", "confirmed_amendment"],
+      "stop_conditions": ["material_ambiguity", "unsupported_action", "unknown_provider_outcome", "routing_budget_exhausted"],
+      "authority": "none"
     }
   ]
 }
