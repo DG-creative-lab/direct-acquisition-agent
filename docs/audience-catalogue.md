@@ -1,6 +1,6 @@
 # Versioned audience catalogue
 
-This first source-integration slice of [issue 26](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/26) provides read-only discovery of campaign-linked synthetic datasets. It prepares the source boundary for conversational campaign selection. It does not yet change how a chat prepares its campaign.
+This first source-integration slice of [issue 26](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/26) provides read-only discovery of campaign-linked synthetic datasets. Chat preparation uses this source boundary to propose matching datasets and save an exact confirmed version before preparing a campaign.
 
 ## Installed source
 
@@ -8,7 +8,7 @@ This first source-integration slice of [issue 26](https://github.com/DG-creative
 
 Two contractor versions deliberately match `contractor-project-costs`. Discovery returns both as ambiguous and never chooses the first or newest version. `inventory-supplier-timing` has one candidate. Even a single candidate requires an explicit dataset/version/checksum/manifest selection. A list entry is metadata, not proof that the payload passes validation.
 
-The committed records come from the existing deterministic synthetic generator, filtered by segment while preserving upstream record and business IDs, supplied propensity values and policy fields. They are not an iwoca feed or an ML integration. Fixture review windows expire on 24 November 2026. Tests use controlled clocks; operators must review and publish a new source version when the window expires.
+A combined working-capital dataset also covers both supported segments. The committed records come from the existing deterministic synthetic generator, filtered by segment while preserving upstream record and business IDs, supplied propensity values and policy fields. They are not an iwoca feed or an ML integration. Fixture review windows expire on 24 November 2026. Tests use controlled clocks; operators must review and publish a new source version when the window expires.
 
 ## Ports and checks
 
@@ -29,11 +29,23 @@ GET /api/audience-dataset?dataset_id=project-contractors&version=v1&checksum=<li
 
 The second endpoint returns verified metadata, the snapshot identity and counts. It does not return contact rows. Unknown or repeated query fields are rejected. Repeating a read creates no effect receipt and advances no workflow. Missing, changed, stale or incomplete sources fail closed.
 
-`/api/knowledge` exposes the installed `list_audience_datasets/v1` and `read_audience_dataset/v1` descriptions. These correspond to the application service's discovery and exact-read operations. The current brief planner still offers only its existing submission tool; these new source contracts are not yet a model tool loop or a chat selection interface.
+`/api/knowledge` exposes the installed `list_audience_datasets/v1` and `read_audience_dataset/v1` descriptions. These correspond to the application service's discovery and exact-read operations. The current brief planner still offers only its existing submission tool; the source operations are composed by the host workflow and chat inspection, rather than exposed as a general model tool loop.
 
-## Next integration boundary
+## Selection in chat
 
-Conversational routing must persist the user's exact source selection and carry its manifest and snapshot provenance into frozen preparation. It must handle multiple candidates, require any configured human confirmation and retain eligibility, budget, population allocation, validation and approval checks. Reading a source cannot substitute for those checks.
+New chat preparations opt into catalogue selection, including the fixed offline example. The existing model planner interprets the objective into supported segments; candidate discovery requires exact segment coverage. The interface asks for a specific dataset version, even when one candidate remains. It does not silently choose the newest version. Future-dated or expired candidates remain visible but cannot be confirmed.
+
+Confirmation binds organization, conversation, revision, plan, dataset/version, checksum and manifest identity. Its freshness clock is read after acquiring the SQLite write lock and checked again immediately before commit, after validation, serialization and SQL writes. Expiry at either boundary rolls back the entire selection. A single transaction checks the current revision and completed proposal, then saves the verified immutable source snapshot, selection and exact-input request receipt. Another version requires a new message and plan. A duplicate request returns the original receipt, even after the brief changes; observing it grants no authority to continue a historical preparation.
+
+The coordinator pauses in `selecting_audience`, with no campaign or copy inference, until confirmation. The existing model-copy consent check happens before this pause. Confirmation permits preparation of the already authorized request, never approval or delivery. A missing source can be restored and the prompt refreshed. Network uncertainty retains the original client command identity; a server-confirmed pre-commit rejection releases it for recovery.
+
+Preparation materializes the saved rows in the campaign organization without changing business IDs, scores, source dates or policy fields. The source receipt remains in the brief, manifest, exports and exact review subject. Grounded-copy context includes compact source identities alongside the campaign snapshot identity. The original catalogue files are not needed to resume a confirmed selection. Original file checksum, decoded source snapshot identity and campaign snapshot identity remain distinct.
+
+Source provenance is rechecked at model reservation, draft commit and review/acceptance, including targeted copy revisions. Inference reservation reads its clock under the write lock, then rereads it at the final commit boundary after source validation and the reservation insert. The final fence checks both the held lease and the verified source window without loading or serializing snapshots again. Expiry rolls back the uncommitted reservation, preventing dispatch. Targeted revisions carry the same verified source manifest to this final fence. A suppression refresh may add suppression flags but cannot change population, scores or other source data, or undo a source suppression. A new subject still needs fresh approval. Source freshness uses the application's existing live or simulated clock; the local fixture flow is not a production freshness attestation.
+
+Schema v7 adds scoped selections and command receipts under the migration lock, preserving the original legacy admission cutoff. The original run admission owns the campaign source mode. A selection recorded later for the same plan cannot retrofit an unsourced campaign, invalidate its approval or change its handoff. Campaigns admitted with a source still require that exact provenance, including if the selection record is missing. Earlier unsourced artifacts retain their original brief shape. Existing API callers that omit `use_audience_catalogue` keep the generated-fixture path, while new chat requests explicitly set it to true. A direct draft request cannot bypass an admitted catalogue requirement or strip an existing confirmed source.
+
+General action routing, model-driven queries across named campaign catalogues and optional organization-configured audience confirmation are future work. This slice uses a segment-guided lookup and explicit local confirmation.
 
 S3, Google Cloud Storage and other object stores can implement the same narrow port later. This version has no remote credentials, ML job submission, source uploads, real mailing connector or scheduled reporting. Those remain separate work under issue 26.
 

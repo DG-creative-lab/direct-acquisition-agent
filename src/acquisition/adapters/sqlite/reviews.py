@@ -15,6 +15,7 @@ from acquisition.creative import fact_pack_id, validate_fact_pack, validate_copy
 from acquisition.reviews import ReviewPolicy, current_reasons, subject, text, timestamp, validate_candidate, validate_population, validate_copy, validation_report
 
 from .followups import require_followup
+from .selected_audience import require_selected_audience
 from .database import Database
 from .actors import require_actor
 from .drafts import verify
@@ -141,6 +142,7 @@ class SqliteReviews:
             raise Conflict("Follow-up differs from its admitted proposal")
         require_followup(db, organization, bundle[0].manifest, draft_id)
         self._conversation_source(db, organization, case, bundle[0])
+        require_selected_audience(db, organization, bundle[0].manifest["brief"], bundle[0].manifest["snapshot_id"], self.clock())
 
     def _validate(self, db, organization, case, draft_id, authority, now):
         bundle = self._bundle(db, organization, draft_id)

@@ -11,7 +11,7 @@ from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
 
 from acquisition.contracts import Conflict, NotFound
-from acquisition.conversations import MessageRejectedConflict, MessageRejectedInvalid, MessageRejectedNotFound
+from acquisition.conversations import AudienceSelectionRejected, MessageRejectedConflict, MessageRejectedInvalid, MessageRejectedNotFound
 from acquisition.reasoning import ModelError
 from acquisition.workspace import Workspace
 
@@ -176,8 +176,10 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, self.server.workspace.plan_conversation_fixture(parts[2], **data))
                 if parts[3] == "draft" and set(data) == {"request_id", "expected_revision", "plan_id"}:
                     return self._send(200, self.server.workspace.draft_conversation(parts[2], **data))
-                if parts[3] == "preparations" and set(data) == {"request_id", "expected_revision", "fixture", "allow_model_copy"}:
+                if parts[3] == "preparations" and set(data) in ({"request_id", "expected_revision", "fixture", "allow_model_copy"}, {"request_id", "expected_revision", "fixture", "allow_model_copy", "use_audience_catalogue"}):
                     return self._send(202, self.server.workspace.start_preparation(parts[2], **data))
+                if parts[3] == 'audience' and set(data) == {'request_id','expected_revision','plan_id','dataset_id','version','checksum','manifest_id'}:
+                    return self._send(200, self.server.workspace.select_conversation_audience(parts[2], **data))
                 raise ValueError("Use exact fields for a supported conversation action")
             if path == "/api/sessions":
                 if set(data) - {"request_id", "mode", "parent_id"}:
@@ -195,6 +197,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, self.server.workspace.prepare(parts[2]))
                 return self._send(200, self.server.workspace.action(parts[2], parts[3], data))
             raise NotFound("Unknown workspace route")
+        except AudienceSelectionRejected as error:
+            self._send(409, {"error":str(error), "audience_not_saved":True})
         except (MessageRejectedConflict, MessageRejectedInvalid, MessageRejectedNotFound) as error:
             self._send(409 if isinstance(error, MessageRejectedConflict) else 404 if isinstance(error, MessageRejectedNotFound) else 400,
                        {"error": str(error), "message_not_saved": True})

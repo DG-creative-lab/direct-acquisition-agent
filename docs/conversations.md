@@ -190,3 +190,13 @@ The original campaign, approval, outcomes and frozen contexts remain historical.
 ## Versioned planning assets
 
 New planning requests freeze the authored preparation skill, the installed brief-submission contract and manifests for procedures/playbooks alongside the existing knowledge snapshot. Historical requests keep their original bytes and can resume without current skill files. The read-only knowledge API also exposes the current catalogue. See [agent contracts](agent-contracts.md) for copy/revision source binding, compatibility and remaining scope.
+
+## Confirming a versioned audience in chat
+
+New chat submissions set `use_audience_catalogue: true` when admitting preparation. After planning and the existing copy-consent check, the agent pauses for audience confirmation. Candidates cover the proposed segment set exactly. The current source catalogue supplies single-segment and combined working-capital fixtures. Unavailable, expired or future-dated sources cannot be silently replaced by generated records.
+
+Choose a dataset version inside the chat. The server binds the exact plan/revision, manifest identity, file checksum and source snapshot in one transaction. This grants preparation permission for the original request, not campaign approval. Reload or restart retains the selection. A new message makes it historical; changing the source requires a new proposal and confirmation. After confirmation, the original files can change or disappear without changing the saved campaign input. Freshness still applies to the frozen source.
+
+`POST /api/conversations/{id}/audience` accepts exactly `request_id`, `expected_revision`, `plan_id`, `dataset_id`, `version`, `checksum` and `manifest_id`. Scope remains server-owned. Exact-input command replay cannot change the selection or repeat preparation. The response includes `audience_receipt`; preparation progress exposes the confirmed provenance or current candidate metadata without contact rows. Definitive pre-commit rejections return `audience_not_saved`; post-commit projection failures remain uncertain and retain replay identity.
+
+Existing direct planning and unsourced historical flows remain supported. A catalogue-based coordinator cannot be bypassed with the older draft endpoint. See [audience catalogue](audience-catalogue.md) for persistence, source validation and limitations.

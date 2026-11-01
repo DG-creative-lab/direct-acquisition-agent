@@ -66,6 +66,29 @@
       "channel": "postal_direct_mail",
       "mode": "SYNTHETIC_ONLY",
       "file": "stock-inventory-v1.json"
+    },
+    {
+      "organization": "local-conversations",
+      "dataset_id": "working-capital",
+      "version": "v1",
+      "campaign_key": "working-capital-experiment",
+      "title": "Synthetic working capital audience",
+      "description": "Demonstration records with supplied synthetic segment and propensity metadata. Not an iwoca customer feed.",
+      "segments": [
+        "inventory",
+        "contractors"
+      ],
+      "record_count": 200,
+      "business_count": 198,
+      "checksum": "c00900f9415f3394d70f55ce94fe4cbe0d45e679d53bd43198682440b6adce54",
+      "as_of": "2026-10-25",
+      "generated_on": "2026-10-25",
+      "review_by": "2026-11-24",
+      "model_version": "synthetic-segmentation/v1",
+      "schema_version": "audience/v1",
+      "channel": "postal_direct_mail",
+      "mode": "SYNTHETIC_ONLY",
+      "file": "working-capital-v1.json"
     }
   ]
 }

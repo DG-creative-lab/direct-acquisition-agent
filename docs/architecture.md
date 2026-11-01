@@ -116,9 +116,9 @@ These are local transport controls. Organization flags and configured actors are
 
 ## Schema and compatibility
 
-The application database is schema v6. Initialization takes a write lock before reading `user_version` and holds it through the entire migration chain. DDL and version changes roll back together. Statements execute individually because `executescript` can commit an outer transaction. WAL activation runs after migration and retries only busy errors on fresh connections with a bounded deadline.
+The application database is schema v7. Initialization takes a write lock before reading `user_version` and holds it through the entire migration chain. DDL and version changes roll back together. Statements execute individually because `executescript` can commit an outer transaction. WAL activation runs after migration and retries only busy errors on fresh connections with a bounded deadline.
 
-Schema v3 froze exact legacy task-plan admissions; later migrations preserve that cutoff. Historical v2 workflows resume only with their original admission certificate. New v2 admission and capability/input downgrades are rejected. Repair of the known older stale-marker state preserves the original cutoff rather than certifying later records. Schema v4 added review state; v5 added learning state; v6 adds conversations, messages and planning admissions. Older binaries reject newer schemas, and mixed-version rollback is unsupported. Durable timestamps and derived lease/retry deadlines must be finite.
+Schema v3 froze exact legacy task-plan admissions; later migrations preserve that cutoff. Historical v2 workflows resume only with their original admission certificate. New v2 admission and capability/input downgrades are rejected. Repair of the known older stale-marker state preserves the original cutoff rather than certifying later records. Schema v4 added review state; v5 added learning state; v6 adds conversations, messages and planning admissions; v7 adds exact audience selections and their command receipts. Older binaries reject newer schemas, and mixed-version rollback is unsupported. Durable timestamps and derived lease/retry deadlines must be finite.
 
 ## Conversational planning
 
@@ -154,4 +154,4 @@ SQLite checks proposal identity, immutable brief/snapshot, current epochs and in
 
 [Campaign validation reports](campaign-validation.md) compose existing domain validators into a versioned, exact-subject read projection inside the review transaction. Reports gate preparation/readiness presentation, while approval and simulator acceptance retain independent transactional validation. No report store or new authority token is introduced.
 
-The read-only [audience catalogue](audience-catalogue.md) uses an `AudienceSource` port and an installed local adapter. Source metadata and payload identities are checked separately. The source service returns snapshots without admitting campaigns; conversational source binding remains a later slice.
+The read-only [audience catalogue](audience-catalogue.md) uses an `AudienceSource` port and an installed local adapter. Source metadata and payload identities are checked separately. The conversation module uses the public audience source API to confirm a version against its current plan. Selection, source snapshot and request receipt commit together; preparation materializes rows in the campaign scope and binds provenance into the brief. Source selection alone grants no approval or delivery authority.

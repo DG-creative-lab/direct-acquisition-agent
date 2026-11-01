@@ -1,6 +1,9 @@
 from .followups import require_followup
 import json
 import math
+import time
+from datetime import datetime, timezone
+from acquisition.audiences import validate_dataset_freshness
 
 from acquisition.contracts import Conflict, canonical
 from acquisition.reasoning import CallScope, ModelError
@@ -9,26 +12,32 @@ from acquisition.runtime import LeaseLost
 from .database import Database
 from .tasks import scoped_run
 from .conversation_provenance import require_current_conversation
+from .selected_audience import require_selected_audience
 from .revision_provenance import require_revision_current
 
 
 class SqliteCalls:
-    def __init__(self, database: Database):
-        self.database = database
+    def __init__(self, database: Database, clock=time.time):
+        self.database, self.clock = database, clock
 
     def reserve(self, scope: CallScope, key: str, request_hash: str, limit: int, now: float) -> dict | None:
         if not math.isfinite(now):
             raise LeaseLost("Inference requires a finite clock reading")
         with self.database.transaction() as connection:
+            # Authorization time must include time spent waiting for this lock.
+            now = self.clock()
+            if not math.isfinite(now):
+                raise LeaseLost("Inference requires a finite clock reading")
             run = scoped_run(connection, scope.organization, scope.run_id)
             task = connection.execute("SELECT * FROM tasks WHERE id=? AND run_id=?", (scope.task_id, scope.run_id)).fetchone()
             if (task is None or run["status"] != "running" or task["status"] != "running"
                     or task["token"] != scope.lease_token or task["lease_until"] <= now):
                 raise LeaseLost("Inference attempt has no active task lease")
             inputs = json.loads(task["inputs"])
+            audience_source = None
             if inputs.get("workflow_version") == "copy-revision/v3":
                 try:
-                    require_revision_current(connection, scope.organization, inputs, scope.run_id, now)
+                    audience_source = require_revision_current(connection, scope.organization, inputs, scope.run_id, now)
                 except (Conflict, ValueError):
                     raise ModelError("copy_revision_source_changed") from None
             if task["capability"] == "conversations.plan.v1":
@@ -39,6 +48,7 @@ class SqliteCalls:
             if inputs.get("workflow_version") == "conversation-model-mail/v3":
                 try:
                     require_current_conversation(connection, inputs["brief"])
+                    audience_source = require_selected_audience(connection, scope.organization, inputs["brief"], inputs["snapshot_id"], now)
                 except Conflict:
                     raise ModelError("conversation_changed_before_inference") from None
             row = connection.execute("SELECT * FROM model_calls WHERE organization=? AND run_id=? AND call_key=?",
@@ -59,6 +69,18 @@ class SqliteCalls:
                 raise ModelError("run_request_budget_exhausted")
             connection.execute("INSERT INTO model_calls VALUES(?,?,?,?,?,?,'reserved',NULL,NULL)",
                                (scope.organization, scope.run_id, key, scope.task_id, scope.lease_token, request_hash))
+            # Validation and SQL writes can be slow. Recheck the verified deadline
+            # and held lease last; no paid reservation exists until this commits.
+            reservation_time = self.clock()
+            if not math.isfinite(reservation_time):
+                raise LeaseLost("Inference requires a finite clock reading")
+            if task["lease_until"] <= reservation_time:
+                raise LeaseLost("Inference attempt expired before reservation")
+            if audience_source is not None:
+                try:
+                    validate_dataset_freshness(audience_source, datetime.fromtimestamp(reservation_time, timezone.utc).date())
+                except Conflict:
+                    raise ModelError("audience_source_expired_before_inference") from None
         return None
 
     def record(self, scope: CallScope, key: str, response: dict | None, error: str | None) -> None:

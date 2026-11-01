@@ -142,6 +142,18 @@ PRAGMA user_version=6;
 """
 
 
+AUDIENCE_SELECTIONS = """
+CREATE TABLE IF NOT EXISTS conversation_audiences (
+ organization TEXT NOT NULL, conversation_id TEXT NOT NULL, revision INTEGER NOT NULL, payload TEXT NOT NULL,
+ PRIMARY KEY(organization,conversation_id,revision),
+ FOREIGN KEY(organization,conversation_id) REFERENCES conversations(organization,id));
+CREATE TABLE IF NOT EXISTS audience_selection_requests (
+ organization TEXT NOT NULL, request_id TEXT NOT NULL, payload TEXT NOT NULL,
+ PRIMARY KEY(organization,request_id));
+PRAGMA user_version=7;
+"""
+
+
 class Database:
     def __init__(self, path: str | Path):
         self.path = Path(path)
@@ -149,7 +161,7 @@ class Database:
         with self.transaction() as connection:
             # Version discovery and every migration share one SQLite write lock.
             version = connection.execute("PRAGMA user_version").fetchone()[0]
-            if version not in {0, 1, 2, 3, 4, 5, 6}:
+            if version not in {0, 1, 2, 3, 4, 5, 6, 7}:
                 raise ValueError(f"Unsupported database schema {version}")
             if version == 0:
                 self._apply_migration(connection, SCHEMA)
@@ -164,7 +176,15 @@ class Database:
             if version < 6:
                 self._apply_migration(connection, CONVERSATIONS)
                 self._validate_conversation_schema(connection)
+            if version < 7:
+                self._apply_migration(connection, AUDIENCE_SELECTIONS)
+                self._validate_audience_selection_schema(connection)
         self._enable_wal()
+
+    @staticmethod
+    def _validate_audience_selection_schema(connection):
+        connection.execute("SELECT organization,conversation_id,revision,payload FROM conversation_audiences LIMIT 0")
+        connection.execute("SELECT organization,request_id,payload FROM audience_selection_requests LIMIT 0")
 
     @staticmethod
     def _validate_conversation_schema(connection):

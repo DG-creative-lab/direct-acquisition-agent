@@ -153,3 +153,35 @@ Discovery never resolves ambiguity by ordering. Retrieval requires a scoped data
 Real-file regressions reject changed bytes and metadata, another organization, incomplete or mismatched coverage, expired/future sources, unsafe paths, symlinks, duplicate fields/versions and oversized payloads. Real SQLite checks show that retrieval leaves audiences, runs, decisions and agency jobs unchanged; an explicitly saved immutable snapshot survives a fresh process. Protected loopback API tests verify exact query fields, scope resolution and metadata-only results. Mutation probes remove checksum, manifest matching and source completeness. See [audience catalogue](audience-catalogue.md) for implemented scope and deferred campaign binding.
 
 Verified for the audience-catalogue slice: 298 backend tests, architecture checks, all 59 declared mutation probes and whitespace checks passed. The frontend was unchanged; no live model or external storage call was made.
+
+## Conversation audience selection boundary
+
+The new selection is a revision-bound input decision, not campaign approval. Materialized campaign rows must preserve the independently saved source population and values, allowing only added suppression flags during refresh. The source receipt binds both metadata and decoded snapshot identity; removing or substituting it cannot downgrade a selected campaign to the older generated path.
+
+Real SQLite and process tests cover confirmation before campaign admission, exact-input replay, two valid competing versions, stale revision at commit, transactional rollback of snapshot/selection/receipt, unavailable current files after confirmation, source scope and segment mismatch, combined-segment coverage, targeted copy revision, suppression refresh and separate exact-subject approval. Schema-v7 failure rolls back DDL and the version marker while preserving the original legacy cutoff. Old schema migration tests continue to exercise earlier rollback boundaries.
+
+Freshness tests shorten the audience review window while keeping product evidence valid. One advances twenty seconds across source expiry during a provider call while the lease remains active: no later call or draft is allowed. Separate review tests isolate the audience freshness gate from product expiry. Mutations remove selection-input binding, revision fencing, model-reservation checks, draft binding and review checks and must be detected.
+
+Browser journeys cover source choice on desktop and 320px/390px mobile, original selection after reload, lost confirmation acknowledgement and definitive stale-choice rejection. They inspect actual backend manifests/readiness and confirm that no approval is inherited. No paid inference or remote storage integration is claimed by these fake-provider journeys.
+
+Verified for this slice: 316 backend tests, 55 browser tests, architecture, production build, formatting, whitespace and all 64 declared mutation probes passed. Browser captures cover desktop and 320px/390px mobile. All provider behavior in these checks used fake adapters; no paid model call was made.
+
+## Audience selection review corrections
+
+The original campaign admission binds its sourced or unsourced mode. A later selection for the same conversation revision cannot retroactively invalidate an unsourced campaign or its existing approval. Real SQLite tests approve an unsourced campaign, record a later selection and complete its original handoff. Sourced admissions reject provenance stripping even when the separate selection row is also removed. Legacy preparation progress does not label a later selection as that campaign's confirmed audience.
+
+Selection and inference adapters use composition-root-injected clocks and reread time after acquiring the write lock. Held-lock tests advance twenty seconds across source expiry before allowing each transaction to proceed. Selection leaves no snapshot, selection or command receipt. Inference makes no provider call and creates no reservation. Additional cases cross lease expiry and change the clock to a non-finite value while blocked. The source-expiry case keeps the lease and product evidence valid to isolate the source freshness rule.
+
+Declared mutations remove each locked clock read, the original unsourced-mode preservation and the original sourced-mode binding. Each must be detected by its focused regression. These controlled interleavings do not claim exhaustive scheduling coverage.
+
+Verified after these review corrections: 322 backend tests, architecture and whitespace checks, and all 68 declared mutation probes passed. No frontend files changed in this correction pass; the browser suite was not rerun. No paid model calls were made.
+
+## Final selection and inference commit fences
+
+A clock reading at lock acquisition cannot cover time spent validating or writing. Source confirmation therefore performs a cheap freshness check on its verified manifest at the end of the selection transaction. A newly reserved inference call similarly rechecks finite time, lease expiry and the verified source window after the reservation insert, immediately before transaction commit. No provider call can occur until that transaction returns. Full snapshots are not loaded again by these final deadline checks.
+
+Real SQLite tests advance the clock during selection validation, snapshot serialization and the receipt insert, checking that all snapshot/selection/receipt writes roll back. Separate fake-provider cases advance time during source validation and during the reservation insert, independently crossing the audience deadline or the lease deadline. Product evidence remains valid, and lease-only tests keep the audience window open. All rejected calls leave no journal reservation and dispatch no provider request. A non-finite final clock is rejected; a valid-source/valid-lease control dispatches exactly once. A targeted revision regression checks that its verified source window reaches the shared final reservation fence.
+
+The earlier lock-wait regressions remain. Locked-clock-only mutation probes were replaced with final-clock, final-source, final-lease and revision-deadline propagation probes, since the new final fences also contain the lock-wait failure. This is a bounded set of clock positions and SQL-trigger interleavings, not exhaustive temporal coverage.
+
+Verified after the final-fence corrections: 332 backend tests, architecture and whitespace checks, and all 72 declared mutation probes passed. The correction changes no frontend files; the browser suite was not rerun. All provider tests used fake adapters and made no paid model calls.

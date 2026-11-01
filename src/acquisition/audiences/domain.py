@@ -115,12 +115,18 @@ class DatasetVersion:
         return 'dataset_' + digest(asdict(self))
 
 
+def validate_dataset_freshness(manifest: DatasetVersion, today: date):
+    """Cheap deadline check after the source population has already been verified."""
+    from acquisition.contracts import Conflict
+    if not date.fromisoformat(manifest.generated_on) <= today <= date.fromisoformat(manifest.review_by):
+        raise Conflict('Dataset is outside its declared review window')
+
+
 def validate_dataset(manifest: DatasetVersion, snapshot: Snapshot, organization: str, today: date):
     from acquisition.contracts import Conflict
     if manifest.organization != organization or snapshot.organization != organization:
         raise Conflict('Dataset is not available in this organization')
-    if not date.fromisoformat(manifest.generated_on) <= today <= date.fromisoformat(manifest.review_by):
-        raise Conflict('Dataset is outside its declared review window')
+    validate_dataset_freshness(manifest, today)
     if (not snapshot.complete or snapshot.schema_version != manifest.schema_version
             or snapshot.model_version != manifest.model_version or snapshot.as_of != manifest.as_of
             or snapshot.score_semantics != 'synthetic_response_propensity_not_uplift'):

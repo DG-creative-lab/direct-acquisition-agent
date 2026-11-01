@@ -122,6 +122,10 @@ test("one authorized submission continues after reload to an unapproved review",
       page.getByRole("region", { name: "Campaign preparation progress" }),
     ).toBeVisible();
     await page.reload();
+    await page
+      .getByRole("region", { name: "Choose campaign audience" })
+      .getByRole("button", { name: "Use v1", exact: true })
+      .click();
     const copyStep = page
       .locator(".preparation-steps li")
       .filter({ hasText: "Generate and screen audience copy" });
@@ -185,6 +189,10 @@ test("a lost admission acknowledgement reconciles saved progress without another
       page.getByRole("region", { name: "Campaign preparation progress" }),
     ).toBeVisible();
     await page.reload();
+    await page
+      .getByRole("region", { name: "Choose campaign audience" })
+      .getByRole("button", { name: "Use v1", exact: true })
+      .click();
     await expect(
       page.getByRole("button", { name: /Review campaign/ }),
     ).toBeVisible();
@@ -213,7 +221,14 @@ for (const scenario of [
         await page
           .getByRole("button", { name: "Interrupted generation", exact: true })
           .click();
-      } else await submit(page, scenario !== "no-consent");
+      } else {
+        await submit(page, scenario !== "no-consent");
+        if (scenario === "uncertain")
+          await page
+            .getByRole("region", { name: "Choose campaign audience" })
+            .getByRole("button", { name: "Use v1", exact: true })
+            .click();
+      }
       const region = page.getByRole("region", {
         name: "Campaign preparation progress",
       });
@@ -352,5 +367,168 @@ test("lost message acknowledgement cannot move copy consent to an intervening re
     expect(state.revision).toBe(2);
     expect(state.current_plan).toBeNull();
     expect(state.preparations).toEqual([]);
+  });
+});
+
+test("audience confirmation persists exact provenance through preparation on desktop and mobile", async ({
+  page,
+}) => {
+  await fakeWorkspace("success", async (url) => {
+    const errors = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(url);
+    await submit(page);
+    const choices = page.getByRole("region", {
+      name: "Choose campaign audience",
+    });
+    await expect(
+      choices.getByRole("button", { name: "Use v1", exact: true }),
+    ).toBeEnabled();
+    await expect(
+      page.getByRole("button", { name: /Review campaign/ }),
+    ).toHaveCount(0);
+    await choices.getByText("Inspect dataset", { exact: true }).first().click();
+    await expect(choices.getByText(/"checksum"/).first()).toBeVisible();
+    await page.screenshot({
+      path: "../.local/audience-selection-desktop.png",
+      fullPage: true,
+    });
+    for (const width of [390, 320]) {
+      await page.setViewportSize({ width, height: 844 });
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+      ).toBe(await page.evaluate(() => document.documentElement.clientWidth));
+    }
+    await page.screenshot({
+      path: "../.local/audience-selection-mobile.png",
+      fullPage: true,
+    });
+    await page.reload();
+    await choices.getByRole("button", { name: "Use v1", exact: true }).click();
+    const confirmed = page.getByRole("region", {
+      name: "Confirmed campaign audience",
+    });
+    await expect(confirmed).toBeVisible();
+    await confirmed
+      .getByText("Inspect confirmed source", { exact: true })
+      .click();
+    const saved = JSON.parse(await confirmed.locator("pre").textContent());
+    expect(saved.source.version).toBe("v1");
+    expect(saved.source.record_count).toBe(100);
+    await page.getByRole("button", { name: /Review campaign/ }).click();
+    await expect(page.getByText("Review & approval")).toBeVisible();
+    const id = await page.evaluate(() =>
+      localStorage.getItem("conversation-selected"),
+    );
+    const state = await page.evaluate(async (id) => {
+      const headers = {
+        "X-Workspace-Token": document.querySelector(
+          'meta[name="workspace-token"]',
+        ).content,
+      };
+      const conversation = await (
+        await fetch("/api/conversations/" + id, { headers })
+      ).json();
+      return (
+        await fetch("/api/sessions/" + conversation.campaigns[0].session_id, {
+          headers,
+        })
+      ).json();
+    }, id);
+    expect(state.review.manifest.counts.input).toBe(100);
+    expect(state.review.manifest.brief.audience_source).toEqual(saved);
+    expect(state.review.validation_report.review_ready).toBe(true);
+    expect(state.review.approval_valid).toBe(false);
+    expect(errors).toEqual([]);
+  });
+});
+
+test("lost audience confirmation acknowledgement reconciles the saved source without another selection", async ({
+  page,
+}) => {
+  await fakeWorkspace("success", async (url) => {
+    const requests = [];
+    await page.route("**/api/conversations/*/audience", async (route) => {
+      requests.push(route.request().postDataJSON());
+      const response = await route.fetch();
+      expect(response.ok()).toBe(true);
+      await route.abort("failed");
+    });
+    await page.goto(url);
+    await submit(page);
+    await page
+      .getByRole("region", { name: "Choose campaign audience" })
+      .getByRole("button", { name: "Use v1", exact: true })
+      .click();
+    await page.reload();
+    await expect(
+      page.getByRole("region", { name: "Confirmed campaign audience" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /Review campaign/ }),
+    ).toBeVisible();
+    expect(requests).toHaveLength(1);
+    const id = await page.evaluate(() =>
+      localStorage.getItem("conversation-selected"),
+    );
+    const state = await page.evaluate(
+      async (id) =>
+        (
+          await fetch("/api/conversations/" + id, {
+            headers: {
+              "X-Workspace-Token": document.querySelector(
+                'meta[name="workspace-token"]',
+              ).content,
+            },
+          })
+        ).json(),
+      id,
+    );
+    expect(state.campaigns).toHaveLength(1);
+    expect(state.preparations[0].audience_selection.source.version).toBe("v1");
+  });
+});
+
+test("a definitively rejected stale audience choice releases the pending confirmation", async ({
+  page,
+}) => {
+  await fakeWorkspace("success", async (url) => {
+    await page.route("**/api/conversations/*/audience", async (route) => {
+      const payload = route.request().postDataJSON();
+      const changed = await route.fetch({
+        url: route
+          .request()
+          .url()
+          .replace(/\/audience$/, "/messages"),
+        postData: JSON.stringify({
+          request_id: "other-client",
+          expected_revision: payload.expected_revision,
+          content: "Use £700 instead.",
+        }),
+      });
+      expect(changed.ok()).toBe(true);
+      await route.continue();
+    });
+    await page.goto(url);
+    await submit(page);
+    await page
+      .getByRole("region", { name: "Choose campaign audience" })
+      .getByRole("button", { name: "Use v1", exact: true })
+      .click();
+    await expect(
+      page.getByRole("region", { name: "Confirmed campaign audience" }),
+    ).toHaveCount(0);
+    await expect(page.getByLabel("Message Direct Acquisition")).toBeEnabled();
+    await expect(
+      page.getByText(/The confirmation was not acknowledged/),
+    ).toHaveCount(0);
+    await expect(page.locator(".conversation-user")).toHaveCount(2);
+    await page
+      .getByLabel("Message Direct Acquisition")
+      .fill("Prepare the revised campaign.");
+    await expect(
+      page.getByRole("button", { name: "Send to agent", exact: true }),
+    ).toBeEnabled();
   });
 });

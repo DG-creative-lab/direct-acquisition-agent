@@ -89,3 +89,9 @@ Inspect **Activity log** for committed events and historical receipts. A read-on
 | Conflicting, incomplete or repeated outcome data | Inspect cohort membership and explicit results; the prototype does not support correcting finalized outcomes or repeated exposures |
 
 Do not bypass a failure by changing a clock, editing the database or treating a previous receipt as current permission. For CLI commands and exact invalidation conditions, use the [review](reviews.md), [learning](learning.md) and [model](model-integration.md) references.
+
+## Choosing a source dataset in chat
+
+After the agent prepares a complete brief, choose the synthetic dataset version to use. Each candidate shows its population, source date and review window. **Inspect dataset** reveals the manifest and checksum. A future-dated or expired version is unavailable for confirmation. If no dataset covers the proposed segments, revise the brief or ask the workspace owner to publish a suitable source.
+
+Confirmation resumes preparation using those saved records. **Inspect confirmed source** shows the exact selection after reload. You still review and approve the complete campaign separately. To choose another dataset, send a new message and confirm a new proposal. Existing approval does not carry forward.

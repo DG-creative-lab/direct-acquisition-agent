@@ -1,6 +1,8 @@
 from .followups import require_followup
 import hashlib
 import json
+import time
+from .selected_audience import require_selected_audience
 
 from acquisition.campaigns import Draft
 from acquisition.contracts import Conflict, NotFound, canonical
@@ -21,13 +23,14 @@ def verify(organization: str, draft: Draft) -> None:
 class SqliteDrafts:
     """SQLite owns exact bytes; filesystem exports are reproducible projections."""
 
-    def __init__(self, database: Database):
-        self.database = database
+    def __init__(self, database: Database, clock=time.time):
+        self.database, self.clock = database, clock
 
     def put(self, organization: str, operation_id: str, draft: Draft) -> str:
         verify(organization, draft)
         with self.database.transaction() as connection:
             require_current_conversation(connection, draft.manifest["brief"])
+            require_selected_audience(connection, organization, draft.manifest["brief"], draft.manifest["snapshot_id"], self.clock())
             require_followup(connection, organization, draft.manifest, draft.id)
             old = connection.execute("SELECT draft_id FROM draft_operations WHERE organization=? AND operation_id=?",
                                      (organization, operation_id)).fetchone()
