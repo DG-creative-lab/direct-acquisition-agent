@@ -335,6 +335,10 @@ test("offline assistant prepares a persistent draft without a model call", async
   });
   await page.goto("/");
   await page.getByRole("button", { name: /Try the offline example/ }).click();
+  await page
+    .getByRole("region", { name: "Choose campaign audience" })
+    .getByRole("button", { name: "Use v1", exact: true })
+    .click();
   await expect(
     page.getByRole("heading", { name: "Campaign brief" }),
   ).toBeVisible();
@@ -364,6 +368,10 @@ test("knowledge sources and frozen planning guidance are inspectable", async ({
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
   await page.getByRole("button", { name: /Try the offline example/ }).click();
+  await page
+    .getByRole("region", { name: "Choose campaign audience" })
+    .getByRole("button", { name: "Use v1", exact: true })
+    .click();
   await expect(
     page.getByRole("button", { name: /Review campaign/ }),
   ).toBeVisible();
@@ -409,6 +417,10 @@ test("historical guidance displays the complete saved content after a source cha
       response.request().method() === "POST",
   );
   await page.getByRole("button", { name: /Try the offline example/ }).click();
+  await page
+    .getByRole("region", { name: "Choose campaign audience" })
+    .getByRole("button", { name: "Use v1", exact: true })
+    .click();
   const planned = await (await plannedResponse).json();
   const original = planned.current_plan.guidance.content;
   await expect(
@@ -485,6 +497,10 @@ test("conversation navigation opens a new chat and returns to recent work", asyn
   await expect(page.getByLabel("Message Direct Acquisition")).toBeInViewport();
   await page.screenshot({ path: "../.local/chat-desktop.png", fullPage: true });
   await page.getByRole("button", { name: /Try the offline example/ }).click();
+  await page
+    .getByRole("region", { name: "Choose campaign audience" })
+    .getByRole("button", { name: "Use v1", exact: true })
+    .click();
   await expect(
     page.getByRole("button", { name: /Review campaign/ }),
   ).toBeVisible();

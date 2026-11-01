@@ -20,7 +20,7 @@ from acquisition.audiences import AudienceDiscovery
 from acquisition.workflows.audience_discovery import audience_tool_contracts
 from acquisition.adapters.sqlite.creative import SqliteCreative
 from acquisition.adapters.sqlite.inference import SqliteCalls
-from acquisition.campaigns import Brief, ConversationBrief, CampaignService, brief_from
+from acquisition.campaigns import Brief, ConversationBrief, SourcedConversationBrief, CampaignService, brief_from
 from acquisition.creative import fixture_catalog, validate_fact_pack, grounded_tool_contracts, copy_source_payloads
 from acquisition.runtime import TaskStore, Worker
 from acquisition.reasoning import Inference, ModelConfig, ModelGateway, freeze_assets, source_manifest
@@ -37,7 +37,8 @@ from acquisition.adapters.sqlite.conversations import SqliteConversations
 from acquisition.conversations import ConversationService, CAPABILITY as PLANNER_CAPABILITY, FIXTURE_CAPABILITY
 from acquisition.workflows.conversation import ConversationPlanner, planner_tool_contracts
 from acquisition.adapters.sqlite.preparations import SqlitePreparations
-from acquisition.conversations import PreparationCoordinator
+from acquisition.conversations import PreparationCoordinator, ConversationAudiences
+from acquisition.adapters.sqlite.audience_selections import SqliteAudienceSelections
 
 
 
@@ -94,6 +95,7 @@ class Application:
     revisions: CopyRevisionService
     followups: FollowupStore
     audience_discovery: AudienceDiscovery
+    conversation_audiences: ConversationAudiences
 
     def start(self, organization: str, request_id: str, size: int = 1000, seed: int = 42,
               budget_pence: int = 85000, as_of: str = "2026-10-25", campaign_id: str | None = None) -> str:
@@ -143,6 +145,12 @@ class Application:
                 if conversation_brief:
                     context["campaign_brief"] = {"objective": objective, "budget_pence": conversation_brief.budget_pence,
                                                  "segments": list(segments), "plan_id": conversation_brief.plan_id}
+                if conversation_brief and isinstance(conversation_brief, SourcedConversationBrief):
+                    selection = conversation_brief.audience_source
+                    context['audience_summary']['dataset_source'] = {
+                        'selection_id':selection['id'], 'manifest_id':selection['manifest_id'],
+                        'dataset_id':selection['source']['dataset_id'], 'version':selection['source']['version'],
+                        'checksum':selection['source']['checksum'], 'source_snapshot_id':selection['source_snapshot_id']}
                 contexts[segment] = self.memory.put_context(organization, copy_assets(organization, context))
         specs = (conversation_model_task_plan(snapshot_id, conversation_brief, contexts, self.inference) if conversation_brief
                  else model_task_plan(snapshot_id, brief_override or Brief(campaign_id or request_id, budget_pence), contexts, self.inference))
@@ -172,13 +180,15 @@ class Application:
             contexts[segment] = self.memory.put_context(organization,copy_assets(organization, context))
         return contexts
 
-    def start_conversation(self, organization, request_id, plan, as_of):
-        brief = ConversationBrief(campaign_id=request_id, budget_pence=plan["budget_pence"],
+    def start_conversation(self, organization, request_id, plan, as_of, *, selected_audience=False):
+        snapshot, selection = self.conversation_audiences.materialize("local-conversations", plan["conversation_id"], plan["revision"], plan["id"], organization) if selected_audience else (None, None)
+        kind = SourcedConversationBrief if selection else ConversationBrief
+        brief = kind(campaign_id=request_id, budget_pence=plan["budget_pence"],
                                   segments=tuple(plan["segments"]), conversation_id=plan["conversation_id"],
-                                  conversation_revision=plan["revision"], plan_id=plan["id"])
+                                  conversation_revision=plan["revision"], plan_id=plan["id"], **({"audience_source":selection} if selection else {}))
         if plan["copy_mode"] == "model":
-            return self.start_model(organization, request_id, as_of=as_of, conversation_brief=brief, objective=plan["objective"])
-        snapshot_id = self.audiences.put(generate(organization, 1000, 42, as_of))
+            return self.start_model(organization, request_id, as_of=as_of, conversation_brief=brief, objective=plan["objective"], snapshot_override=snapshot)
+        snapshot_id = self.audiences.put(snapshot if snapshot is not None else generate(organization, 1000, 42, as_of))
         return self.tasks.create(organization, request_id, conversation_task_plan(snapshot_id, brief, self.catalogue_hash), self.clock())
 
     def export(self, organization: str, run_id: str, directory: Path) -> Path:
@@ -206,11 +216,11 @@ class Application:
 def build(path: str | Path, clock: Callable[[], float] = time.time,
           gateway: ModelGateway | None = None, model_config: ModelConfig | None = None) -> Application:
     database = Database(path)
-    audiences, drafts = SqliteAudiences(database), SqliteDrafts(database)
+    audiences, drafts = SqliteAudiences(database), SqliteDrafts(database, clock)
     tasks = SqliteTasks(database, retired_capabilities=ModelMonthlyMail.legacy_capabilities())
     campaigns = CampaignService(audiences, drafts, fixture_catalog())
     workflow = MonthlyMail(audiences, campaigns)
-    memory, calls = SqliteCreative(database), SqliteCalls(database)
+    memory, calls = SqliteCreative(database), SqliteCalls(database, clock)
     inference = Inference(gateway, calls, model_config, clock) if gateway is not None and model_config is not None else None
     model_workflow = ModelMonthlyMail(audiences, campaigns, memory, inference)
     conversation_model = ConversationModelMail(audiences, campaigns, memory, inference)
@@ -226,10 +236,11 @@ def build(path: str | Path, clock: Callable[[], float] = time.time,
     revision_inference = Inference(gateway, calls, revision_config, clock) if inference else None
     revision_workflow = CopyRevisionWorkflow(campaigns, drafts, memory, revision_inference, reviews)
     revision_service = CopyRevisionService(reviews, drafts, memory, tasks, clock, revision_config, copy_assets)
+    discovery = AudienceDiscovery(LocalAudienceSource(Path(__file__).resolve().parents[2] / "config/audience-catalogue"), clock)
     capabilities = revision_workflow.capabilities() | workflow.capabilities() | ConversationMail(audiences, campaigns).capabilities() | model_workflow.capabilities() | conversation_model.capabilities() | {PLANNER_CAPABILITY: planner.plan, FIXTURE_CAPABILITY: planner.fixture_plan}
     return Application(tasks, audiences, drafts, Worker(tasks, capabilities, clock, lease_seconds=180 if inference else 60,
                        eligible=lambda capability, inputs: model_workflow.eligible(capability, inputs) and conversation_model.eligible(capability, inputs) and planner.eligible(capability, inputs) and revision_workflow.eligible(capability, inputs)), clock,
                        campaigns.catalogue_hash, memory, calls, inference,
                        ReviewService(reviews, ReviewProposalBuilder(audiences, drafts, campaigns)),
                        LearningService(SqliteLearning(database, clock), AcceptedCohortSource(reviews, drafts)), conversations, revision_service, SqliteFollowups(database),
-                       AudienceDiscovery(LocalAudienceSource(Path(__file__).resolve().parents[2] / "config/audience-catalogue"), clock))
+                       discovery, ConversationAudiences(conversations, discovery, SqliteAudienceSelections(database, clock), audiences, clock))

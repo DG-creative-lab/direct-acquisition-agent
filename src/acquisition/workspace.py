@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from acquisition.bootstrap import build, build_preparations, agent_catalogue
-from acquisition.conversations import ACTIVE_PREPARATION
+from acquisition.conversations import ACTIVE_PREPARATION, AudienceSelectionRejected
 from acquisition.adapters.environment import openrouter_key
 from acquisition.adapters.openrouter import OpenRouter
 from acquisition.contracts import Conflict, NotFound, canonical, digest
@@ -181,6 +181,21 @@ class Workspace:
         return self.draft_conversation(row["inputs"]["conversation_id"], row["id"] + ":draft",
                                        row["inputs"]["revision"], plan["id"], partial=True)
 
+    def preparation_audience_selected(self, organization, row, plan):
+        self._preparation_scope(organization)
+        selected = self._conversation_app().conversation_audiences.store.get(organization, row['inputs']['conversation_id'], row['inputs']['revision'])
+        return selected is not None and selected['plan_id'] == plan['id']
+
+    def select_conversation_audience(self, conversation_id, **inputs):
+        try:
+            receipt = self._conversation_app().conversation_audiences.select('local-conversations', conversation_id, **inputs)
+        except (Conflict, ValueError, NotFound) as error:
+            raise AudienceSelectionRejected(str(error)) from error
+        row = self.preparations.store.for_revision('local-conversations', conversation_id, receipt['revision'])
+        if row and row['status'] == 'selecting_audience':
+            self.preparations.step('local-conversations', row['id'])
+        return self.conversation(conversation_id) | {'audience_receipt':receipt}
+
     def preparation_generation(self, organization, row):
         self._preparation_scope(organization)
         with self.control() as db:
@@ -196,8 +211,8 @@ class Workspace:
             run_id = plan["run_id"] if plan else None
         return self._run_generation(app, organization, run_id) if run_id else None
 
-    def start_preparation(self, conversation_id, request_id, expected_revision, fixture, allow_model_copy):
-        self.preparations.admit("local-conversations", conversation_id, request_id, expected_revision, fixture, allow_model_copy)
+    def start_preparation(self, conversation_id, request_id, expected_revision, fixture, allow_model_copy, use_audience_catalogue=False):
+        self.preparations.admit("local-conversations", conversation_id, request_id, expected_revision, fixture, allow_model_copy, use_audience_catalogue)
         return self.conversation(conversation_id)
 
     def preparation_progress(self, conversation_id):
@@ -220,6 +235,16 @@ class Workspace:
                         ready = report["review_ready"]
                 if not ready:
                     public = public | {"status":"blocked", "detail":"Current campaign validation blocks review. Inspect the campaign validation report."}
+            app = self._conversation_app()
+            selection = app.conversation_audiences.store.get('local-conversations', conversation_id, row['inputs']['revision'])
+            public['audience_selection'] = selection if row['inputs'].get('use_audience_catalogue') else None
+            if row['status'] == 'selecting_audience' and source['revision'] == row['inputs']['revision']:
+                plan = source['current_plan']
+                if plan and plan['result']:
+                    try:
+                        public['audience_candidates'] = app.conversation_audiences.candidates('local-conversations', conversation_id, source['revision'], plan['result']['id'])
+                    except (ValueError, Conflict, NotFound, OSError):
+                        public['audience_error'] = 'The audience catalogue is unavailable. Restore the source and refresh this conversation.'
             values.append(public | {"current": source["revision"] == row["inputs"]["revision"], "generation": generation})
         return values
 
@@ -351,14 +376,21 @@ class Workspace:
             plan = current["result"] if current and current["status"] == "succeeded" else None
             if view["revision"] != expected_revision or not plan or plan["id"] != plan_id or plan["outcome"] != "brief_proposal":
                 raise Conflict("Select the exact current completed brief proposal")
+            selection = self._conversation_app().conversation_audiences.store.get('local-conversations', conversation_id, expected_revision)
+            preparation = self.preparations.store.for_revision('local-conversations', conversation_id, expected_revision)
+            requires_audience = selection is not None or bool(preparation and preparation['inputs'].get('use_audience_catalogue'))
+            if requires_audience and selection is None:
+                raise Conflict('Confirm an exact audience dataset before campaign preparation')
             model_copy = plan["copy_mode"] == "model"
             start = self.real_clock() if model_copy else datetime.fromisoformat(self.pack["checked_on"]).replace(tzinfo=timezone.utc).timestamp() + 43200
             if model_copy:
                 validate_fact_pack(self.pack, datetime.fromtimestamp(start, timezone.utc).date())
+            if requires_audience:
+                start = max(start, self.real_clock())
             session = {"id": session_id, "name": "Conversation / " + plan["objective"][:70], "mode": plan["copy_mode"],
                        "organization": session_id, "database_scope": "conversations", "clock": start, "parent_id": None,
                        "clock_mode": "REAL" if model_copy else "SIMULATED", "created_at": self.real_clock(), "run_id": None,
-                       "case_id": None, "cohort_id": None, "conversation_plan": plan}
+                       "case_id": None, "cohort_id": None, "conversation_plan": plan, **({"audience_selection":selection} if requires_audience else {})}
             with self.control() as db:
                 db.execute("BEGIN IMMEDIATE")
                 try:
@@ -529,7 +561,8 @@ class Workspace:
                     current = app.conversations.view("local-conversations", source["conversation_id"])
                     if current["revision"] != source["revision"] or not current["current_plan"] or current["current_plan"]["result"] != source:
                         raise Conflict("Conversation changed before campaign preparation")
-                    run = app.start_conversation(scope, identity, source, datetime.fromtimestamp(session["clock"], timezone.utc).date().isoformat())
+                    run = app.start_conversation(scope, identity, source, datetime.fromtimestamp(session["clock"], timezone.utc).date().isoformat(),
+                                                 selected_audience=bool(session.get('audience_selection')))
                 else:
                     run = start(scope, identity, as_of=datetime.fromtimestamp(session["clock"], timezone.utc).date().isoformat())
             session["run_id"] = run

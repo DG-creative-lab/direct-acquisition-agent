@@ -8,7 +8,7 @@ from .domain import identity, revision_number
 from .ports import PreparationHost, PreparationStore
 
 
-ACTIVE_PREPARATION = frozenset({"admitting", "planning", "preparing"})
+ACTIVE_PREPARATION = frozenset({"admitting", "planning", "selecting_audience", "preparing"})
 
 
 class PreparationCoordinator:
@@ -16,12 +16,16 @@ class PreparationCoordinator:
         self.store, self.host = store, host
         self.execution = Lock()
 
-    def admit(self, organization, conversation_id, request_id, expected_revision, fixture, allow_model_copy):
+    def admit(self, organization, conversation_id, request_id, expected_revision, fixture, allow_model_copy, use_audience_catalogue=False):
         identity(organization), identity(conversation_id), identity(request_id), revision_number(expected_revision)
         if expected_revision < 1 or type(fixture) is not bool or type(allow_model_copy) is not bool or (fixture and allow_model_copy):
             raise ValueError("Choose a current brief and explicit generation permissions")
+        if type(use_audience_catalogue) is not bool:
+            raise ValueError("Choose an explicit audience source mode")
         inputs = {"conversation_id": conversation_id, "revision": expected_revision,
                   "fixture": fixture, "allow_model_copy": allow_model_copy}
+        if use_audience_catalogue:
+            inputs["use_audience_catalogue"] = True
         old = self.store.request(organization, request_id)
         if old:
             if old["inputs"] != inputs:
@@ -87,10 +91,15 @@ class PreparationCoordinator:
                         return self.store.update(organization, row, "needs_input", "Answer the agent or revise the request to continue.")
                     if result["copy_mode"] == "model" and not inputs["allow_model_copy"]:
                         return self.store.update(organization, row, "needs_consent", "Enable model copy and send a new message to continue. No copy has been generated.")
-                    return self.store.update(organization, row, "preparing", None)
+                    return self.store.update(organization, row, "selecting_audience" if inputs.get("use_audience_catalogue") else "preparing",
+                        "Confirm the audience dataset for this campaign." if inputs.get("use_audience_catalogue") else None)
                 plan = source["current_plan"]
                 if not plan or plan["request_id"] != row["plan_request_id"] or not plan["result"]:
                     raise Conflict("The original proposal is unavailable")
+                if row["status"] == "selecting_audience":
+                    if not self.host.preparation_audience_selected(organization, row, plan["result"]):
+                        return row
+                    return self.store.update(organization, row, "preparing", None)
                 campaign = self.host.step_preparation_campaign(organization, row, plan["result"])
                 source = self.host.preparation_source(organization, inputs["conversation_id"])
                 if source["revision"] != inputs["revision"]:

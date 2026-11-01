@@ -9,7 +9,14 @@ import {
   Plus,
   Send,
 } from "lucide-react";
-import { command, MessageNotSavedError, money, read, replay } from "./api";
+import {
+  command,
+  AudienceNotSavedError,
+  MessageNotSavedError,
+  money,
+  read,
+  replay,
+} from "./api";
 import type { State } from "./api";
 import "./conversation.css";
 import ConversationCampaignReview from "./ConversationCampaignReview";
@@ -44,10 +51,41 @@ type Plan = {
     };
   };
 };
+type AudienceCandidate = {
+  id: string;
+  dataset_id: string;
+  version: string;
+  checksum: string;
+  title: string;
+  campaign_key: string;
+  segments: string[];
+  record_count: number;
+  generated_on: string;
+  review_by: string;
+  within_review_window: boolean;
+};
+type AudienceSelection = {
+  id: string;
+  manifest_id: string;
+  source_snapshot_id: string;
+  source: AudienceCandidate;
+};
 type Preparation = {
   id: string;
   request_id: string;
-  inputs: { revision: number; fixture: boolean; allow_model_copy: boolean };
+  inputs: {
+    revision: number;
+    fixture: boolean;
+    allow_model_copy: boolean;
+    use_audience_catalogue?: boolean;
+  };
+  audience_candidates?: {
+    entries: AudienceCandidate[];
+    resolution: string;
+    plan_id: string;
+  };
+  audience_selection?: AudienceSelection | null;
+  audience_error?: string;
   current: boolean;
   status: string;
   detail: string | null;
@@ -66,6 +104,7 @@ type PreparationIntent = {
   expected_revision: number;
   fixture: boolean;
   allow_model_copy: boolean;
+  use_audience_catalogue?: boolean;
 };
 const preparationIntentKey = "conversation-preparation-intent";
 function savedPreparationIntent(): PreparationIntent | null {
@@ -85,7 +124,7 @@ function savedPreparationIntent(): PreparationIntent | null {
   }
 }
 const activePreparation = (status: string) =>
-  ["admitting", "planning", "preparing"].includes(status);
+  ["admitting", "planning", "selecting_audience", "preparing"].includes(status);
 
 type Conversation = {
   preparations?: Preparation[];
@@ -225,7 +264,9 @@ export default function ConversationWorkspace({
       (p) =>
         p.inputs.revision === preparationIntent.expected_revision &&
         p.inputs.fixture === preparationIntent.fixture &&
-        p.inputs.allow_model_copy === preparationIntent.allow_model_copy,
+        p.inputs.allow_model_copy === preparationIntent.allow_model_copy &&
+        !!p.inputs.use_audience_catalogue ===
+          !!preparationIntent.use_audience_catalogue,
     );
     if (saved) {
       sessionStorage.removeItem(preparationIntentKey);
@@ -279,6 +320,9 @@ export default function ConversationWorkspace({
         expected_revision: intent.expected_revision,
         fixture: intent.fixture,
         allow_model_copy: intent.allow_model_copy,
+        ...(intent.use_audience_catalogue
+          ? { use_audience_catalogue: true }
+          : {}),
       },
     );
     sessionStorage.removeItem(preparationIntentKey);
@@ -372,6 +416,7 @@ export default function ConversationWorkspace({
         expected_revision: messageRevision,
         fixture: false,
         allow_model_copy: pending.allow_model_copy === true,
+        use_audience_catalogue: true,
       };
       if (saved.revision === messageRevision) {
         sessionStorage.setItem(preparationIntentKey, JSON.stringify(intent));
@@ -417,6 +462,7 @@ export default function ConversationWorkspace({
         expected_revision: messageRevision,
         fixture: true,
         allow_model_copy: false,
+        use_audience_catalogue: true,
       });
       await list();
     } catch (e) {
@@ -606,7 +652,15 @@ export default function ConversationWorkspace({
                   <p>{item.content}</p>
                 </div>
                 {preparation && (
-                  <PreparationProgress preparation={preparation} />
+                  <>
+                    <PreparationProgress preparation={preparation} />
+                    <AudienceChoice
+                      preparation={preparation}
+                      conversationId={conversation.id}
+                      disabled={!!busy || !!pendingMessage}
+                      onChanged={accept}
+                    />
+                  </>
                 )}
                 {plan && (
                   <div className="conversation-agent">
@@ -918,6 +972,7 @@ function PreparationProgress({ preparation }: { preparation: Preparation }) {
     admitting: "Saving campaign preparation",
     planning: "Planning your campaign",
     preparing: "Preparing your campaign",
+    selecting_audience: "Choose the audience dataset",
     review_ready: "Ready for your review",
     needs_input: "Your input is needed",
     needs_consent: "Permission needed for model copy",
@@ -950,7 +1005,7 @@ function PreparationProgress({ preparation }: { preparation: Preparation }) {
       aria-label="Campaign preparation progress"
     >
       <div className="preparation-heading" role="status">
-        {running ? (
+        {running && preparation.status !== "selecting_audience" ? (
           <Loader2 className="spin" size={16} />
         ) : preparation.status === "review_ready" ? (
           <Check size={16} />
@@ -1019,6 +1074,136 @@ function PreparationProgress({ preparation }: { preparation: Preparation }) {
         ))}
         <p>Preparation grants no approval or delivery authority.</p>
       </details>
+    </section>
+  );
+}
+
+function AudienceChoice({
+  preparation,
+  conversationId,
+  disabled,
+  onChanged,
+}: {
+  preparation: Preparation;
+  conversationId: string;
+  disabled: boolean;
+  onChanged: (value: Conversation) => void;
+}) {
+  const [pending, setPending] = useState<AudienceCandidate | null>(null);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+  const selection = preparation.audience_selection;
+  const choose = async (entry: AudienceCandidate) => {
+    const planId = preparation.audience_candidates?.plan_id;
+    if (!planId) return;
+    setPending(entry);
+    setSending(true);
+    setError("");
+    try {
+      onChanged(
+        await command<Conversation>(
+          `/api/conversations/${conversationId}/audience`,
+          {
+            expected_revision: preparation.inputs.revision,
+            plan_id: planId,
+            dataset_id: entry.dataset_id,
+            version: entry.version,
+            checksum: entry.checksum,
+            manifest_id: entry.id,
+          },
+        ),
+      );
+      setPending(null);
+    } catch (e) {
+      if (e instanceof AudienceNotSavedError) setPending(null);
+      setError((e as Error).message);
+    } finally {
+      setSending(false);
+    }
+  };
+  if (selection)
+    return (
+      <section
+        className="audience-choice"
+        aria-label="Confirmed campaign audience"
+      >
+        <p>
+          <strong>{selection.source.title}</strong> · {selection.source.version}{" "}
+          · Synthetic dataset
+        </p>
+        <details>
+          <summary>Inspect confirmed source</summary>
+          <pre>{JSON.stringify(selection, null, 2)}</pre>
+        </details>
+      </section>
+    );
+  if (preparation.status !== "selecting_audience") return null;
+  const entries = preparation.audience_candidates?.entries ?? [];
+  return (
+    <section className="audience-choice" aria-label="Choose campaign audience">
+      <p>
+        {entries.length > 1
+          ? "I found several matching datasets. Which version should I use?"
+          : "Confirm this dataset before I prepare your campaign."}
+      </p>
+      <p className="muted">
+        These are synthetic records. Campaign approval comes after preparation.
+      </p>
+      {preparation.audience_error && (
+        <p role="alert">{preparation.audience_error}</p>
+      )}
+      {!entries.length && !preparation.audience_error && (
+        <p>
+          No dataset covers these segments. Update the brief or ask the
+          workspace owner to publish a suitable source.
+        </p>
+      )}
+      <ul>
+        {entries.map((entry) => (
+          <li key={entry.id}>
+            <div>
+              <strong>{entry.title}</strong>
+              <p>
+                {entry.version} · {entry.record_count} records ·{" "}
+                {entry.generated_on}
+              </p>
+              <small>
+                {entry.within_review_window
+                  ? `Reviewed until ${entry.review_by}`
+                  : "Outside its review window"}
+              </small>
+              <details>
+                <summary>Inspect dataset</summary>
+                <pre>{JSON.stringify(entry, null, 2)}</pre>
+              </details>
+            </div>
+            <button
+              className="button primary"
+              disabled={
+                disabled ||
+                sending ||
+                !preparation.current ||
+                !entry.within_review_window ||
+                (!!pending && pending.id !== entry.id)
+              }
+              onClick={() => choose(entry)}
+            >
+              {sending && pending?.id === entry.id
+                ? "Confirming…"
+                : pending?.id === entry.id
+                  ? `Retry ${entry.version} confirmation`
+                  : `Use ${entry.version}`}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {pending && !sending && (
+        <p>
+          The confirmation was not acknowledged. Retry this same selection to
+          reconcile its saved request.
+        </p>
+      )}
+      {error && <p role="alert">{error}</p>}
     </section>
   );
 }

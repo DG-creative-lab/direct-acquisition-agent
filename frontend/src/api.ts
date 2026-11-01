@@ -252,6 +252,7 @@ function migratePendingCommand() {
 }
 
 export class MessageNotSavedError extends Error {}
+export class AudienceNotSavedError extends Error {}
 
 export async function command<T = State>(
   path: string,
@@ -283,6 +284,17 @@ export async function command<T = State>(
     sessionStorage.removeItem(key);
     throw new MessageNotSavedError(
       result.error ?? "The message was not saved.",
+    );
+  }
+  if (
+    !response.ok &&
+    response.status === 409 &&
+    result.audience_not_saved === true &&
+    /^\/api\/conversations\/[^/]+\/audience$/.test(path)
+  ) {
+    sessionStorage.removeItem(key);
+    throw new AudienceNotSavedError(
+      result.error ?? "The audience was not confirmed.",
     );
   }
   if (!response.ok)

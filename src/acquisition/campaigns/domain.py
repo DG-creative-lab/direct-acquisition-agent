@@ -45,6 +45,20 @@ class ConversationBrief(Brief):
 
 
 @dataclass(frozen=True)
+class SourcedConversationBrief(ConversationBrief):
+    audience_source: dict | None = None
+
+    def __post_init__(self):
+        super().__post_init__()
+        source = self.audience_source
+        if (type(source) is not dict or source.get('conversation_id') != self.conversation_id
+                or source.get('revision') != self.conversation_revision or source.get('plan_id') != self.plan_id
+                or source.get('id') != 'selection_' + digest({k:v for k,v in source.items() if k != 'id'})
+                or source.get('authority') != 'none'):
+            raise ValueError('Campaign requires its exact confirmed audience provenance')
+
+
+@dataclass(frozen=True)
 class FollowupBrief(Brief):
     segments: tuple[str, ...] = ()
     followup_id: str = ""
@@ -58,7 +72,7 @@ class FollowupBrief(Brief):
 def brief_from(payload: dict) -> Brief:
     if "segments" not in payload:
         return Brief(**payload)
-    kind = FollowupBrief if "followup_id" in payload else ConversationBrief
+    kind = FollowupBrief if "followup_id" in payload else SourcedConversationBrief if "audience_source" in payload else ConversationBrief
     return kind(**(payload | {"segments": tuple(payload["segments"])}))
 
 

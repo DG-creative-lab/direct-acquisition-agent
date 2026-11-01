@@ -449,3 +449,51 @@
     animation: none;
   }
 }
+
+.audience-choice {
+  border-top: 1px solid var(--brand-rule);
+  padding-block: 20px;
+  margin-block: 16px;
+}
+.audience-choice ul {
+  list-style: none;
+  padding: 0;
+}
+.audience-choice li {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--brand-rule);
+  padding-block: 16px;
+}
+.audience-choice li > div {
+  min-width: 0;
+}
+.audience-choice p {
+  line-height: 1.6;
+  margin-block: 8px;
+}
+.audience-choice small {
+  color: var(--brand-muted);
+}
+.audience-choice summary {
+  min-height: 44px;
+  padding-block: 12px;
+  cursor: pointer;
+}
+.audience-choice pre {
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+@media (max-width: 600px) {
+  .audience-choice li {
+    flex-direction: column;
+  }
+  .audience-choice li > button {
+    width: 100%;
+    min-height: 44px;
+  }
+}
