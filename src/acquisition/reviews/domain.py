@@ -12,6 +12,10 @@ from acquisition.contracts import Conflict, digest
 from acquisition.creative import Creative, fact_pack_id, fixture_catalog, validate_fact_pack, validate_grounded_catalogue
 
 
+class ActorUnavailable(ValueError):
+    """The required local role is absent or disabled; never initialize over it."""
+
+
 def text(value: str, maximum: int = 500) -> None:
     if (type(value) is not str or not 1 <= len(value.strip()) <= maximum or value != value.strip()
             or any(ord(c) < 32 for c in value) or chr(0x2014) in value):

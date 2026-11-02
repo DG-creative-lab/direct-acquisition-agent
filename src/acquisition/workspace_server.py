@@ -28,6 +28,7 @@ class WorkspaceServer(ThreadingHTTPServer):
         try:
             fcntl.flock(self.root_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             super().__init__(("127.0.0.1", port), Handler)
+            self.workspace.recover_execution()
             self.workspace.preparations.recover("local-conversations")
             self.workspace.recover_copy_revisions()
             self.workspace.recover_actions()
@@ -169,6 +170,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, self.server.workspace.create_conversation(data["request_id"], data["title"]))
             parts = path.strip("/").split("/")
             if len(parts) == 4 and parts[:2] == ["api", "conversations"]:
+                if parts[3] == 'stop' and set(data)=={'request_id','expected_revision'}:
+                    return self._send(200,self.server.workspace.stop_execution(parts[2],**data))
                 if parts[3] == 'actions' and set(data)=={'request_id','expected_revision','content','allow_model_copy'}:
                     return self._send(202,self.server.workspace.route_followup(parts[2],**data))
                 if parts[3] == 'confirm-action' and set(data)=={'request_id','action_id','target_id','expected_revision'}:

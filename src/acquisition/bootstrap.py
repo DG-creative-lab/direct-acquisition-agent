@@ -42,6 +42,9 @@ from acquisition.conversations import PreparationCoordinator, ConversationAudien
 from acquisition.adapters.sqlite.conversation_actions import SqliteConversationActions
 from acquisition.workflows.conversational_actions import ConversationRouter, action_tool_contracts
 from acquisition.adapters.sqlite.audience_selections import SqliteAudienceSelections
+from acquisition.adapters.sqlite.execution import SqliteExecution
+from acquisition.adapters.sqlite.workspace_ancestry import bind_workspace_journal
+from acquisition.conversations import ConversationExecution
 
 
 
@@ -113,6 +116,7 @@ class Application:
     audience_discovery: AudienceDiscovery
     conversation_audiences: ConversationAudiences
     actions: ConversationActions
+    execution: ConversationExecution
 
     def start(self, organization: str, request_id: str, size: int = 1000, seed: int = 42,
               budget_pence: int = 85000, as_of: str = "2026-10-25", campaign_id: str | None = None) -> str:
@@ -231,8 +235,11 @@ class Application:
 
 
 def build(path: str | Path, clock: Callable[[], float] = time.time,
-          gateway: ModelGateway | None = None, model_config: ModelConfig | None = None) -> Application:
+          gateway: ModelGateway | None = None, model_config: ModelConfig | None = None,
+          workspace_organization: str | None = None) -> Application:
     database = Database(path)
+    if workspace_organization is not None:
+        bind_workspace_journal(database,workspace_organization)
     audiences, drafts = SqliteAudiences(database), SqliteDrafts(database, clock)
     tasks = SqliteTasks(database, retired_capabilities=ModelMonthlyMail.legacy_capabilities())
     campaigns = CampaignService(audiences, drafts, fixture_catalog())
@@ -264,4 +271,5 @@ def build(path: str | Path, clock: Callable[[], float] = time.time,
                        campaigns.catalogue_hash, memory, calls, inference,
                        ReviewService(reviews, ReviewProposalBuilder(audiences, drafts, campaigns)),
                        LearningService(SqliteLearning(database, clock), AcceptedCohortSource(reviews, drafts)), conversations, revision_service, SqliteFollowups(database),
-                       discovery, ConversationAudiences(conversations, discovery, SqliteAudienceSelections(database, clock), audiences, clock), actions)
+                       discovery, ConversationAudiences(conversations, discovery, SqliteAudienceSelections(database, clock), audiences, clock), actions,
+                       ConversationExecution(SqliteExecution(database), clock))

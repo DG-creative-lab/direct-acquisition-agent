@@ -135,8 +135,9 @@ class WorkspaceTests(unittest.TestCase):
     def test_model_preparation_uses_existing_agent_and_checks_without_paid_calls(self):
         model = FakeModel()
         real_build = build
-        def model_build(path, clock, gateway, model_config):
-            return real_build(path, clock, model if gateway else None, model_config)
+        def model_build(path, clock, gateway, model_config, workspace_organization=None):
+            return real_build(path, clock, model if gateway else None, model_config,
+                              workspace_organization=workspace_organization)
         with patch("acquisition.workspace.openrouter_key", return_value="fixture"), patch("acquisition.workspace.OpenRouter", return_value=model), patch("acquisition.workspace.build", side_effect=model_build):
             live = self.workspace.create("model", "model")
         self.assertEqual(len(model.requests), 6)
@@ -305,6 +306,21 @@ class WorkspaceHttpTests(unittest.TestCase):
         self.assertEqual(self.request(path,payload)[0],409)
         self.assertEqual(self.request('/api/conversations/not-this-chat/confirm-copy-action',payload)[0],404)
         self.assertEqual(self.server.workspace.conversation(cid)['revision'],1)
+
+    def test_stop_endpoint_has_exact_identity_revision_and_transport_guards(self):
+        status,body,_=self.request('/api/conversations',{'request_id':'stop-test','title':'Stop controls'})
+        self.assertEqual(status,200);cid=json.loads(body)['id']
+        self.request('/api/conversations/'+cid+'/messages',{'request_id':'m','expected_revision':0,'content':'Prepare a £600 contractor campaign.'})
+        path='/api/conversations/'+cid+'/stop';payload={'request_id':'stop','expected_revision':1}
+        for headers in ({'X-Workspace-Token':''},{'Origin':'https://attacker.invalid'}):
+            self.assertEqual(self.request(path,payload,headers)[0],403)
+        self.assertEqual(self.request(path,payload|{'expected_revision':2})[0],409)
+        self.assertEqual(self.request(path,payload|{'call_limit':100})[0],400)
+        status,body,_=self.request(path,payload);self.assertEqual(status,200)
+        saved=json.loads(body);self.assertTrue(saved['execution']['stopped'])
+        status,body,_=self.request(path,payload);self.assertEqual(status,200)
+        self.assertEqual(json.loads(body)['execution_receipt'],saved['execution_receipt'])
+        self.assertEqual(self.request('/api/conversations/not-this-conversation/stop',payload)[0],404)
 
     def absolute_request(self, method, headers):
         connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port, timeout=10)

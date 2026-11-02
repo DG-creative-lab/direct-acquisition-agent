@@ -167,6 +167,32 @@ PRAGMA user_version=8;
 """
 
 
+EXECUTION = """
+CREATE TABLE IF NOT EXISTS conversation_execution (
+ organization TEXT NOT NULL, conversation_id TEXT NOT NULL, policy TEXT NOT NULL,
+ call_limit INTEGER NOT NULL CHECK(call_limit>0), stopped_through INTEGER NOT NULL DEFAULT 0,
+ PRIMARY KEY(organization,conversation_id),
+ FOREIGN KEY(organization,conversation_id) REFERENCES conversations(organization,id));
+CREATE TABLE IF NOT EXISTS execution_runs (
+ organization TEXT NOT NULL, run_id TEXT NOT NULL REFERENCES runs(id), owner_organization TEXT NOT NULL,
+ conversation_id TEXT NOT NULL, revision INTEGER NOT NULL,
+ PRIMARY KEY(organization,run_id),
+ FOREIGN KEY(owner_organization,conversation_id) REFERENCES conversation_execution(organization,conversation_id));
+CREATE TABLE IF NOT EXISTS execution_commands (
+ organization TEXT NOT NULL, request_id TEXT NOT NULL, inputs TEXT NOT NULL, receipt TEXT NOT NULL,
+ PRIMARY KEY(organization,request_id));
+PRAGMA user_version=9;
+"""
+
+
+EXECUTION_RECOVERY = """
+CREATE TABLE IF NOT EXISTS execution_pending_origins (
+ organization TEXT NOT NULL, run_id TEXT NOT NULL REFERENCES runs(id),
+ PRIMARY KEY(organization,run_id));
+PRAGMA user_version=10;
+"""
+
+
 class Database:
     def __init__(self, path: str | Path):
         self.path = Path(path)
@@ -174,7 +200,7 @@ class Database:
         with self.transaction() as connection:
             # Version discovery and every migration share one SQLite write lock.
             version = connection.execute("PRAGMA user_version").fetchone()[0]
-            if version not in {0, 1, 2, 3, 4, 5, 6, 7, 8}:
+            if version not in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10}:
                 raise ValueError(f"Unsupported database schema {version}")
             if version == 0:
                 self._apply_migration(connection, SCHEMA)
@@ -195,7 +221,30 @@ class Database:
             if version < 8:
                 self._apply_migration(connection, CONVERSATION_ACTIONS)
                 self._validate_action_schema(connection)
+            if version < 9:
+                self._apply_migration(connection, EXECUTION)
+                self._initialize_execution_schema(connection)
+            if version < 10:
+                self._apply_migration(connection, EXECUTION_RECOVERY)
+                self._initialize_execution_recovery_schema(connection)
+            else:
+                from .execution import recover_pending_origins
+                recover_pending_origins(connection)
         self._enable_wal()
+
+    @staticmethod
+    def _initialize_execution_recovery_schema(connection):
+        connection.execute('SELECT organization,run_id FROM execution_pending_origins LIMIT 0')
+        from .execution import quarantine_old_origins
+        quarantine_old_origins(connection)
+
+    @staticmethod
+    def _initialize_execution_schema(connection):
+        connection.execute('SELECT organization,conversation_id,policy,call_limit,stopped_through FROM conversation_execution LIMIT 0')
+        connection.execute('SELECT organization,run_id,owner_organization,conversation_id,revision FROM execution_runs LIMIT 0')
+        connection.execute('SELECT organization,request_id,inputs,receipt FROM execution_commands LIMIT 0')
+        from .execution import backfill_execution
+        backfill_execution(connection)
 
     @staticmethod
     def _validate_action_schema(connection):

@@ -9,6 +9,7 @@ from acquisition.runtime import LeaseLost
 from .actors import require_actor
 from .conversation_provenance import require_current_conversation
 from .selected_audience import require_selected_audience
+from .execution import require_brief_active
 
 
 def require_revision_current(db, organization, inputs, run_id=None, now=None):
@@ -41,6 +42,7 @@ def require_revision_current(db, organization, inputs, run_id=None, now=None):
     if db.execute("SELECT 1 FROM simulated_agency_jobs WHERE organization=? AND case_id=?", (organization, inputs["case_id"])).fetchone():
         raise Conflict("Accepted campaigns cannot be revised")
     require_current_conversation(db, inputs["brief"])
+    require_brief_active(db, organization, inputs['brief'])
     if now is not None and inputs['brief'].get('audience_source'):
         base = db.execute('SELECT manifest FROM drafts WHERE organization=? AND id=?', (organization,inputs['base_draft_id'])).fetchone()
         if base is None:

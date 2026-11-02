@@ -1,6 +1,7 @@
 """Check local conversation authority inside the caller's write transaction."""
 
 from acquisition.contracts import Conflict
+from .execution import require_active
 
 
 def require_current_conversation(connection, brief):
@@ -10,3 +11,4 @@ def require_current_conversation(connection, brief):
                              ("local-conversations", brief["conversation_id"])).fetchone()
     if row is None or row[0] != brief["conversation_revision"]:
         raise Conflict("Conversation changed before campaign generation completed")
+    require_active(connection, 'local-conversations', brief['conversation_id'], brief['conversation_revision'])

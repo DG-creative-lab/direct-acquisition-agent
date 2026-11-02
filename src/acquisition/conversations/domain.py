@@ -136,6 +136,8 @@ def validate_result(candidate: dict, frozen: dict, organization: str) -> dict:
 
 
 ACTION_CAPABILITY = 'conversations.route.v1'
+EXECUTION_POLICY = 'conversation-execution/v1'
+CONVERSATION_CALL_LIMIT = 48
 COPY_ACTION_CAPABILITY = 'conversations.route.v2'
 ACTION_KINDS = ('inspect_progress', 'explain_audience', 'explain_exclusions', 'explain_validation',
                 'amend_brief', 'approval_help', 'clarify', 'unsupported')

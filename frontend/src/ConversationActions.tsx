@@ -213,7 +213,7 @@ export default function ConversationActions<T>({
                 This interpretation belongs to an earlier brief and will not
                 continue.
               </p>
-            ) : action.status === "blocked" ? (
+            ) : ["blocked", "budget_exhausted"].includes(action.status) ? (
               <p role="status">{action.detail}</p>
             ) : (
               <p role="status">
