@@ -536,3 +536,20 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+.conversation-copy-edit p,
+.conversation-copy-edit blockquote,
+.conversation-copy-edit small {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.conversation-copy-edit blockquote {
+  margin: 12px 0;
+}
+.conversation-copy-edit .copy-revision-consent {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  margin-block: 16px;
+}

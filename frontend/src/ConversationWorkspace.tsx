@@ -217,7 +217,9 @@ export default function ConversationWorkspace({
   const [reviewing, setReviewing] = useState(
     () => localStorage.getItem("conversation-review-session") ?? "",
   );
+  const [reviewRefresh, setReviewRefresh] = useState(0);
   const epoch = useRef(0);
+  const loadingConversation = !!selected && conversation?.id !== selected;
 
   const accept = (value: Conversation) => {
     epoch.current += 1;
@@ -297,7 +299,10 @@ export default function ConversationWorkspace({
       (a) =>
         (a.current &&
           ["admitted", "queued", "running", "blocked"].includes(a.status)) ||
-        a.continuation_pending,
+        a.continuation_pending ||
+        ["admitted", "queued", "running", "blocked"].includes(
+          a.copy_revision_progress?.status ?? "",
+        ),
     ) ??
       false);
   useEffect(() => {
@@ -378,6 +383,12 @@ export default function ConversationWorkspace({
   };
   const send = async () => {
     if ((!message.trim() && !pendingMessage) || busy) return;
+    if (loadingConversation) {
+      setError(
+        "Wait for the saved conversation to load before sending a reply.",
+      );
+      return;
+    }
     setError("");
     setBusy("Saving your request");
     let current = conversation;
@@ -874,7 +885,7 @@ export default function ConversationWorkspace({
                     )}
                     {campaign?.case_id && reviewing === campaign.session_id && (
                       <ConversationCampaignReview
-                        key={campaign.session_id}
+                        key={`${campaign.session_id}:${reviewRefresh}`}
                         sessionId={campaign.session_id}
                         interactive={plan.current}
                         active={active}
@@ -892,6 +903,14 @@ export default function ConversationWorkspace({
                   conversationId={conversation.id}
                   disabled={!!busy || !!pendingMessage}
                   onChanged={accept}
+                  onReview={(sessionId) => {
+                    setReviewing(sessionId);
+                    localStorage.setItem(
+                      "conversation-review-session",
+                      sessionId,
+                    );
+                    setReviewRefresh((value) => value + 1);
+                  }}
                 />
               </div>
             );
@@ -943,7 +962,7 @@ export default function ConversationWorkspace({
               onChange={(event) => setMessage(event.target.value)}
               placeholder="Describe the audience, objective and budget"
               maxLength={2000}
-              disabled={!!busy || !!pendingMessage}
+              disabled={!!busy || !!pendingMessage || loadingConversation}
               rows={2}
             />
             <button
@@ -954,6 +973,7 @@ export default function ConversationWorkspace({
               }
               disabled={
                 !!busy ||
+                loadingConversation ||
                 (!message.trim() && !pendingMessage) ||
                 (!!pendingMessage && !conversation)
               }
@@ -973,7 +993,9 @@ export default function ConversationWorkspace({
           <p>
             {pendingMessage
               ? "The last message needs confirmation. Retry saving it before continuing."
-              : "First requests allow up to 2 planning calls. Follow-ups may use 1 routing call; brief changes need confirmation. If allowed, model copy adds up to 10 calls. Approval is separate."}
+              : loadingConversation
+                ? "Loading your saved conversation."
+                : "First requests allow up to 2 planning calls. Follow-ups may use 1 routing call. Brief changes need confirmation; copy revisions ask for separate permission for up to 5 calls. If allowed, campaign copy adds up to 10 calls. Approval is separate."}
           </p>
         </form>
         {!hasMessages && (

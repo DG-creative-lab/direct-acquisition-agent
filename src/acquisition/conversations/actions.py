@@ -3,7 +3,7 @@ from dataclasses import asdict
 import json
 from acquisition.contracts import Conflict, canonical, digest
 from acquisition.runtime import TaskSpec
-from .domain import ACTION_CAPABILITY, action_alias, identity, revision_number, text, validate_action
+from .domain import ACTION_CAPABILITY, COPY_ACTION_CAPABILITY, action_alias, identity, revision_number, text, validate_action
 from .ports import ConversationActionStore
 
 
@@ -38,6 +38,8 @@ class ConversationActions:
                 'method':'authored_alias/v1' if quick else 'model/v1','alias':quick,
                 'model_config':asdict(self.config) if not quick else None,
                 'run_request_id':'conversation-action:'+digest({'organization':organization,'conversation_id':conversation_id,'request_id':request_id})}
+        if context['schema']=='routing-context/v2':
+            frozen|={'schema':'conversation-action/v2','capability':COPY_ACTION_CAPABILITY}
         validate_action({"action":"clarify"},frozen)
         if not quick:self.preflight(frozen)
         return self.store.admit(organization,conversation_id,request_id,frozen,self.clock())
@@ -50,7 +52,7 @@ class ConversationActions:
         if self.config is None or row['model_config']!=asdict(self.config):
             raise ValueError('Restore the original routing model and limits')
         self.preflight(row)
-        return self.tasks.create(organization,row['run_request_id'],[TaskSpec(ACTION_CAPABILITY,{k:v for k,v in row.items() if k!='confirmed'})],self.clock())
+        return self.tasks.create(organization,row['run_request_id'],[TaskSpec(row.get('capability',ACTION_CAPABILITY),{k:v for k,v in row.items() if k!='confirmed'})],self.clock())
 
     def view(self, organization, row):
         run=self.tasks.find_run(organization,row['run_request_id']) if not row['alias'] else None

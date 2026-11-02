@@ -49,6 +49,19 @@
       "validation_requirements": ["exact_action_kind", "bound_brief_revision", "frozen_observation_identity", "confirmed_amendment"],
       "stop_conditions": ["material_ambiguity", "unsupported_action", "unknown_provider_outcome", "routing_budget_exhausted"],
       "authority": "none"
+    },
+    {
+      "id": "route-followup/v2",
+      "version": "v2",
+      "purpose": "Interpret inspection, brief changes and exact-target copy-edit requests without execution authority.",
+      "applicable_intents": ["inspect_progress", "explain_audience", "explain_exclusions", "explain_validation", "amend_brief", "revise_copy"],
+      "required_source_kinds": ["authored_guidance", "task_observation"],
+      "guidance": ["Inspection never advances the brief revision.", "Propose a brief change only for a requested amendment; confirmation is a separate capability.", "Resolve mixed intent through clarification. Use saved observations for explanations, never invented execution or approval.", "Use revise_copy for copy-only feedback, including ambiguous variant selection. The server resolves targets and asks for separate five-call permission."],
+      "tool_ids": ["propose_conversation_action/v2"],
+      "expected_outputs": ["typed_action_proposal"],
+      "validation_requirements": ["exact_action_kind", "bound_brief_revision", "frozen_observation_identity", "confirmed_amendment"],
+      "stop_conditions": ["material_ambiguity", "unsupported_action", "unknown_provider_outcome", "routing_budget_exhausted"],
+      "authority": "none"
     }
   ]
 }

@@ -87,7 +87,7 @@ class ConversationActionTests(unittest.TestCase):
         self.w.advance_actions();self.assertEqual(len(self.gateway.routing_requests),1)
         app=self.w._conversation_app();row=app.actions.store.get('local-conversations',action['id'])
         self.assertEqual(row['model_config']['max_calls'],1)
-        self.assertEqual(row['context']['agent_assets']['skills'][0]['id'],'route-followup/v1')
+        self.assertEqual(row['context']['agent_assets']['skills'][0]['id'],'route-followup/v2')
         self.assertIn('task_observation',{s['kind'] for s in row['context']['agent_assets']['sources']})
 
     def test_short_budget_answer_routes_with_the_actual_planner_question_before_confirmation(self):
@@ -621,7 +621,7 @@ v=w.conversation(sys.argv[2]);print(json.dumps({'revision':v['revision'],'messag
         from acquisition.adapters.sqlite.tasks import SqliteTasks
         original=SqliteTasks.settle
         def interrupt(store,claim,outcome,now):
-            if claim.capability=='conversations.route.v1':raise KeyboardInterrupt()
+            if claim.capability in {'conversations.route.v1','conversations.route.v2'}:raise KeyboardInterrupt()
             return original(store,claim,outcome,now)
         with patch.object(SqliteTasks,'settle',new=interrupt):
             with self.assertRaises(KeyboardInterrupt):self.w.advance_actions()
@@ -636,6 +636,8 @@ v=w.conversation(sys.argv[2]);print(json.dumps({'revision':v['revision'],'messag
         from acquisition.adapters.sqlite.tasks import SqliteTasks
         app=self.w._conversation_app(with_model=True)
         context=self.w.action_context(self.c,1)
+        context['schema']='routing-context/v1'
+        context.pop('copy_revision_targets')
         context.pop('dialogue')
         context['id']='action_context_'+digest({k:v for k,v in context.items() if k!='id'})
         row=app.actions.admit('local-conversations',self.c,'pre-dialogue',1,'Explain this audience choice?',False,context)
@@ -646,7 +648,7 @@ v=w.conversation(sys.argv[2]);print(json.dumps({'revision':v['revision'],'messag
         self.assertEqual(set(json.loads(messages[1]['content'])),{'message','target','brief','skill'})
         original=SqliteTasks.settle
         def interrupt(store,claim,outcome,now):
-            if claim.capability=='conversations.route.v1':raise KeyboardInterrupt()
+            if claim.capability in {'conversations.route.v1','conversations.route.v2'}:raise KeyboardInterrupt()
             return original(store,claim,outcome,now)
         with patch.object(SqliteTasks,'settle',new=interrupt):
             with self.assertRaises(KeyboardInterrupt):self.w.advance_actions()
@@ -684,6 +686,9 @@ v=w.conversation(sys.argv[2]);print(json.dumps({'revision':v['revision'],'messag
         from acquisition.workflows.conversational_actions import ConversationRouter
         app=self.w._conversation_app(with_model=True)
         context=self.w.action_context(self.c,1)
+        context['schema']='routing-context/v1'
+        context.pop('copy_revision_targets')
+        context['dialogue'].pop('copy_exchange')
         context['dialogue']['version']='routing-dialogue/v1'
         context['dialogue'].pop('action_exchange');context['dialogue'].pop('clarification_exchange')
         context['id']='action_context_'+digest({k:v for k,v in context.items() if k!='id'})
@@ -691,7 +696,7 @@ v=w.conversation(sys.argv[2]);print(json.dumps({'revision':v['revision'],'messag
         app.actions.reconcile('local-conversations',row)
         original=SqliteTasks.settle
         def interrupt(store,claim,outcome,now):
-            if claim.capability=='conversations.route.v1':raise KeyboardInterrupt()
+            if claim.capability in {'conversations.route.v1','conversations.route.v2'}:raise KeyboardInterrupt()
             return original(store,claim,outcome,now)
         with patch.object(SqliteTasks,'settle',new=interrupt):
             with self.assertRaises(KeyboardInterrupt):self.w.advance_actions()
@@ -761,4 +766,4 @@ v=w.conversation(sys.argv[2]);print(json.dumps({'revision':v['revision'],'messag
         action=self.ask()['actions'][0]
         self.assertEqual(action['result']['evidence']['status'],'simulated_accepted')
         self.assertIn('local handoff simulator',action['result']['text'])
-        self.assertIn('route-followup/v1',[s['id'] for s in action['guidance']['skills']])
+        self.assertIn('route-followup/v2',[s['id'] for s in action['guidance']['skills']])

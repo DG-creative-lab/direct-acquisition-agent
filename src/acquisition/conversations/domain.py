@@ -136,6 +136,7 @@ def validate_result(candidate: dict, frozen: dict, organization: str) -> dict:
 
 
 ACTION_CAPABILITY = 'conversations.route.v1'
+COPY_ACTION_CAPABILITY = 'conversations.route.v2'
 ACTION_KINDS = ('inspect_progress', 'explain_audience', 'explain_exclusions', 'explain_validation',
                 'amend_brief', 'approval_help', 'clarify', 'unsupported')
 ACTION_ALIASES = {
@@ -156,16 +157,26 @@ def action_alias(content):
 
 
 def validate_action(candidate, frozen):
-    if type(candidate) is not dict or set(candidate) != {'action'} or candidate['action'] not in ACTION_KINDS:
+    modern=frozen['context'].get('schema')=='routing-context/v2'
+    kinds=ACTION_KINDS+('revise_copy',) if modern else ACTION_KINDS
+    if type(candidate) is not dict or set(candidate) != {'action'} or candidate['action'] not in kinds:
         raise ValueError('Choose one installed conversational action')
     kind=candidate['action'];context=frozen['context']
     target=context['target']
     expected={'organization':frozen['organization'],'conversation_id':frozen['inputs']['conversation_id'],'revision':frozen['inputs']['revision']}
     expected['id']='brief_target_'+digest(expected)[:32]
-    if context.get('schema')!='routing-context/v1' or target!=expected:
+    if context.get('schema') not in {'routing-context/v1','routing-context/v2'} or target!=expected:
         raise ValueError('Action context targets another brief')
     if context.get('id') != 'action_context_' + digest({k:v for k,v in context.items() if k!='id'}):
         raise ValueError('Frozen action context failed integrity checks')
+    if modern and (frozen.get('schema')!='conversation-action/v2' or frozen.get('capability')!=COPY_ACTION_CAPABILITY):
+        raise ValueError('Copy routing requires its versioned admission')
+    if kind=='revise_copy':
+        proposal=copy_proposal(frozen)
+        result={'kind':kind,'text':proposal['reason'],'copy_revision':proposal,'evidence':{},
+                'observed_at':context['observed_at'],'target':target,'context_id':context['id'],
+                'requires_confirmation':proposal['status']=='ready','authority':'none'}
+        return result | {'id':'action_result_'+digest(result)}
     fixed={
         'amend_brief':'I can apply this as a brief change. Confirm the exact text below before I stop existing preparation and plan again.',
         'approval_help':'Use the campaign review and handoff confirmations for the exact campaign. This message grants no approval or delivery authority.',
@@ -177,7 +188,7 @@ def validate_action(candidate, frozen):
             'observed_at':context['observed_at'],'target':context['target'],
             'context_id':context['id'],'requires_confirmation':kind=='amend_brief','authority':'none'}
     dialogue=context.get('dialogue',{})
-    if kind=='amend_brief' and dialogue.get('version')=='routing-dialogue/v2' and dialogue['clarification_exchange']:
+    if kind=='amend_brief' and dialogue.get('version') in {'routing-dialogue/v2','routing-dialogue/v3','routing-dialogue/v4'} and dialogue['clarification_exchange']:
         exchange=dialogue['clarification_exchange']
         if len(exchange)>4 or len({e['action_id'] for e in exchange})!=len(exchange):
             raise ValueError('Use at most four distinct clarification exchanges')
@@ -187,3 +198,71 @@ def validate_action(candidate, frozen):
                 raise ValueError('Only pending clarification or amendment requests can enter this amendment')
         result['amendment_exchange']=exchange+[{'action_id':None,'content':frozen['inputs']['content'],'response':None}]
     return result | {'id':'action_result_'+digest(result)}
+
+
+def copy_proposal(frozen):
+    context = frozen['context']
+    catalogue = context['copy_revision_targets']
+    history = context['dialogue'].get('copy_exchange', [])
+    modern=context['dialogue'].get('version')=='routing-dialogue/v4'
+    if modern and history:
+        standalone_context=context|{'dialogue':context['dialogue']|{'copy_exchange':[]}}
+        standalone=copy_proposal(frozen|{'context':standalone_context})
+        if standalone['status']=='ready':return standalone
+    messages = history + [{'action_id': None, 'content': frozen['inputs']['content'], 'response': None}]
+    feedback = ' / '.join(' '.join(m['content'].split()) for m in messages)
+    proposal = {'status': 'unavailable', 'target': None, 'feedback': feedback,
+                'messages': messages, 'max_model_calls': 5}
+    if not catalogue['available']:
+        return proposal | {'reason': catalogue['reason']}
+    if len(history) > 4 or len(feedback) > 500 or chr(0x2014) in feedback:
+        return proposal | {'status': 'needs_feedback', 'reason': 'Restate the complete copy edit in at most 500 plain-text characters without em dashes.'}
+
+    arms, segments = None, None
+    for message in reversed(messages):
+        content = message['content']
+        if arms is None:
+            protected = set(re.findall(
+                r'\b(?:keep|leave|preserve)\s+(?:variant\s+|version\s+|arm\s+)?([AB])\s+(?:unchanged|as is|the same|alone)\b',
+                content, re.I))
+            protected |= set(re.findall(r'\bdo not\s+(?:change|edit|revise|touch)\s+(?:variant\s+)?([AB])\b', content, re.I))
+            for phrase in re.findall(r'\b(?:keep|leave|preserve)\s+([^.!?;]{1,160}?)\s+(?:unchanged|as is|the same|alone)\b',content,re.I):
+                protected |= set(re.findall(r'\b([AB])\b',phrase,re.I))
+            found = {a.upper() for a in re.findall(r'\b(?:variant|version|arm|option)\s+([AB])\b', content, re.I)}
+            bare_arm=r'\s*[AB][.?!]?\s*' if modern else r'\s*[AB][.!]?\s*'
+            if re.fullmatch(bare_arm, content, re.I):found = {content.strip(' .!?').upper()}
+            found -= {a.upper() for a in protected}
+            if found:arms = found
+        if segments is None:
+            found = set()
+            if re.search(r'\b(?:inventory|stock)\b', content, re.I):found.add('inventory')
+            if re.search(r'\b(?:contractors?|projects?)\b', content, re.I):found.add('contractors')
+            if found:segments = found
+
+    candidates = [c for c in catalogue['creatives'] if (arms and c['arm'] in arms)
+                  and (segments is None or c['segment'] in segments)]
+    if len(candidates) != 1:
+        return proposal | {'status': 'needs_target', 'reason': 'Which variant should I revise? Name A or B and, if needed, inventory or contractors.'}
+    # A bare selector only answers a saved edit request; it cannot invent one.
+    selector = r'\s*(?:(?:variant|version|arm|option)\s+)?(?:[AB]|inventory|stock|contractors?|projects?)[.!]?\s*'
+    selectors_only=(all(copy_selector_only(m['content']) for m in messages) if modern else
+                    all(re.fullmatch(selector, m['content'], re.I) for m in messages))
+    if selectors_only:
+        return proposal | {'status': 'needs_feedback', 'reason': 'What wording would you like me to change in that variant?'}
+    target = {k: catalogue[k] for k in ('organization', 'session_id', 'case_id', 'subject_id', 'draft_id')}
+    target |= candidates[0]
+    return proposal | {'status': 'ready', 'target': target,
+                       'reason': 'Review the exact variant and feedback, then allow up to five model calls to generate the revision.'}
+
+
+def copy_selector_only(content):
+    return re.fullmatch(r'\s*(?:(?:variant|version|arm|option)\s+)?(?:[AB]|inventory|stock|contractors?|projects?)[.?!]?\s*',content,re.I) is not None
+
+
+def pending_copy_clarification(proposal):
+    """Only unanswered targeting or selector-only wording questions continue."""
+    if proposal['status']=='needs_target':return True
+    messages=proposal.get('messages',[])
+    return (proposal['status']=='needs_feedback' and 1<=len(messages)<=5
+            and len(proposal.get('feedback',''))<=500 and chr(0x2014) not in proposal.get('feedback','')
+            and all(copy_selector_only(m['content']) for m in messages))

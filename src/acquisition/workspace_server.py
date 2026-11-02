@@ -173,6 +173,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(202,self.server.workspace.route_followup(parts[2],**data))
                 if parts[3] == 'confirm-action' and set(data)=={'request_id','action_id','target_id','expected_revision'}:
                     return self._send(200,self.server.workspace.confirm_followup(parts[2],**data))
+                if parts[3] == 'confirm-copy-action' and set(data)=={'request_id','action_id','result_id','expected_revision','allow_model_copy'}:
+                    return self._send(200,self.server.workspace.confirm_copy_followup(parts[2],**data))
                 if parts[3] == "messages" and set(data) == {"request_id", "expected_revision", "content"}:
                     return self._send(200, self.server.workspace.message_conversation(parts[2], **data))
                 if parts[3] == "plan" and set(data) == {"request_id", "expected_revision"}:
