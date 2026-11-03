@@ -45,6 +45,8 @@ from acquisition.adapters.sqlite.audience_selections import SqliteAudienceSelect
 from acquisition.adapters.sqlite.execution import SqliteExecution
 from acquisition.adapters.sqlite.workspace_ancestry import bind_workspace_journal
 from acquisition.conversations import ConversationExecution
+from acquisition.adapters.sqlite.admissions import SqliteAdmissions
+from acquisition.workflows.conversation import validate_planning_assets
 
 
 
@@ -95,6 +97,23 @@ def routing_assets(organization, context):
 
 def build_preparations(path, host):
     return PreparationCoordinator(SqlitePreparations(path), host)
+
+
+def build_admissions(path, clock=time.time):
+    """Explicit opt-in storage API. No workspace/CLI caller or activation yet."""
+    def preflight(frozen, organization, fixture, config):
+        if 'agent_assets' not in frozen['knowledge']:
+            raise ValueError('New admissions require versioned planning assets')
+        validate_planning_assets(frozen,organization)
+        if frozen.get('knowledge_id')!='knowledge_'+digest(frozen['knowledge']):
+            raise ValueError('Frozen planning guidance failed integrity checks')
+        if fixture:
+            ConversationPlanner.preflight_fixture(frozen,organization)
+        else:
+            # prepare_request only sizes/validates the envelope. No provider or
+            # journal is available to this deliberately paused storage API.
+            ConversationPlanner(Inference(None,None,config,clock)).preflight(frozen)
+    return SqliteAdmissions(Database(path),preflight,clock)
 
 
 @dataclass

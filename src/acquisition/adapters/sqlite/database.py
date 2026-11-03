@@ -193,6 +193,33 @@ PRAGMA user_version=10;
 """
 
 
+ATOMIC_ADMISSIONS = """
+CREATE TABLE IF NOT EXISTS admission_requests (
+ organization TEXT NOT NULL, request_id TEXT NOT NULL, inputs TEXT NOT NULL,
+ payload TEXT NOT NULL, fingerprint TEXT NOT NULL, source TEXT NOT NULL,
+ consent TEXT NOT NULL, created_at REAL NOT NULL,
+ conversation_id TEXT NOT NULL, revision INTEGER NOT NULL CHECK(revision>0),
+ PRIMARY KEY(organization,request_id), UNIQUE(organization,conversation_id,revision),
+ FOREIGN KEY(organization,conversation_id) REFERENCES conversations(organization,id));
+CREATE TABLE IF NOT EXISTS execution_admissions (
+ organization TEXT NOT NULL, id TEXT NOT NULL, request_id TEXT NOT NULL,
+ run_id TEXT NOT NULL REFERENCES runs(id), payload TEXT NOT NULL,
+ fingerprint TEXT NOT NULL, receipt TEXT NOT NULL,
+ status TEXT NOT NULL CHECK(status='paused'),
+ PRIMARY KEY(organization,id), UNIQUE(organization,request_id), UNIQUE(organization,run_id),
+ FOREIGN KEY(organization,request_id) REFERENCES admission_requests(organization,request_id));
+CREATE TRIGGER IF NOT EXISTS admission_requests_no_update BEFORE UPDATE ON admission_requests
+ BEGIN SELECT RAISE(ABORT,'Admission requests are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS admission_requests_no_delete BEFORE DELETE ON admission_requests
+ BEGIN SELECT RAISE(ABORT,'Admission requests are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS execution_admissions_no_update BEFORE UPDATE ON execution_admissions
+ BEGIN SELECT RAISE(ABORT,'Execution admissions are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS execution_admissions_no_delete BEFORE DELETE ON execution_admissions
+ BEGIN SELECT RAISE(ABORT,'Execution admissions are immutable'); END;
+PRAGMA user_version=11;
+"""
+
+
 class Database:
     def __init__(self, path: str | Path):
         self.path = Path(path)
@@ -200,7 +227,7 @@ class Database:
         with self.transaction() as connection:
             # Version discovery and every migration share one SQLite write lock.
             version = connection.execute("PRAGMA user_version").fetchone()[0]
-            if version not in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10}:
+            if version not in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}:
                 raise ValueError(f"Unsupported database schema {version}")
             if version == 0:
                 self._apply_migration(connection, SCHEMA)
@@ -230,7 +257,15 @@ class Database:
             else:
                 from .execution import recover_pending_origins
                 recover_pending_origins(connection)
+            if version < 11:
+                self._apply_migration(connection, ATOMIC_ADMISSIONS)
+                self._validate_admission_schema(connection)
         self._enable_wal()
+
+    @staticmethod
+    def _validate_admission_schema(connection):
+        connection.execute('SELECT organization,request_id,inputs,payload,fingerprint,source,consent,created_at,conversation_id,revision FROM admission_requests LIMIT 0')
+        connection.execute('SELECT organization,id,request_id,run_id,payload,fingerprint,receipt,status FROM execution_admissions LIMIT 0')
 
     @staticmethod
     def _initialize_execution_recovery_schema(connection):

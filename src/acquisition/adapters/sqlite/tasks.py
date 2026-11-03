@@ -29,6 +29,51 @@ def scoped_run(connection, organization, run_id):
     return row
 
 
+def require_run_reservation(connection, organization, request_id, specs, reservation_owner):
+    # The immutable staging row owns its explicit runtime key from commit onward.
+    # Ordinary task/campaign callers cannot claim ownership through task inputs.
+    reserved=connection.execute('''SELECT request_id,fingerprint,payload FROM admission_requests
+        WHERE organization=? AND json_extract(payload,'$.tasks[0].inputs.run_request_id')=?''',
+        (organization,request_id)).fetchone()
+    if reserved is None:
+        if reservation_owner is not None:raise Conflict('The runtime request reservation is missing')
+        return
+    expected=(reserved['request_id'],reserved['fingerprint'])
+    if reservation_owner!=expected:
+        raise Conflict('The runtime request key is reserved by an atomic admission')
+    payload=json.loads(reserved['payload'])
+    if (digest(payload)!=reserved['fingerprint'] or payload['organization']!=organization or
+        payload['request_id']!=reserved['request_id']):
+        raise Conflict('The runtime request reservation failed integrity checks')
+    if canonical(payload['tasks'])!=canonical([asdict(spec) for spec in specs]):
+        raise Conflict('The runtime task plan differs from its reserved admission')
+
+
+def insert_run(connection, organization, request_id, specs, now, *, reservation_owner=None):
+    """Insert generic runtime records in the caller's existing transaction."""
+    finite_time(now)
+    require_run_reservation(connection,organization,request_id,specs,reservation_owner)
+    run_id = 'run_' + uuid.uuid4().hex
+    connection.execute('INSERT INTO runs VALUES(?,?,?,?,?,?)',
+                       (run_id,organization,request_id,digest([asdict(s) for s in specs]),'queued',now))
+    for position,spec in enumerate(specs):
+        connection.execute('''INSERT INTO tasks
+            (id,run_id,position,capability,inputs,status,max_attempts,available_at)
+            VALUES(?,?,?,?,?,'queued',?,?)''',
+            (uuid.uuid4().hex,run_id,position,spec.capability,canonical(spec.inputs),spec.max_attempts,now))
+    event(connection,run_id,None,'run_created',{'task_count':len(specs)},now)
+    return run_id
+
+
+def admission_paused(connection, organization, run_id):
+    # No activation path exists until the complete entry-point cutover.
+    return (connection.execute('SELECT 1 FROM execution_admissions WHERE organization=? AND run_id=?',
+                               (organization,run_id)).fetchone() is not None or
+            connection.execute('''SELECT 1 FROM tasks t JOIN runs r ON r.id=t.run_id
+                WHERE r.organization=? AND r.id=? AND json_type(t.inputs,'$.execution_admission_id') IS NOT NULL''',
+                (organization,run_id)).fetchone() is not None)
+
+
 class SqliteTasks:
     def __init__(self, database: Database, retired_capabilities: frozenset[str] = frozenset()):
         self.database = database
@@ -56,15 +101,7 @@ class SqliteTasks:
                 return old["id"]
             if any(s.capability in self.retired_capabilities for s in specs):
                 raise ValueError("Retired capabilities cannot be admitted as new runs")
-            run_id = "run_" + uuid.uuid4().hex
-            connection.execute("INSERT INTO runs VALUES(?,?,?,?,?,?)",
-                               (run_id, organization, request_id, request_hash, "queued", now))
-            for position, spec in enumerate(specs):
-                connection.execute("""INSERT INTO tasks
-                    (id,run_id,position,capability,inputs,status,max_attempts,available_at)
-                    VALUES(?,?,?,?,?,'queued',?,?)""",
-                    (uuid.uuid4().hex, run_id, position, spec.capability, canonical(spec.inputs), spec.max_attempts, now))
-            event(connection, run_id, None, "run_created", {"task_count": len(specs)}, now)
+            run_id = insert_run(connection,organization,request_id,specs,now)
             bind_run(connection, organization, run_id)
             return run_id
 
@@ -80,6 +117,8 @@ class SqliteTasks:
             raise ValueError("Lease must be positive")
         finite_time(now + lease_seconds)
         def can_run(connection, row):
+            if admission_paused(connection,organization,row['run_id']):
+                return False
             if ancestry_pending(connection,organization,row['run_id']):
                 return False
             if eligible is not None and not eligible(row["capability"], json.loads(row["inputs"])):

@@ -74,6 +74,9 @@ class SqliteConversations:
                     raise Conflict("Planning request already binds a different revision")
                 # Recovery uses admitted knowledge/configuration, never current files.
                 return json.loads(old["payload"])
+            if db.execute('SELECT 1 FROM admission_requests WHERE organization=? AND conversation_id=? AND (revision=? OR request_id=?)',
+                          (organization,conversation_id,expected_revision,request_id)).fetchone():
+                raise Conflict('This revision or request key has a paused atomic planning request; resume its original admission')
             if conversation["revision"] != expected_revision:
                 raise Conflict("Conversation changed before planning admission")
             require_active(db, organization, conversation_id, expected_revision)
@@ -82,7 +85,9 @@ class SqliteConversations:
             admissions = db.execute("SELECT revision FROM conversation_plans WHERE organization=? AND conversation_id=?", (organization, conversation_id)).fetchall()
             if any(row[0] == expected_revision for row in admissions):
                 raise Conflict("This revision already has a planning request; inspect or resume its original request")
-            if len(admissions) >= 6:
+            staged = db.execute('SELECT revision FROM admission_requests WHERE organization=? AND conversation_id=?',
+                                (organization,conversation_id)).fetchall()
+            if len({row[0] for row in admissions} | {row[0] for row in staged}) >= 6:
                 raise ValueError("Conversation planning budget exhausted")
             frozen = {**context, "conversation_id": conversation_id, "request_id": request_id, "revision": expected_revision,
                       "messages": messages(db, organization, conversation_id),

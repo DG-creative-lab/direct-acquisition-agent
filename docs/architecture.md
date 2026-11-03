@@ -75,6 +75,7 @@ Within each business module, `domain.py` holds pure values and invariants, `appl
 | Object | Binding and commit rule |
 | --- | --- |
 | Preparation coordinator | Exact revision, request, frozen planning context and immutable copy permission commit before planning admission; restart reconciles the original run and stops at unapproved review |
+| Paused atomic planning admission | Verified source, exact generation decision and frozen intent precede one transaction for tasks, explicit ownership, planning record, audit and receipt; execution remains fenced until cutover |
 | Run and task plan | Organization/request identity binds exact inputs and capability versions; changed inputs conflict |
 | Worker lease | Current token and expiry are checked again in the result/failure transaction |
 | Audience snapshot | Content-addressed bytes and organization are verified on read |
@@ -92,7 +93,7 @@ The workspace has a separate `workspace.sqlite` control store for session metada
 
 The whole control store is not currently a rebuildable projection. Session records hold manual campaign ancestry and database routing; preparation records hold frozen continuation inputs and generation consent. Those records participate in deciding which work may continue. Execution accounting and stop fences reside in the application database. This division is a current architectural limitation: import isolation does not establish a single owner or atomic boundary for those facts. Journal identity checks and conservative legacy fencing contain ambiguity but do not eliminate that ownership split. Backup identity alone is not proof that a restored journal contains every later relationship. See [execution recovery limits](execution-controls.md#supported-recovery-boundary).
 
-[Issue 33's execution-authority decision](execution-authority-decision.md) defines the ownership inventory, transaction boundaries, recovery contract and staged cutover. Its first slice adds immutable admission values and an inactive storage port. No runtime caller or schema uses that port yet; workspace rebuild remains planned until authoritative intent, consent, routing and sandbox time have moved.
+[Issue 33's execution-authority decision](execution-authority-decision.md) defines the ownership inventory, transaction boundaries, recovery contract and staged cutover. Schema 11 adds a paused atomic planning-admission adapter behind that port. It saves verified requests and explicit model consent, then commits planning intent, ownership, runtime records and receipts together. The server, CLI and coordinator still use their existing paths; claim and reservation fences prevent execution of new-format admissions until cutover. Workspace rebuild remains planned until authoritative intent, consent, routing and sandbox time have moved.
 
 ## Audience and experiment semantics
 
