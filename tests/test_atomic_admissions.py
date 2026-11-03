@@ -499,7 +499,7 @@ os._exit(74)
             self.assertEqual([tuple(r) for r in db.execute('SELECT * FROM legacy_task_admissions')],old)
         reopened=Database(self.path)
         with reopened.connect() as db:
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],12)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],13)
             self.assertEqual(db.execute('PRAGMA integrity_check').fetchone()[0],'ok')
 
 

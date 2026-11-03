@@ -3,7 +3,7 @@
 import time
 import json
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -20,10 +20,10 @@ from acquisition.audiences import AudienceDiscovery
 from acquisition.workflows.audience_discovery import audience_tool_contracts
 from acquisition.adapters.sqlite.creative import SqliteCreative
 from acquisition.adapters.sqlite.inference import SqliteCalls
-from acquisition.contracts import digest
-from acquisition.campaigns import Brief, ConversationBrief, SourcedConversationBrief, CampaignService, brief_from
+from acquisition.contracts import Conflict, canonical, digest
+from acquisition.campaigns import Brief, ConversationBrief, SourcedConversationBrief, FollowupBrief, CampaignService, brief_from
 from acquisition.creative import fixture_catalog, validate_fact_pack, grounded_tool_contracts, copy_source_payloads
-from acquisition.runtime import TaskStore, Worker
+from acquisition.runtime import TaskSpec, TaskStore, Worker
 from acquisition.reasoning import Inference, ModelConfig, ModelGateway, freeze_assets, source_manifest
 from acquisition.workflows.monthly_mail import MonthlyMail, ConversationMail, conversation_task_plan, task_plan
 from acquisition.workflows.model_mail import ModelMonthlyMail, ConversationModelMail, model_task_plan, conversation_model_task_plan
@@ -44,7 +44,7 @@ from acquisition.workflows.conversational_actions import ConversationRouter, act
 from acquisition.adapters.sqlite.audience_selections import SqliteAudienceSelections
 from acquisition.adapters.sqlite.execution import SqliteExecution
 from acquisition.adapters.sqlite.workspace_ancestry import bind_workspace_journal
-from acquisition.conversations import ConversationExecution
+from acquisition.conversations import ConversationExecution, WorkflowAdmissions
 from acquisition.adapters.sqlite.admissions import SqliteAdmissions
 from acquisition.workflows.conversation import validate_planning_assets
 
@@ -99,7 +99,7 @@ def build_preparations(path, host):
     return PreparationCoordinator(SqlitePreparations(path), host)
 
 
-def build_admissions(path, clock=time.time):
+def build_admissions(path, clock=time.time, *, _database=None):
     """Explicit opt-in storage API. No workspace/CLI caller or activation yet."""
     from acquisition.adapters.sqlite.admission_sources import load_source
     from acquisition.workflows.admission_coverage import campaign_brief, coverage_intent
@@ -117,7 +117,7 @@ def build_admissions(path, clock=time.time):
             # prepare_request only sizes/validates the envelope. No provider or
             # journal is available to this deliberately paused storage API.
             ConversationPlanner(Inference(None,None,config,clock)).preflight(frozen)
-    return SqliteAdmissions(Database(path),preflight,clock,
+    return SqliteAdmissions(_database or Database(path),preflight,clock,
                             workflow_source=workflow_source,workflow_intent=coverage_intent)
 
 
@@ -141,9 +141,59 @@ class Application:
     conversation_audiences: ConversationAudiences
     actions: ConversationActions
     execution: ConversationExecution
+    admissions: WorkflowAdmissions
+    model_config: ModelConfig | None
+
+    def _legacy_campaign(self, organization, request_id, snapshot_id, brief, *, model=False,
+                         contexts_override=None, objective=None, parent_run_id=None):
+        """Observe exact pre-cutover plans. No input writes, freshness checks or adoption."""
+        old=self.admissions.store.legacy_tasks(organization,request_id)
+        if old is None:return None
+        frozen=old[1][0].inputs
+        if parent_run_id is not None:
+            raise Conflict('Legacy replay cannot introduce a new execution parent')
+        conversation=isinstance(brief,ConversationBrief)
+        if model:
+            if self.model_config is None or frozen.get('model_config')!=asdict(self.model_config):
+                raise Conflict('Legacy model replay requires its original settings')
+            contexts=frozen.get('context_ids')
+            if not isinstance(contexts,dict) or (contexts_override is not None and contexts_override!=contexts):
+                raise Conflict('Legacy replay differs from its frozen contexts')
+            for segment,context_id in contexts.items():
+                context=self.memory.get_context(organization,context_id)
+                if context['segment']!=segment or context['audience_summary']['snapshot_id']!=snapshot_id:
+                    raise Conflict('Legacy context differs from its original audience')
+                if conversation and context.get('campaign_brief')!={
+                    'objective':objective,'budget_pence':brief.budget_pence,'segments':list(brief.segments),'plan_id':brief.plan_id}:
+                    raise Conflict('Legacy replay differs from its original objective')
+            factory=conversation_model_task_plan if conversation else model_task_plan
+            specs=factory(snapshot_id,brief,contexts,Inference(None,None,self.model_config,self.clock))
+            if not conversation and frozen.get('workflow_version')=='monthly-mail/v2':
+                # Observation of an already persisted v2 plan grants no new v2 admission.
+                specs=[replace(t,capability=t.capability.replace('.v3','.v2'),
+                               inputs=t.inputs|{'workflow_version':'monthly-mail/v2'}) for t in specs]
+        else:
+            factory=conversation_task_plan if conversation else task_plan
+            specs=factory(snapshot_id,brief,frozen.get('creative_catalogue_hash'))
+        return self.admissions.store.replay_legacy(organization,request_id,specs)
 
     def start(self, organization: str, request_id: str, size: int = 1000, seed: int = 42,
-              budget_pence: int = 85000, as_of: str = "2026-10-25", campaign_id: str | None = None) -> str:
+              budget_pence: int = 85000, as_of: str = "2026-10-25", campaign_id: str | None = None, *, parent_run_id=None) -> str:
+        if self.admissions.required():
+            brief=Brief(campaign_id or request_id,budget_pence)
+            if self.admissions.store.legacy_tasks(organization,request_id) is not None:
+                legacy=self._legacy_campaign(organization,request_id,generate(organization,size,seed,as_of).id,brief,parent_run_id=parent_run_id)
+                if legacy is not None:return legacy
+            command={'method':'start','size':size,'seed':seed,'as_of':as_of,'brief':asdict(brief),
+                     'campaign_id':campaign_id,'parent_run_id':parent_run_id}
+            def references():
+                refs={'brief':asdict(brief),'snapshot_id':self.audiences.put(generate(organization,size,seed,as_of)),
+                      'runtime_request_id':request_id}
+                if parent_run_id:refs['parent_run_id']=parent_run_id
+                return refs
+            return self.admissions.workflow(organization,request_id,'manual-descendant' if parent_run_id else 'standalone-campaign',
+                command,references,allow_model=False,config=None)
+        if parent_run_id:raise ValueError('Explicit parent-run creation requires verified admission cutover')
         snapshot_id = self.audiences.put(generate(organization, size, seed, as_of))
         brief = Brief(campaign_id=campaign_id or request_id, budget_pence=budget_pence)
         return self.tasks.create(organization, request_id, task_plan(snapshot_id, brief, self.catalogue_hash), self.clock())
@@ -151,9 +201,50 @@ class Application:
     def start_model(self, organization: str, request_id: str, size: int = 1000, seed: int = 42,
                     budget_pence: int = 85000, as_of: str = "2026-10-25", campaign_id: str | None = None,
                     conversation_brief: ConversationBrief | None = None, objective: str | None = None,
+                    snapshot_override=None, brief_override=None, contexts_override=None, *, parent_run_id=None) -> str:
+        if self.admissions.required():
+            if self.model_config is None:raise ValueError('Configure frozen model settings before admission')
+            if conversation_brief and (brief_override or parent_run_id):raise ValueError('Choose one campaign source')
+            brief=brief_override or conversation_brief or Brief(campaign_id or request_id,budget_pence)
+            if self.admissions.store.legacy_tasks(organization,request_id) is not None:
+                snapshot=snapshot_override or generate(organization,size,seed,as_of)
+                if snapshot.organization!=organization:raise Conflict('Legacy replay requires its original organization')
+                legacy=self._legacy_campaign(organization,request_id,snapshot.id,brief,model=True,
+                    contexts_override=contexts_override,objective=objective,parent_run_id=parent_run_id)
+                if legacy is not None:return legacy
+            kind=('conversation-campaign' if conversation_brief else 'learning-followup' if isinstance(brief,FollowupBrief)
+                  else 'manual-descendant' if parent_run_id else 'standalone-campaign')
+            command={'method':'start-model','size':size,'seed':seed,'as_of':as_of,'budget_pence':budget_pence,
+                     'campaign_id':campaign_id,'brief':asdict(brief),'objective':objective,
+                     'snapshot_override':snapshot_override.id if snapshot_override else None,
+                     'contexts_override':contexts_override,'parent_run_id':parent_run_id}
+            def references():
+                snapshot_id,contexts=self._model_inputs(organization,request_id,size,seed,budget_pence,as_of,campaign_id,
+                    conversation_brief,objective,snapshot_override,brief_override,contexts_override)
+                if kind=='conversation-campaign':
+                    return {'plan_id':brief.plan_id,'snapshot_id':snapshot_id,'context_ids':contexts}
+                if kind=='learning-followup':
+                    p=self.followups.get(organization,brief.followup_id)
+                    if (canonical(asdict(brief))!=canonical(p['brief']|{'campaign_id':request_id,'followup_id':p['id']}) or
+                            snapshot_id!=p['snapshot_id'] or contexts!=p['contexts']):
+                        raise Conflict('Follow-up command differs from its frozen proposal')
+                    return {'proposal_id':p['id']}
+                refs={'brief':asdict(brief),'snapshot_id':snapshot_id,'context_ids':contexts,'runtime_request_id':request_id}
+                if parent_run_id:refs['parent_run_id']=parent_run_id
+                return refs
+            return self.admissions.workflow(organization,request_id,kind,command,references,allow_model=True,config=self.model_config)
+        if self.inference is None:raise ValueError('Configure a model adapter before starting a model run')
+        if parent_run_id:raise ValueError('Explicit parent-run creation requires verified admission cutover')
+        snapshot_id,contexts=self._model_inputs(organization,request_id,size,seed,budget_pence,as_of,campaign_id,
+            conversation_brief,objective,snapshot_override,brief_override,contexts_override)
+        specs=(conversation_model_task_plan(snapshot_id,conversation_brief,contexts,self.inference) if conversation_brief
+               else model_task_plan(snapshot_id,brief_override or Brief(campaign_id or request_id,budget_pence),contexts,self.inference))
+        return self.tasks.create(organization,request_id,specs,self.clock())
+
+    def _model_inputs(self, organization: str, request_id: str, size: int = 1000, seed: int = 42,
+                    budget_pence: int = 85000, as_of: str = "2026-10-25", campaign_id: str | None = None,
+                    conversation_brief: ConversationBrief | None = None, objective: str | None = None,
                     snapshot_override=None, brief_override=None, contexts_override=None) -> str:
-        if self.inference is None:
-            raise ValueError("Configure a model adapter before starting a model run")
         snapshot = snapshot_override or generate(organization, size, seed, as_of)
         snapshot_id = self.audiences.put(snapshot)
         segments = (brief_override or conversation_brief).segments if (brief_override or conversation_brief) else ("inventory", "contractors")
@@ -197,14 +288,21 @@ class Application:
                         'dataset_id':selection['source']['dataset_id'], 'version':selection['source']['version'],
                         'checksum':selection['source']['checksum'], 'source_snapshot_id':selection['source_snapshot_id']}
                 contexts[segment] = self.memory.put_context(organization, copy_assets(organization, context))
-        specs = (conversation_model_task_plan(snapshot_id, conversation_brief, contexts, self.inference) if conversation_brief
-                 else model_task_plan(snapshot_id, brief_override or Brief(campaign_id or request_id, budget_pence), contexts, self.inference))
-        return self.tasks.create(organization, request_id, specs, self.clock())
+        return snapshot_id, contexts
 
     def followup_population(self, organization, as_of):
         return generate(organization, 2000, 42, as_of)
 
     def start_followup(self, organization, identity, snapshot_id, brief):
+        if self.admissions.required():
+            legacy=self._legacy_campaign(organization,identity,snapshot_id,brief)
+            if legacy is not None:return legacy
+            p=self.followups.get(organization,brief.followup_id)
+            if canonical(asdict(brief))!=canonical(p['brief']|{'campaign_id':identity,'followup_id':p['id']}) or snapshot_id!=p['snapshot_id']:
+                raise Conflict('Follow-up command differs from its frozen proposal')
+            return self.admissions.workflow(organization,identity,'learning-followup',
+                {'method':'start-followup','snapshot_id':snapshot_id,'brief':asdict(brief)},
+                lambda:{'proposal_id':p['id']},allow_model=False,config=None)
         return self.tasks.create(organization,identity,task_plan(snapshot_id,brief,self.catalogue_hash),self.clock())
 
     def followup_contexts(self, organization, snapshot, segments, learning_memory, hypothesis):
@@ -226,6 +324,30 @@ class Application:
         return contexts
 
     def start_conversation(self, organization, request_id, plan, as_of, *, selected_audience=False):
+        if self.admissions.required():
+            old=self.admissions.store.legacy_tasks(organization,request_id)
+            if old is not None:
+                frozen=old[1][0].inputs
+                original=brief_from(frozen.get('brief',{}))
+                selection=getattr(original,'audience_source',None)
+                if bool(selection)!=selected_audience:
+                    raise Conflict('Legacy replay differs from its original audience source mode')
+                kind=SourcedConversationBrief if selection else ConversationBrief
+                brief=kind(campaign_id=request_id,budget_pence=plan['budget_pence'],segments=tuple(plan['segments']),
+                    conversation_id=plan['conversation_id'],conversation_revision=plan['revision'],plan_id=plan['id'],
+                    **({'audience_source':selection} if selection else {}))
+                snapshot_id=frozen['snapshot_id'] if selection else generate(organization,1000,42,as_of).id
+                return self._legacy_campaign(organization,request_id,snapshot_id,brief,
+                    model=plan['copy_mode']=='model',objective=plan['objective'])
+        if self.admissions.required() and plan['copy_mode']=='fixture':
+            def references():
+                if selected_audience:
+                    snapshot,_=self.conversation_audiences.materialize('local-conversations',plan['conversation_id'],plan['revision'],plan['id'],organization)
+                else:snapshot=generate(organization,1000,42,as_of)
+                return {'plan_id':plan['id'],'snapshot_id':self.audiences.put(snapshot)}
+            return self.admissions.workflow(organization,request_id,'conversation-campaign',
+                {'method':'start-conversation','plan':plan,'as_of':as_of,'selected_audience':selected_audience},
+                references,allow_model=False,config=None)
         snapshot, selection = self.conversation_audiences.materialize("local-conversations", plan["conversation_id"], plan["revision"], plan["id"], organization) if selected_audience else (None, None)
         kind = SourcedConversationBrief if selection else ConversationBrief
         brief = kind(campaign_id=request_id, budget_pence=plan["budget_pence"],
@@ -260,9 +382,13 @@ class Application:
 
 def build(path: str | Path, clock: Callable[[], float] = time.time,
           gateway: ModelGateway | None = None, model_config: ModelConfig | None = None,
-          workspace_organization: str | None = None) -> Application:
+          workspace_organization: str | None = None, *, verified_admissions=False) -> Application:
+    if type(verified_admissions) is not bool:raise ValueError('Choose an explicit admission mode')
     database = Database(path)
-    if workspace_organization is not None:
+    admission_store=build_admissions(path,clock,_database=database)
+    if verified_admissions:admission_store.seal_legacy_writes()
+    admissions=WorkflowAdmissions(admission_store,clock)
+    if workspace_organization is not None and not admissions.required():
         bind_workspace_journal(database,workspace_organization)
     audiences, drafts = SqliteAudiences(database), SqliteDrafts(database, clock)
     tasks = SqliteTasks(database, retired_capabilities=ModelMonthlyMail.legacy_capabilities())
@@ -273,21 +399,38 @@ def build(path: str | Path, clock: Callable[[], float] = time.time,
     model_workflow = ModelMonthlyMail(audiences, campaigns, memory, inference)
     conversation_model = ConversationModelMail(audiences, campaigns, memory, inference)
     planner_config = replace(model_config, max_calls=2, force_tool_choice=True) if model_config else None
-    planner_inference = Inference(gateway, calls, planner_config, clock) if gateway is not None and planner_config else None
+    planner_inference = Inference(gateway, calls, planner_config, clock) if planner_config and (gateway is not None or admissions.required()) else None
     planner = ConversationPlanner(planner_inference)
     router_config = replace(model_config,max_calls=1,force_tool_choice=True) if model_config else ModelConfig("openai/gpt-oss-120b",max_calls=1,force_tool_choice=True)
     router_inference = Inference(gateway,calls,router_config,clock)
     router = ConversationRouter(router_inference)
-    actions = ConversationActions(SqliteConversationActions(database,clock),tasks,clock,router_config,router.preflight,routing_assets)
+    actions = ConversationActions(SqliteConversationActions(database,clock),tasks,clock,router_config,router.preflight,routing_assets,admissions)
     def planning_guidance():
         return json.loads((Path(__file__).resolve().parents[2] / "config/campaign-playbooks-v1.json").read_text())
     conversations = ConversationService(SqliteConversations(database), tasks, calls, clock,
-                                        planner_config if planner_inference else None, planner.preflight, planning_guidance, planning_assets)
+                                        planner_config if (planner_inference or admissions.required()) else None, planner.preflight, planning_guidance, planning_assets,admissions)
     reviews = SqliteReviews(database, clock)
     revision_config = replace(model_config, max_calls=5, force_tool_choice=True) if model_config else None
     revision_inference = Inference(gateway, calls, revision_config, clock) if inference else None
     revision_workflow = CopyRevisionWorkflow(campaigns, drafts, memory, revision_inference, reviews)
-    revision_service = CopyRevisionService(reviews, drafts, memory, tasks, clock, revision_config, copy_assets)
+    def revision_admission(organization,receipt,config):
+        if not admissions.required():return None
+        if canonical(reviews.revision_request(organization,receipt['request_id']))!=canonical(receipt):
+            raise Conflict('Revision continuation differs from its saved source admission')
+        def legacy_plan():
+            context_id='context_'+digest({'organization':organization,**receipt['context']})
+            if canonical(memory.get_context(organization,context_id))!=canonical(receipt['context']):
+                raise Conflict('Legacy revision context differs from its native receipt')
+            inputs=receipt['task_inputs']|{'context_id':context_id}
+            return [TaskSpec('creative.revise_copy.v3',inputs),TaskSpec('reviews.publish_copy_revision.v3',inputs)]
+        legacy=admissions.legacy_workflow(organization,receipt['id'],legacy_plan)
+        if legacy is not None:return legacy
+        refs={'revision_request_id':receipt['request_id']}
+        request=admissions.source_request_id(organization,'copy-revision',receipt['id'],receipt['request_id'],refs)
+        return admissions.workflow(organization,request,'copy-revision',
+            refs,lambda:refs,
+            allow_model=True,config=config)
+    revision_service = CopyRevisionService(reviews, drafts, memory, tasks, clock, revision_config, copy_assets,revision_admission)
     discovery = AudienceDiscovery(LocalAudienceSource(Path(__file__).resolve().parents[2] / "config/audience-catalogue"), clock)
     capabilities = revision_workflow.capabilities() | workflow.capabilities() | ConversationMail(audiences, campaigns).capabilities() | model_workflow.capabilities() | conversation_model.capabilities() | {PLANNER_CAPABILITY: planner.plan, FIXTURE_CAPABILITY: planner.fixture_plan, ACTION_CAPABILITY:router.route, COPY_ACTION_CAPABILITY:router.route}
     return Application(tasks, audiences, drafts, Worker(tasks, capabilities, clock, lease_seconds=180 if inference else 60,
@@ -296,4 +439,4 @@ def build(path: str | Path, clock: Callable[[], float] = time.time,
                        ReviewService(reviews, ReviewProposalBuilder(audiences, drafts, campaigns)),
                        LearningService(SqliteLearning(database, clock), AcceptedCohortSource(reviews, drafts)), conversations, revision_service, SqliteFollowups(database),
                        discovery, ConversationAudiences(conversations, discovery, SqliteAudienceSelections(database, clock), audiences, clock), actions,
-                       ConversationExecution(SqliteExecution(database), clock))
+                       ConversationExecution(SqliteExecution(database), clock),admissions,model_config)

@@ -20,7 +20,7 @@ from acquisition.reasoning import CallScope, ModelConfig, ModelError
 from acquisition.runtime import TaskSpec
 from acquisition.reviews import ActorUnavailable
 from acquisition.workspace import Workspace
-from acquisition.adapters.sqlite.database import Database, WORKFLOW_ADMISSIONS
+from acquisition.adapters.sqlite.database import Database, WORKFLOW_ADMISSIONS, ADMISSION_CUTOVER
 import test_copy_revisions as revisions
 import test_followups as followups
 
@@ -423,7 +423,7 @@ class WorkflowAdmissionMigrationTests(unittest.TestCase):
         self.path=Path(self.temp.name)/'old.sqlite';self.now=1792972800.
         original=Database._apply_migration
         def eleven(db,script):
-            if script!=WORKFLOW_ADMISSIONS:original(db,script)
+            if script not in {WORKFLOW_ADMISSIONS,ADMISSION_CUTOVER}:original(db,script)
         with patch.object(Database,'_apply_migration',side_effect=eleven):
             app=build(self.path,clock=lambda:self.now)
             store=build_admissions(self.path,clock=lambda:self.now)
@@ -445,7 +445,7 @@ class WorkflowAdmissionMigrationTests(unittest.TestCase):
         store=build_admissions(self.path,clock=lambda:self.now)
         self.assertEqual(store.admit(self.intent,self.now),self.receipt)
         with store.database.connect() as db:
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],12)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],13)
             self.assertEqual(db.execute('PRAGMA integrity_check').fetchone()[0],'ok')
             self.assertEqual(db.execute('PRAGMA foreign_key_check').fetchall(),[])
             with self.assertRaises(sqlite3.IntegrityError):db.execute('DELETE FROM admission_requests')

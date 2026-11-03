@@ -9,6 +9,7 @@ from acquisition.runtime import Claim, LeaseLost, Outcome, TaskSpec
 
 from .database import Database, stored_plan_hash
 from .execution import bind_run, ancestry_pending
+from .admission_guard import binding, verified_required, require_legacy_writer
 
 
 def finite_time(now: float) -> None:
@@ -49,11 +50,12 @@ def require_run_reservation(connection, organization, request_id, specs, reserva
         raise Conflict('The runtime task plan differs from its reserved admission')
 
 
-def insert_run(connection, organization, request_id, specs, now, *, reservation_owner=None):
+def insert_run(connection, organization, request_id, specs, now, *, reservation_owner=None, run_id=None):
     """Insert generic runtime records in the caller's existing transaction."""
     finite_time(now)
+    if reservation_owner is None:require_legacy_writer(connection)
     require_run_reservation(connection,organization,request_id,specs,reservation_owner)
-    run_id = 'run_' + uuid.uuid4().hex
+    run_id = run_id or 'run_' + uuid.uuid4().hex
     connection.execute('INSERT INTO runs VALUES(?,?,?,?,?,?)',
                        (run_id,organization,request_id,digest([asdict(s) for s in specs]),'queued',now))
     for position,spec in enumerate(specs):
@@ -117,6 +119,9 @@ class SqliteTasks:
             raise ValueError("Lease must be positive")
         finite_time(now + lease_seconds)
         def can_run(connection, row):
+            if verified_required(connection):
+                binding(connection,organization,row['run_id'])
+                return False  # Both new admissions and unmigrated history stay paused.
             if admission_paused(connection,organization,row['run_id']):
                 return False
             if ancestry_pending(connection,organization,row['run_id']):
@@ -162,6 +167,9 @@ class SqliteTasks:
         if not math.isfinite(now):
             raise LeaseLost("Attempt requires a finite clock reading")
         run = scoped_run(connection, claim.organization, claim.run_id)
+        if verified_required(connection):
+            binding(connection,claim.organization,claim.run_id)
+            raise LeaseLost('Verified admission execution is paused')
         row = connection.execute("SELECT * FROM tasks WHERE id=? AND run_id=?",
                                  (claim.task_id, claim.run_id)).fetchone()
         if (row is None or run["status"] != "running" or row["status"] != "running"
@@ -235,4 +243,14 @@ class SqliteTasks:
                 row.pop("token")  # Worker lease tokens are never part of operator read models.
             for row in events:
                 row["data"] = json.loads(row["data"])
-            return {"run": run, "tasks": tasks, "events": events}
+            result={"run": run, "tasks": tasks, "events": events}
+            required=verified_required(connection)
+            if required or admission_paused(connection,organization,run_id):
+                try:
+                    intent=binding(connection,organization,run_id)
+                    valid=intent is not None
+                except (Conflict,ValueError,KeyError):
+                    intent=None;valid=False
+                result['admission']={'status':'paused','binding_valid':valid,
+                    'id':intent.id if intent else None,'policy':'verified-paused/v1' if required else 'staged-admission/v1'}
+            return result

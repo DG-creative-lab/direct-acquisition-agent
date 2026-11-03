@@ -5,6 +5,7 @@ from acquisition.conversations import identity, revision_number, text
 
 from .database import Database
 from .tasks import finite_time
+from .admission_guard import require_legacy_writer
 from .execution import require_active
 
 
@@ -74,7 +75,8 @@ class SqliteConversations:
                     raise Conflict("Planning request already binds a different revision")
                 # Recovery uses admitted knowledge/configuration, never current files.
                 return json.loads(old["payload"])
-            if db.execute('SELECT 1 FROM admission_requests WHERE organization=? AND conversation_id=? AND (revision=? OR request_id=?)',
+            require_legacy_writer(db)
+            if db.execute("SELECT 1 FROM admission_requests WHERE organization=? AND conversation_id=? AND (revision=? OR COALESCE(json_extract(inputs,'$.native_request_id'),request_id)=?)",
                           (organization,conversation_id,expected_revision,request_id)).fetchone():
                 raise Conflict('This revision or request key has a paused atomic planning request; resume its original admission')
             if conversation["revision"] != expected_revision:

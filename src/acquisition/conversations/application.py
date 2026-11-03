@@ -24,9 +24,11 @@ class MessageRejectedNotFound(NotFound):
 
 class ConversationService:
     def __init__(self, store: ConversationStore, tasks: TaskStore, calls: CallJournal, clock: Callable[[], float],
-                 config: ModelConfig | None, preflight: Callable[[dict], None], guidance: Callable[[], dict] | None = None, assets: Callable[[str, dict], dict] | None = None):
+                 config: ModelConfig | None, preflight: Callable[[dict], None], guidance: Callable[[], dict] | None = None, assets: Callable[[str, dict], dict] | None = None,
+                 admissions=None):
         self.store, self.tasks, self.calls, self.clock, self.config, self.preflight = store, tasks, calls, clock, config, preflight
         self.guidance, self.assets = guidance, assets
+        self.admissions=admissions
 
     def _knowledge(self, organization, conversation_id, request_id):
         admissions = self.store.snapshot(organization, conversation_id)["admissions"]
@@ -76,6 +78,10 @@ class ConversationService:
     def plan(self, organization: str, conversation_id: str, request_id: str, expected_revision: int, *, frozen_context=None) -> str:
         if self.config is None:
             raise ValueError("Configure the planner model before explicitly requesting generation")
+        if self.admissions and self.admissions.required():
+            return self.admissions.planning(organization,conversation_id,request_id,expected_revision,
+                fixture=False,config=self.config,frozen_context=frozen_context,
+                context_factory=lambda:self.planning_context(organization,conversation_id,request_id,expected_revision,False))
         if frozen_context is None:
             source=self.view(organization, conversation_id)
             previous = [p["result"] for p in source["plans"] if p["result"]]
@@ -99,6 +105,10 @@ class ConversationService:
             raise ValueError("The offline example requires its exact synthetic example message")
 
     def plan_fixture(self, organization: str, conversation_id: str, request_id: str, expected_revision: int, *, frozen_context=None) -> str:
+        if self.admissions and self.admissions.required():
+            return self.admissions.planning(organization,conversation_id,request_id,expected_revision,
+                fixture=True,config=None,frozen_context=frozen_context,
+                context_factory=lambda:self.planning_context(organization,conversation_id,request_id,expected_revision,True))
         if frozen_context is None:
             knowledge = self._knowledge(organization, conversation_id, request_id)
             context = {"knowledge": knowledge, "knowledge_id": "knowledge_" + digest(knowledge),

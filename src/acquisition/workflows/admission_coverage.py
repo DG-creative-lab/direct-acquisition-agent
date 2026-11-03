@@ -7,7 +7,7 @@ from dataclasses import asdict, replace
 from datetime import datetime, timezone
 
 from acquisition.contracts import Conflict, digest
-from acquisition.conversations import AdmissionIntent, ExecutionOwnership, ACTION_CAPABILITY, COPY_ACTION_CAPABILITY, validate_result, workflow_permission
+from acquisition.conversations import CAMPAIGN_ADMISSION_KINDS, AdmissionIntent, ExecutionOwnership, ACTION_CAPABILITY, COPY_ACTION_CAPABILITY, validate_result, workflow_permission
 from acquisition.campaigns import Brief, ConversationBrief, SourcedConversationBrief, brief_from
 from acquisition.creative import fixture_catalog, GroundedCopyAgent, validate_copy_assets, validate_fact_pack
 from acquisition.reasoning import Inference
@@ -98,7 +98,8 @@ def coverage_plan(kind, references, source, config, organization, now):
         catalogue_hash = digest([creative_record(c) for c in fixture_catalog()])
         factory = conversation_task_plan if kind == 'conversation-campaign' else task_plan
         tasks = factory(source['snapshot_id'], brief, catalogue_hash)
-    return tasks, brief.campaign_id, brief.campaign_id
+    runtime_key=references.get('runtime_request_id',brief.campaign_id)
+    return tasks, runtime_key, brief.campaign_id
 
 
 def _copy_preflight(context, organization, inference, now):
@@ -122,4 +123,4 @@ def coverage_intent(organization, request_id, kind, references, source, allow_mo
         source_fingerprint=digest(source), context_fingerprint=digest(source.get('contexts', source)),
         parent_run_id=source.get('parent_run_id'), consent_id=('consent_' + digest({'request': marker, 'source': source, 'config': asdict(config)})) if config else None,
         model_config=config, tasks=tasks)
-    return intent, kind + ':' + operation_id
+    return intent, ('campaign' if kind in CAMPAIGN_ADMISSION_KINDS else kind) + ':' + operation_id

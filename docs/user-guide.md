@@ -113,3 +113,50 @@ Chat shows a shared 48-call allowance across planning, routing, campaign copy, r
 Stopping after a campaign reaches its review checkpoint preserves that completed draft, even if its review case was not yet opened. It becomes available for unapproved review without more model calls. Manual next experiments share their parent conversation's allowance and stop fence.
 
 If an older campaign has unresolved ancestry, model calls pause and remaining allowance is shown as unknown. **Inspect model usage** lists operator recovery commands, run IDs and organizations. Restore its original workspace relationship. An enabled local operator can reconcile an independent run only when its journal binding predates the organization's first run; unverified pre-identity ancestry stays paused. See [execution controls](execution-controls.md#reconcile-a-genuinely-independent-legacy-cli-run) for exact commands and fingerprint requirements. Reload after reconciliation; a numeric allowance returns once all uncertain ancestry is resolved. A blocked checkpoint shows recovery guidance without preventing other conversations from working. Restoring the required local operator or storage lets the saved review recovery continue without generating copy again.
+
+## Development: verified admission cutover
+
+Issue 33 has an opt-in, paused admission path. Normal startup keeps the current
+compatibility workflow. Use a separate development data directory to inspect
+verified admissions without activating generation:
+
+```bash
+PYTHONPATH=src python3 -m acquisition.workspace_server \
+  --root .local/verified-workspace --port 8783 --verified-admissions
+```
+
+The server selects the store format after obtaining its existing root lock.
+Chat requests save verified tasks and show a paused explanation. Model settings
+and generation permission are still required, but paused admission loads no
+provider key or client. Nothing proceeds to a new draft or approval through
+this path yet.
+
+For a standalone application database:
+
+```bash
+PYTHONPATH=src python3 -m acquisition --db .local/verified.sqlite admission-cutover
+PYTHONPATH=src python3 -m acquisition --db .local/verified.sqlite create --request-id example
+PYTHONPATH=src python3 -m acquisition --db .local/verified.sqlite work
+```
+
+The worker reports zero ticks because execution remains paused. `status --run`
+shows the saved admission and binding status. `--verified-admissions` can also
+select this format on a creation command; `--parent-run` supplies the exact
+verified parent when creating a descendant. A raw `--campaign-id` reference
+cannot replace verified parent ownership.
+
+Selection persists in the application database and cannot be downgraded by
+omitting the option later. An existing store must have no running task,
+reserved provider call or partially admitted legacy plan. Reconcile the original
+work before retrying selection. Legacy records remain inspectable and paused;
+selection does not certify their execution authority. Do not use file deletion
+or a version change to bypass this boundary. Execution activation and supported
+restore procedures remain separate work. See the [authority decision](execution-authority-decision.md).
+
+
+After admission cutover, an exact replay of a pre-cutover campaign or planning
+command returns its original run for inspection. It does not certify that run,
+resume it or create new authority records. Restore the original input values
+and model settings when inspecting it through the creation command. Historical
+planning requests can be inspected after later chat messages. New or changed
+requests still require verified admission, and execution remains paused.

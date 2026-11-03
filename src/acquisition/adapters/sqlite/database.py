@@ -256,6 +256,54 @@ PRAGMA user_version=12;
 """
 
 
+ADMISSION_CUTOVER = """
+CREATE TABLE execution_admissions_deferred (
+ organization TEXT NOT NULL, id TEXT NOT NULL, request_id TEXT NOT NULL,
+ run_id TEXT NOT NULL REFERENCES runs(id) DEFERRABLE INITIALLY DEFERRED,
+ payload TEXT NOT NULL, fingerprint TEXT NOT NULL, receipt TEXT NOT NULL,
+ status TEXT NOT NULL CHECK(status='paused'),
+ PRIMARY KEY(organization,id), UNIQUE(organization,request_id), UNIQUE(organization,run_id),
+ FOREIGN KEY(organization,request_id) REFERENCES admission_requests(organization,request_id));
+INSERT INTO execution_admissions_deferred SELECT * FROM execution_admissions;
+DROP TABLE execution_admissions;
+ALTER TABLE execution_admissions_deferred RENAME TO execution_admissions;
+CREATE TRIGGER execution_admissions_no_update BEFORE UPDATE ON execution_admissions
+ BEGIN SELECT RAISE(ABORT,'Execution admissions are immutable'); END;
+CREATE TRIGGER execution_admissions_no_delete BEFORE DELETE ON execution_admissions
+ BEGIN SELECT RAISE(ABORT,'Execution admissions are immutable'); END;
+CREATE TABLE IF NOT EXISTS admission_store_policy (
+ singleton INTEGER PRIMARY KEY CHECK(singleton=1),
+ policy TEXT NOT NULL CHECK(policy='verified-paused/v1'), created_at REAL NOT NULL);
+CREATE TRIGGER IF NOT EXISTS admission_policy_no_update BEFORE UPDATE ON admission_store_policy
+ BEGIN SELECT RAISE(ABORT,'Admission cutover cannot be downgraded'); END;
+CREATE TRIGGER IF NOT EXISTS admission_policy_no_delete BEFORE DELETE ON admission_store_policy
+ BEGIN SELECT RAISE(ABORT,'Admission cutover cannot be downgraded'); END;
+CREATE TRIGGER verified_run_insert BEFORE INSERT ON runs
+ WHEN EXISTS(SELECT 1 FROM admission_store_policy)
+ BEGIN SELECT RAISE(ABORT,'Verified admission must precede runtime creation') WHERE NOT EXISTS(
+  SELECT 1 FROM execution_admissions a JOIN admission_requests q
+   ON q.organization=a.organization AND q.request_id=a.request_id
+  WHERE a.organization=NEW.organization AND a.run_id=NEW.id AND a.payload=q.payload
+   AND a.fingerprint=q.fingerprint
+   AND json_extract(a.payload,'$.tasks[0].inputs.run_request_id')=NEW.request_id); END;
+CREATE TRIGGER verified_task_insert BEFORE INSERT ON tasks
+ WHEN EXISTS(SELECT 1 FROM admission_store_policy)
+ BEGIN SELECT RAISE(ABORT,'Task differs from its verified admission') WHERE NOT EXISTS(
+  SELECT 1 FROM execution_admissions a JOIN runs r ON r.id=a.run_id AND r.organization=a.organization
+  WHERE a.run_id=NEW.run_id
+   AND json_extract(a.payload,'$.tasks['||NEW.position||'].capability')=NEW.capability
+   AND json_extract(a.payload,'$.tasks['||NEW.position||'].max_attempts')=NEW.max_attempts
+   AND json_extract(a.payload,'$.tasks['||NEW.position||'].inputs')=json(NEW.inputs)); END;
+CREATE TRIGGER verified_task_effect BEFORE UPDATE OF status ON tasks
+ WHEN EXISTS(SELECT 1 FROM admission_store_policy) AND NEW.status IN ('running','succeeded','waiting','failed')
+ BEGIN SELECT RAISE(ABORT,'Verified admission execution remains paused'); END;
+CREATE TRIGGER verified_inference_insert BEFORE INSERT ON model_calls
+ WHEN EXISTS(SELECT 1 FROM admission_store_policy)
+ BEGIN SELECT RAISE(ABORT,'Verified admission inference remains paused'); END;
+PRAGMA user_version=13;
+"""
+
+
 class Database:
     def __init__(self, path: str | Path):
         self.path = Path(path)
@@ -263,8 +311,14 @@ class Database:
         with self.transaction() as connection:
             # Version discovery and every migration share one SQLite write lock.
             version = connection.execute("PRAGMA user_version").fetchone()[0]
-            if version not in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}:
+            if version not in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}:
                 raise ValueError(f"Unsupported database schema {version}")
+            if version<13:
+                # Partially newer fixtures/restores may contain guards referencing
+                # tables that an older migration rebuilds. Remove and recreate
+                # them under this same lock; rollback restores the original set.
+                for name in ('verified_run_insert','verified_task_insert','verified_task_effect','verified_inference_insert'):
+                    connection.execute('DROP TRIGGER IF EXISTS '+name)
             if version == 0:
                 self._apply_migration(connection, SCHEMA)
             if version < 2:
@@ -299,6 +353,8 @@ class Database:
             if version < 12:
                 self._apply_migration(connection, WORKFLOW_ADMISSIONS)
                 self._validate_admission_schema(connection)
+            if version < 13:
+                self._apply_migration(connection, ADMISSION_CUTOVER)
         self._enable_wal()
 
     @staticmethod

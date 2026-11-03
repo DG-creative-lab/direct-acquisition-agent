@@ -5,13 +5,14 @@ The design covers admission, inference, cancellation and recovery across the
 workspace, CLI and direct workers. It preserves the modular monolith and the
 existing campaign, review and learning boundaries.
 
-**Implementation status:** versioned values and paused SQLite admissions
-are implemented. Schema 12 extends model and fixture planning with verified
-routing, campaign preparation, manual descendants, learning follow-ups and copy revisions. No
-workspace, HTTP or CLI caller uses this adapter, and new-format tasks cannot be
-claimed or reserve inference. Atomic admission is separate from activation.
-The entry-point cutover and projection rebuild remain planned work. Approval and
-campaign acceptance still use the existing controls.
+**Implementation status:** schema 13 wires planning, routing, campaign preparation,
+manual descendants, learning follow-ups and copy revisions to verified admissions
+when an application store is explicitly sealed to `verified-paused/v1`. New-format
+tasks cannot run or reserve inference. Unsealed compatibility stores retain their
+existing operating paths. Sealing is an irreversible format selection, separate
+from execution activation. Workspace projection rebuild, legacy certification and
+restore activation remain planned work. Approval and acceptance retain their
+existing controls.
 
 ## Evidence and decision
 
@@ -113,9 +114,10 @@ execution permission. Workers still recheck current conditions at each effect.
 
 ## Paused SQLite adapter
 
-`build_admissions(path, clock)` is the explicit composition entry point for the
-new storage API. It has no provider client and is not registered as a model tool
-or exposed by a transport. It uses the existing planner's scoped asset validation,
+`build_admissions(path, clock)` is the composition entry point for the storage
+API. It has no provider client and is not registered as a model tool.
+Application services now use it through the public admission port when the
+store requires verified admission. It uses the existing planner's scoped asset validation,
 fixture checks and complete request-envelope preflight.
 The conversation module owns the pure permission, capacity, intent-construction
 and binding rules. SQLite loads their facts and persists their result under its
@@ -207,6 +209,62 @@ admission row is missing. There is no activation toggle in this implementation.
 Admission receipt reads verify the stored request, task plan, run and ownership
 from one read snapshot; they never perform current approval or dispatch decisions.
 
+## Sealed entry points and paused execution
+
+`WorkflowAdmissions` owns original-command replay through the public port.
+Planning, routing reconciliation, application campaign creation and native
+revision reconciliation use it when the store is sealed. Original command
+parameters and model permission are saved with the source references. Replay
+loads those frozen references before any context-building callback, so a new
+memory snapshot or unavailable current catalogue cannot replace admitted input.
+Native revision continuation also checks the exact saved source receipt.
+
+The CLI can seal an application database explicitly. The workspace server can
+select verified admissions after acquiring its existing exclusive root lock.
+Its selection persists in the root application database; future sandbox stores
+inherit that selection before creating tasks. It is not stored in workspace
+presentation state or accepted from a browser/model argument. Passing the
+default option on restart never unseals a store. The singleton policy is
+technical store-format metadata applying to every organization in that database;
+business records and authority lookups remain organization-scoped.
+
+Sealing and competing creation share the SQLite write lock. Sealing refuses a
+running task, reserved inference, or a legacy planning admission without its
+runtime row. This avoids trapping an immutable partial plan between formats.
+Existing queued legacy work becomes inspectable paused history; it is not
+silently certified as new-format work. A failed seal transaction leaves the
+previous format intact. Update/delete triggers prevent policy downgrade.
+
+Python claim and reservation independently validate the committed request,
+consent fingerprint, task plan and owner binding before reporting a paused
+admission. Generic runtime insertion and the old planning writer reject new
+unverified work in sealed stores. New-format ancestry comes from the admission
+and domain parent records; workspace descendant reconstruction and journal
+witness binding are skipped for these stores.
+
+Database guards also cover cached older writers that lack the Python checks.
+In a sealed store a run needs its admission before insertion, task rows must
+match the saved task plan, task execution status updates are refused and new
+inference reservations are refused. Schema 13 makes the admission-to-run foreign
+key deferred: the verified adapter writes admission first, then runtime rows,
+ownership and audit in one transaction. Commit still requires the runtime row;
+an interruption rolls back the whole admission. Schema-12 records and receipts
+are copied unchanged. Guards are removed/recreated under the migration lock
+when earlier table rebuilds must run, with rollback preserving the original set.
+
+Stopping/cancelling remains available. Restored running leases cannot settle
+results through the paused path. Existing provider observations keep their
+original reservation/receipt rules; no observation authorizes new execution.
+Progress exposes the saved admission as paused, and chat preparation displays
+a bounded explanation instead of promising model generation. No provider key
+or client is loaded for paused model admission; explicit frozen model settings
+and generation permission remain required.
+
+There is no activation command or executable verified mode in this slice.
+Positive new-format model dispatch and the full verified campaign journey remain
+acceptance work for activation. Existing compatibility journeys are tested
+separately and do not prove new-format execution.
+
 ## Transitions and commit boundaries
 
 | Transition | Authoritative decision | Required atomic result |
@@ -261,19 +319,19 @@ transparent recovery from arbitrary partial backups is promised.
 1. **Ownership contract and baseline, implemented.** Freeze the inventory above,
    expose versioned immutable values and an inactive port, and compare the
    current reservation boundary with an independent transition oracle.
-2. **Atomic admission adapter, paused planning implemented.** Add module-owned authoritative intent, consent,
+2. **Atomic admission adapter, workflow coverage implemented.** Add module-owned authoritative intent, consent,
    parentage and scoped mappings alongside tasks/calls. Verify source facts and
    capability requirements in one transaction. Keep production callers on the
    old path until complete cutover is possible. Tests must inject failure after
    each insert and before commit, and prove exact replay and competing-key
    uniqueness across real SQLite connections and process restart. Other
    workflow source policies must be installed before those writers can switch.
-3. **All entry points and effect fences.** Switch chat preparation, planning,
+3. **Entry points and paused effect fences, implemented behind store selection.** Connect chat preparation, planning,
    routing, native revisions, CLI creation, manual children and direct workers.
    An explicit schema/capability gate must prevent old writers creating new work
    without ownership. Test one shared allowance, stop-through revision, foreign
-   scope rejection and zero dispatch from every bypass path. No permissive
-   interval with mixed writer assumptions is acceptable.
+   scope rejection and zero dispatch from bypass paths. Store sealing and SQL
+   guards close mixed-writer gaps. Verified execution activation remains deferred.
 4. **Rebuildable workspace.** Move authoritative coordinator intent, campaign
    mappings, request fingerprints, storage scope, fixture/model mode and sandbox
    time before removing their workspace authority. Delete only the projection
@@ -304,5 +362,6 @@ Full workspace rebuild, legacy activation and alternate-writer cutover remain
 unproven until their later slices.
 
 No generic repository, service locator, event bus, new orchestration framework or
-microservice split is introduced. The next reviewable change is the entry-point
-cutover with its remaining workflow source policies, not new marketing features.
+microservice split is introduced. The next reviewable change is moving remaining
+coordinator/session authority into the application store and rebuilding workspace
+projections. Execution activation still needs its separate migration/restore gate.

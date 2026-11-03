@@ -21,6 +21,7 @@ FIXTURE_PLANNING_ADMISSION = 'conversation-fixture-planning/v1'
 MAX_TASK_PLAN_BYTES = 1_048_576
 
 
+CAMPAIGN_ADMISSION_KINDS = frozenset({'conversation-campaign', 'standalone-campaign', 'manual-descendant', 'learning-followup'})
 WORKFLOW_ADMISSION_KINDS = frozenset({'routing', 'conversation-campaign', 'standalone-campaign',
                            'manual-descendant', 'learning-followup', 'copy-revision'})
 
@@ -190,11 +191,15 @@ def planning_permission(fixture, allow_model, config):
         raise ValueError('Explicitly allow bounded planner settings before saving model intent')
 
 
-def planning_capacity(revision, prior, staged, own_request=None):
+def planning_capacity(revision, prior, staged, own_request=None, *, admission_request_id=None):
     """Facts must be loaded by the persistence port under its admission lock."""
     if own_request is not None and any(r['request_id']==own_request for r in prior):
         raise Conflict('A legacy planning admission already owns this request key')
-    if any(r['revision']==revision and r['request_id']!=own_request for r in list(prior)+list(staged)):
+    outer=admission_request_id if admission_request_id is not None else own_request
+    if own_request is not None and any(r.get('native_request_id',r['request_id'])==own_request and r['request_id']!=outer for r in staged):
+        raise Conflict('This native planning request already has a staged admission')
+    if (any(r['revision']==revision and r['request_id']!=own_request for r in prior) or
+            any(r['revision']==revision and r['request_id']!=outer for r in staged)):
         raise Conflict('This revision already has a planning request')
     if any(r['revision']==revision for r in prior):
         raise Conflict('This revision already has a legacy planning admission')
@@ -202,7 +207,7 @@ def planning_capacity(revision, prior, staged, own_request=None):
     if revision not in revisions and len(revisions)>=6:raise ValueError('Conversation planning budget exhausted')
 
 
-def planning_intent(organization, request_id, source, context, history, *, fixture, allow_model, config):
+def planning_intent(organization, request_id, source, context, history, *, fixture, allow_model, config, native_request_id=None):
     """Build from independently loaded source facts, never model-owned identity."""
     planning_permission(fixture,allow_model,config)
     if source['organization']!=organization:raise Conflict('Planning source belongs to another organization')
@@ -219,9 +224,11 @@ def planning_intent(organization, request_id, source, context, history, *, fixtu
     if ((fixture and context.get('fixture')!='offline-example/v1') or (not fixture and 'fixture' in context)):
         raise Conflict('Planning mode differs from its frozen context')
     conversation_id=source['conversation_id'];revision=source['revision']
+    native_request=request_id if native_request_id is None else native_request_id
+    identity(native_request)
     admission_id='admission_'+digest({'organization':organization,'request_id':request_id})
-    frozen=context|{'conversation_id':conversation_id,'revision':revision,'request_id':request_id,
-        'messages':source['messages'],'run_request_id':'conversation-plan:'+digest({'conversation':conversation_id,'request':request_id}),
+    frozen=context|{'conversation_id':conversation_id,'revision':revision,'request_id':native_request,
+        'messages':source['messages'],'run_request_id':'conversation-plan:'+digest({'conversation':conversation_id,'request':native_request}),
         'execution_admission_id':admission_id}
     if source['confirmed_action_exchanges']:frozen['confirmed_action_exchanges']=source['confirmed_action_exchanges']
     context_hash=digest(frozen)

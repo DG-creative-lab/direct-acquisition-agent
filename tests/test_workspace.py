@@ -135,9 +135,9 @@ class WorkspaceTests(unittest.TestCase):
     def test_model_preparation_uses_existing_agent_and_checks_without_paid_calls(self):
         model = FakeModel()
         real_build = build
-        def model_build(path, clock, gateway, model_config, workspace_organization=None):
+        def model_build(path, clock, gateway, model_config, workspace_organization=None, *, verified_admissions=False):
             return real_build(path, clock, model if gateway else None, model_config,
-                              workspace_organization=workspace_organization)
+                              workspace_organization=workspace_organization,verified_admissions=verified_admissions)
         with patch("acquisition.workspace.openrouter_key", return_value="fixture"), patch("acquisition.workspace.OpenRouter", return_value=model), patch("acquisition.workspace.build", side_effect=model_build):
             live = self.workspace.create("model", "model")
         self.assertEqual(len(model.requests), 6)

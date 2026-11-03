@@ -44,6 +44,8 @@ The browser retains an uncertain message request across reloads and retries it w
 
 Each planning request freezes messages, prior validated results, capability guidance, its hash and model configuration. There is one planning admission per revision, with a maximum of six per conversation. A different request key for an already admitted revision is rejected. Admission is saved before runtime task creation. Retrying the original request after an interruption uses the original frozen inputs, including when local guidance has changed.
 
+Planning request IDs belong to a conversation. Two chats may use the same ID and receive separate runs and consent records. In the verified admission path, replay within one chat remains bound to the original revision, mode, model settings and frozen context. Existing raw-key staged requests retain their saved identity during recovery.
+
 The complete encoded model request is checked against the model's input limit before admission. Unicode and JSON encoding can make a request larger than the saved message text; if it exceeds the limit, start a shorter conversation. No task or inference reservation is created for the rejected request.
 
 The runtime owns run identity, leases, cancellation and result/event commit. A conversation plan request runs and recovers only its own scoped run, including on replay; unrelated queued or expired runs are left untouched. The inference journal reserves before dispatch, reuses completed matching receipts and fences unknown outcomes after a crash. A worker with different model settings cannot claim the task or consume an attempt. A model response recorded before cancellation may retain usage, but cannot commit a successful plan after the lease or run authority is lost.

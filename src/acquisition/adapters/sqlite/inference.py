@@ -10,6 +10,7 @@ from acquisition.reasoning import CallScope, ModelError
 from acquisition.runtime import LeaseLost
 
 from .database import Database
+from .admission_guard import binding, verified_required
 from .tasks import scoped_run, admission_paused
 from .conversation_provenance import require_current_conversation
 from .selected_audience import require_selected_audience
@@ -31,6 +32,9 @@ class SqliteCalls:
             if not math.isfinite(now):
                 raise LeaseLost("Inference requires a finite clock reading")
             run = scoped_run(connection, scope.organization, scope.run_id)
+            if verified_required(connection):
+                binding(connection,scope.organization,scope.run_id)
+                raise ModelError('execution_admission_paused_before_cutover')
             if admission_paused(connection,scope.organization,scope.run_id):
                 raise ModelError('execution_admission_paused_before_cutover')
             task = connection.execute("SELECT * FROM tasks WHERE id=? AND run_id=?", (scope.task_id, scope.run_id)).fetchone()

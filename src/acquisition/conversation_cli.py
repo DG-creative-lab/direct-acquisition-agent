@@ -10,6 +10,7 @@ from acquisition.workspace import Workspace
 def main():
     parser = argparse.ArgumentParser(description="Local campaign conversation and explicit model planning")
     parser.add_argument("--root", type=Path, default=Path(".local/workspace"))
+    parser.add_argument('--verified-admissions',action='store_true',help='Select verified, paused admissions for this workspace')
     commands = parser.add_subparsers(dest="command", required=True)
     create = commands.add_parser("new")
     create.add_argument("--request-id", required=True)
@@ -24,7 +25,7 @@ def main():
         if command == "message":
             sub.add_argument("--content", required=True)
     args = parser.parse_args()
-    workspace = Workspace(args.root)
+    workspace = Workspace(args.root,verified_admissions=args.verified_admissions)
     if args.command == "new":
         result = workspace.create_conversation(args.request_id, args.title)
     elif args.command == "list":

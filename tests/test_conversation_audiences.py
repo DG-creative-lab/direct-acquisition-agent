@@ -214,7 +214,7 @@ print(json.dumps(s['review']['manifest']['brief']['audience_source']))
             self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],6)
             self.assertIsNone(db.execute("SELECT name FROM sqlite_master WHERE name='conversation_audiences'").fetchone())
         with Database(path).connect() as db:
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],12)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],13)
             self.assertEqual(tuple(db.execute('SELECT * FROM legacy_task_admissions').fetchone()),('o','historical','original'))
 
     def test_expiry_during_inference_prevents_more_calls_and_draft_commit(self):

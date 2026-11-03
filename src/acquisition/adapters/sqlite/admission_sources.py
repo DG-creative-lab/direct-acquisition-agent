@@ -139,7 +139,7 @@ def load_source(db, organization, kind, references, now, brief_builder):
             raise Conflict('Learning proposal differs from its actual parent campaign')
         source.update(proposal=p, owner=parent['owner'], parent=parent, parent_run_id=parent['run_id'])
     elif kind in {'manual-descendant', 'standalone-campaign'}:
-        source_keys(references, ('snapshot_id', 'brief') + (('parent_run_id',) if kind == 'manual-descendant' else ()), ('context_ids',))
+        source_keys(references, ('snapshot_id', 'brief') + (('parent_run_id',) if kind == 'manual-descendant' else ()), ('context_ids','runtime_request_id'))
         if kind == 'manual-descendant':
             parent = parent_source(db, organization, references['parent_run_id'])
             if parent['brief']['campaign_id'] == references['brief'].get('campaign_id'):
