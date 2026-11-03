@@ -5,6 +5,7 @@ from acquisition.conversations import identity, revision_number, text
 
 from .database import Database
 from .tasks import finite_time
+from .execution import require_active
 
 
 def scoped_conversation(connection, organization, conversation_id):
@@ -75,6 +76,7 @@ class SqliteConversations:
                 return json.loads(old["payload"])
             if conversation["revision"] != expected_revision:
                 raise Conflict("Conversation changed before planning admission")
+            require_active(db, organization, conversation_id, expected_revision)
             if expected_revision == 0:
                 raise ValueError("Add your campaign objective before requesting a plan")
             admissions = db.execute("SELECT revision FROM conversation_plans WHERE organization=? AND conversation_id=?", (organization, conversation_id)).fetchall()

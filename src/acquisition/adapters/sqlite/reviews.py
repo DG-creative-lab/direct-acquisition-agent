@@ -21,6 +21,7 @@ from .actors import require_actor
 from .drafts import verify
 from .tasks import scoped_run
 from .revision_provenance import require_revision_current, require_revision_lease
+from .execution import require_brief_active
 from .conversation_copy import check_copy_confirmation, record_copy_confirmation
 
 
@@ -591,6 +592,7 @@ class SqliteReviews:
             authority = self._authority(db, organization)
             proposal = self._subject(db, organization, case["current_subject"])
             base = self._validate(db, organization, case, proposal["draft_id"], authority, now)
+            require_brief_active(db, organization, base.manifest['brief'])
             if current_reasons(proposal, authority):
                 raise Conflict("Evidence or suppressions changed; rebuild before revising copy")
             self._run_ready(db, organization, case)

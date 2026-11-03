@@ -15,6 +15,7 @@ from .conversation_provenance import require_current_conversation
 from .selected_audience import require_selected_audience
 from .revision_provenance import require_revision_current
 from .action_provenance import require_action_admission
+from .execution import reserve_execution, bind_run, require_resolved_ancestry
 
 
 class SqliteCalls:
@@ -55,6 +56,8 @@ class SqliteCalls:
                     audience_source = require_selected_audience(connection, scope.organization, inputs["brief"], inputs["snapshot_id"], now)
                 except Conflict:
                     raise ModelError("conversation_changed_before_inference") from None
+            bind_run(connection, scope.organization, scope.run_id, historical=True)
+            require_resolved_ancestry(connection,scope.organization,scope.run_id)
             row = connection.execute("SELECT * FROM model_calls WHERE organization=? AND run_id=? AND call_key=?",
                                      (scope.organization, scope.run_id, key)).fetchone()
             if row:
@@ -63,6 +66,7 @@ class SqliteCalls:
                 if row["status"] != "recorded":
                     raise ModelError("previous_inference_failed_or_unknown_no_retry")
                 return json.loads(row["response"])
+            reserve_execution(connection, scope)
             task_inputs = json.loads(task["inputs"])
             require_followup(connection, scope.organization, task_inputs)
             if task_inputs.get("brief",{}).get("followup_id") and "context_ids" in task_inputs and run["request_id"] != task_inputs["brief"]["campaign_id"]:

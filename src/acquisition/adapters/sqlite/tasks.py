@@ -8,6 +8,7 @@ from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.runtime import Claim, LeaseLost, Outcome, TaskSpec
 
 from .database import Database, stored_plan_hash
+from .execution import bind_run, ancestry_pending
 
 
 def finite_time(now: float) -> None:
@@ -64,6 +65,7 @@ class SqliteTasks:
                     VALUES(?,?,?,?,?,'queued',?,?)""",
                     (uuid.uuid4().hex, run_id, position, spec.capability, canonical(spec.inputs), spec.max_attempts, now))
             event(connection, run_id, None, "run_created", {"task_count": len(specs)}, now)
+            bind_run(connection, organization, run_id)
             return run_id
 
     def find_run(self, organization: str, request_id: str) -> str | None:
@@ -78,6 +80,8 @@ class SqliteTasks:
             raise ValueError("Lease must be positive")
         finite_time(now + lease_seconds)
         def can_run(connection, row):
+            if ancestry_pending(connection,organization,row['run_id']):
+                return False
             if eligible is not None and not eligible(row["capability"], json.loads(row["inputs"])):
                 return False
             if row["capability"] in self.retired_capabilities and not self._legacy_allowed(connection, organization, row["run_id"]):

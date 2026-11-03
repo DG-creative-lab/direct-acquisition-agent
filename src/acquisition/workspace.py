@@ -15,19 +15,28 @@ from acquisition.bootstrap import build, build_preparations, agent_catalogue
 from acquisition.conversations import ACTIVE_PREPARATION, AudienceSelectionRejected, ActionNotSaved, pending_copy_clarification
 from acquisition.adapters.environment import openrouter_key
 from acquisition.adapters.openrouter import OpenRouter
+from acquisition.adapters.sqlite.workspace_ancestry import initialize_workspace_identity
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.learning import identifier
 from acquisition.reasoning import ModelConfig
 from acquisition.creative import validate_fact_pack, fixture_catalog
 from acquisition.campaigns import FollowupBrief, build_draft, brief_from
 from dataclasses import replace, asdict
-from acquisition.reviews import ReviewPolicy, text
+from acquisition.reviews import ReviewPolicy, text, ActorUnavailable
 
 
 REVISION_BLOCKS = {
+    "ancestry_unavailable": "Historical campaign ancestry needs recovery. Restore its original workspace relationship before model calls can resume. Usage remains incomplete until that relationship is verified.",
     "evidence_unavailable": "Product evidence is unavailable or outside its review window. Review verified evidence and prepare a current campaign before requesting another revision. This request keeps its frozen inputs.",
     "configuration_unavailable": "Restore the server-side OpenRouter key and the original model settings. This saved request will resume automatically when its configuration is available. Do not submit another revision to retry it.",
     "continuation_unavailable": "Revision continuation is unavailable. Inspect the original run and server storage. The server will recheck this saved request; it will not repeat an uncertain provider call.",
+}
+
+CHECKPOINT_BLOCKS = {
+    'checkpoint_authority_unavailable':'Review recovery is blocked. Restore a permitted local operator and checkpoint authority, then retry recovery. The stop remains committed; no generation has been repeated.',
+    'checkpoint_storage_unavailable':'Review recovery is waiting for local storage. Restore storage and retry recovery. The completed checkpoint and stop receipt are preserved.',
+    'checkpoint_validation_unavailable':'Review recovery needs valid checkpoint data. Inspect the saved draft and evidence. No generation or approval has been repeated.',
+    'checkpoint_recovery_unavailable':'Review recovery is unavailable for this checkpoint. Inspect its saved case and local storage; other conversations can continue.',
 }
 
 
@@ -43,6 +52,8 @@ class Workspace:
             db.execute("CREATE TABLE IF NOT EXISTS conversation_draft_requests(conversation_id TEXT NOT NULL, request_id TEXT NOT NULL, request_hash TEXT NOT NULL, session_id TEXT NOT NULL, PRIMARY KEY(conversation_id,request_id))")
             db.execute("CREATE TABLE IF NOT EXISTS followup_prepare_requests(organization TEXT NOT NULL, request_id TEXT NOT NULL, request_hash TEXT NOT NULL, session_id TEXT NOT NULL, PRIMARY KEY(organization,request_id))")
             db.execute("CREATE TABLE IF NOT EXISTS copy_revision_blocks(organization TEXT NOT NULL, revision_id TEXT NOT NULL, code TEXT NOT NULL, PRIMARY KEY(organization,revision_id))")
+            db.execute('CREATE TABLE IF NOT EXISTS checkpoint_recovery_blocks(organization TEXT NOT NULL, run_id TEXT NOT NULL, code TEXT NOT NULL, PRIMARY KEY(organization,run_id))')
+            initialize_workspace_identity(db)
         self.preparations = build_preparations(self.root / "workspace.sqlite", self)
         self.pack = json.loads((Path(__file__).resolve().parents[2] / "config/iwoca-product-facts-v1.json").read_text())
 
@@ -77,7 +88,7 @@ class Workspace:
         # time; explicit outcome simulation alone can advance the sandbox clock.
         conversation_db = session.get("database_scope") == "conversations" or session.get("conversation_plan") or session["organization"] == "local-conversations"
         database = self.root / "conversations.sqlite" if conversation_db else self.root / session["organization"] / "campaign.sqlite"
-        return build(database, clock=lambda: max(self.real_clock(), session["clock"]) if session.get("clock_mode") == "REAL" else session["clock"], gateway=gateway, model_config=config)
+        return build(database, clock=lambda: max(self.real_clock(), session["clock"]) if session.get("clock_mode") == "REAL" else session["clock"], gateway=gateway, model_config=config, workspace_organization=session['organization'])
 
     def listing(self):
         with self.control() as db:
@@ -89,7 +100,7 @@ class Workspace:
         # Scope and database location are server-owned, never model/browser input.
         gateway = OpenRouter(openrouter_key(Path(".env.local"))) if with_model else None
         config = ModelConfig("openai/gpt-oss-120b", max_calls=2, force_tool_choice=True) if with_model else None
-        return build(self.root / "conversations.sqlite", clock=self.real_clock, gateway=gateway, model_config=config)
+        return build(self.root / "conversations.sqlite", clock=self.real_clock, gateway=gateway, model_config=config, workspace_organization='local-conversations')
 
     def conversations(self):
         return {"conversations": self._conversation_app().conversations.store.listing("local-conversations")}
@@ -110,10 +121,11 @@ class Workspace:
                 "learning": "Synthetic outcome memory is scoped to each campaign and is advisory. Inspect it in Learning."}
 
     def conversation(self, conversation_id):
+        self._ensure_descendant_links()
         view = self._conversation_app().conversations.view("local-conversations", conversation_id)
         with self.control() as db:
             sessions = [json.loads(r[0]) for r in db.execute("SELECT payload FROM sessions ORDER BY rowid DESC")]
-        return view | {"actions":self.action_progress(conversation_id), "preparations": self.preparation_progress(conversation_id), "campaigns": [{"session_id": s["id"], "plan_id": s["conversation_plan"]["id"],
+        return view | {"execution":self._conversation_app().execution.view('local-conversations',conversation_id), "actions":self.action_progress(conversation_id), "preparations": self.preparation_progress(conversation_id), "campaigns": [{"session_id": s["id"], "plan_id": s["conversation_plan"]["id"],
                                       "revision": s["conversation_plan"]["revision"], "case_id": s["case_id"],
                                       "generation": self._generation(s)}
                                      for s in sessions if s.get("conversation_plan", {}).get("conversation_id") == conversation_id]}
@@ -280,6 +292,10 @@ class Workspace:
             value=app.actions.view('local-conversations',row)
             generation=self._run_generation(app,'local-conversations',value['run_id']) if value['run_id'] else None
             value|={'current':row['inputs']['revision']==source['revision'],'generation':generation}
+            if generation and generation.get('budget_exhausted') and value['status']=='failed':
+                value |= {'status':'budget_exhausted','detail':'The shared model-call allowance is exhausted. Inspect model usage or start a new conversation.'}
+            if generation and generation.get('ancestry_pending'):
+                value |= {'status':'blocked','detail':REVISION_BLOCKS['ancestry_unavailable']}
             if value['result'] and value['result']['kind']=='revise_copy' and value['result']['copy_revision']['target']:
                 target=value['result']['copy_revision']['target']
                 current_review=self.view(target['session_id'])['review']
@@ -347,7 +363,8 @@ class Workspace:
         if run is None:
             return {"run_id": None, "status": "admitted", "failed_tasks": [], "provider_error": None,
                     "outcome_uncertain": False, "unresolved_calls": []}
-        return self._run_generation(app, scope, run)
+        generation=self._run_generation(app, scope, run)
+        return generation | {'checkpoint_recovery':self._checkpoint_block(scope,run)}
 
     @staticmethod
     def _run_generation(app, scope, run):
@@ -362,7 +379,10 @@ class Workspace:
         definitive_rejections = {"provider_http_400", "provider_http_401", "provider_http_403", "provider_http_404", "provider_http_422"}
         unresolved = [{"key": r["key"], "status": r["status"]} for r in receipts
                       if r["status"] == "reserved" or (r["status"] == "unknown" and r["error"] not in definitive_rejections)]
+        execution = app.execution.for_run(scope,run)
         return {"run_id": run, "status": state["run"]["status"], "failed_tasks": failures, "provider_error": provider_error,
+                'ancestry_pending':app.execution.pending(scope,run),
+                "budget_exhausted":bool(execution and execution['remaining']==0),
                 "outcome_uncertain": bool(unresolved), "unresolved_calls": unresolved,
                 "steps": [{"capability": t["capability"], "status": t["status"]} for t in state["tasks"]]}
 
@@ -389,7 +409,116 @@ class Workspace:
 
     def preparation_source(self, organization, conversation_id):
         self._preparation_scope(organization)
-        return self._conversation_app().conversations.view(organization, conversation_id)
+        app = self._conversation_app()
+        return app.conversations.view(organization, conversation_id) | {'execution':app.execution.view(organization,conversation_id)}
+
+    def stop_execution(self, conversation_id, request_id, expected_revision):
+        # Deliberately independent of the executor lock: a provider call may be in flight.
+        self._ensure_descendant_links()
+        receipt = self._conversation_app().execution.stop('local-conversations',conversation_id,request_id,expected_revision)
+        for row in self.preparations.store.listing('local-conversations',conversation_id):
+            if row['inputs']['revision'] <= receipt['revision'] and row['status'] in ACTIVE_PREPARATION | {'blocked','needs_consent'}:
+                self.preparations.store.update('local-conversations',row,'cancelled','Stopped by you. Send a new brief to start new work; the shared allowance does not reset.')
+        self._restore_checkpoint_reviews(receipt)
+        return self.conversation(conversation_id) | {'execution_receipt':receipt}
+
+    def _ensure_descendant_links(self, strict_session_id=None):
+        with self.control() as db:
+            sessions=[json.loads(r[0]) for r in db.execute('SELECT payload FROM sessions ORDER BY rowid')]
+        required=set()
+        if strict_session_id:
+            current=self._session(strict_session_id)
+            while current.get('parent_id'):
+                if current['id'] in required or len(required)>=10:
+                    raise Conflict('Descendant ancestry is cyclic or too deep')
+                required.add(current['id'])
+                current=self._session(current['parent_id'])
+        for session in sessions:
+            if not session.get('parent_id') or session.get('followup_id'):
+                continue
+            try:
+                parent=self._session(session['parent_id'])
+                if parent['organization']!=session['organization']:
+                    raise Conflict('Descendant campaign differs from its parent organization')
+                app=self._app(parent)
+                run=parent['run_id'] or app.tasks.find_run(parent['organization'],parent['id'])
+                if run is None:
+                    raise Conflict('Descendant campaign requires its original parent run')
+                app.execution.descendant(parent['organization'],session['id'],run)
+            except Exception:
+                if session['id'] in required:
+                    raise
+                # Domain migration fences unresolved old ancestry. One unavailable
+                # control record cannot stop unrelated conversations.
+                continue
+
+    def _checkpoint_block(self, organization, run_id):
+        with self.control() as db:
+            row=db.execute('SELECT code FROM checkpoint_recovery_blocks WHERE organization=? AND run_id=?',(organization,run_id)).fetchone()
+        return {'code':row[0],'detail':CHECKPOINT_BLOCKS[row[0]]} if row and row[0] in CHECKPOINT_BLOCKS else None
+
+    def _set_checkpoint_block(self, organization, run_id, code):
+        with self.control() as db:
+            if code is None:
+                db.execute('DELETE FROM checkpoint_recovery_blocks WHERE organization=? AND run_id=?',(organization,run_id))
+            else:
+                db.execute('INSERT INTO checkpoint_recovery_blocks VALUES(?,?,?) ON CONFLICT(organization,run_id) DO UPDATE SET code=excluded.code WHERE code<>excluded.code',(organization,run_id,code))
+
+    def _restore_checkpoint_reviews(self, receipt):
+        checkpoints={(r['organization'],r['run_id']) for r in receipt.get('checkpoint_runs',[])}
+        if not checkpoints:
+            return
+        with self.control() as db:
+            sessions=[json.loads(r[0]) for r in db.execute('SELECT payload FROM sessions ORDER BY rowid')]
+        for session in sessions:
+            scope=session['organization'];run=session['run_id']
+            try:
+                app=self._app(session)
+                run=run or app.tasks.find_run(scope,session['id'])
+                if (scope,run) not in checkpoints:
+                    continue
+                self._restore_checkpoint_case(session,app,run)
+                self._set_checkpoint_block(scope,run,None)
+            except Exception as error:
+                if (scope,run) not in checkpoints:
+                    continue
+                code=('checkpoint_authority_unavailable' if isinstance(error,(Conflict,ActorUnavailable)) else
+                      'checkpoint_storage_unavailable' if isinstance(error,(OSError,sqlite3.Error)) else
+                      'checkpoint_validation_unavailable' if isinstance(error,ValueError) else 'checkpoint_recovery_unavailable')
+                try:self._set_checkpoint_block(scope,run,code)
+                except Exception:pass  # The original domain stop remains discoverable.
+
+    def _restore_checkpoint_case(self, session, app, run):
+        scope=session['organization']
+        # Case creation grants no approval. Existing cases still need their
+        # presentation journal reconciled after a partial restoration.
+        case=({'case_id':session['case_id']} if session['case_id'] else app.reviews.store.open_case(scope,run,'local-operator'))
+        review=app.reviews.store.view(scope,case['case_id'])
+        if review['run_id']!=run:
+            raise Conflict('Checkpoint case differs from its original run')
+        with self.control() as db:
+            db.execute('BEGIN IMMEDIATE')
+            current=json.loads(db.execute('SELECT payload FROM sessions WHERE id=?',(session['id'],)).fetchone()[0])
+            if current['case_id'] and current['case_id']!=case['case_id']:
+                raise Conflict('Checkpoint session already refers to another case')
+            current |= {'run_id':run,'case_id':case['case_id']}
+            db.execute('UPDATE sessions SET payload=? WHERE id=?',(canonical(current),session['id']))
+            db.commit()
+        source=session.get('conversation_plan')
+        if source:
+            row=self.preparations.store.for_revision('local-conversations',source['conversation_id'],source['revision'])
+            if row:
+                valid=review['validation_report']['review_ready']
+                status='review_ready' if valid else 'blocked'
+                detail='Completed draft preserved for human review.' if valid else 'Completed draft preserved; current validation blocks review.'
+                if row['status']!=status or row['detail']!=detail:
+                    self.preparations.store.update('local-conversations',row,status,detail)
+
+    def recover_execution(self):
+        # Only call on exclusive startup or from the supported local executor.
+        self._ensure_descendant_links()
+        for receipt in self._conversation_app().execution.stopped_checkpoints('local-conversations'):
+            self._restore_checkpoint_reviews(receipt)
 
     def step_preparation_plan(self, organization, row):
         self._preparation_scope(organization)
@@ -445,6 +574,14 @@ class Workspace:
             # Frozen model inputs remain server-side. The plan's existing guidance
             # projection is the public inspection surface for that content.
             public = {k: v for k, v in row.items() if k != "planning_context"}
+            if row['inputs']['revision'] <= source['execution']['stopped_through'] and row['status'] in ACTIVE_PREPARATION | {'blocked','needs_consent'}:
+                public |= {'status':'cancelled','detail':'Stopped by you. Send a new brief to start new work; the shared allowance does not reset.'}
+            if generation and generation.get('budget_exhausted') and public['status'] in ACTIVE_PREPARATION | {'failed','blocked'}:
+                public |= {'status':'budget_exhausted','detail':'The shared model-call allowance is exhausted. Inspect usage or start a new conversation. Existing consent does not increase this allowance.'}
+            if generation and generation.get('checkpoint_recovery'):
+                public |= {'status':'blocked','detail':generation['checkpoint_recovery']['detail'],'checkpoint_recovery':generation['checkpoint_recovery']}
+            if generation and generation.get('ancestry_pending'):
+                public |= {'status':'blocked','detail':REVISION_BLOCKS['ancestry_unavailable']}
             if row["status"] == "review_ready":
                 with self.control() as db:
                     admitted = db.execute("SELECT session_id FROM conversation_draft_requests WHERE conversation_id=? AND request_id=?",
@@ -471,6 +608,7 @@ class Workspace:
         return values
 
     def advance_preparations(self):
+        self.recover_execution()
         self.advance_actions()
         for row in self.preparations.store.listing("local-conversations"):
             if row["status"] in ACTIVE_PREPARATION:
@@ -493,6 +631,7 @@ class Workspace:
 
     def _copy_revision_progress(self, app, scope, case):
         rows = app.revisions.view(scope, case)
+        origin = app.execution.for_run(scope, app.reviews.store.view(scope,case)['run_id']) if rows else None
         for row in rows:
             generation = self._run_generation(app, scope, row["run_id"]) if row["run_id"] else None
             row["generation"] = generation
@@ -502,8 +641,14 @@ class Workspace:
             row["block"] = {"code": code, "detail": REVISION_BLOCKS[code]} if code else None
             if code and row["status"] in {"admitted", "queued", "running"}:
                 row["status"] = "blocked"
+            if origin and origin['run_revision'] <= origin['stopped_through'] and row['status'] in {'admitted','queued','running','stale','blocked'}:
+                row['status']='cancelled'
             if generation and generation["outcome_uncertain"] and row["status"] not in {"queued", "running"}:
                 row["status"] = "uncertain"
+            if generation and generation.get('budget_exhausted') and row['status']=='failed':
+                row['status']='budget_exhausted'
+            if generation and generation.get('ancestry_pending'):
+                row |= {'status':'blocked','block':{'code':'ancestry_unavailable','detail':REVISION_BLOCKS['ancestry_unavailable']}}
         return rows
 
     def _set_revision_block(self, scope, revision_id, code):
@@ -749,6 +894,7 @@ class Workspace:
 
     def prepare(self, identity, *, partial=False):
         with self.lock:
+            self._ensure_descendant_links(strict_session_id=identity)
             session = self._session(identity)
             if session["case_id"]:
                 return self.view(identity)

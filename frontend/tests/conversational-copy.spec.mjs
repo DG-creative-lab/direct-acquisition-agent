@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { spawn } from "node:child_process";
+import { spawn, execFileSync } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -25,9 +25,28 @@ w.start_preparation(c,'prepare',1,False,True,True)
 for _ in range(3):w.advance_preparations()
 v=w.conversation(c);e=v['preparations'][0]['audience_candidates']['entries'][0]
 w.select_conversation_audience(c,request_id='source',expected_revision=1,plan_id=v['current_plan']['result']['id'],dataset_id=e['dataset_id'],version=e['version'],checksum=e['checksum'],manifest_id=e['id'])
-for _ in range(6):w.advance_preparations()
+for _ in range(6):
+    if scenario in {'checkpoint','disabled-checkpoint'}:
+        from acquisition.adapters.sqlite.reviews import SqliteReviews
+        with patch.object(SqliteReviews,'open_case',side_effect=OSError('case storage interrupted')):w.advance_preparations()
+    else:w.advance_preparations()
+if scenario=='disabled-checkpoint':
+    session=w._session(w.conversation(c)['campaigns'][0]['session_id'])
+    w._app(session).reviews.store.register_actor(session['organization'],'local-operator',('operator',),False)
+    w.stop_execution(c,'stop-disabled',1)
+if scenario=='unattributed':
+    session=w._session(w.conversation(c)['campaigns'][0]['session_id'])
+    app=w._app(session,with_model=True);scope=session['organization']
+    run=app.start_model(scope,'unattributed-cli',campaign_id='unknown-campaign',as_of='2026-10-26')
+    app.worker.drain(scope,run_id=run)
+    assert len(app.calls.inspect(scope,run))==6
+    with app.calls.database.transaction() as db:
+        db.execute('INSERT INTO execution_pending_origins VALUES(?,?)',(scope,run))
 original=model.complete
 def complete(request):
+    if scenario=='delayed' and request['tools'][0]['function']['name']!='propose_conversation_action':
+        import time
+        time.sleep(3)
     if scenario=='unknown' and request['tools'][0]['function']['name']!='propose_conversation_action':raise ModelError('provider_request_failed')
     return original(request)
 model.complete=complete
@@ -66,7 +85,7 @@ server.serve_forever()
       });
       child.once("error", reject);
     });
-    await run(url);
+    await run(url, root);
   } finally {
     child.kill("SIGTERM");
     await exited;
@@ -286,6 +305,255 @@ test("an independent variant edit receives only its own feedback", async ({
       "Make variant A more casual.",
     );
     expect(view.revision).toBe(1);
+  });
+});
+
+test("stopping a completed checkpoint recovers its unapproved review without inference", async ({
+  page,
+}) => {
+  await workspace("checkpoint", async (url) => {
+    await page.goto(url);
+    await page
+      .getByRole("button", { name: "Copy campaign", exact: true })
+      .click();
+    await expect(
+      page.getByRole("button", { name: "Review campaign", exact: false }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Stop work", exact: true }),
+    ).toBeVisible();
+    const before = (await current(page)).execution.used;
+    await page.getByRole("button", { name: "Stop work", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: /Review campaign/ }),
+    ).toBeVisible();
+    const stopped = await current(page);
+    expect(stopped.execution.stopped).toBe(true);
+    expect(stopped.execution.used).toBe(before);
+    const state = await backend(
+      page,
+      `/api/sessions/${stopped.campaigns[0].session_id}`,
+    );
+    expect(state.review.candidate_valid).toBe(true);
+    expect(state.review.approval_valid).toBe(false);
+    expect(state.review.handoff).toBeNull();
+    await page.reload();
+    await page.getByRole("button", { name: /Review campaign/ }).click();
+    await expect(
+      page.getByRole("region", { name: "Campaign review in conversation" }),
+    ).toBeVisible();
+    expect((await current(page)).execution.used).toBe(before);
+  });
+});
+
+test("unattributed historical calls label the displayed cost as incomplete", async ({
+  page,
+}) => {
+  await workspace("unattributed", async (url, root) => {
+    await open(page, url);
+    const controls = page.getByRole("region", { name: "Execution controls" });
+    await expect(
+      controls.getByText("Model-call allowance unknown", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      controls.getByText(/remaining allowance unknown/),
+    ).toBeVisible();
+    await expect(controls.getByText(/\d+ remaining/)).toHaveCount(0);
+    await expect(
+      controls.getByText(/Historical campaign ancestry needs recovery/),
+    ).toBeVisible();
+    await controls.getByText("Inspect model usage", { exact: true }).click();
+    await expect(
+      controls.getByText(/Provider-reported cost: \$0 \(incomplete\)/),
+    ).toBeVisible();
+    const view = await current(page);
+    expect(view.execution.accounting_complete).toBe(false);
+    expect(view.execution.cost_complete).toBe(false);
+    expect(view.execution.unresolved_runs).toHaveLength(1);
+    expect(view.execution.remaining).toBeNull();
+    await expect(controls.getByText(/Operator recovery:/)).toBeVisible();
+    await expect(controls.getByText(/Organization:/)).toBeVisible();
+    for (const width of [390, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      expect(
+        await page.evaluate(
+          () =>
+            document.documentElement.scrollWidth ===
+            document.documentElement.clientWidth,
+        ),
+      ).toBe(true);
+      await expect(
+        controls.getByText(/remaining allowance unknown/),
+      ).toBeVisible();
+    }
+    const script = `
+import json,sys,subprocess
+from pathlib import Path
+root=Path(sys.argv[1]);run=sys.argv[2]
+import sqlite3
+with sqlite3.connect(root/'conversations.sqlite') as db:
+    scope=db.execute('SELECT organization FROM runs WHERE id=?',(run,)).fetchone()[0]
+prefix=[sys.executable,'-m','acquisition','--db',str(root/'conversations.sqlite'),'--organization',scope]
+items=json.loads(subprocess.check_output(prefix+['execution-unresolved'],text=True))
+item=next(i for i in items if i['run_id']==run)
+subprocess.check_call(prefix+['execution-resolve-independent','--run',run,'--request-id','browser-attestation','--fingerprint',item['fingerprint'],'--actor','local-operator','--reason','Operator verified independent CLI experiment.'],stdout=subprocess.DEVNULL)
+`;
+    execFileSync(
+      "python3",
+      ["-c", script, root, view.execution.unresolved_runs[0]],
+      {
+        cwd: fileURLToPath(new URL("../..", import.meta.url)),
+        env: { ...process.env, PYTHONPATH: "src:tests" },
+      },
+    );
+    await page.reload();
+    await expect(controls.getByText(/remaining allowance unknown/)).toHaveCount(
+      0,
+    );
+    await expect(
+      controls.getByText(
+        new RegExp(`${view.execution.limit - view.execution.used} remaining`),
+      ),
+    ).toBeVisible();
+    const recovered = await current(page);
+    expect(recovered.execution.accounting_complete).toBe(true);
+    expect(recovered.execution.used).toBe(view.execution.used);
+  });
+});
+
+test("blocked checkpoint recovery stays visible and polling completes after authority is restored", async ({
+  page,
+}) => {
+  await workspace("disabled-checkpoint", async (url, root) => {
+    await page.goto(url);
+    await page
+      .getByRole("button", { name: "Copy campaign", exact: true })
+      .click();
+    const progress = page.getByRole("region", {
+      name: "Campaign preparation progress",
+    });
+    await expect(progress).toContainText("Restore a permitted local operator");
+    await expect(
+      page.getByRole("button", { name: /Review campaign/ }),
+    ).toHaveCount(0);
+    const value = await current(page),
+      before = value.execution.used;
+    execFileSync(
+      "python3",
+      [
+        "-c",
+        `
+import sys
+from acquisition.workspace import Workspace
+w=Workspace(sys.argv[1],real_clock=lambda:1793404800.)
+s=w._session(w.conversation(sys.argv[2])['campaigns'][0]['session_id'])
+w._app(s).reviews.store.register_actor(s['organization'],'local-operator',('operator',),True)
+`,
+        root,
+        value.id,
+      ],
+      {
+        env: { ...process.env, PYTHONPATH: "src:tests" },
+        cwd: fileURLToPath(new URL("../..", import.meta.url)),
+      },
+    );
+    await expect(
+      page.getByRole("button", { name: /Review campaign/ }),
+    ).toBeVisible();
+    await expect(progress).toContainText("Ready for your review");
+    expect((await current(page)).execution.used).toBe(before);
+    const state = await backend(
+      page,
+      `/api/sessions/${value.campaigns[0].session_id}`,
+    );
+    expect(state.review.approval_valid).toBe(false);
+    expect(state.review.handoff).toBeNull();
+  });
+});
+
+test("stopping an active revision reconciles a lost response and retains accounting", async ({
+  page,
+}) => {
+  await workspace("delayed", async (url) => {
+    await open(page, url);
+    await ask(page, "Make variant B more direct.");
+    await consent(page).check();
+    await generate(page).click();
+    await expect
+      .poll(async () => (await current(page)).execution.counts.in_progress)
+      .toBe(1);
+    const before = (await current(page)).execution.used;
+    const attempts = [];
+    await page.route("**/api/conversations/*/stop", async (route) => {
+      attempts.push(route.request().postDataJSON());
+      await route.fetch();
+      await route.abort("failed");
+    });
+    await page.getByRole("button", { name: "Stop work", exact: true }).click();
+    const controls = page.getByRole("region", { name: "Execution controls" });
+    await expect(controls).toContainText("Work stopped");
+    await expect(controls).toContainText("may still return after stopping");
+    await expect
+      .poll(async () => (await current(page)).execution.pending_receipts)
+      .toBe(0);
+    await page.reload();
+    await expect(controls).toContainText("Work stopped");
+    expect(attempts).toHaveLength(1);
+    expect((await current(page)).execution.used).toBe(before);
+    await expect(ready(page)).toHaveCount(0);
+    for (const width of [390, 320]) {
+      await page.setViewportSize({ width, height: 844 });
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+      ).toBe(await page.evaluate(() => document.documentElement.clientWidth));
+    }
+    await controls.getByText("Inspect model usage", { exact: true }).click();
+    await expect(controls).toContainText("not a verified bill");
+    await page.screenshot({
+      path: "../.local/execution-controls-mobile.png",
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.screenshot({
+      path: "../.local/execution-controls-desktop.png",
+      fullPage: true,
+    });
+  });
+});
+
+test("a new brief after stopping keeps the shared allowance and needs a new audience", async ({
+  page,
+}) => {
+  await workspace("delayed", async (url) => {
+    await open(page, url);
+    await ask(page, "Make variant B more direct.");
+    await consent(page).check();
+    await generate(page).click();
+    await expect
+      .poll(async () => (await current(page)).execution.counts.in_progress)
+      .toBe(1);
+    await page.getByRole("button", { name: "Stop work", exact: true }).click();
+    await expect
+      .poll(async () => (await current(page)).execution.pending_receipts)
+      .toBe(0);
+    const before = (await current(page)).execution.used;
+    await page.reload();
+    await expect(page.getByLabel("Message Direct Acquisition")).toBeEnabled();
+    await page
+      .getByLabel("Allow model copy for this request", { exact: true })
+      .check();
+    await ask(page, "Prepare a £600 contractor campaign with model copy.");
+    await expect.poll(async () => (await current(page)).revision).toBe(2);
+    await expect
+      .poll(async () => (await current(page)).preparations.at(-1).status)
+      .toBe("selecting_audience");
+    const value = await current(page);
+    expect(value.execution.stopped).toBe(false);
+    expect(value.execution.used).toBeGreaterThan(before);
+    expect(value.execution.limit).toBe(48);
+    expect(value.messages).toHaveLength(2);
+    expect(value.actions).toHaveLength(1);
+    expect(value.preparations.at(-1).audience_selection).toBeNull();
   });
 });
 

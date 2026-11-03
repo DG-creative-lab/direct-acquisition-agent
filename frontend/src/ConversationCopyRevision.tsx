@@ -68,13 +68,15 @@ export default function ConversationCopyRevision<T>({
               ? "Revised copy is ready for a new review. Approval has not been granted."
               : progress?.status === "uncertain"
                 ? "The revision provider outcome is uncertain and may have been charged. Inspect the original run before requesting another revision."
-                : progress?.status === "blocked"
-                  ? progress.block?.detail
-                  : ["failed", "cancelled", "stale"].includes(
-                        progress?.status ?? "",
-                      )
-                    ? "The saved revision has stopped. Inspect its original run and current evidence before continuing."
-                    : "Your copy edit is saved. Preparing and validating the revised draft."}
+                : progress?.status === "budget_exhausted"
+                  ? "The shared model-call allowance is exhausted. Inspect usage or start a new conversation."
+                  : progress?.status === "blocked"
+                    ? progress.block?.detail
+                    : ["failed", "cancelled", "stale"].includes(
+                          progress?.status ?? "",
+                        )
+                      ? "The saved revision has stopped. Inspect its original run and current evidence before continuing."
+                      : "Your copy edit is saved. Preparing and validating the revised draft."}
           </p>
           {progress?.status === "complete" &&
             action.confirmed?.session_id &&

@@ -63,6 +63,7 @@ The workspace's **Knowledge** view shows advisory campaign playbooks, the baseli
 | Understand the product and demonstrated scope | [Product overview](docs/product.md) |
 | Walk through campaign, review and learning | [User guide](docs/user-guide.md) |
 | Ask inspection questions or confirm brief amendments | [Conversational follow-ups](docs/conversational-actions.md) |
+| Inspect usage or stop pending conversation work | [Execution controls](docs/execution-controls.md) |
 | Use persistent conversations and the brief planner | [Conversation planning](docs/conversations.md) |
 | Understand modules, state and transactions | [Architecture](docs/architecture.md) |
 | Assess a path to hosted operation and scale | [Scalability](docs/scalability.md) |

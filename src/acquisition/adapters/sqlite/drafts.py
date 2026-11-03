@@ -9,6 +9,7 @@ from acquisition.contracts import Conflict, NotFound, canonical
 
 from .database import Database
 from .conversation_provenance import require_current_conversation
+from .execution import require_brief_active
 
 
 def verify(organization: str, draft: Draft) -> None:
@@ -29,6 +30,7 @@ class SqliteDrafts:
     def put(self, organization: str, operation_id: str, draft: Draft) -> str:
         verify(organization, draft)
         with self.database.transaction() as connection:
+            require_brief_active(connection, organization, draft.manifest['brief'])
             require_current_conversation(connection, draft.manifest["brief"])
             require_selected_audience(connection, organization, draft.manifest["brief"], draft.manifest["snapshot_id"], self.clock())
             require_followup(connection, organization, draft.manifest, draft.id)

@@ -23,6 +23,7 @@ import ConversationActions, {
   type ConversationAction,
 } from "./ConversationActions";
 import ConversationCampaignReview from "./ConversationCampaignReview";
+import ConversationExecution, { type Execution } from "./ConversationExecution";
 
 type Brief = {
   id: string;
@@ -74,6 +75,7 @@ type AudienceSelection = {
   source: AudienceCandidate;
 };
 type Preparation = {
+  checkpoint_recovery?: { code: string; detail: string };
   id: string;
   request_id: string;
   inputs: {
@@ -130,6 +132,7 @@ const activePreparation = (status: string) =>
   ["admitting", "planning", "selecting_audience", "preparing"].includes(status);
 
 type Conversation = {
+  execution?: Execution;
   actions?: ConversationAction[];
   preparations?: Preparation[];
   id: string;
@@ -293,7 +296,10 @@ export default function ConversationWorkspace({
   }, [preparedCampaigns, onCampaignsChanged]);
 
   const preparing =
-    (conversation?.preparations?.some((p) => activePreparation(p.status)) ??
+    (conversation?.execution?.pending_receipts ?? 0) > 0 ||
+    (conversation?.preparations?.some(
+      (p) => activePreparation(p.status) || !!p.checkpoint_recovery,
+    ) ??
       false) ||
     (conversation?.actions?.some(
       (a) =>
@@ -406,7 +412,7 @@ export default function ConversationWorkspace({
         expected_revision: current.revision,
         content: message.trim(),
         allow_model_copy: allowModelCopy,
-        route: current.revision > 0,
+        route: current.revision > 0 && !current.execution?.stopped,
       };
       if (pending.conversationId !== current.id)
         throw new Error(
@@ -662,6 +668,21 @@ export default function ConversationWorkspace({
           </div>
         )}
         <div className="conversation-thread" aria-live="polite">
+          {conversation?.execution && conversation.revision > 0 && (
+            <ConversationExecution<Conversation>
+              key={conversation.id}
+              id={conversation.id}
+              revision={conversation.revision}
+              execution={conversation.execution}
+              active={
+                preparing ||
+                !!conversation.preparations?.some(
+                  (p) => p.current && p.status === "blocked",
+                )
+              }
+              onChanged={accept}
+            />
+          )}
           {conversation?.messages.map((item) => {
             const plan = conversation.plans.find(
               (p) => p.revision === item.revision,
@@ -901,7 +922,12 @@ export default function ConversationWorkspace({
                     (a) => a.revision === item.revision,
                   )}
                   conversationId={conversation.id}
-                  disabled={!!busy || !!pendingMessage}
+                  disabled={
+                    !!busy ||
+                    !!pendingMessage ||
+                    !!conversation.execution?.stopped ||
+                    conversation.execution?.remaining === 0
+                  }
                   onChanged={accept}
                   onReview={(sessionId) => {
                     setReviewing(sessionId);
@@ -1034,6 +1060,8 @@ function PreparationProgress({ preparation }: { preparation: Preparation }) {
     uncertain: "Provider outcome is uncertain",
     failed: "Preparation failed",
     blocked: "Preparation needs attention",
+    cancelled: "Preparation stopped",
+    budget_exhausted: "Model-call allowance exhausted",
   };
   const taskLabels: Record<string, string> = {
     queued: "Queued",

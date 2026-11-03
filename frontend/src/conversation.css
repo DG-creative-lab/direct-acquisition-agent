@@ -553,3 +553,39 @@
   min-height: 44px;
   margin-block: 16px;
 }
+.conversation-execution {
+  border-bottom: 1px solid var(--brand-rule);
+  padding: 16px 0;
+  margin-bottom: 24px;
+  overflow-wrap: anywhere;
+}
+.execution-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.execution-summary p {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+.conversation-execution p {
+  font-size: 13px;
+}
+.conversation-execution summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+.conversation-execution pre {
+  max-width: 100%;
+  overflow: auto;
+}
+@media (max-width: 480px) {
+  .execution-summary {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+}

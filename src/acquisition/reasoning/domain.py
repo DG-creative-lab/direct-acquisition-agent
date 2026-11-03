@@ -30,7 +30,7 @@ class ModelConfig:
     force_tool_choice: bool = False
 
     def __post_init__(self) -> None:
-        if not self.model or len(self.model) > 160 or any(c.isspace() for c in self.model):
+        if type(self.model) is not str or not self.model or len(self.model) > 160 or any(c.isspace() for c in self.model):
             raise ValueError("Select an explicit model ID")
         if type(self.force_tool_choice) is not bool:
             raise ValueError("Tool-choice configuration must be boolean")

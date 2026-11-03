@@ -4,6 +4,7 @@ from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.conversations import ACTION_CAPABILITY, identity, revision_number, text, validate_action
 from .conversations import scoped_conversation, append_message
 from .tasks import finite_time
+from .execution import require_active
 
 
 class SqliteConversationActions:
@@ -47,6 +48,8 @@ class SqliteConversationActions:
                 return value
             if conversation['revision']!=frozen['inputs']['revision']:
                 raise Conflict('The brief changed before this action was saved')
+            if not frozen['alias']:
+                require_active(db,organization,conversation_id,frozen['inputs']['revision'])
             target=frozen['context']['target']
             if target['conversation_id']!=conversation_id or target['revision']!=conversation['revision']:
                 raise Conflict('Action context targets another brief')

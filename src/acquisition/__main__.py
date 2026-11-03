@@ -32,6 +32,10 @@ def main() -> None:
     work = commands.add_parser("work")
     work.add_argument("--max-tasks", type=int, default=20)
     commands.add_parser("models", help="List inexpensive tool-capable models from the live public catalogue")
+    commands.add_parser("execution-unresolved", help="Inspect quarantined legacy runs before operator reconciliation")
+    resolve=commands.add_parser("execution-resolve-independent", help="Attest that an inspected legacy run is independent of conversations")
+    for field in ('run','request-id','fingerprint','actor','reason'):
+        resolve.add_argument('--'+field,required=True)
     remember = commands.add_parser("remember", help="Store a local reviewer preference, not outcome evidence")
     for field in ("segment", "preferred", "avoid", "reason"):
         remember.add_argument("--" + field, required=True)
@@ -58,7 +62,11 @@ def main() -> None:
         config = ModelConfig(model, max_calls=args.model_max_calls, force_tool_choice=force_tools) if model else None
         app = build(args.db, gateway=gateway, model_config=config)
         scope = args.organization
-        if args.command.startswith("learning-"):
+        if args.command=='execution-unresolved':
+            result=app.execution.unresolved(scope)
+        elif args.command=='execution-resolve-independent':
+            result=app.execution.resolve_independent(scope,args.request_id,args.run,args.fingerprint,args.actor,args.reason)
+        elif args.command.startswith("learning-"):
             result = learning_command(app, args)
         elif args.command.startswith("review-") or args.command == "demo-review":
             result = review_command(app, args)

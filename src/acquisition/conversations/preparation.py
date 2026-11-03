@@ -63,22 +63,30 @@ class PreparationCoordinator:
             # work discoverable, rather than converting it to a terminal failure.
             if row["status"] == "admitting":
                 source = self.host.preparation_source(organization, inputs["conversation_id"])
+                if inputs["revision"] <= source.get("execution",{}).get("stopped_through",0):
+                    return self.store.update(organization, row, "cancelled", "Stopped by you. Send a new brief to start new work.")
                 if source["revision"] != inputs["revision"]:
                     return self._stale(organization, row)
                 try:
                     return self._admit_plan(organization, row)
                 except (Conflict, ValueError, ModelError):
                     source = self.host.preparation_source(organization, inputs["conversation_id"])
+                    if inputs["revision"] <= source.get("execution",{}).get("stopped_through",0):
+                        return self.store.update(organization, row, "cancelled", "Stopped by you. Send a new brief to start new work.")
                     if source["revision"] != inputs["revision"]:
                         return self._stale(organization, row)
                     return self.store.update(organization, row, "blocked", "Planning admission stopped. Inspect the original inputs and server configuration.")
             try:
                 source = self.host.preparation_source(organization, inputs["conversation_id"])
+                if inputs["revision"] <= source.get("execution",{}).get("stopped_through",0):
+                    return self.store.update(organization, row, "cancelled", "Stopped by you. Send a new brief to start new work.")
                 if source["revision"] != inputs["revision"]:
                     return self._stale(organization, row)
                 if row["status"] == "planning":
                     state = self.host.step_preparation_plan(organization, row)
                     source = self.host.preparation_source(organization, inputs["conversation_id"])
+                    if inputs["revision"] <= source.get("execution",{}).get("stopped_through",0):
+                        return self.store.update(organization, row, "cancelled", "Stopped by you. Send a new brief to start new work.")
                     if source["revision"] != inputs["revision"]:
                         return self._stale(organization, row)
                     plan = source["current_plan"]
@@ -102,6 +110,8 @@ class PreparationCoordinator:
                     return self.store.update(organization, row, "preparing", None)
                 campaign = self.host.step_preparation_campaign(organization, row, plan["result"])
                 source = self.host.preparation_source(organization, inputs["conversation_id"])
+                if inputs["revision"] <= source.get("execution",{}).get("stopped_through",0):
+                    return self.store.update(organization, row, "cancelled", "Stopped by you. Send a new brief to start new work.")
                 if source["revision"] != inputs["revision"]:
                     return self._stale(organization, row)
                 if campaign["review"]:
@@ -116,6 +126,8 @@ class PreparationCoordinator:
                 # Domain/runtime records own diagnostic evidence. Never persist raw
                 # provider exceptions, credentials or untrusted response bodies here.
                 source = self.host.preparation_source(organization, inputs["conversation_id"])
+                if inputs["revision"] <= source.get("execution",{}).get("stopped_through",0):
+                    return self.store.update(organization, row, "cancelled", "Stopped by you. Send a new brief to start new work.")
                 if source["revision"] != inputs["revision"]:
                     return self._stale(organization, row)
                 generation = self.host.preparation_generation(organization, row)
@@ -142,6 +154,9 @@ class PreparationCoordinator:
             if row["status"] not in ACTIVE_PREPARATION:
                 continue
             source = self.host.preparation_source(organization, row["inputs"]["conversation_id"])
+            if row['inputs']['revision'] <= source.get('execution',{}).get('stopped_through',0):
+                self.store.update(organization,row,'cancelled','Stopped by you. Send a new brief to start new work.')
+                continue
             if source["revision"] != row["inputs"]["revision"]:
                 self._stale(organization, row)
                 continue
