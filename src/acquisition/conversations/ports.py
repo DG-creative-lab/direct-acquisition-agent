@@ -1,16 +1,22 @@
 from typing import Protocol
 from collections.abc import Callable
 from .admission import AdmissionIntent, AdmissionReceipt
+from acquisition.reasoning import ModelConfig
 
 
 class AdmissionStore(Protocol):
-    """Inactive v1 port until the atomic adapter and every caller are ready.
+    """Execution stays paused until every caller and effect fence is ready.
 
     admit verifies authoritative sources/consent/parent and operation uniqueness,
     then commits intent, ownership, tasks and receipt in one transaction. A
     cached receipt observes admission; workers recheck current authorization.
     """
+    def request_planning(self, organization: str, conversation_id: str, request_id: str, revision: int,
+                         context: dict, *, fixture: bool, allow_model: bool,
+                         model_config: ModelConfig | None = None) -> AdmissionIntent: ...
     def admit(self, intent: AdmissionIntent, now: float) -> AdmissionReceipt: ...
+    def get_request(self, organization: str, request_id: str) -> AdmissionIntent | None: ...
+    def pending_requests(self, organization: str) -> list[AdmissionIntent]: ...
     def find_request(self, organization: str, request_id: str) -> AdmissionReceipt | None: ...
     def get(self, organization: str, admission_id: str) -> AdmissionIntent: ...
 

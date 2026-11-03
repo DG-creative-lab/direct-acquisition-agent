@@ -12,10 +12,12 @@ from acquisition.contracts import Conflict, canonical, digest
 from acquisition.reasoning import ModelConfig
 from acquisition.runtime import TaskSpec
 
-from .domain import identity, text
+from .domain import identity, text, CAPABILITY, FIXTURE_CAPABILITY
 
 
 ADMISSION_SCHEMA = 'execution-admission/v1'
+PLANNING_ADMISSION = 'conversation-planning/v1'
+FIXTURE_PLANNING_ADMISSION = 'conversation-fixture-planning/v1'
 MAX_TASK_PLAN_BYTES = 1_048_576
 
 
@@ -158,3 +160,72 @@ class AdmissionReceipt:
             finite=False
         if not finite:
             raise ValueError('Admission timestamps must be finite numbers')
+
+
+def planning_permission(fixture, allow_model, config):
+    if type(fixture) is not bool or type(allow_model) is not bool:
+        raise ValueError('Use explicit planning generation decisions')
+    if fixture:
+        if allow_model or config is not None:raise ValueError('Fixture planning cannot grant model consent')
+    elif not allow_model or type(config) is not ModelConfig or config.max_calls>2 or not config.force_tool_choice:
+        raise ValueError('Explicitly allow bounded planner settings before saving model intent')
+
+
+def planning_capacity(revision, prior, staged, own_request=None):
+    """Facts must be loaded by the persistence port under its admission lock."""
+    if own_request is not None and any(r['request_id']==own_request for r in prior):
+        raise Conflict('A legacy planning admission already owns this request key')
+    if any(r['revision']==revision and r['request_id']!=own_request for r in list(prior)+list(staged)):
+        raise Conflict('This revision already has a planning request')
+    if any(r['revision']==revision for r in prior):
+        raise Conflict('This revision already has a legacy planning admission')
+    revisions={r['revision'] for r in list(prior)+list(staged)}
+    if revision not in revisions and len(revisions)>=6:raise ValueError('Conversation planning budget exhausted')
+
+
+def planning_intent(organization, request_id, source, context, history, *, fixture, allow_model, config):
+    """Build from independently loaded source facts, never model-owned identity."""
+    planning_permission(fixture,allow_model,config)
+    if source['organization']!=organization:raise Conflict('Planning source belongs to another organization')
+    allowed={'knowledge','knowledge_id','model_config','previous_results','fixture','messages','confirmed_action_exchanges'}
+    if type(context) is not dict or set(context)-allowed:raise ValueError('Unsupported planning context fields')
+    if context.get('model_config')!=(asdict(config) if config else None):
+        raise Conflict('Planning context and permitted model settings differ')
+    if context.get('previous_results')!=([] if fixture else history):
+        raise Conflict('Planning history differs from authoritative results')
+    if 'messages' in context and context['messages']!=source['messages']:
+        raise Conflict('Planning messages differ from the current source')
+    if context.get('confirmed_action_exchanges',[])!=source['confirmed_action_exchanges']:
+        raise Conflict('Planning clarification exchanges differ from the current source')
+    if ((fixture and context.get('fixture')!='offline-example/v1') or (not fixture and 'fixture' in context)):
+        raise Conflict('Planning mode differs from its frozen context')
+    conversation_id=source['conversation_id'];revision=source['revision']
+    admission_id='admission_'+digest({'organization':organization,'request_id':request_id})
+    frozen=context|{'conversation_id':conversation_id,'revision':revision,'request_id':request_id,
+        'messages':source['messages'],'run_request_id':'conversation-plan:'+digest({'conversation':conversation_id,'request':request_id}),
+        'execution_admission_id':admission_id}
+    if source['confirmed_action_exchanges']:frozen['confirmed_action_exchanges']=source['confirmed_action_exchanges']
+    context_hash=digest(frozen)
+    consent_id=None if fixture else 'consent_'+digest({'organization':organization,'request':request_id,'context':context_hash})
+    return AdmissionIntent.from_tasks(organization=organization,request_id=request_id,
+        workflow_version=FIXTURE_PLANNING_ADMISSION if fixture else PLANNING_ADMISSION,
+        ownership=ExecutionOwnership('conversation',organization,conversation_id,revision),
+        source_id=conversation_id,source_fingerprint=digest(source),context_fingerprint=context_hash,
+        tasks=[TaskSpec(FIXTURE_CAPABILITY if fixture else CAPABILITY,frozen)],consent_id=consent_id,model_config=config)
+
+
+def planning_binding(intent, expected, source):
+    if intent!=expected:raise Conflict('Admission differs from its verified request or generation consent')
+    if intent.workflow_version not in {PLANNING_ADMISSION,FIXTURE_PLANNING_ADMISSION}:
+        raise ValueError('This admission adapter supports planning only')
+    owner=intent.ownership
+    if (owner.kind!='conversation' or owner.organization!=intent.organization or
+        owner.scope_id!=intent.source_id or intent.parent_run_id is not None):
+        raise Conflict('Planning requires its own scoped conversation source, without a parent run')
+    if digest(source)!=intent.source_fingerprint:raise Conflict('Admission source changed after consent')
+    fixture=intent.workflow_version==FIXTURE_PLANNING_ADMISSION
+    specs=intent.tasks
+    if (len(specs)!=1 or specs[0].capability!=(FIXTURE_CAPABILITY if fixture else CAPABILITY) or
+        digest(specs[0].inputs)!=intent.context_fingerprint or (intent.model_config is None)!=fixture):
+        raise Conflict('Registered planning task, context or model requirements differ')
+    return fixture

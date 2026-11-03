@@ -5,12 +5,12 @@ The design covers admission, inference, cancellation and recovery across the
 workspace, CLI and direct workers. It preserves the modular monolith and the
 existing campaign, review and learning boundaries.
 
-**Implementation status:** the first slice supplies versioned values, a storage
-port and executable baseline tests. The port has no adapter and no active
-caller. No schema, inference dispatch or approval behavior changes in this
-slice. The remaining work below is a migration plan, not a product capability.
-The branch includes execution-controls checkpoint `9bc0e8d`. Its controls and
-this contract slice are reviewed together against main.
+**Implementation status:** versioned values and the first paused SQLite adapter
+are implemented. Schema 11 supports model and fixture planning admission. No
+workspace, HTTP or CLI caller uses this adapter, and new-format tasks cannot be
+claimed or reserve inference. Atomic admission is separate from activation.
+Other workflow admissions, the entry-point cutover and projection rebuild remain
+planned work. Approval and campaign acceptance still use the existing controls.
 
 ## Evidence and decision
 
@@ -75,7 +75,7 @@ to a different store.
 ## First contract
 
 The public `conversations` API now exports `ExecutionOwnership`, `AdmissionIntent`,
-`AdmissionReceipt`, `ADMISSION_SCHEMA` and the inactive `AdmissionStore` port.
+`AdmissionReceipt`, `ADMISSION_SCHEMA` and the `AdmissionStore` port.
 
 `ExecutionOwnership` explicitly declares either a conversation account and its
 original revision, or a standalone root lineage. Missing ownership is invalid.
@@ -109,6 +109,67 @@ already admitted generation. It must commit verified intent, owner, runtime task
 and receipt together. `find_request` observes the original scoped request;
 `get` returns its immutable intent. A receipt observes admission, not current
 execution permission. Workers still recheck current conditions at each effect.
+
+## Paused SQLite adapter
+
+`build_admissions(path, clock)` is the explicit composition entry point for the
+new storage API. It has no provider client and is not registered as a model tool
+or exposed by a transport. It uses the existing planner's scoped asset validation,
+fixture checks and complete request-envelope preflight.
+The conversation module owns the pure permission, capacity, intent-construction
+and binding rules. SQLite loads their facts and persists their result under its
+transaction; neither the runtime core nor the transport owns those policies.
+
+`request_planning` records an explicit server-resolved user command. It requires
+a real current conversation/revision, its stored messages and clarification
+exchanges, the actual previous planning results, frozen versioned guidance and
+an explicit fixture/model choice. Model planning requires consent and matching
+bounded settings; declaring a model mode without consent is invalid. The saved
+request binds the original command inputs, source bytes, canonical task plan and
+generation decision. It is non-executable and contains no runtime task. Saving
+the same exact request observes its original frozen intent; changed inputs
+conflict. A new request key cannot repeat the same revision.
+Scoped `get_request` and `pending_requests` reads recover these frozen inputs
+without the original browser, current catalogue or caller-held context. They
+observe saved intent and never admit or activate work on their own.
+
+The immutable request also reserves its explicit runtime request key in that
+same transaction. Shared SQLite run insertion looks up this reservation and
+requires the exact saved owner binding and task plan from the admission path.
+Campaign, model-campaign and generic task creation cannot occupy that key while
+the request is staged. A failed staging transaction leaves no reservation.
+Admission retains the reservation as immutable history; matching receipt replay
+observes the original run. No extra journal or schema version is required.
+
+`admit` loads that saved request and its consent under the write lock. Supplied
+fingerprints or consent IDs cannot replace it. It rechecks current revision,
+the stop fence, exact source bytes, registered planning capability/mode and
+frozen scoped assets before writing. One transaction creates the run, task,
+explicit execution-account link, planning record, immutable admission receipt
+and audit. Both admission journals reject updates and deletion. A failure before
+commit leaves only the earlier non-executable request, which is discoverable by
+its original identity and can be admitted again safely. After commit, request
+lookup observes the original receipt even after stopping, without new work.
+
+The initial installed workflows are `conversation-planning/v1` and
+`conversation-fixture-planning/v1`. They have one registered planning task and
+an explicit conversation owner. Standalone, descendant, campaign-generation,
+routing and copy-revision admissions are not yet installed in this adapter;
+they cannot be smuggled into a planning task by changing the proposed metadata.
+Positive child/standalone admission and their source policies remain part of
+the later cutover. Existing legacy readers and operating paths remain available.
+
+Both staged and existing planning records count toward the conversation's six
+planning requests. The legacy planning service refuses a revision already saved
+through the new API and includes staged revisions in its limit. These guards
+avoid duplicating an operation through the two service paths. They do not claim
+that every old raw-task writer has been converted; that is the next slice.
+
+Every new task carries an explicit admission-format marker. Claim and reservation
+both reject these paused tasks, including after process restart or if the
+admission row is missing. There is no activation toggle in this implementation.
+Admission receipt reads verify the stored request, task plan, run and ownership
+from one read snapshot; they never perform current approval or dispatch decisions.
 
 ## Transitions and commit boundaries
 
@@ -147,7 +208,7 @@ or automatic retry of uncertain provider requests.
 | Workspace backup is stale, partial, recreated or unrelated | It cannot prove complete ancestry or authorize independence |
 | Authoritative database is rolled back to an old backup | Historical inspection only until deliberate reconciliation. Calls/effects after that checkpoint may be unknown; never reset allowance and automatically resume |
 
-Projection rebuild is a target acceptance gate, not supported by this first slice.
+Projection rebuild is a target acceptance gate and is not implemented yet.
 Until the migration is implemented, keep the current conservative recovery and
 journal checks. A database or journal ID proves identity, not completeness.
 Migration must be explicit, restartable and auditable, with an inventory of
@@ -161,15 +222,16 @@ transparent recovery from arbitrary partial backups is promised.
 
 ## Implementation sequence and acceptance gates
 
-1. **Ownership contract and baseline, this slice.** Freeze the inventory above,
+1. **Ownership contract and baseline, implemented.** Freeze the inventory above,
    expose versioned immutable values and an inactive port, and compare the
    current reservation boundary with an independent transition oracle.
-2. **Atomic admission adapter.** Add module-owned authoritative intent, consent,
+2. **Atomic admission adapter, paused planning implemented.** Add module-owned authoritative intent, consent,
    parentage and scoped mappings alongside tasks/calls. Verify source facts and
    capability requirements in one transaction. Keep production callers on the
    old path until complete cutover is possible. Tests must inject failure after
    each insert and before commit, and prove exact replay and competing-key
-   uniqueness across real SQLite connections and process restart.
+   uniqueness across real SQLite connections and process restart. Other
+   workflow source policies must be installed before those writers can switch.
 3. **All entry points and effect fences.** Switch chat preparation, planning,
    routing, native revisions, CLI creation, manual children and direct workers.
    An explicit schema/capability gate must prevent old writers creating new work
@@ -200,9 +262,11 @@ The first slice's reference oracle fixes two accounts, three active runs and two
 slots per account independently of production origin resolution. It explores all
 49 pairs of a seven-action alphabet, longer traces for last-slot exhaustion,
 recorded replay and late/unknown observations, and a fresh Python process. This
-is a bounded reservation baseline. Atomic admission, full workspace rebuild,
-migration and alternate-writer cutover remain unproven until their later slices.
+is a bounded reservation baseline. Separate admission tests now cover paused
+planning's atomic writes, scoped consent, concurrent admission and real crashes.
+Full workspace rebuild, legacy activation and alternate-writer cutover remain
+unproven until their later slices.
 
 No generic repository, service locator, event bus, new orchestration framework or
-microservice split is introduced. The next reviewable change is the atomic
-admission adapter, not new marketing features.
+microservice split is introduced. The next reviewable change is the entry-point
+cutover with its remaining workflow source policies, not new marketing features.

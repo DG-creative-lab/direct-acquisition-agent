@@ -14,7 +14,7 @@ from dataclasses import asdict, replace
 from pathlib import Path
 from unittest.mock import patch
 
-from acquisition.adapters.sqlite.database import CONVERSATIONS, AUDIENCE_SELECTIONS, CONVERSATION_ACTIONS, EXECUTION, EXECUTION_RECOVERY, Database
+from acquisition.adapters.sqlite.database import CONVERSATIONS, AUDIENCE_SELECTIONS, CONVERSATION_ACTIONS, EXECUTION, EXECUTION_RECOVERY, ATOMIC_ADMISSIONS, Database
 from acquisition.bootstrap import build
 from acquisition.contracts import Conflict, NotFound
 from acquisition.conversations import CAPABILITY, explicit_budget, validate_result
@@ -413,9 +413,9 @@ class ConversationMigrationAndCliTests(unittest.TestCase):
             path = Path(temporary) / "old.sqlite"
             original = Database._apply_migration
             def skip(db, script):
-                if script not in {CONVERSATIONS, AUDIENCE_SELECTIONS, CONVERSATION_ACTIONS, EXECUTION, EXECUTION_RECOVERY}:
+                if script not in {CONVERSATIONS, AUDIENCE_SELECTIONS, CONVERSATION_ACTIONS, EXECUTION, EXECUTION_RECOVERY, ATOMIC_ADMISSIONS}:
                     original(db, script)
-            with patch.object(Database, "_apply_migration", side_effect=skip), patch.object(Database, "_validate_conversation_schema"), patch.object(Database, "_validate_audience_selection_schema"), patch.object(Database, "_validate_action_schema"), patch.object(Database, "_initialize_execution_schema"), patch.object(Database, "_initialize_execution_recovery_schema"):
+            with patch.object(Database, "_apply_migration", side_effect=skip), patch.object(Database, "_validate_conversation_schema"), patch.object(Database, "_validate_audience_selection_schema"), patch.object(Database, "_validate_action_schema"), patch.object(Database, "_initialize_execution_schema"), patch.object(Database, "_initialize_execution_recovery_schema"), patch.object(Database, "_validate_admission_schema"):
                 old = Database(path)
             with old.connect() as db:
                 self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 5)
@@ -436,7 +436,7 @@ class ConversationMigrationAndCliTests(unittest.TestCase):
                 self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 5)
                 self.assertIsNone(db.execute("SELECT name FROM sqlite_master WHERE name='conversations'").fetchone())
             with Database(path).connect() as db:
-                self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 10)
+                self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 11)
                 self.assertEqual(db.execute("SELECT generation FROM review_actors").fetchone()[0], 9)
                 self.assertEqual([tuple(r) for r in db.execute("SELECT * FROM legacy_task_admissions")], cutoff)
 
@@ -445,9 +445,9 @@ class ConversationMigrationAndCliTests(unittest.TestCase):
             path = Path(temporary) / "old.sqlite"
             original = Database._apply_migration
             def skip(db, script):
-                if script not in {CONVERSATIONS, AUDIENCE_SELECTIONS, CONVERSATION_ACTIONS, EXECUTION, EXECUTION_RECOVERY}:
+                if script not in {CONVERSATIONS, AUDIENCE_SELECTIONS, CONVERSATION_ACTIONS, EXECUTION, EXECUTION_RECOVERY, ATOMIC_ADMISSIONS}:
                     original(db, script)
-            with patch.object(Database, "_apply_migration", side_effect=skip), patch.object(Database, "_validate_conversation_schema"), patch.object(Database, "_validate_audience_selection_schema"), patch.object(Database, "_validate_action_schema"), patch.object(Database, "_initialize_execution_schema"), patch.object(Database, "_initialize_execution_recovery_schema"):
+            with patch.object(Database, "_apply_migration", side_effect=skip), patch.object(Database, "_validate_conversation_schema"), patch.object(Database, "_validate_audience_selection_schema"), patch.object(Database, "_validate_action_schema"), patch.object(Database, "_initialize_execution_schema"), patch.object(Database, "_initialize_execution_recovery_schema"), patch.object(Database, "_validate_admission_schema"):
                 old = Database(path)
             with old.connect() as db:
                 db.execute("CREATE TABLE conversations(broken TEXT)")

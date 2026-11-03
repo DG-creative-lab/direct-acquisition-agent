@@ -84,13 +84,17 @@ class ConversationPlanner:
             raise ModelError("configure_the_original_planner_before_resuming")
         self.inference.prepare_request(self.messages(frozen), [SUBMIT])
 
-    def fixture_plan(self, claim):
-        frozen = claim.inputs
-        validate_planning_assets(frozen, claim.organization)
+    @staticmethod
+    def preflight_fixture(frozen, organization):
+        validate_planning_assets(frozen, organization)
         if (frozen.get("fixture") != "offline-example/v1" or len(frozen.get("messages", [])) != 1
                 or frozen["messages"][0]["content"] != FIXTURE_MESSAGE
                 or frozen.get("knowledge_id") != "knowledge_" + digest(frozen["knowledge"])):
             raise ValueError("Offline example input does not match the frozen fixture")
+
+    def fixture_plan(self, claim):
+        frozen = claim.inputs
+        self.preflight_fixture(frozen,claim.organization)
         candidate = {"outcome": "brief_proposal", "objective": "Test direct-mail responses among UK contractors.",
                      "budget_pence": 60000, "segments": ["contractors"], "copy_mode": "fixture",
                      "question": "", "assumptions": ["Use synthetic audience data and offline copy fixtures."],

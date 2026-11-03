@@ -10,7 +10,7 @@ from acquisition.reasoning import CallScope, ModelError
 from acquisition.runtime import LeaseLost
 
 from .database import Database
-from .tasks import scoped_run
+from .tasks import scoped_run, admission_paused
 from .conversation_provenance import require_current_conversation
 from .selected_audience import require_selected_audience
 from .revision_provenance import require_revision_current
@@ -31,6 +31,8 @@ class SqliteCalls:
             if not math.isfinite(now):
                 raise LeaseLost("Inference requires a finite clock reading")
             run = scoped_run(connection, scope.organization, scope.run_id)
+            if admission_paused(connection,scope.organization,scope.run_id):
+                raise ModelError('execution_admission_paused_before_cutover')
             task = connection.execute("SELECT * FROM tasks WHERE id=? AND run_id=?", (scope.task_id, scope.run_id)).fetchone()
             if (task is None or run["status"] != "running" or task["status"] != "running"
                     or task["token"] != scope.lease_token or task["lease_until"] <= now):
