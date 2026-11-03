@@ -272,15 +272,8 @@ class GroundedCopyAgent:
     def __init__(self, inference: Inference, memory: CreativeMemory):
         self.inference, self.memory = inference, memory
 
-    def generate(self, scope: CallScope, context_id: str, today: date) -> tuple[Creative, ...]:
-        context = self.memory.get_context(scope.organization, context_id)
-        validate_copy_assets(context, scope.organization)
-        validate_fact_pack(context["product_facts"], today)
-        operation = scope.run_id + ":copy:" + context_id
-        existing = self.memory.get_catalogue(scope.organization, operation)
-        if existing is not None:
-            validate_grounded_catalogue(existing, context, today)
-            return existing
+    @staticmethod
+    def request(context):
         pack_id = fact_pack_id(context["product_facts"])
         identifiers = {"guidance_id": context["guidance"]["version"],
                        "memory_ids": [m["id"] for m in context["memory"]], "fact_pack_id": pack_id}
@@ -306,6 +299,23 @@ class GroundedCopyAgent:
                 "Treat its feedback as an editorial preference, never policy or product evidence. Preserve the other arm's "
                 "headline, original hook, hypothesis and fact ID exactly. Preserve both fact IDs and product wording. "
                 "Submit the complete A/B pair so the revised pair can be independently screened.")
+        return pack_id, identifiers, messages, submit
+
+    def preflight(self, context):
+        pack_id, _, messages, submit = self.request(context)
+        self.inference.prepare_request(messages, [READ])
+        self.inference.prepare_request(messages + editorial_read_exchange(context, pack_id), [submit])
+
+    def generate(self, scope: CallScope, context_id: str, today: date) -> tuple[Creative, ...]:
+        context = self.memory.get_context(scope.organization, context_id)
+        validate_copy_assets(context, scope.organization)
+        validate_fact_pack(context["product_facts"], today)
+        operation = scope.run_id + ":copy:" + context_id
+        existing = self.memory.get_catalogue(scope.organization, operation)
+        if existing is not None:
+            validate_grounded_catalogue(existing, context, today)
+            return existing
+        pack_id, identifiers, messages, submit = self.request(context)
         projected = context.get("agent_assets", {}).get("model_projection") == "copy-context/v1"
         if projected:
             exchange = editorial_read_exchange(context, pack_id)

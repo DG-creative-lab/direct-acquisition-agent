@@ -377,3 +377,69 @@ Three regressions first reproduced the unreserved-key gap, then passed with the 
 Three new mutation probes remove reservation enforcement, owner matching and exact plan binding. Runtime core contracts remain business-agnostic, and new-format execution stays paused. No paid model calls were made.
 
 Verified after this correction: all 506 backend tests, architecture and whitespace checks passed. The 27 focused admission tests passed, and the full mutation portfolio detected all 165 declared mutations. No frontend files changed; browser checks were not rerun. Verification used fake providers and no paid model calls.
+
+## Paused admission coverage across workflows
+
+Schema 12 extends the existing request/admission journal to routing, conversation
+and standalone campaign preparation, manual descendants, finalized learning
+follow-ups and native copy revisions. The server-only request API accepts fixed
+source references. The SQLite adapter loads actual scoped sources under the
+write lock; workflow composition uses public domain contracts and existing task
+factories. No caller-supplied task list, ownership declaration or consent ID can
+replace that verification. New model copy uses grounded v3 contexts and the
+stable transcript projection. The complete read/submit envelope is checked
+without a gateway or inference journal, and final source deadlines are checked
+after validation before committing staging or admission.
+
+| Invariant | Executable evidence |
+| --- | --- |
+| A child retains its verified parent's account and original revision | Conversation and explicit standalone parent/child admissions; missing legacy linkage and foreign parents rejected |
+| Source facts remain current at admission | Conversation edits and stop after staging; revoked operator; changed follow-up suppression epochs; expiry during preflight |
+| Audience provenance cannot be substituted | Completed saved plan and its actual admitted task; selected manifest/version/checksum on every task; different audience bytes rejected; scoped snapshot/segment/context checks |
+| Each request binds one exact operation, generation decision and runtime key | Changed inputs/model settings, competing keys, native reconciliation and ordinary task/campaign writers rejected without runtime effects |
+| Review and learning authority remain in their existing modules | Native exact-subject revision receipt consumed without another rejection; parent approval/outcomes not inherited; finalized disjoint proposal uses its accepted parent job/case |
+| Admission cannot dispatch before cutover | Claims consume no attempt and direct inference reservation is refused; unchanged call, approval, acceptance and belief counts |
+| Replay and recovery observe original work | Concurrent duplicate staging, fresh-process receipt replay and retry after injected precommit failure |
+| Forward migration preserves history | Concurrent schema-11 upgrade and interrupted schema-12 table rebuild preserve original request JSON, receipts, tasks, events, execution links and schema-3 cutoff; integrity/foreign-key checks and immutable triggers hold |
+
+The focused coverage uses real SQLite, saved planning/routing/revision and cohort
+records, and fake providers only to prepare source fixtures. Seven new mutation
+probes remove explicit consent, current ownership, final freshness, dataset
+provenance, original routing/revision settings and positive parent proof. Each
+is detected by its corresponding boundary test.
+
+The new path remains paused and has no transport or model-tool registration.
+Live entry-point conversion, missing-workspace rebuild and activation/restore
+gates remain later acceptance work for issue 33. No frontend files changed and
+no paid model calls were made.
+
+Verification: all 531 backend tests passed with loopback access for HTTP tests;
+architecture and whitespace checks passed; all 172 declared mutations were
+detected. The 25 focused workflow-coverage tests also passed after tightening
+the registered parent-workflow check. The shared copy-request extraction retains
+the original correction identifiers and passes the model-copy and grounding
+regressions. Browser checks were not rerun because no frontend or transport
+behavior changed.
+
+## Frozen follow-up model settings at admission
+
+Model follow-up task construction now requires the exact configuration recorded
+in its saved proposal. The same composer runs before request staging and again
+inside the admission transaction. A different model, call allowance, input or
+output bound, or price ceiling cannot replace the proposal's frozen settings.
+Fixture follow-ups still require no model configuration, and new-format tasks
+remain paused.
+
+Two real-SQLite regressions reproduced the missing checks before the fix.
+The first varies six configuration fields independently, verifies rejection
+before model preflight or any journal/runtime effects, then stages and admits
+the original configuration successfully. The second reproduces a request saved
+by the prior unchecked writer with its original source fingerprint and consent,
+reopens the database and verifies that admission rejects it without changing
+the immutable request, creating a run or reserving inference. Two targeted
+mutation probes independently remove the comparison at these tested boundaries.
+
+Verification after this correction: all 533 backend tests, architecture and
+whitespace checks passed. All five focused learning-admission tests and both
+targeted mutation probes passed. The full mutation portfolio and browser suite
+were not rerun for this correction. No paid model calls were made.

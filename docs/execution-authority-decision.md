@@ -5,12 +5,13 @@ The design covers admission, inference, cancellation and recovery across the
 workspace, CLI and direct workers. It preserves the modular monolith and the
 existing campaign, review and learning boundaries.
 
-**Implementation status:** versioned values and the first paused SQLite adapter
-are implemented. Schema 11 supports model and fixture planning admission. No
+**Implementation status:** versioned values and paused SQLite admissions
+are implemented. Schema 12 extends model and fixture planning with verified
+routing, campaign preparation, manual descendants, learning follow-ups and copy revisions. No
 workspace, HTTP or CLI caller uses this adapter, and new-format tasks cannot be
 claimed or reserve inference. Atomic admission is separate from activation.
-Other workflow admissions, the entry-point cutover and projection rebuild remain
-planned work. Approval and campaign acceptance still use the existing controls.
+The entry-point cutover and projection rebuild remain planned work. Approval and
+campaign acceptance still use the existing controls.
 
 ## Evidence and decision
 
@@ -139,7 +140,7 @@ requires the exact saved owner binding and task plan from the admission path.
 Campaign, model-campaign and generic task creation cannot occupy that key while
 the request is staged. A failed staging transaction leaves no reservation.
 Admission retains the reservation as immutable history; matching receipt replay
-observes the original run. No extra journal or schema version is required.
+observes the original run. All workflow families use the same request journal.
 
 `admit` loads that saved request and its consent under the write lock. Supplied
 fingerprints or consent IDs cannot replace it. It rechecks current revision,
@@ -151,13 +152,48 @@ commit leaves only the earlier non-executable request, which is discoverable by
 its original identity and can be admitted again safely. After commit, request
 lookup observes the original receipt even after stopping, without new work.
 
-The initial installed workflows are `conversation-planning/v1` and
+The planning workflows are `conversation-planning/v1` and
 `conversation-fixture-planning/v1`. They have one registered planning task and
-an explicit conversation owner. Standalone, descendant, campaign-generation,
-routing and copy-revision admissions are not yet installed in this adapter;
-they cannot be smuggled into a planning task by changing the proposed metadata.
-Positive child/standalone admission and their source policies remain part of
-the later cutover. Existing legacy readers and operating paths remain available.
+an explicit conversation owner. `request_workflow` extends the same store with
+the following server-only commands. Callers supply fixed source references,
+never task lists or ownership claims.
+
+| Kind | Verified source | Task and ownership rules |
+| --- | --- | --- |
+| `routing` | Native saved action, original question/dialogue, scoped assets and model settings | One original v1/v2 routing capability; aliases have no task. Routing permission does not grant downstream copy consent |
+| `conversation-campaign` | Successful saved plan and its admitted task, current conversation revision, complete scoped snapshot and any confirmed dataset selection | Derive the exact brief and campaign scope from the saved proposal; fixture or grounded v3 copy must match its mode. Bind model contexts to the objective, segment and dataset |
+| `standalone-campaign` | Explicit new root command, complete scoped snapshot and optional frozen model contexts | Explicit standalone lineage with existing per-run limits. Known campaign identities cannot erase their ancestry by declaring a new root |
+| `manual-descendant` | Positive parent campaign/run in the same application database and new campaign inputs | Inherit the full verified parent owner and original revision. Missing legacy ownership blocks admission. A positively admitted standalone root may have standalone descendants |
+| `learning-followup` | Saved eligible proposal, exact cohort finalization, accepted parent job/case and current independent population/epochs | Derive the brief, snapshot and contexts from that proposal. Model copy requires its exact frozen model settings at staging and admission. Inherit the actual parent account, without inheriting approval or outcomes |
+| `copy-revision` | Existing native exact-subject revision receipt, current operator/reviewer authority, evidence/suppression epochs and unaccepted case | Preserve its exact target, feedback, five-call permission and frozen context. Inherit the original campaign owner; do not repeat the native rejection effect |
+
+The native routing and copy-revision services still own their source admission
+rules. Their paused wrappers consume an already saved source before its runtime
+run exists. They do not retroactively adopt a live or completed legacy run.
+An existing runtime key blocks staging; a staged key blocks ordinary runtime
+writers, including their original native reconciliation path. Exact request
+replay observes its frozen intent; a second key cannot repeat the source
+operation. Admission rechecks the source under the write lock, then commits the
+run, ownership where applicable, immutable receipt and audit together. Only
+planning also writes a planning projection.
+
+Conversation permission and ownership values remain in `conversations`.
+`workflows/admission_coverage.py` composes public domain contracts and the
+existing task-plan factories. The SQLite source loader supplies scoped facts,
+checks current authority in the transaction and has no workspace dependency.
+`bootstrap.py` wires these components; no application service imports an adapter.
+Model preflight has no gateway or inference journal. New copy admissions require
+the stable versioned context projection and fresh evidence. A final clock check
+after validation prevents a source expiring during preflight from committing.
+
+Schema 12 rebuilds the two admission tables under the existing migration write
+lock. Non-planning sources may omit the planning-only conversation/revision
+columns; their explicit owner stays bound in the immutable intent. Unique
+operation and runtime-key indexes prevent competing staged admissions. Existing
+schema-11 JSON, receipts, task bytes and the schema-3 legacy cutoff are copied
+unchanged. Transaction failure restores the prior tables and version. This
+migration does not activate tasks, infer unknown legacy parentage or make a
+workspace projection authoritative.
 
 Both staged and existing planning records count toward the conversation's six
 planning requests. The legacy planning service refuses a revision already saved

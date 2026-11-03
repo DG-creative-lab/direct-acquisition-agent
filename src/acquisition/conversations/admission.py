@@ -21,6 +21,25 @@ FIXTURE_PLANNING_ADMISSION = 'conversation-fixture-planning/v1'
 MAX_TASK_PLAN_BYTES = 1_048_576
 
 
+WORKFLOW_ADMISSION_KINDS = frozenset({'routing', 'conversation-campaign', 'standalone-campaign',
+                           'manual-descendant', 'learning-followup', 'copy-revision'})
+
+
+def workflow_permission(kind, allow_model, config):
+    if kind not in WORKFLOW_ADMISSION_KINDS or type(allow_model) is not bool:
+        raise ValueError('Choose a supported admission and explicit generation permission')
+    if allow_model != (config is not None):
+        raise ValueError('Model settings require explicit permission; fixtures cannot authorize model calls')
+    if config is not None:
+        if type(config) is not ModelConfig or not config.force_tool_choice:
+            raise ValueError('Use validated model settings with forced typed tools')
+        limit = 1 if kind == 'routing' else 5 if kind == 'copy-revision' else 12
+        if config.max_calls > limit:
+            raise ValueError('Model-call limit exceeds this workflow contract')
+    if kind in {'routing', 'copy-revision'} and not allow_model:
+        raise ValueError('This workflow requires its own explicit model permission')
+
+
 def fingerprint(value):
     if type(value) is not str or len(value)!=64 or any(c not in '0123456789abcdef' for c in value):
         raise ValueError('Use an exact SHA-256 fingerprint')
