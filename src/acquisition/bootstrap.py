@@ -101,6 +101,10 @@ def build_preparations(path, host):
 
 def build_admissions(path, clock=time.time):
     """Explicit opt-in storage API. No workspace/CLI caller or activation yet."""
+    from acquisition.adapters.sqlite.admission_sources import load_source
+    from acquisition.workflows.admission_coverage import campaign_brief, coverage_intent
+    def workflow_source(db, organization, kind, references, now):
+        return load_source(db,organization,kind,references,now,campaign_brief)
     def preflight(frozen, organization, fixture, config):
         if 'agent_assets' not in frozen['knowledge']:
             raise ValueError('New admissions require versioned planning assets')
@@ -113,7 +117,8 @@ def build_admissions(path, clock=time.time):
             # prepare_request only sizes/validates the envelope. No provider or
             # journal is available to this deliberately paused storage API.
             ConversationPlanner(Inference(None,None,config,clock)).preflight(frozen)
-    return SqliteAdmissions(Database(path),preflight,clock)
+    return SqliteAdmissions(Database(path),preflight,clock,
+                            workflow_source=workflow_source,workflow_intent=coverage_intent)
 
 
 @dataclass

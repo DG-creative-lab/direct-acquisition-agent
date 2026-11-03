@@ -220,6 +220,42 @@ PRAGMA user_version=11;
 """
 
 
+WORKFLOW_ADMISSIONS = """
+CREATE TABLE admission_requests_next (
+ organization TEXT NOT NULL, request_id TEXT NOT NULL, inputs TEXT NOT NULL,
+ payload TEXT NOT NULL, fingerprint TEXT NOT NULL, source TEXT NOT NULL,
+ consent TEXT NOT NULL, created_at REAL NOT NULL,
+ conversation_id TEXT, revision INTEGER CHECK(revision>0),
+ CHECK((conversation_id IS NULL)=(revision IS NULL)),
+ PRIMARY KEY(organization,request_id), UNIQUE(organization,conversation_id,revision),
+ FOREIGN KEY(organization,conversation_id) REFERENCES conversations(organization,id));
+INSERT INTO admission_requests_next SELECT * FROM admission_requests;
+CREATE TABLE execution_admissions_next (
+ organization TEXT NOT NULL, id TEXT NOT NULL, request_id TEXT NOT NULL,
+ run_id TEXT NOT NULL REFERENCES runs(id), payload TEXT NOT NULL,
+ fingerprint TEXT NOT NULL, receipt TEXT NOT NULL,
+ status TEXT NOT NULL CHECK(status='paused'),
+ PRIMARY KEY(organization,id), UNIQUE(organization,request_id), UNIQUE(organization,run_id),
+ FOREIGN KEY(organization,request_id) REFERENCES admission_requests_next(organization,request_id));
+INSERT INTO execution_admissions_next SELECT * FROM execution_admissions;
+DROP TABLE execution_admissions;
+DROP TABLE admission_requests;
+ALTER TABLE admission_requests_next RENAME TO admission_requests;
+ALTER TABLE execution_admissions_next RENAME TO execution_admissions;
+CREATE UNIQUE INDEX admission_operation ON admission_requests(organization,json_extract(inputs,'$.operation_key'));
+CREATE UNIQUE INDEX admission_runtime_key ON admission_requests(organization,json_extract(payload,'$.tasks[0].inputs.run_request_id'));
+CREATE TRIGGER admission_requests_no_update BEFORE UPDATE ON admission_requests
+ BEGIN SELECT RAISE(ABORT,'Admission requests are immutable'); END;
+CREATE TRIGGER admission_requests_no_delete BEFORE DELETE ON admission_requests
+ BEGIN SELECT RAISE(ABORT,'Admission requests are immutable'); END;
+CREATE TRIGGER execution_admissions_no_update BEFORE UPDATE ON execution_admissions
+ BEGIN SELECT RAISE(ABORT,'Execution admissions are immutable'); END;
+CREATE TRIGGER execution_admissions_no_delete BEFORE DELETE ON execution_admissions
+ BEGIN SELECT RAISE(ABORT,'Execution admissions are immutable'); END;
+PRAGMA user_version=12;
+"""
+
+
 class Database:
     def __init__(self, path: str | Path):
         self.path = Path(path)
@@ -227,7 +263,7 @@ class Database:
         with self.transaction() as connection:
             # Version discovery and every migration share one SQLite write lock.
             version = connection.execute("PRAGMA user_version").fetchone()[0]
-            if version not in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}:
+            if version not in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}:
                 raise ValueError(f"Unsupported database schema {version}")
             if version == 0:
                 self._apply_migration(connection, SCHEMA)
@@ -259,6 +295,9 @@ class Database:
                 recover_pending_origins(connection)
             if version < 11:
                 self._apply_migration(connection, ATOMIC_ADMISSIONS)
+                self._validate_admission_schema(connection)
+            if version < 12:
+                self._apply_migration(connection, WORKFLOW_ADMISSIONS)
                 self._validate_admission_schema(connection)
         self._enable_wal()
 

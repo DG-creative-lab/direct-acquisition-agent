@@ -1,8 +1,9 @@
-"""Atomic, paused planning admission. No legacy ownership inference or dispatch.
+"""Atomic, paused workflow admission. No legacy ownership inference or dispatch.
 
 request_planning is a server-only explicit user command, not a model tool. It
 persists verified frozen inputs and the exact generation decision before any
-task exists. admit consumes that record, never a caller-supplied consent claim.
+task exists. request_workflow uses installed source loaders and task composers.
+admit consumes saved requests, never caller-supplied consent claims.
 """
 
 import json
@@ -19,6 +20,7 @@ from .conversations import scoped_conversation, messages
 from .database import stored_plan_hash
 from .execution import account, require_active
 from .tasks import finite_time, insert_run, event, scoped_run
+from .admission_sources import require_owner, freshness_fence
 
 
 def planning_source(db, organization, conversation_id):
@@ -49,8 +51,44 @@ def generation_decision(intent):
 
 
 class SqliteAdmissions:
-    def __init__(self, database, preflight, clock=time.time):
+    def __init__(self, database, preflight, clock=time.time, *, workflow_source=None, workflow_intent=None):
         self.database,self.preflight,self.clock=database,preflight,clock
+        self.workflow_source,self.workflow_intent=workflow_source,workflow_intent
+
+    def request_workflow(self, organization, request_id, kind, references, *, allow_model, model_config=None):
+        """Server-only explicit command. Only installed source loaders can build tasks."""
+        identity(organization),identity(request_id)
+        if self.workflow_source is None or self.workflow_intent is None:
+            raise ValueError('Workflow admission composition is unavailable')
+        command=canonical({'kind':kind,'references':references,'allow_model':allow_model,
+                           'model_config':asdict(model_config) if model_config else None})
+        if len(command.encode())>1_048_576:raise ValueError('Workflow request exceeds the admission envelope')
+        references=json.loads(command)['references']
+        with self.database.transaction() as db:
+            old=db.execute('SELECT * FROM admission_requests WHERE organization=? AND request_id=?',
+                           (organization,request_id)).fetchone()
+            if old:
+                inputs=json.loads(old['inputs']);inputs.pop('operation_key',None)
+                if canonical(inputs)!=command:raise Conflict('Admission request already binds different inputs or consent')
+                return self._request_intent(old)
+            now=self.clock();finite_time(now)
+            source=self.workflow_source(db,organization,kind,references,now)
+            intent,operation=self.workflow_intent(organization,request_id,kind,references,source,allow_model,model_config,now)
+            if db.execute("SELECT 1 FROM admission_requests WHERE organization=? AND json_extract(inputs,'$.operation_key')=?",
+                          (organization,operation)).fetchone():
+                raise Conflict('This source operation already has an admission request; resume its original identity')
+            runtime_key=intent.tasks[0].inputs['run_request_id']
+            self._runtime_available(db,organization,runtime_key)
+            if db.execute("SELECT 1 FROM admission_requests WHERE organization=? AND json_extract(payload,'$.tasks[0].inputs.run_request_id')=?",
+                          (organization,runtime_key)).fetchone():
+                raise Conflict('Runtime key already belongs to another paused request')
+            now=self.clock();finite_time(now)
+            require_owner(db,source['owner']);freshness_fence(source,now)
+            inputs=canonical(json.loads(command)|{'operation_key':operation})
+            db.execute('INSERT INTO admission_requests VALUES(?,?,?,?,?,?,?,?,NULL,NULL)',
+                (organization,request_id,inputs,canonical(intent.payload()),intent.fingerprint,canonical(source),
+                 canonical(generation_decision(intent)),now))
+            return intent
 
     def request_planning(self, organization, conversation_id, request_id, revision, context, *,
                          fixture, allow_model, model_config=None):
@@ -77,6 +115,9 @@ class SqliteAdmissions:
             intent=planning_intent(organization,request_id,source,context,planning_results(db,organization,conversation_id),
                 fixture=fixture,allow_model=allow_model,config=model_config)
             self._runtime_available(db,organization,intent.tasks[0].inputs['run_request_id'])
+            if db.execute("SELECT 1 FROM admission_requests WHERE organization=? AND json_extract(payload,'$.tasks[0].inputs.run_request_id')=?",
+                          (organization,intent.tasks[0].inputs['run_request_id'])).fetchone():
+                raise Conflict('Runtime key already belongs to another paused request')
             self.preflight(intent.tasks[0].inputs,organization,fixture,model_config)
             now=self.clock();finite_time(now)
             db.execute('INSERT INTO admission_requests VALUES(?,?,?,?,?,?,?,?,?,?)',
@@ -125,27 +166,43 @@ class SqliteAdmissions:
                            (intent.organization,intent.request_id)).fetchone()
             if row is None:raise NotFound('Save the exact scoped request and consent before admission')
             expected=self._request_intent(row)
-            source=planning_source(db,intent.organization,intent.source_id)
-            fixture=planning_binding(intent,expected,source)
             owner=intent.ownership
-            self._current(db,intent.organization,intent.source_id,owner.revision,source)
-            self._available(db,intent.organization,intent.source_id,owner.revision,own_request=intent.request_id)
             specs=intent.tasks
             frozen=specs[0].inputs
-            self.preflight(intent.tasks[0].inputs,intent.organization,fixture,intent.model_config)
+            command=json.loads(row['inputs'])
+            if 'kind' in command:
+                if self.workflow_source is None or self.workflow_intent is None:
+                    raise ValueError('Workflow admission composition is unavailable')
+                now=self.clock();finite_time(now)
+                source=self.workflow_source(db,intent.organization,command['kind'],command['references'],now)
+                rebuilt,operation=self.workflow_intent(intent.organization,intent.request_id,command['kind'],
+                    command['references'],source,command['allow_model'],expected.model_config,now)
+                if rebuilt!=expected or intent!=expected or operation!=command['operation_key']:
+                    raise Conflict('Workflow source, settings or task plan changed before admission')
+            else:
+                source=planning_source(db,intent.organization,intent.source_id)
+                fixture=planning_binding(intent,expected,source)
+                self._current(db,intent.organization,intent.source_id,owner.revision,source)
+                self._available(db,intent.organization,intent.source_id,owner.revision,own_request=intent.request_id)
+                self.preflight(intent.tasks[0].inputs,intent.organization,fixture,intent.model_config)
             self._runtime_available(db,intent.organization,frozen['run_request_id'])
             now=self.clock();finite_time(now)  # Include lock wait and validation time.
-            a=account(db,owner.organization,owner.scope_id)
+            if 'kind' in command:
+                require_owner(db,source['owner']);freshness_fence(source,now)
+            a=account(db,owner.organization,owner.scope_id) if owner.kind=='conversation' else None
             run=insert_run(db,intent.organization,frozen['run_request_id'],specs,now,
                            reservation_owner=(intent.request_id,intent.fingerprint))
-            db.execute('INSERT INTO execution_runs VALUES(?,?,?,?,?)',
-                       (intent.organization,run,owner.organization,owner.scope_id,owner.revision))
-            db.execute('INSERT INTO conversation_plans VALUES(?,?,?,?,?,?)',
-                       (intent.organization,owner.scope_id,intent.request_id,owner.revision,canonical(frozen),now))
+            if owner.kind=='conversation':
+                db.execute('INSERT INTO execution_runs VALUES(?,?,?,?,?)',
+                           (intent.organization,run,owner.organization,owner.scope_id,owner.revision))
+            if 'kind' not in command:
+                db.execute('INSERT INTO conversation_plans VALUES(?,?,?,?,?,?)',
+                           (intent.organization,owner.scope_id,intent.request_id,owner.revision,canonical(frozen),now))
             receipt=AdmissionReceipt(intent.organization,intent.id,run,intent.fingerprint,now)
             db.execute("INSERT INTO execution_admissions VALUES(?,?,?,?,?,?,?,'paused')",
                        (intent.organization,intent.id,intent.request_id,run,canonical(intent.payload()),intent.fingerprint,canonical(asdict(receipt))))
-            event(db,run,None,'execution_admitted',{'admission_id':intent.id,'status':'paused','policy':a['policy']},now)
+            event(db,run,None,'execution_admitted',{'admission_id':intent.id,'status':'paused',
+                  'policy':a['policy'] if a else 'standalone-per-run'},now)
             return receipt
 
     def _receipt(self, db, row):
@@ -161,8 +218,10 @@ class SqliteAdmissions:
             receipt.admission_id!=intent.id or receipt.run_id!=run['id'] or receipt.fingerprint!=intent.fingerprint or
             stored_plan_hash(db,run['id'])!=digest(json.loads(intent.task_plan_json)) or
             run['request_hash']!=stored_plan_hash(db,run['id']) or
-            run['request_id']!=intent.tasks[0].inputs['run_request_id'] or owner is None or
-            tuple(owner)!=(intent.ownership.organization,intent.ownership.scope_id,intent.ownership.revision)):
+            run['request_id']!=intent.tasks[0].inputs['run_request_id'] or
+            (intent.ownership.kind=='conversation' and (owner is None or
+             tuple(owner)!=(intent.ownership.organization,intent.ownership.scope_id,intent.ownership.revision))) or
+            (intent.ownership.kind=='standalone' and owner is not None)):
             raise Conflict('Saved admission, runtime plan or ownership failed integrity checks')
         return intent,receipt
 
