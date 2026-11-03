@@ -12,9 +12,10 @@ class ActionNotSaved(Conflict):
 
 
 class ConversationActions:
-    def __init__(self, store: ConversationActionStore, tasks, clock, config, preflight, assets=None):
+    def __init__(self, store: ConversationActionStore, tasks, clock, config, preflight, assets=None, admissions=None):
         self.store, self.tasks, self.clock, self.config, self.preflight = store, tasks, clock, config, preflight
         self.assets=assets
+        self.admissions=admissions
 
     def admit(self, organization, conversation_id, request_id, expected_revision, content, allow_model_copy, context):
         for v in (organization,conversation_id,request_id):identity(v)
@@ -51,6 +52,13 @@ class ConversationActions:
         if row['alias']:return None
         if self.config is None or row['model_config']!=asdict(self.config):
             raise ValueError('Restore the original routing model and limits')
+        if self.admissions and self.admissions.required():
+            legacy=self.admissions.legacy_workflow(organization,row['run_request_id'],
+                lambda:[TaskSpec(row.get('capability',ACTION_CAPABILITY),{k:v for k,v in saved.items() if k!='confirmed'})])
+            if legacy is not None:return legacy
+            request=self.admissions.source_request_id(organization,'routing',row['id'],row['request_id'],{'action_id':row['id']})
+            return self.admissions.workflow(organization,request,'routing',{'action_id':row['id']},
+                lambda:{'action_id':row['id']},allow_model=True,config=self.config)
         self.preflight(row)
         return self.tasks.create(organization,row['run_request_id'],[TaskSpec(row.get('capability',ACTION_CAPABILITY),{k:v for k,v in row.items() if k!='confirmed'})],self.clock())
 

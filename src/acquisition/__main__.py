@@ -20,6 +20,7 @@ def main() -> None:
     parser.add_argument("--model-max-calls", type=int, default=10, help="Inference reservations per run, including claim checks (maximum 12)")
     parser.add_argument("--tool-choice", choices=("auto", "required"), help="GPT-OSS-120B defaults to required tool use; auto omits the parameter")
     parser.add_argument("--env-file", type=Path, default=Path(".env.local"))
+    parser.add_argument('--verified-admissions',action='store_true',help='Seal this database to verified admission. Execution stays paused; this cannot be undone.')
     commands = parser.add_subparsers(dest="command", required=True)
     for name in ("create", "demo", "create-model", "demo-model"):
         create = commands.add_parser(name)
@@ -29,9 +30,11 @@ def main() -> None:
         create.add_argument("--budget-pence", type=int, default=85000)
         create.add_argument("--as-of", default="2026-10-25")
         create.add_argument("--campaign-id", help="Stable campaign identity when preparing a new copy revision")
+        create.add_argument('--parent-run',help='Exact verified parent run for a new descendant campaign')
     work = commands.add_parser("work")
     work.add_argument("--max-tasks", type=int, default=20)
     commands.add_parser("models", help="List inexpensive tool-capable models from the live public catalogue")
+    commands.add_parser('admission-cutover',help='Close legacy creation in a quiescent store; does not activate execution')
     commands.add_parser("execution-unresolved", help="Inspect quarantined legacy runs before operator reconciliation")
     resolve=commands.add_parser("execution-resolve-independent", help="Attest that an inspected legacy run is independent of conversations")
     for field in ('run','request-id','fingerprint','actor','reason'):
@@ -54,15 +57,21 @@ def main() -> None:
             print(json.dumps(inexpensive_models(), indent=2))
             return
         if args.command == "demo-learning":
+            if args.verified_admissions:raise ValueError('Verified admissions are paused; the complete learning demo requires execution')
             print(json.dumps(run_learning_demo(args.db, args.organization, args.request_id, args.out), indent=2))
             return
         model = args.model or ("openai/gpt-oss-120b" if args.command in {"create-model", "demo-model"} else None)
-        gateway = OpenRouter(openrouter_key(args.env_file)) if model else None
+        from acquisition.bootstrap import build_admissions
+        admission_store=build_admissions(args.db)
+        if args.verified_admissions or args.command=='admission-cutover':admission_store.seal_legacy_writes()
+        gateway = OpenRouter(openrouter_key(args.env_file)) if model and not admission_store.required() else None
         force_tools = args.tool_choice == "required" if args.tool_choice else model == "openai/gpt-oss-120b"
         config = ModelConfig(model, max_calls=args.model_max_calls, force_tool_choice=force_tools) if model else None
         app = build(args.db, gateway=gateway, model_config=config)
         scope = args.organization
-        if args.command=='execution-unresolved':
+        if args.command=='admission-cutover':
+            result={'policy':'verified-paused/v1','execution':'paused'}
+        elif args.command=='execution-unresolved':
             result=app.execution.unresolved(scope)
         elif args.command=='execution-resolve-independent':
             result=app.execution.resolve_independent(scope,args.request_id,args.run,args.fingerprint,args.actor,args.reason)
@@ -72,7 +81,8 @@ def main() -> None:
             result = review_command(app, args)
         elif args.command in {"create", "demo", "create-model", "demo-model"}:
             start = app.start_model if args.command.endswith("model") else app.start
-            run_id = start(scope, args.request_id, args.size, args.seed, args.budget_pence, args.as_of, campaign_id=args.campaign_id)
+            run_id = start(scope, args.request_id, args.size, args.seed, args.budget_pence, args.as_of, campaign_id=args.campaign_id,
+                           **({'parent_run_id':args.parent_run} if args.parent_run else {}))
             result = {"run_id": run_id, "mode": "synthetic_generated_unreviewed" if args.command.endswith("model") else "synthetic_day_one_no_release"}
             if args.command.startswith("demo"):
                 result["worker_ticks"] = app.worker.drain(scope)

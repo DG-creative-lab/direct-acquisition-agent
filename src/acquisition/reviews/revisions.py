@@ -10,9 +10,10 @@ from .domain import text
 
 
 class CopyRevisionService:
-    def __init__(self, store: ReviewStore, drafts: DraftStore, memory: CreativeMemory, tasks: TaskStore, clock, config, asset_context=None):
+    def __init__(self, store: ReviewStore, drafts: DraftStore, memory: CreativeMemory, tasks: TaskStore, clock, config, asset_context=None, execution_admission=None):
         self.store, self.drafts, self.memory, self.tasks = store, drafts, memory, tasks
         self.clock, self.config, self.asset_context = clock, config, asset_context
+        self.execution_admission=execution_admission
 
     def admit(self, organization, case_id, request_id, expected_subject, target_id, feedback, allow_model_copy,
               actor="local-operator", reviewer="local-reviewer", *, conversation_action=None, confirmation_request_id=None):
@@ -52,6 +53,9 @@ class CopyRevisionService:
     def reconcile(self, organization, receipt):
         if self.config is None or asdict(self.config) != receipt["task_inputs"]["model_config"]:
             raise ValueError("Restore the original copy revision configuration")
+        if self.execution_admission:
+            run=self.execution_admission(organization,receipt,self.config)
+            if run is not None:return run
         context_id = self.memory.put_context(organization, receipt["context"])
         inputs = receipt["task_inputs"] | {"context_id": context_id}
         return self.tasks.create(organization, receipt["id"], [TaskSpec("creative.revise_copy.v3", inputs),

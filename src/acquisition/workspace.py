@@ -11,7 +11,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
-from acquisition.bootstrap import build, build_preparations, agent_catalogue
+from acquisition.bootstrap import build, build_admissions, build_preparations, agent_catalogue
 from acquisition.conversations import ACTIVE_PREPARATION, AudienceSelectionRejected, ActionNotSaved, pending_copy_clarification
 from acquisition.adapters.environment import openrouter_key
 from acquisition.adapters.openrouter import OpenRouter
@@ -41,7 +41,9 @@ CHECKPOINT_BLOCKS = {
 
 
 class Workspace:
-    def __init__(self, root, real_clock=time.time):
+    def __init__(self, root, real_clock=time.time, *, verified_admissions=False):
+        if type(verified_admissions) is not bool:raise ValueError('Choose an explicit admission mode')
+        self._requested_verified=verified_admissions
         self.real_clock = real_clock
         self.root = Path(root)
         self.root.mkdir(parents=True, exist_ok=True)
@@ -79,16 +81,26 @@ class Workspace:
         return json.loads(row[0])
 
     def _app(self, session, with_model=False, *, revision_admission=False):
+        verified=self._verified_mode()
         gateway, config = None, None
         if (with_model or revision_admission) and session["mode"] == "model":
             validate_fact_pack(self.pack, datetime.fromtimestamp(self.real_clock(), timezone.utc).date())
-            if with_model:gateway = OpenRouter(openrouter_key(Path(".env.local")))
+            if with_model and not verified:gateway = OpenRouter(openrouter_key(Path(".env.local")))
             config = ModelConfig("openai/gpt-oss-120b", max_calls=10, force_tool_choice=True)
         # Each sandbox has its own durable clock. Live generation starts at real
         # time; explicit outcome simulation alone can advance the sandbox clock.
         conversation_db = session.get("database_scope") == "conversations" or session.get("conversation_plan") or session["organization"] == "local-conversations"
         database = self.root / "conversations.sqlite" if conversation_db else self.root / session["organization"] / "campaign.sqlite"
-        return build(database, clock=lambda: max(self.real_clock(), session["clock"]) if session.get("clock_mode") == "REAL" else session["clock"], gateway=gateway, model_config=config, workspace_organization=session['organization'])
+        return build(database, clock=lambda: max(self.real_clock(), session["clock"]) if session.get("clock_mode") == "REAL" else session["clock"], gateway=gateway, model_config=config, workspace_organization=session['organization'],verified_admissions=verified)
+
+    def _verified_mode(self):
+        # Only the root's authoritative application store selects this format.
+        # Constructing Workspace before acquiring the server lock does not seal.
+        path=self.root/'conversations.sqlite'
+        if self._requested_verified:
+            build_admissions(path,self.real_clock).seal_legacy_writes()
+            self._requested_verified=False
+        return path.exists() and build_admissions(path,self.real_clock).required()
 
     def listing(self):
         with self.control() as db:
@@ -98,9 +110,10 @@ class Workspace:
 
     def _conversation_app(self, with_model=False):
         # Scope and database location are server-owned, never model/browser input.
-        gateway = OpenRouter(openrouter_key(Path(".env.local"))) if with_model else None
+        verified=self._verified_mode()
+        gateway = OpenRouter(openrouter_key(Path(".env.local"))) if with_model and not verified else None
         config = ModelConfig("openai/gpt-oss-120b", max_calls=2, force_tool_choice=True) if with_model else None
-        return build(self.root / "conversations.sqlite", clock=self.real_clock, gateway=gateway, model_config=config, workspace_organization='local-conversations')
+        return build(self.root / "conversations.sqlite", clock=self.real_clock, gateway=gateway, model_config=config, workspace_organization='local-conversations',verified_admissions=verified)
 
     def conversations(self):
         return {"conversations": self._conversation_app().conversations.store.listing("local-conversations")}
@@ -302,7 +315,9 @@ class Workspace:
                 value['target_current']=(value['current'] and current_review['subject']['id']==target['subject_id']
                                          and current_review['candidate_valid'] and not current_review['handoff'])
             if value['status'] in {'admitted','queued'} and not row['alias']:
-                if row['model_config']!=asdict(app.actions.config):
+                if app.admissions.required():
+                    value |= {'status':'blocked','detail':'Execution remains paused pending cutover activation. Inspect the original request and run.'}
+                elif row['model_config']!=asdict(app.actions.config):
                     value['status']='blocked'
                     value['detail']='Restore the original routing model and limits to resume this saved request. Its inputs have been preserved.'
                 else:
@@ -381,6 +396,7 @@ class Workspace:
                       if r["status"] == "reserved" or (r["status"] == "unknown" and r["error"] not in definitive_rejections)]
         execution = app.execution.for_run(scope,run)
         return {"run_id": run, "status": state["run"]["status"], "failed_tasks": failures, "provider_error": provider_error,
+                **({'admission_paused':True} if state.get('admission',{}).get('status')=='paused' else {}),
                 'ancestry_pending':app.execution.pending(scope,run),
                 "budget_exhausted":bool(execution and execution['remaining']==0),
                 "outcome_uncertain": bool(unresolved), "unresolved_calls": unresolved,
@@ -423,6 +439,7 @@ class Workspace:
         return self.conversation(conversation_id) | {'execution_receipt':receipt}
 
     def _ensure_descendant_links(self, strict_session_id=None):
+        if self._verified_mode():return  # New ancestry must exist before task creation, never be reconstructed here.
         with self.control() as db:
             sessions=[json.loads(r[0]) for r in db.execute('SELECT payload FROM sessions ORDER BY rowid')]
         required=set()
@@ -574,6 +591,8 @@ class Workspace:
             # Frozen model inputs remain server-side. The plan's existing guidance
             # projection is the public inspection surface for that content.
             public = {k: v for k, v in row.items() if k != "planning_context"}
+            if generation and generation.get('admission_paused'):
+                public |= {'status':'blocked','detail':'Execution remains paused pending cutover activation. Inspect the original request and run.'}
             if row['inputs']['revision'] <= source['execution']['stopped_through'] and row['status'] in ACTIVE_PREPARATION | {'blocked','needs_consent'}:
                 public |= {'status':'cancelled','detail':'Stopped by you. Send a new brief to start new work; the shared allowance does not reset.'}
             if generation and generation.get('budget_exhausted') and public['status'] in ACTIVE_PREPARATION | {'failed','blocked'}:
@@ -933,9 +952,17 @@ class Workspace:
                     run = app.start_conversation(scope, identity, source, datetime.fromtimestamp(session["clock"], timezone.utc).date().isoformat(),
                                                  selected_audience=bool(session.get('audience_selection')))
                 else:
-                    run = start(scope, identity, as_of=datetime.fromtimestamp(session["clock"], timezone.utc).date().isoformat())
+                    parent_run=None
+                    if app.admissions.required() and session.get('parent_id'):
+                        parent=self._session(session['parent_id'])
+                        parent_run=parent['run_id'] or app.tasks.find_run(scope,parent['id'])
+                        if parent_run is None:raise Conflict('A verified parent run is required before descendant creation')
+                    run = start(scope, identity, as_of=datetime.fromtimestamp(session["clock"], timezone.utc).date().isoformat(),
+                                **({'parent_run_id':parent_run} if parent_run else {}))
             session["run_id"] = run
             self._save(session)
+            if app.tasks.inspect(scope,run).get('admission',{}).get('status')=='paused':
+                return self.view(identity)
             if session["mode"] == "model":
                 today = datetime.fromtimestamp(self.real_clock(), timezone.utc).date()
                 validate_fact_pack(store.evidence(scope)["pack"], today)
@@ -960,8 +987,9 @@ class Workspace:
         public = {k: v for k, v in session.items() if k != "organization"}
         public["clock"] = app.clock()
         if not session["case_id"]:
-            return {"session": public, "review": None, "audience": [], "learning": None,
-                    "tasks": app.tasks.inspect(scope, session["run_id"]) if session["run_id"] else None}
+            state=app.tasks.inspect(scope,session['run_id']) if session['run_id'] else None
+            return {"session": public, "review": None, "audience": [], "learning": None, "tasks":state,
+                    **({'generation':self._generation(session)} if state and state.get('admission') else {})}
         review = app.reviews.store.view(session["organization"], session["case_id"])
         draft = app.drafts.get(session["organization"], review["subject"]["draft_id"])
         snapshot = app.audiences.get(scope, review["subject"]["snapshot_id"])

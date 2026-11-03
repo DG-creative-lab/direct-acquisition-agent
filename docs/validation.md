@@ -443,3 +443,209 @@ Verification after this correction: all 533 backend tests, architecture and
 whitespace checks passed. All five focused learning-admission tests and both
 targeted mutation probes passed. The full mutation portfolio and browser suite
 were not rerun for this correction. No paid model calls were made.
+
+## Entry-point cutover with execution paused
+
+Schema 13 adds explicit `verified-paused/v1` store selection. Planning, chat
+coordination, routing reconciliation, CLI/application campaign creation, manual
+children, frozen learning follow-ups and native copy revisions use the public
+admission port in selected stores. Command replay uses saved references before
+context generation. New ownership is established by domain sources before the
+first claim; workspace parent reconstruction and journal witness binding do not
+supply new-format execution authority. Unselected stores retain their existing
+compatibility behavior. No verified execution activation is implemented.
+
+| Invariant | Evidence in `test_admission_entrypoints.py` |
+| --- | --- |
+| Selecting a format cannot race past live work | Running tasks, reserved provider calls and partial legacy plan admission block selection; original observation/reconciliation permits a later safe selection |
+| Selection is atomic and cannot be downgraded | Transaction failure restores the old format; a competing raw writer waits for the write lock and is rejected after commit; immutable policy triggers and missing-metadata checks hold |
+| Cached old writers cannot bypass selection | Direct old-protocol SQL cannot insert an unverified run, claim a task or reserve inference; guards need no connection-specific Python function |
+| Admission and runtime are committed together | A deferred foreign key permits verified admission before runtime insertion; injected precommit failure leaves the original staged request and no runtime/admission effects; retry succeeds |
+| Replay preserves exact commands and context | A fresh builder reuses the original model context without its factory; changed size, model settings and native revision receipt conflict; original requests stay discoverable |
+| Descendants retain their original account and stop lineage | A conversation campaign and model child share owner/account; stopping cancels both; a manual workspace child retains its domain parent after presentation parent metadata changes |
+| All new-format execution remains paused | Worker ticks and inference reservations are refused; no attempt, model-call or approval count advances; restored active leases cannot settle a task |
+| Caller paths share the same contract | Fixture/model roots, successful saved conversation proposals, native revision and finalized follow-up sources produce verified admissions; fresh CLI workers see the persisted format |
+| Chat does not mistake pause for missing credentials | Paused planning and routing show bounded progress without loading a provider key; restarting the coordinator preserves the original run |
+
+The original authority and statistical tests remain applicable. SQL guards are
+installed under the migration write lock, including when earlier table rebuilds
+must run; they preserve saved request/receipt/task bytes and the legacy cutoff.
+Existing provider observation rules remain separate from activation. The new
+tests use real SQLite, controlled lock interleavings, subprocesses and fake
+providers. They prove paused admission and refusal, not positive verified model
+dispatch or a complete activated verified campaign. Projection rebuild and
+restore/activation remain later gates for issue 33.
+
+Eleven new mutation probes target raw creation, quiescence, partial planning,
+context replay, restored leases, exact revision continuation, workspace ancestry
+and the SQL run/claim/reservation barriers.
+
+Verification: all 564 backend tests, 83 existing browser tests and 185 declared
+mutation probes passed. Architecture, production frontend build/format and
+whitespace checks passed. The 31 new entry-point tests include real loopback
+requests and the second-server selection boundary. The offline learning demo
+completed with the original finalization receipt replayed unchanged. No paid
+model calls were made. The verified path remains paused; passing compatibility
+journeys does not claim activated verified execution or projection rebuild.
+
+
+## Cutover identity reservation and historical observation
+
+Campaign identity is one organization-scoped reservation across standalone,
+conversation, manual-descendant and learning-follow-up admissions. The adapter
+checks actual frozen campaign IDs before staging and again before committing
+admission, including older staged requests whose operation key used a workflow
+prefix. New requests share a campaign operation namespace. Copy revisions retain
+their separate operation identity because they intentionally revise an existing
+campaign. Admission of contradictory historical staging blocks safely; replay
+of an already committed receipt remains observation, not current permission.
+
+Native routing keys remain conversation-scoped and distinct from planning keys.
+The admission wrapper derives its identity from the routing kind and immutable
+action ID. Existing raw-key wrappers replay only when their saved kind and source
+references match the original action. Native message, action and runtime keys
+are preserved.
+
+Sealed stores recognize exact pre-cutover campaign and planning commands through
+a read-only path. It compares original task-plan hashes, supported workflow
+plans, scoped frozen references, model settings and planning revision/mode.
+Historical planning replay does not require the conversation still to have that
+revision. Optional frozen continuation context, including messages when supplied,
+must match. Replay does not rebuild current guidance, write contexts, reserve
+inference, attach ownership or create an admission. It returns the original run,
+which remains paused and uncertified. This compatibility guarantee concerns
+saved effect-bound inputs; legacy records do not contain every original CLI flag.
+
+The real-SQLite regression portfolio in `test_cutover_review_regressions.py`
+covers both cross-kind staging orders, concurrent commands, incompatible pre-fix
+staging at admission, unchanged pre-fix operation keys, organization isolation,
+a routing/plan key collision, two conversations sharing a routing key, original
+raw-wrapper replay, exact fixture/model campaign replay after reopening, and
+historical fixture/model planning replay after edits. Full durable-row comparisons
+include task/event/admission/accounting, audience and context/memory tables.
+Six targeted mutation checks remove the staging/admission campaign fences,
+routing scope, exact legacy task-plan comparison, planning revision check and
+frozen-context comparison independently.
+
+Verification after these corrections: all 577 backend tests, including the 13
+new regression tests, passed. All 191 declared mutation checks, architecture and
+whitespace checks passed. The backend suite used loopback access for its HTTP
+tests. The browser suite was not rerun because frontend and transport code did
+not change in this correction. No live or paid model calls were made.
+
+
+## Legacy routing and copy-revision observation after cutover
+
+The sealed admission path also recognizes existing native routing and
+copy-revision runs before attempting a new verified admission. Routing compares
+the supplied action with its scoped saved source, excluding only mutable
+confirmation state, then reconstructs the original task. Revision replay checks
+the complete native receipt, reads and validates its existing content-addressed
+context, and reconstructs both original tasks. The existing legacy reader checks
+the runtime hash and compares the full ordered task plan with this independently
+reconstructed source plan. Runtime integrity by itself is insufficient.
+
+These observations return the original run without writing context, staging a
+request, attaching ownership, recording a new approval/rejection or reserving
+inference. They require the original model configuration. Current brief edits,
+publication and later operator revocation do not block inspection of the
+original run; they still govern any new effect. No new-format admission
+is activated, and records already containing verified admission metadata remain
+on the verified path.
+
+Six real-SQLite tests in `test_legacy_action_replay.py` cover queued routing and
+revision replay in separate processes, completed routing after a later brief,
+completed revision after publication and operator revocation, cross-organization
+requests, altered native sources and model settings, and substituted task inputs
+with a recomputed internally consistent runtime hash. Full database row
+comparisons verify observation only. Five new mutation probes target both replay
+returns, both native-source checks and the revision task-plan comparison.
+
+Verification: all 583 backend tests and all 196 declared mutation probes passed,
+including the six new real-database replay tests and five new mutations.
+Architecture and whitespace checks passed. The backend suite used local
+loopback access for its HTTP tests. No frontend or transport code changed, so
+the browser suite was not rerun for this correction. No live or paid model calls
+were made. Verified execution remains paused.
+
+
+## Recovery of source commands staged before entrypoint metadata
+
+The admission facade recognizes the field-absent storage-slice envelope only for
+routing and copy-revision commands. Their single source reference must equal
+both the supplied entrypoint and the caller's source references. Workflow kind,
+explicit Boolean generation permission and exact frozen model settings remain
+bound. A present but null entrypoint is not this older format. Campaign commands
+cannot infer missing creation arguments from source references. Other stored
+workflow requests retain the original storage-port admission path using their
+exact saved intent; this compatibility path does not invent absent CLI inputs.
+
+The original scoped source operation can be found even when the storage-slice
+request key differs from the native action or revision key. The adapter checks
+the saved intent, source identity and canonical references before returning that
+key. Existing native-spelled wrappers retain their keys; new routing and revision
+wrappers use the same source-based namespace. Native sources and runtime request
+keys are unchanged. Recovery passes the original field-absent envelope back to
+the storage port, preserving every saved request byte and its fingerprint.
+
+Unadmitted requests still recheck current source and ownership in the admission
+transaction, so a later brief edit blocks stale work. Already-admitted requests
+observe their original receipt after later edits. Both paths keep verified
+execution paused and reserve no inference.
+
+Seven real-SQLite tests in `test_pre_entrypoint_recovery.py` cover fresh-process
+staged recovery, cached receipt replay, a separately keyed storage admission,
+source-read organization isolation, changed references/settings/permission,
+null metadata, unsupported campaign inference, stale unadmitted source and the
+equivalent copy-revision path. Five mutation probes target preservation of the
+old envelope, discovery of the original key, source-read scope and both saved
+and caller reference comparisons.
+
+Verification: all 590 backend tests, including the seven new recovery tests,
+and all 201 declared mutation probes passed. Architecture and whitespace checks
+passed. The backend suite used loopback access for its HTTP tests. No frontend
+or transport code changed, so the browser suite was not rerun. No live or paid
+model calls were made. Verified execution remains paused.
+
+
+## Conversation-scoped native planning requests
+
+Verified planning now derives an admission key from organization, conversation
+and native request ID. Mode and revision remain bound inputs rather than key
+components, so changing them cannot allocate another planning request. Native
+request IDs remain unchanged in frozen tasks, runtime request hashes and the
+conversation planning journal. Admission identity and consent use the separate
+scoped key. A new optional native-request field records this relationship in the
+staging envelope without a schema migration.
+
+A scoped lookup finds existing staging or admission before freezing context.
+Earlier raw-key requests retain their original key, serialized envelope,
+fingerprint and task plan. Their cached receipts remain observational. New
+requests in another conversation may use the same native key without adopting
+that earlier work. Partially staged new requests recover their original context
+and identity after reopening or process restart.
+
+Planning capacity checks distinguish native command identity from admission
+identity. The existing six-request limit counts revisions once across native
+planning and staged records. A native key cannot be reused for another revision
+or wrapped in another admission to evade its reservation. The compatibility
+writer also checks the native key inside its transaction, including when the
+store has not selected cutover yet. Runtime reservation and paused-execution
+checks remain unchanged.
+
+Nine real-SQLite tests in `test_planning_request_scope.py` cover shared fixture
+and model keys across two conversations, independent consent, native task and
+journal IDs, raw staging compatibility, partial admission recovery, concurrent
+commands, changed mode/configuration/context, mixed old/new writers, the six
+request bound, organization/campaign isolation and fresh-process replay. Eight
+new mutation probes target key scope, original staging/envelope recovery, native
+task/journal identities, both scoped read predicates and compatibility-writer
+native reservation. Existing reverse-key mutation probes follow the updated
+SQL predicate.
+
+Verification: all 599 backend tests, including the nine new scope/recovery
+regressions, and all 209 declared mutation probes passed. Architecture and
+whitespace checks passed. The backend suite used local loopback access for its
+HTTP tests. No frontend or transport code changed, so the browser suite was not
+rerun for this correction. No live or paid model calls were made. Verified
+execution remains paused.
