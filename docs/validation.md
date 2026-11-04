@@ -63,6 +63,7 @@ Python checks require Python 3.11 or later; the interface requires Node 22.12+ a
 | Preparation progress grants no authority | One submitted model brief reaches a valid unapproved candidate; approval invalidates after a later message | Synthetic campaigns and simulated delivery only |
 | Interrupted work cannot be presented as ordinary failure | Unknown network outcome and interrupted planner/copy reservation remain uncertain on restart, with no additional provider call | No provider-side reconciliation is implemented |
 | Progress is a read-only projection | Guarded 202 admission leaves a queued task without calling the worker; browser reload reaches review with one admission and no plan/draft/approve/handoff POST | Background execution requires the local server; direct legacy endpoints remain synchronous |
+| Completed checkpoint recovery keeps polling | A real backend restores authority while the browser receives one stale case mapping with newer ready progress; review appears without another effect | Local eventual projection reads; polling grants no approval or inference authority |
 
 | Message replay cannot transfer consent to a newer brief | Browser loses an acknowledged message response, another writer appends a correction, reload retries the original identity, and no preparation is admitted for the newer revision | Consent remains bound to the original message receipt revision |
 | Staleness cannot hide possible provider charges | Planner and copy timeout/crash after an edit retain both historical status and unresolved journal details across restart; browser checks new and older stale records | No automatic provider reconciliation or uncertain retry |
@@ -784,3 +785,38 @@ reverse counterexample added while strengthening the command mutation: correct
 audience bytes cannot excuse an incorrect saved command. `make arch-check`
 passed and the complete mutation run detected 230/230 declared mutations.
 No frontend files changed and no live provider call was made.
+
+
+## Checkpoint recovery polling in CI
+
+PR 38's first CI run passed backend, architecture and mutation checks on all
+four Python versions. Its browser job failed waiting for Review campaign after
+restoring a disabled checkpoint operator. A conversation read can capture its
+campaign mapping before recovery updates the case, then read newer preparation
+progress after recovery clears the blocker. The former client saw no active
+preparation or blocker and stopped polling, leaving the completed draft hidden.
+
+The client now keeps its existing read-only polling active while a campaign has
+reached `waiting` or `succeeded` and still has no review-case ID. Readiness,
+approval, simulated acceptance and inference remain controlled by the existing
+backend. No retry setting or timeout was increased.
+
+The existing browser test now delivers this single intermediate response from
+a real recovery run deterministically. It failed before the client change and
+passed ten repetitions afterward. It still asserts unchanged model-call usage,
+an unapproved exact draft and no handoff after recovery. The incomplete read is
+injected only into the response; the actual server performs checkpoint recovery
+and the next poll retrieves the saved case.
+
+A real SQLite probe also pauses the conversation read immediately after its
+campaign snapshot, restores the checkpoint, and resumes the read. It produces
+`case_id: null`, `generation: waiting`, `preparation: review_ready`, no blocker
+and zero pending receipts while the saved case already exists. This confirms
+that the browser's injected intermediate packet corresponds to a reachable
+backend interleaving.
+
+Local verification: `make interface-check` passed the production build,
+formatting and all 83 browser tests. The forced-race checkpoint test passed ten
+consecutive repetitions. Architecture and diff checks passed. Backend source
+and authority rules are unchanged; CI reruns the full Python matrix on the
+published fix. No paid model requests were made.

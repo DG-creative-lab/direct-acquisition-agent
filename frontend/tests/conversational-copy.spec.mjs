@@ -438,6 +438,24 @@ test("blocked checkpoint recovery stays visible and polling completes after auth
     ).toHaveCount(0);
     const value = await current(page),
       before = value.execution.used;
+    // Recovery can update progress after the conversation read captured its
+    // campaign list. Deliver that one intermediate read deterministically.
+    let intermediate = false;
+    await page.route(`**/api/conversations/${value.id}`, async (route) => {
+      const response = await route.fetch();
+      const body = await response.json();
+      if (
+        !intermediate &&
+        body.preparations?.some((p) => p.status === "review_ready") &&
+        body.campaigns?.some((c) => c.case_id)
+      ) {
+        intermediate = true;
+        body.campaigns = body.campaigns.map((c) => ({ ...c, case_id: null }));
+        await route.fulfill({ response, json: body });
+      } else {
+        await route.fulfill({ response });
+      }
+    });
     execFileSync(
       "python3",
       [
@@ -461,6 +479,7 @@ w._app(s).reviews.store.register_actor(s['organization'],'local-operator',('oper
       page.getByRole("button", { name: /Review campaign/ }),
     ).toBeVisible();
     await expect(progress).toContainText("Ready for your review");
+    expect(intermediate).toBe(true);
     expect((await current(page)).execution.used).toBe(before);
     const state = await backend(
       page,

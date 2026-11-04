@@ -295,8 +295,15 @@ export default function ConversationWorkspace({
       onCampaignsChanged().catch((e) => setError(e.message));
   }, [preparedCampaigns, onCampaignsChanged]);
 
+  // Completed campaign and review-case projections can become visible apart.
   const preparing =
     (conversation?.execution?.pending_receipts ?? 0) > 0 ||
+    (conversation?.campaigns?.some(
+      (c) =>
+        !c.case_id &&
+        ["waiting", "succeeded"].includes(c.generation?.status ?? ""),
+    ) ??
+      false) ||
     (conversation?.preparations?.some(
       (p) => activePreparation(p.status) || !!p.checkpoint_recovery,
     ) ??
