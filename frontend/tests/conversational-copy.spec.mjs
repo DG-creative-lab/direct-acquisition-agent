@@ -26,14 +26,32 @@ for _ in range(3):w.advance_preparations()
 v=w.conversation(c);e=v['preparations'][0]['audience_candidates']['entries'][0]
 w.select_conversation_audience(c,request_id='source',expected_revision=1,plan_id=v['current_plan']['result']['id'],dataset_id=e['dataset_id'],version=e['version'],checksum=e['checksum'],manifest_id=e['id'])
 for _ in range(6):
-    if scenario in {'checkpoint','disabled-checkpoint'}:
+    if scenario in {'checkpoint','disabled-checkpoint','disabled-checkpoint-row-race'}:
         from acquisition.adapters.sqlite.reviews import SqliteReviews
         with patch.object(SqliteReviews,'open_case',side_effect=OSError('case storage interrupted')):w.advance_preparations()
     else:w.advance_preparations()
-if scenario=='disabled-checkpoint':
+if scenario.startswith('disabled-checkpoint'):
     session=w._session(w.conversation(c)['campaigns'][0]['session_id'])
     w._app(session).reviews.store.register_actor(session['organization'],'local-operator',('operator',),False)
     w.stop_execution(c,'stop-disabled',1)
+if scenario=='disabled-checkpoint-row-race':
+    # Hold recovery until a progress read has captured its cancelled row and
+    # the campaign list. Then restore the actual case and clear the blocker
+    # before that read obtains generation state. No response fields are forged.
+    recover=w.recover_execution;generation=w.preparation_generation
+    recovery={'started':False,'complete':False}
+    def scheduled_recovery():
+        if recovery['complete']:recover()
+    def interleaved_generation(organization,row):
+        if not recovery['started'] and (root/'recover-during-progress').exists():
+            recovery['started']=True
+            recover()
+            result=generation(organization,row)
+            recovery['complete']=True
+            return result
+        return generation(organization,row)
+    w.recover_execution=scheduled_recovery
+    w.preparation_generation=interleaved_generation
 if scenario=='unattributed':
     session=w._session(w.conversation(c)['campaigns'][0]['session_id'])
     app=w._app(session,with_model=True);scope=session['organization']
@@ -308,6 +326,47 @@ test("an independent variant edit receives only its own feedback", async ({
   });
 });
 
+test("blocked preparation without checkpoint recovery stops polling after case storage is restored", async ({
+  page,
+}) => {
+  // The storage failure ends before the server starts. This ordinary blocked
+  // preparation has no stopped-checkpoint receipt for the coordinator to retry.
+  await workspace("checkpoint", async (url) => {
+    await page.goto(url);
+    await page
+      .getByRole("button", { name: "Copy campaign", exact: true })
+      .click();
+    const progress = page.getByRole("region", {
+      name: "Campaign preparation progress",
+    });
+    await expect(progress).toContainText("Preparation needs attention");
+    const value = await current(page);
+    expect(value.preparations[0].status).toBe("blocked");
+    expect(value.preparations[0].checkpoint_recovery).toBeUndefined();
+    expect(value.campaigns[0].generation.status).toBe("waiting");
+    expect(value.campaigns[0].case_id).toBeNull();
+    expect(value.execution.pending_receipts).toBe(0);
+    // Observe three polling intervals: no background conversation reads should
+    // continue when the server has no automatic recovery to advance.
+    await expect(
+      page.waitForRequest(
+        (request) =>
+          request.method() === "GET" &&
+          request.url() === `${url}/api/conversations/${value.id}`,
+        { timeout: 1800 },
+      ),
+    ).rejects.toThrow(/Timeout/);
+    const after = await current(page);
+    expect(after.preparations[0].status).toBe("blocked");
+    expect(after.campaigns[0].case_id).toBeNull();
+    expect(after.execution.used).toBe(value.execution.used);
+    await expect(
+      page.getByRole("button", { name: /Review campaign/ }),
+    ).toHaveCount(0);
+    await expect(progress).toContainText("Preparation needs attention");
+  });
+});
+
 test("stopping a completed checkpoint recovers its unapproved review without inference", async ({
   page,
 }) => {
@@ -421,55 +480,98 @@ subprocess.check_call(prefix+['execution-resolve-independent','--run',run,'--req
   });
 });
 
-test("blocked checkpoint recovery stays visible and polling completes after authority is restored", async ({
-  page,
-}) => {
-  await workspace("disabled-checkpoint", async (url, root) => {
-    await page.goto(url);
-    await page
-      .getByRole("button", { name: "Copy campaign", exact: true })
-      .click();
-    const progress = page.getByRole("region", {
-      name: "Campaign preparation progress",
-    });
-    await expect(progress).toContainText("Restore a permitted local operator");
-    await expect(
-      page.getByRole("button", { name: /Review campaign/ }),
-    ).toHaveCount(0);
-    const value = await current(page),
-      before = value.execution.used;
-    execFileSync(
-      "python3",
-      [
-        "-c",
-        `
+for (const schedule of ["ready-progress", "cancelled-progress"]) {
+  test(`blocked checkpoint recovery stays visible and polling completes after authority is restored: ${schedule}`, async ({
+    page,
+  }) => {
+    await workspace(
+      schedule === "ready-progress"
+        ? "disabled-checkpoint"
+        : "disabled-checkpoint-row-race",
+      async (url, root) => {
+        await page.goto(url);
+        await page
+          .getByRole("button", { name: "Copy campaign", exact: true })
+          .click();
+        const progress = page.getByRole("region", {
+          name: "Campaign preparation progress",
+        });
+        await expect(progress).toContainText(
+          "Restore a permitted local operator",
+        );
+        await expect(
+          page.getByRole("button", { name: /Review campaign/ }),
+        ).toHaveCount(0);
+        const value = await current(page),
+          before = value.execution.used;
+        // Cover both a newer ready row and a captured cancelled row whose recovery
+        // blocker disappears during the same read.
+        let intermediate = false;
+        await page.route(`**/api/conversations/${value.id}`, async (route) => {
+          const response = await route.fetch();
+          const body = await response.json();
+          if (
+            schedule === "ready-progress" &&
+            !intermediate &&
+            body.preparations?.some((p) => p.status === "review_ready") &&
+            body.campaigns?.some((c) => c.case_id)
+          ) {
+            intermediate = true;
+            body.campaigns = body.campaigns.map((c) => ({
+              ...c,
+              case_id: null,
+            }));
+            await route.fulfill({ response, json: body });
+          } else {
+            if (
+              schedule === "cancelled-progress" &&
+              body.preparations?.some(
+                (p) => p.status === "cancelled" && !p.checkpoint_recovery,
+              ) &&
+              body.campaigns?.some(
+                (c) => !c.case_id && !c.generation?.checkpoint_recovery,
+              )
+            )
+              intermediate = true;
+            await route.fulfill({ response });
+          }
+        });
+        execFileSync(
+          "python3",
+          [
+            "-c",
+            `
 import sys
 from acquisition.workspace import Workspace
 w=Workspace(sys.argv[1],real_clock=lambda:1793404800.)
 s=w._session(w.conversation(sys.argv[2])['campaigns'][0]['session_id'])
 w._app(s).reviews.store.register_actor(s['organization'],'local-operator',('operator',),True)
+(w.root/'recover-during-progress').touch()
 `,
-        root,
-        value.id,
-      ],
-      {
-        env: { ...process.env, PYTHONPATH: "src:tests" },
-        cwd: fileURLToPath(new URL("../..", import.meta.url)),
+            root,
+            value.id,
+          ],
+          {
+            env: { ...process.env, PYTHONPATH: "src:tests" },
+            cwd: fileURLToPath(new URL("../..", import.meta.url)),
+          },
+        );
+        await expect(
+          page.getByRole("button", { name: /Review campaign/ }),
+        ).toBeVisible();
+        await expect(progress).toContainText("Ready for your review");
+        expect(intermediate).toBe(true);
+        expect((await current(page)).execution.used).toBe(before);
+        const state = await backend(
+          page,
+          `/api/sessions/${value.campaigns[0].session_id}`,
+        );
+        expect(state.review.approval_valid).toBe(false);
+        expect(state.review.handoff).toBeNull();
       },
     );
-    await expect(
-      page.getByRole("button", { name: /Review campaign/ }),
-    ).toBeVisible();
-    await expect(progress).toContainText("Ready for your review");
-    expect((await current(page)).execution.used).toBe(before);
-    const state = await backend(
-      page,
-      `/api/sessions/${value.campaigns[0].session_id}`,
-    );
-    expect(state.review.approval_valid).toBe(false);
-    expect(state.review.handoff).toBeNull();
   });
-});
+}
 
 test("stopping an active revision reconciles a lost response and retains accounting", async ({
   page,

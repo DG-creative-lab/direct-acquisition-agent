@@ -405,19 +405,16 @@ class FollowupCallerCoverageTests(unittest.TestCase):
         self.assertEqual(intent.parent_run_id,self.parent['review']['run_id'])
         self.assertEqual(app.worker.drain(self.scope,run_id=run),0)
 
-    def test_manual_workspace_child_uses_admission_parent_after_projection_changes(self):
+    def test_legacy_manual_parent_is_not_silently_promoted_to_verified_environment(self):
         followups.FollowupTests.finalized(self)
         app=self.w._app(self.w._session(self.sid));app.admissions.store.seal_legacy_writes()
         with patch('acquisition.adapters.sqlite.execution.SqliteExecution.descendant',side_effect=AssertionError('Workspace reconstructed authority')):
-            child=self.w.create('manual-child','fixture',parent_id=self.sid)
-            session=self.w._session(child['session']['id'])
-            intent=app.admissions.store.get_request(self.scope,session['id'])
-            self.assertEqual(intent.parent_run_id,self.parent['review']['run_id'])
-            session['parent_id']='missing-presentation-parent';self.w._save(session)
-            replay=self.w.prepare(session['id'])
-        self.assertEqual(replay['generation']['run_id'],child['generation']['run_id'])
-        self.assertIsNone(replay['review'])
-        self.assertEqual(app.admissions.store.get_request(self.scope,session['id']),intent)
+            with self.assertRaisesRegex(Conflict,'migration'):
+                self.w.create('manual-child','fixture',parent_id=self.sid)
+        self.assertIsNone(self.w.authority.get(self.sid))
+        self.assertIsNotNone(self.w.view(self.sid)['review'])
+        with app.tasks.database.connect() as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM admission_requests WHERE organization=? AND json_extract(inputs,'$.kind')='manual-descendant'",(self.scope,)).fetchone()[0],0)
 
 
 class AdmissionHttpTests(unittest.TestCase):
