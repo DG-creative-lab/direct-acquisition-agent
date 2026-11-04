@@ -42,7 +42,7 @@ Conversation messages, planning requests and conversation-origin campaign review
 
 For an explicitly selected `verified-paused/v1` store, new preparation intent, frozen planning context and copy consent live in the root application database. New campaign environments retain their mode, original creation command, clock and domain links in their own application database. A root application catalogue binds each server-owned location to its original store identity. Children inherit the actual parent store and organization. A missing or replaced store is blocked rather than recreated from a session payload.
 
-These owned records can be read after `workspace.sqlite` is removed, without reconstruction inference or changed permission. This is the first storage slice, not a general rebuild command or backup recovery guarantee. Legacy sessions remain inspectable, using trusted current time in selected mode, but need explicit migration before new workspace preparation, decisions or follow-ups. Legacy pending coordinators are not copied into the new intent store. Existing domain receipts remain historical observations. Verified tasks remain paused and cannot call a model. Unsealed workspaces keep the operating behavior described above.
+These owned records can be read after `workspace.sqlite` is removed, without reconstruction inference or changed permission. The offline command below can explicitly rebuild their presentation indexes. This is not a legacy migration or backup recovery guarantee. Legacy sessions remain inspectable, using trusted current time in selected mode, but need explicit migration before new workspace preparation, decisions or follow-ups. Legacy pending coordinators are not copied into the new intent store. Existing domain receipts remain historical observations. Verified tasks remain paused and cannot call a model. Unsealed workspaces keep the operating behavior described above.
 
 For new owned environments, command inputs and any explicit simulation-clock advance are one application transaction. A failed command insert rolls back the clock. After that admission, a later domain operation can still fail; retry uses the same command and the existing domain receipt. The command does not create approval or learning authority. Completed replay observes current state. Save the original root application store and every referenced campaign store together; arbitrary partial restore and legacy enrollment remain deferred.
 
@@ -51,6 +51,58 @@ The compatibility control store does not claim a distributed transaction with th
 A single background executor advances saved preparation records outside HTTP requests. Worker execution is serialized with direct preparation commands; progress reads and revisioned message appends remain available during inference. A per-root file lock prevents a second server from opening the same workspace. Domain SQLite transactions, exact subjects, scoped reads, leases, inference reservations and authoritative receipt journals remain in force. This is a local prototype rather than a multi-user deployment architecture.
 
 Progress reads can temporarily combine an older case mapping or preparation row with newer recovery state. The server reports pending checkpoint recovery from the exact saved stop receipt, which also drives the executor's retry. Chat keeps polling that pending mapping even after a transient blocker clears. An ordinary blocked preparation without a recovery receipt stops polling. These presentation hints grant no approval or inference permission.
+
+## Offline projection inspection and rebuild
+
+Use this only for an existing root already selected as `verified-paused/v1`.
+Stop its server and other workspace writers first. The command takes the same
+exclusive `server.lock`; it does not start the server or background executor.
+It refuses an unsealed root rather than selecting or migrating it.
+
+```sh
+PYTHONPATH=src python3 -m acquisition.workspace_rebuild --root .local/verified-workspace inspect
+PYTHONPATH=src python3 -m acquisition.workspace_rebuild --root .local/verified-workspace rebuild
+```
+
+Inspection reads source stores in SQLite read-only mode and reports registered
+store identities, owned session IDs, preparation count, pending location-only
+records, protected legacy counts and conflicts. It does not create a missing
+projection file. Frozen context and command bodies stay out of the report.
+For an existing projection interrupted mid-transaction, SQLite may roll back
+its hot journal under the root lock before the query-only inspection. This
+restores previously committed projection rows; application stores stay read-only.
+
+To bind a rebuild to a particular inspection, replace `PLAN_ID` with the returned
+`plan_id`:
+
+```sh
+PYTHONPATH=src python3 -m acquisition.workspace_rebuild --root .local/verified-workspace --expected-plan PLAN_ID rebuild
+```
+
+Rebuild reconstructs owned session, original request and command-completion
+indexes in one SQLite transaction. The application journals still supply live
+progress, clocks, consent, accounting and current review/learning facts. Cached
+blocker text positively tied to owned runs or revisions is discarded; legacy
+diagnostics stay protected. Nothing is regenerated by a model. A changed source or projection is rejected before
+commit. After interruption or a lost acknowledgement, run inspection and retry
+the same operation; no domain command is replayed by reconstruction.
+When using `expected-plan`, inspect again after completion or a lost
+acknowledgement. It binds the observed pre-write index, not a command receipt.
+
+Legacy rows, opaque preparation history, unrelated tables and an existing
+journal identity are preserved. Conflicting legacy request keys block the
+rebuild. An unreadable file, unsupported table layout, unexpected trigger or
+file alias is refused, so the command cannot erase an opaque legacy journal or
+write through a projection alias into an application store. Preserve those files
+and resolve their recovery separately. Missing or replaced authoritative stores
+are never initialized from projection data.
+
+Only registered new-format environments can be reconstructed. If a lost journal
+contained legacy-only authority, this command cannot recover or certify it.
+Inspection fingerprints bind observed projection inputs; they are not cold-backup
+checkpoints and do not prove absence of later provider work. Verified execution
+remains paused. Explicit legacy migration and supported restore/activation remain
+separate work under [issue 33's decision](execution-authority-decision.md).
 
 ## Local HTTP boundary
 
