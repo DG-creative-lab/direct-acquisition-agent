@@ -5,13 +5,13 @@ The design covers admission, inference, cancellation and recovery across the
 workspace, CLI and direct workers. It preserves the modular monolith and the
 existing campaign, review and learning boundaries.
 
-**Implementation status:** schema 13 wires planning, routing, campaign preparation,
-manual descendants, learning follow-ups and copy revisions to verified admissions
-when an application store is explicitly sealed to `verified-paused/v1`. New-format
-tasks cannot run or reserve inference. Unsealed compatibility stores retain their
-existing operating paths. Sealing is an irreversible format selection, separate
-from execution activation. Workspace projection rebuild, legacy certification and
-restore activation remain planned work. Approval and acceptance retain their
+**Implementation status:** the schema-13 entry-point cutover remains selected by
+`verified-paused/v1`; new-format tasks cannot run or reserve inference. Schema 14
+moves new preparation intent, sandbox environment, time, command identity and
+scoped domain mappings into application storage. Unsealed compatibility stores
+retain their existing operating paths. Legacy workspace records are not silently
+certified. Full projection rebuild, explicit legacy migration and restore/
+execution activation remain planned. Approval and acceptance retain their
 existing controls.
 
 ## Evidence and decision
@@ -42,8 +42,7 @@ ports and public module contracts. Network calls remain outside transactions.
 
 ## Ownership inventory
 
-The current location column describes the implementation at the checkpoint.
-The intended owner column is normative for the cutover.
+The current location column records the pre-consolidation checkpoint, still used by unsealed compatibility stores. For new selected work, the schema-14 storage ownership below supersedes the workspace locations in this inventory. The intended owner column remains normative for the full cutover.
 
 | Fact | Current durable location | Intended owner and responsibility |
 | --- | --- | --- |
@@ -265,6 +264,47 @@ Positive new-format model dispatch and the full verified campaign journey remain
 acceptance work for activation. Existing compatibility journeys are tested
 separately and do not prove new-format execution.
 
+## Application-owned workspace state, phase 4a
+
+Schema 14 adds immutable preparation intent in the root application store before
+planning admission. Intent includes exact revision, model settings, frozen
+planning context and copy permission. A separate bounded progress record may
+reference only that intent's verified planner run. Restart resumes the saved
+request; projection data cannot replace its consent or context.
+
+`conversations.EnvironmentIntent` and `WorkspaceStateStore` own the environment
+contract. `workflows.workspace_state` checks root, conversation and finalized
+parent sources through public contracts. SQLite loads actual scoped source facts
+under the write lock. `bootstrap.build_workspace_state` wires this policy and
+storage. The workspace facade submits commands and renders their results.
+
+Each campaign application database stores its environment's immutable mode,
+storage scope, initial server time and original command, followed by monotonic
+clock state and verified run/case/cohort links. Children inherit the parent's
+actual application store. The root application database holds a technical
+location catalogue bound to immutable per-store identities. A location is not
+an execution grant; an interrupted location-only creation authorizes no work.
+Missing or replaced stores block access. Known-store reads do not migrate or
+acquire a nested write lock inside another effect transaction.
+
+Simulation clock advance and exact command admission share one transaction.
+Clock targets come from the environment's accepted cohort and require an active
+operator. A changed request is rejected before advancing time. Domain effects
+still use their existing exact approval, acceptance and learning transactions.
+A later domain failure does not undo the earlier admitted clock decision; retry
+reuses the original identity and domain receipt. No distributed transaction is
+claimed between navigation projection and application storage.
+
+Owned intent, mappings and clocks remain readable with `workspace.sqlite`
+missing or altered. This slice does not reconstruct old workspace-only authority.
+Selected legacy sessions are inspectable, but new workspace continuation or
+decisions require explicit migration; their former projected clock is not a new
+time grant. Unsealed compatibility operation remains unchanged. Preserve the
+root application store and referenced campaign stores together. A location/store
+identity detects replacement, not arbitrary stale backups. Full rebuild,
+legacy migration, backup generation checks and execution activation are later
+gates, not supported recovery promises in this slice.
+
 ## Transitions and commit boundaries
 
 | Transition | Authoritative decision | Required atomic result |
@@ -332,9 +372,9 @@ transparent recovery from arbitrary partial backups is promised.
    without ownership. Test one shared allowance, stop-through revision, foreign
    scope rejection and zero dispatch from bypass paths. Store sealing and SQL
    guards close mixed-writer gaps. Verified execution activation remains deferred.
-4. **Rebuildable workspace.** Move authoritative coordinator intent, campaign
+4. **Rebuildable workspace, storage slice implemented.** Schema 14 moves new selected coordinator intent, campaign
    mappings, request fingerprints, storage scope, fixture/model mode and sandbox
-   time before removing their workspace authority. Delete only the projection
+   time out of workspace authority. Full rebuild and the activated journey remain deferred. Acceptance for the later slice: delete only the projection
    database in tests, restart, compare exact domain records, and complete the
    original chat journey with zero reconstruction inference. Kill the process
    after domain commit and before projection update. Review/learning history,
@@ -365,3 +405,28 @@ No generic repository, service locator, event bus, new orchestration framework o
 microservice split is introduced. The next reviewable change is moving remaining
 coordinator/session authority into the application store and rebuilding workspace
 projections. Execution activation still needs its separate migration/restore gate.
+
+### Environment link integrity
+
+An environment's runtime key is necessary but insufficient proof of identity.
+Linking and reading its run verify the admission against its immutable original
+creation command and environment: mode, generation permission/settings, source,
+parent, brief, source references and supported workspace command parameters.
+These checks use frozen admission facts, not current guidance or regenerated
+model context. Source policy remains in workflows and is wired by bootstrap;
+the adapter loads scoped facts and enforces the check within the transaction.
+
+In selected mode, owned environments are loaded independently before projection
+rows are considered. A projection for an owned ID is not decoded. Other rows
+must have a matching storage identity and a valid session shape; malformed rows
+are ignored without updating application state. Valid legacy rows remain
+inspectable under the existing migration restrictions.
+
+For generated workspace audiences, link policy obtains the expected full
+snapshot identity from the v1 deterministic generator using the environment's
+original organization/date and the supported workspace size and seed. It does
+not accept the admission's snapshot ID or claimed metadata as proof of those
+parameters. Bootstrap injects this adapter capability; the comparison occurs
+inside the existing application transaction. Selected datasets and learning
+follow-ups continue to use their frozen source provenance. No model work or
+historical input refresh is performed by this identity check.

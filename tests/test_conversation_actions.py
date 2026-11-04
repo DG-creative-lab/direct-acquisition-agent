@@ -676,7 +676,7 @@ v=w.conversation(sys.argv[2]);print(json.dumps({'revision':v['revision'],'messag
             self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],7)
             self.assertIsNone(db.execute("SELECT name FROM sqlite_master WHERE name='conversation_actions'").fetchone())
         with Database(path).connect() as db:
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],13)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],14)
             self.assertEqual([tuple(r) for r in db.execute('SELECT * FROM legacy_task_admissions')],cutoff)
             self.assertEqual(db.execute('SELECT payload FROM conversation_audiences WHERE organization=? AND conversation_id=?',('local-conversations',self.c)).fetchone()[0],source)
         self.assertTrue(self.w.view(self.sid)['review']['candidate_valid'])

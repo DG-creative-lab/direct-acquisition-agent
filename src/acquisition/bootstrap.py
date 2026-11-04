@@ -5,6 +5,7 @@ import json
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
+from functools import partial
 from datetime import datetime, timezone
 
 from acquisition.adapters.sqlite.followups import SqliteFollowups
@@ -14,7 +15,7 @@ from acquisition.adapters.sqlite.audiences import SqliteAudiences
 from acquisition.adapters.sqlite.database import Database
 from acquisition.adapters.sqlite.drafts import SqliteDrafts
 from acquisition.adapters.sqlite.tasks import SqliteTasks
-from acquisition.adapters.synthetic import generate
+from acquisition.adapters.synthetic import generate, generated_snapshot_identity
 from acquisition.adapters.local_audiences import LocalAudienceSource
 from acquisition.audiences import AudienceDiscovery
 from acquisition.workflows.audience_discovery import audience_tool_contracts
@@ -95,8 +96,38 @@ def routing_assets(organization, context):
     return value|{'id':'action_context_'+digest(value)}
 
 
-def build_preparations(path, host):
+def build_preparations(path, host, *, authoritative=False):
+    if authoritative:
+        from acquisition.adapters.sqlite.preparation_intents import SqlitePreparationIntents
+        return PreparationCoordinator(SqlitePreparationIntents(Database(path)),host)
     return PreparationCoordinator(SqlitePreparations(path), host)
+
+
+def build_workspace_state(root,clock=time.time):
+    from acquisition.adapters.sqlite.workspace_state import SqliteWorkspaceState
+    from acquisition.adapters.sqlite.workspace_sources import environment_source
+    from acquisition.workflows.workspace_state import validate_environment, validate_environment_run
+    from acquisition.conversations import WorkspaceState, EnvironmentIntent, environment_time
+    pack=json.loads((Path(__file__).resolve().parents[2]/'config/iwoca-product-facts-v1.json').read_text())
+    fixture_clock=datetime.fromisoformat(pack['checked_on']).replace(tzinfo=timezone.utc).timestamp()+43200
+    def validate(db,session,kind,inputs,now,request_id):
+        source=environment_source(db,session,kind,store.read);environment_time(now)
+        session=dict(session);session['created_at']=now
+        if session['parent_id']:
+            session['clock']=max(source['parent']['clock'],now);session['clock_mode']='SIMULATED'
+        else:
+            session['clock']=now if session['mode']=='model' else max(fixture_clock,now) if session.get('audience_selection') else fixture_clock
+            session['clock_mode']='REAL' if session['mode']=='model' else 'SIMULATED'
+        validate_environment(session,kind,inputs,source,now,request_id,fixture_clock)
+        return EnvironmentIntent.freeze(session)
+    run_policy=partial(validate_environment_run,synthetic_snapshot_id=generated_snapshot_identity)
+    store=SqliteWorkspaceState(root,Database(Path(root)/'conversations.sqlite'),clock,validate,run_policy)
+    return WorkspaceState(store)
+
+
+def verified_admission_mode(path):
+    from acquisition.adapters.sqlite.admission_guard import read_admission_policy
+    return read_admission_policy(path)
 
 
 def build_admissions(path, clock=time.time, *, _database=None):

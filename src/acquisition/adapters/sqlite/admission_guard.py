@@ -4,9 +4,18 @@ This is SQLite enforcement, not runtime policy. No workspace ancestry inference
 is consulted for new-format work. This slice has no execution activation state.
 """
 import json
+import sqlite3
+from contextlib import closing
+from pathlib import Path
 from acquisition.contracts import Conflict, digest
 from acquisition.conversations import AdmissionIntent
 from .database import stored_plan_hash
+
+
+def read_admission_policy(path):
+    """Observe format without migration or a second write lock."""
+    with closing(sqlite3.connect(Path(path).resolve().as_uri()+'?mode=ro',uri=True,timeout=10)) as db:
+        return verified_required(db)
 
 
 def verified_required(db):

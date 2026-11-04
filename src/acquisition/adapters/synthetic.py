@@ -1,7 +1,19 @@
 import random
+from functools import lru_cache
 from datetime import date, timedelta
 
 from acquisition.audiences import Business, Snapshot
+
+
+@lru_cache(maxsize=128)
+def generated_snapshot_identity(organization: str, size: int, seed: int, as_of: str) -> str:
+    """Independent identity of this adapter's synthetic-segmentation/v1 recipe.
+
+    Cache only immutable results from server-supplied parameters. Candidate
+    snapshot metadata or claimed provenance never supplies the expected ID.
+    Keep the v1 recipe stable when introducing another generator version.
+    """
+    return generate(organization,size,seed,as_of).id
 
 
 def generate(organization: str, size: int = 1000, seed: int = 42, as_of: str = "2026-10-25") -> Snapshot:

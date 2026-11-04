@@ -39,7 +39,9 @@ Python checks require Python 3.11 or later; the interface requires Node 22.12+ a
 | Counts use immutable independent observations | Literal posterior examples, deduplication, conflicting imports, disjoint business membership and concurrent finalizers | Repeated exposures and late corrections are unsupported |
 | Memory is a consistent snapshot | Finalization forced between segment reads cannot split frozen context evidence | Local transactional snapshot; future adapters must preserve it |
 | Historical replay does not repeat effects | New actor/request observing finalized/opened cohorts retains original receipt, event count and time | Existing historical events are not rewritten |
-| Workspace commands recover partial success | Domain commit before metadata loss, request identity before clock advance and current-state receipt observation | Separate stores, no distributed transaction |
+| Workspace commands recover partial success | Domain commit before metadata loss, request identity before clock advance and current-state receipt observation | Compatibility storage still spans databases; no distributed transaction |
+| New selected workspace intent is application-owned | Projection poisoning/loss, process restart, frozen preparation, exact creation mapping, verified domain links and store identity checks | `verified-paused/v1` only; no legacy enrollment or activated rebuild journey |
+| Owned simulation time binds an exact command | Real-SQLite insert failure rolls back the clock; changed-input replay, disabled operator, missing cohort and non-finite window probes | Seeded domain facts exercise this boundary, not verified execution activation |
 | HTTP transport checks precede effects | Host/token/Origin, absolute-form GET/POST, bounded JSON, static traversal and server-root lock probes | Loopback trusted use, not public-service authentication |
 | Browser retries preserve identity | Actual lost/5xx approval responses, interposed rejection, authentication error, field ordering, key migration and storage failure | Pending identities live in the browser session; no cross-device recovery UI |
 | Presentation preserves access and history | Exact page width at 390/1440px; saved-preview styles and token isolation; named wordmark at 390/820/1440px | Selected Chromium layouts, not exhaustive browser/accessibility certification |
@@ -649,3 +651,136 @@ whitespace checks passed. The backend suite used local loopback access for its
 HTTP tests. No frontend or transport code changed, so the browser suite was not
 rerun for this correction. No live or paid model calls were made. Verified
 execution remains paused.
+
+
+## Application-owned workspace intent, issue 33 phase 4a
+
+Schema 14 separates immutable preparation/environment intent from progress and
+navigation projection. New selected work reads mode, routing, initial time,
+clock advancement, creation-command mappings and domain links from application
+storage. Scope comes from a server-owned catalogue with immutable store identity,
+not a session payload. Preparation inputs include the original planning context,
+model configuration and copy consent before plan admission. They cannot be
+replaced by progress or copied from the old control-store journal.
+
+`test_workspace_authority.py` tests poisoned projection fields, missing
+`workspace.sqlite`, a fresh Python process, interruption after environment commit
+and after task admission, original preparation recovery without rebuilding
+context, and exact conversation draft replay after projection loss. All owned
+runs remain paused with zero worker dispatch. Tests reject foreign run links,
+changed clock/storage fields, unrelated creation-command aliases, replaced or
+missing stores, and symlinks outside the root. A clock read under an existing
+write transaction proves that known-store access does not acquire a second
+migration lock.
+
+A deliberately seeded set of committed review/job/cohort facts isolates the
+simulation clock boundary without enabling paused work. It proves that clock
+advance and command admission roll back together, exact retries do not change
+state, changed-input retries cannot advance time, disabled operators cannot
+advance time, and missing/non-finite cohort windows fail before mutation. A
+manual child inherits the owned parent store, organization, clock and admitted
+parent run without any workspace session row. These are boundary fixtures, not
+an end-to-end verified approval/acceptance journey.
+
+Migration checks inject failure after the v14 DDL but before identity creation:
+tables, version and identity roll back together, while the legacy cutoff stays
+unchanged. Reopen retains the original store identity. Current-schema missing
+identity fails rather than silently assigning a new one. Existing concurrent
+initialization and whole-chain rollback tests now include schema 14.
+
+Targeted mutation probes weaken projection precedence, original command input
+binding, preparation source selection, store identity/root confinement, clock
+command atomicity, operator checks, link integrity, immutable progress fields,
+planner-run binding and read-only store opening. The previous workspace ancestry
+reconstruction probe is replaced by owned-parent and projection-boundary
+coverage: new selected work no longer enters that reconstruction path.
+
+Unsealed compatibility operation remains covered by the existing backend and
+browser journeys. Full projection rebuild, legacy migration, stale-backup
+consistency and activation of verified execution remain later acceptance gates.
+No live model behavior is claimed by this offline pass.
+
+
+Verification for this slice: `make test` passed 624 backend tests;
+`make arch-check` passed; `make mutation-check` detected 223/223 declared
+mutations; `make interface-check` passed the production build, formatting and
+83 browser tests. The focused workspace authority file passed all 23 tests,
+including the final organization-scope assertion. Fifteen new mutation probes
+replace one retired reconstruction-path probe, for a net increase of fourteen.
+No paid or live provider call was made.
+
+## Exact environment/run binding and projection isolation
+
+The environment/run link now verifies more than a valid admission and matching
+runtime key. Inside the same SQLite transaction it reloads the immutable
+creation command, original environment, frozen admission command/source and
+verified parent environment. Workflow policy checks mode and model permission,
+source kind and identity, exact brief, parent run/ownership, source references
+and the original workspace command parameters. It does not rebuild model inputs,
+refresh historical evidence or enroll legacy work. Reads repeat the integrity
+check; an already inconsistent link is blocked, not rewritten.
+
+| Confirmed invariant | Independent falsification | Boundary |
+| --- | --- | --- |
+| A runtime key alone cannot establish environment intent | Interrupt fixture environment creation, independently admit a valid model run with the same key, reject both direct linking and preparation after reopening | Real SQLite; all new-format runs remain paused |
+| Valid commands cannot substitute different intent | Valid same-mode runs change size, seed, budget or date; a model environment receives fixture work; conversation/manual-child environments receive standalone work; a child receives another valid parent | No provider dispatch or alteration of the admitted candidate |
+| Exact historical work remains readable | Original model-run recovery, clock advancement, conversation replay, process recovery and frozen fixture/model follow-up contracts continue to pass | Later activation and legacy migration remain deferred |
+| Disposable corruption cannot hide owned records | Malformed JSON, wrong identity, incomplete objects, invalid timestamps and malformed nested plans coexist with owned state; listing, conversation and routing context remain readable after reopening | Malformed projection rows are ignored in selected mode; well-formed legacy rows remain visible |
+
+The two causal clusters are admission identity/source/consent at link commit,
+and projection corruption/observability during reads. The bounded tests use
+valid competing admissions rather than trusting the new matcher to create
+expected results. Projection tests assert original owned values and unchanged
+application records. New mutations weaken original-command matching, substitute
+the candidate's parent for the environment's parent, and remove corruption and
+schema isolation. The existing link mutation now removes the complete semantic
+check, because the former request-ID check is also covered by that policy.
+
+Verification of these review corrections: `make test` passed 632 backend tests,
+`make arch-check` passed, and `make mutation-check` detected 227/227 declared
+mutations. The final focused authority file passed 31 tests, including the
+additional nested-JSON and legacy-visibility assertions; both projection
+mutations were rerun successfully after the parser-error refinement. No frontend
+files changed, so the earlier 83-test browser evidence was not rerun for these
+corrections. No live provider call was made.
+
+## Audience identity behind a claimed creation command
+
+The reported bypass was reproduced before the fix: eight valid admissions
+substituted audience size, seed, date or record content while claiming the
+workspace command, in both fixture and model mode. Each could link to the
+original environment intent despite the contradictory population.
+
+Generated workspace audiences now bind the content identity independently
+derived from the environment's organization, fixed 1,000-record/seed-42 v1
+recipe and original UTC simulation date. Bootstrap supplies the deterministic
+synthetic adapter's identity function to workflow policy. The link transaction
+compares that expected identity with both the frozen source and admitted task.
+Claimed command fields and candidate snapshot metadata cannot supply the oracle.
+The check covers root/manual-descendant campaigns and unsourced conversation
+campaigns. The original synthetic-segmentation/v1 recipe must remain stable
+when introducing a new generator version.
+
+This recomputes only the deterministic synthetic identity, with a bounded
+128-entry cache of immutable hashes. It does not rebuild model context, invoke
+inference, read a live audience feed or change stored snapshots. Selected
+datasets retain their independently confirmed version/manifest provenance;
+learning follow-ups retain their frozen proposal population. Their audiences
+are not replaced with the 1,000-record synthetic recipe.
+
+Tests admit valid competing snapshots with a dishonest but exact entrypoint:
+20 records, a different seed, a different date, and altered content with the
+expected count and metadata. Link rejection leaves all application rows
+unchanged, the environment unlinked and provider calls absent. A separate
+unsourced-conversation test covers its implied generation recipe. A confirmed
+100-record dataset and existing fixture/model follow-up contracts demonstrate
+that legitimate overrides keep their provenance. Three mutations restore
+self-certification, omit the conversation check or apply the synthetic recipe
+to selected datasets.
+
+Verification of the audience correction: the full `make test` run passed 635
+tests. The latest focused authority run passed 35 tests, including the additional
+reverse counterexample added while strengthening the command mutation: correct
+audience bytes cannot excuse an incorrect saved command. `make arch-check`
+passed and the complete mutation run detected 230/230 declared mutations.
+No frontend files changed and no live provider call was made.

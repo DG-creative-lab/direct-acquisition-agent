@@ -74,6 +74,27 @@ def source_keys(references, required, optional=()):
         raise ValueError('Use the exact source references for this workflow')
 
 
+def conversation_source(db,organization,plan_id):
+    plans = db.execute('''SELECT p.organization,p.payload,t.output,t.inputs,t.capability,r.id,r.request_hash FROM conversation_plans p
+        JOIN runs r ON r.organization=p.organization AND r.request_id=json_extract(p.payload,'$.run_request_id')
+        JOIN tasks t ON t.run_id=r.id AND t.position=0 AND t.status='succeeded'
+        WHERE p.organization='local-conversations' AND r.status='succeeded' AND json_extract(t.output,'$.id')=?''', (plan_id,)).fetchall()
+    if len(plans) != 1:
+        raise NotFound('A successful saved conversation proposal is required')
+    plan, frozen = json.loads(plans[0]['output']), json.loads(plans[0]['payload'])
+    expected_capability = FIXTURE_CAPABILITY if frozen.get('fixture') else CAPABILITY
+    if (plans[0]['capability'] != expected_capability or json.loads(plans[0]['inputs']) != frozen or
+            plans[0]['request_hash'] != stored_plan_hash(db,plans[0]['id'])):
+        raise Conflict('Saved plan differs from its admitted runtime operation')
+    destination = 'workspace_' + digest({'conversation_id': plan['conversation_id'], 'plan_id': plan['id']})[:24]
+    if organization != destination:
+        raise Conflict('Conversation campaign belongs to a different campaign scope')
+    selection = db.execute('SELECT payload FROM conversation_audiences WHERE organization=? AND conversation_id=? AND revision=?',
+        ('local-conversations', plan['conversation_id'], plan['revision'])).fetchone()
+    return dict(plan=plan, planning_inputs=frozen, selection=json.loads(selection[0]) if selection else None,
+        owner=asdict(ExecutionOwnership('conversation', 'local-conversations', plan['conversation_id'], plan['revision'])))
+
+
 def load_source(db, organization, kind, references, now, brief_builder):
     """Return facts for a trusted workflow composer, never caller-provided tasks."""
     source = {'kind': kind, 'organization': organization}
@@ -104,24 +125,7 @@ def load_source(db, organization, kind, references, now, brief_builder):
         source_keys(references, ('plan_id', 'snapshot_id'), ('context_ids',))
         # Conversation proposals live in their domain scope. The deterministic
         # campaign scope is the only cross-organization destination permitted.
-        plans = db.execute('''SELECT p.organization,p.payload,t.output,t.inputs,t.capability,r.id,r.request_hash FROM conversation_plans p
-            JOIN runs r ON r.organization=p.organization AND r.request_id=json_extract(p.payload,'$.run_request_id')
-            JOIN tasks t ON t.run_id=r.id AND t.position=0 AND t.status='succeeded'
-            WHERE p.organization='local-conversations' AND r.status='succeeded' AND json_extract(t.output,'$.id')=?''', (references['plan_id'],)).fetchall()
-        if len(plans) != 1:
-            raise NotFound('A successful saved conversation proposal is required')
-        plan, frozen = json.loads(plans[0]['output']), json.loads(plans[0]['payload'])
-        expected_capability = FIXTURE_CAPABILITY if frozen.get('fixture') else CAPABILITY
-        if (plans[0]['capability'] != expected_capability or json.loads(plans[0]['inputs']) != frozen or
-                plans[0]['request_hash'] != stored_plan_hash(db,plans[0]['id'])):
-            raise Conflict('Saved plan differs from its admitted runtime operation')
-        destination = 'workspace_' + digest({'conversation_id': plan['conversation_id'], 'plan_id': plan['id']})[:24]
-        if organization != destination:
-            raise Conflict('Conversation campaign belongs to a different campaign scope')
-        selection = db.execute('SELECT payload FROM conversation_audiences WHERE organization=? AND conversation_id=? AND revision=?',
-            ('local-conversations', plan['conversation_id'], plan['revision'])).fetchone()
-        source.update(plan=plan, planning_inputs=frozen, selection=json.loads(selection[0]) if selection else None,
-            owner=asdict(ExecutionOwnership('conversation', 'local-conversations', plan['conversation_id'], plan['revision'])))
+        source.update(conversation_source(db,organization,references['plan_id']))
     elif kind == 'learning-followup':
         source_keys(references, ('proposal_id',))
         p = row_json(db, 'review_commands', 'receipt', organization, references['proposal_id'], 'request_id')

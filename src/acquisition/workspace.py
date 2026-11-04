@@ -11,8 +11,8 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
-from acquisition.bootstrap import build, build_admissions, build_preparations, agent_catalogue
-from acquisition.conversations import ACTIVE_PREPARATION, AudienceSelectionRejected, ActionNotSaved, pending_copy_clarification
+from acquisition.bootstrap import build, build_admissions, build_preparations, build_workspace_state, verified_admission_mode, agent_catalogue
+from acquisition.conversations import ACTIVE_PREPARATION, AudienceSelectionRejected, ActionNotSaved, pending_copy_clarification, EnvironmentIntent
 from acquisition.adapters.environment import openrouter_key
 from acquisition.adapters.openrouter import OpenRouter
 from acquisition.adapters.sqlite.workspace_ancestry import initialize_workspace_identity
@@ -56,8 +56,67 @@ class Workspace:
             db.execute("CREATE TABLE IF NOT EXISTS copy_revision_blocks(organization TEXT NOT NULL, revision_id TEXT NOT NULL, code TEXT NOT NULL, PRIMARY KEY(organization,revision_id))")
             db.execute('CREATE TABLE IF NOT EXISTS checkpoint_recovery_blocks(organization TEXT NOT NULL, run_id TEXT NOT NULL, code TEXT NOT NULL, PRIMARY KEY(organization,run_id))')
             initialize_workspace_identity(db)
-        self.preparations = build_preparations(self.root / "workspace.sqlite", self)
+        self._legacy_preparations = build_preparations(self.root / "workspace.sqlite", self)
+        self._owned_preparations = None
+        self._authority = None
         self.pack = json.loads((Path(__file__).resolve().parents[2] / "config/iwoca-product-facts-v1.json").read_text())
+
+    @property
+    def authority(self):
+        if self._authority is None:self._authority=build_workspace_state(self.root,self.real_clock)
+        return self._authority
+
+    @property
+    def preparations(self):
+        if not self._verified_mode():return self._legacy_preparations
+        if self._owned_preparations is None:
+            self._owned_preparations=build_preparations(self.root/'conversations.sqlite',self,authoritative=True)
+        return self._owned_preparations
+
+    def _sessions(self,*,reverse=False):
+        verified=self._verified_mode()
+        owned={s['id']:s for s in self.authority.listing()} if verified else {}
+        with self.control() as db:
+            rows=db.execute('SELECT id,payload FROM sessions ORDER BY rowid'+(' DESC' if reverse else '')).fetchall()
+        sessions=[]
+        for row in rows:
+            if row['id'] in owned:continue
+            if not verified:
+                sessions.append(json.loads(row['payload']))
+                continue
+            # Disposable rows cannot block or impersonate application-owned state.
+            try:
+                value=json.loads(row['payload'])
+                if type(value) is not dict or value.get('id')!=row['id']:continue
+                initial=value|{'run_id':None,'case_id':None,'cohort_id':None}
+                initial.setdefault('database_scope','conversations' if value.get('conversation_plan') or value.get('organization')=='local-conversations' else 'campaign')
+                EnvironmentIntent.freeze(initial)
+                for key in ('run_id','case_id','cohort_id'):
+                    if value[key] is not None:identifier(value[key])
+                if 'conversation_plan' in value:
+                    plan=value['conversation_plan']
+                    if type(plan) is not dict:continue
+                    for key in ('id','conversation_id'):identifier(plan[key])
+                    if type(plan['revision']) is not int or plan['revision']<1:continue
+                if 'audience_selection' in value and type(value['audience_selection']) is not dict:continue
+            except (ValueError,TypeError,KeyError,OverflowError,RecursionError):continue
+            sessions.append(value)
+        if verified:
+            rows={s['id']:s for s in sessions}
+            rows.update(owned)
+            sessions=sorted(rows.values(),key=lambda s:(s['created_at'],s['id']),reverse=reverse)
+        return sessions
+
+    def _project_session(self,session):
+        with self.control() as db:
+            db.execute('INSERT INTO sessions VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload',
+                       (session['id'],digest({'projection':session['id']}),canonical(session)))
+
+    def _legacy_collision(self,identity):
+        if self.authority.get(identity) is None:
+            with self.control() as db:
+                if db.execute('SELECT 1 FROM sessions WHERE id=?',(identity,)).fetchone():
+                    raise Conflict('Legacy sandbox intent requires explicit migration before verified creation')
 
     @contextmanager
     def control(self):
@@ -69,11 +128,18 @@ class Workspace:
             db.close()
 
     def _save(self, session):
+        if self._verified_mode() and self.authority.get(session['id']) is not None:
+            current=self.authority.save(session)
+            self._project_session(current)
+            return
         with self.control() as db:
             db.execute("UPDATE sessions SET payload=? WHERE id=?", (canonical(session), session["id"]))
 
     def _session(self, identity):
         identifier(identity)
+        if self._verified_mode():
+            current=self.authority.get(identity)
+            if current is not None:return current
         with self.control() as db:
             row = db.execute("SELECT payload FROM sessions WHERE id=?", (identity,)).fetchone()
         if row is None:
@@ -82,6 +148,8 @@ class Workspace:
 
     def _app(self, session, with_model=False, *, revision_admission=False):
         verified=self._verified_mode()
+        authoritative=self.authority.get(session['id']) if verified else None
+        if authoritative is not None:session=authoritative
         gateway, config = None, None
         if (with_model or revision_admission) and session["mode"] == "model":
             validate_fact_pack(self.pack, datetime.fromtimestamp(self.real_clock(), timezone.utc).date())
@@ -91,7 +159,14 @@ class Workspace:
         # time; explicit outcome simulation alone can advance the sandbox clock.
         conversation_db = session.get("database_scope") == "conversations" or session.get("conversation_plan") or session["organization"] == "local-conversations"
         database = self.root / "conversations.sqlite" if conversation_db else self.root / session["organization"] / "campaign.sqlite"
-        return build(database, clock=lambda: max(self.real_clock(), session["clock"]) if session.get("clock_mode") == "REAL" else session["clock"], gateway=gateway, model_config=config, workspace_organization=session['organization'],verified_admissions=verified)
+        if verified and authoritative is None:
+            # Legacy routing is an inspection hint only, never a new clock grant.
+            if session['organization']!='local-conversations' and not re.fullmatch(r'workspace_[0-9a-f]{24}',session['organization']):
+                raise Conflict('Legacy application scope is unavailable')
+            if not database.is_file() or not database.resolve().is_relative_to(self.root.resolve()):
+                raise Conflict('Restore the original legacy application store before inspection')
+        clock=(lambda:self.authority.clock(session['id'],self.real_clock())) if authoritative is not None else self.real_clock if verified else (lambda:max(self.real_clock(),session['clock']) if session.get('clock_mode')=='REAL' else session['clock'])
+        return build(database,clock=clock,gateway=gateway,model_config=config,workspace_organization=session['organization'],verified_admissions=verified)
 
     def _verified_mode(self):
         # Only the root's authoritative application store selects this format.
@@ -100,11 +175,10 @@ class Workspace:
         if self._requested_verified:
             build_admissions(path,self.real_clock).seal_legacy_writes()
             self._requested_verified=False
-        return path.exists() and build_admissions(path,self.real_clock).required()
+        return path.exists() and verified_admission_mode(path)
 
     def listing(self):
-        with self.control() as db:
-            sessions = [json.loads(r[0]) for r in db.execute("SELECT payload FROM sessions ORDER BY rowid DESC LIMIT 50")]
+        sessions=self._sessions(reverse=True)[:50]
         return {"sessions": [{k: s[k] for k in ("id", "name", "mode", "created_at", "case_id")} for s in sessions],
                 "mode": "LOCAL_SYNTHETIC_SANDBOX", "hosted_authentication": False}
 
@@ -136,8 +210,7 @@ class Workspace:
     def conversation(self, conversation_id):
         self._ensure_descendant_links()
         view = self._conversation_app().conversations.view("local-conversations", conversation_id)
-        with self.control() as db:
-            sessions = [json.loads(r[0]) for r in db.execute("SELECT payload FROM sessions ORDER BY rowid DESC")]
+        sessions=self._sessions(reverse=True)
         return view | {"execution":self._conversation_app().execution.view('local-conversations',conversation_id), "actions":self.action_progress(conversation_id), "preparations": self.preparation_progress(conversation_id), "campaigns": [{"session_id": s["id"], "plan_id": s["conversation_plan"]["id"],
                                       "revision": s["conversation_plan"]["revision"], "case_id": s["case_id"],
                                       "generation": self._generation(s)}
@@ -147,8 +220,7 @@ class Workspace:
         app=self._conversation_app();source=app.conversations.view('local-conversations',conversation_id)
         if source['revision']!=expected_revision:raise Conflict('The brief changed before action admission')
         plan=source['current_plan']['result'] if source['current_plan'] else None
-        with self.control() as db:
-            sessions=[json.loads(r[0]) for r in db.execute('SELECT payload FROM sessions ORDER BY rowid DESC')]
+        sessions=self._sessions(reverse=True)
         session=next((s for s in sessions if s.get('conversation_plan',{}).get('conversation_id')==conversation_id
                       and s['conversation_plan']['revision']==expected_revision),None)
         review=self._app(session).reviews.store.view(session['organization'],session['case_id']) if session and session['case_id'] else None
@@ -440,8 +512,7 @@ class Workspace:
 
     def _ensure_descendant_links(self, strict_session_id=None):
         if self._verified_mode():return  # New ancestry must exist before task creation, never be reconstructed here.
-        with self.control() as db:
-            sessions=[json.loads(r[0]) for r in db.execute('SELECT payload FROM sessions ORDER BY rowid')]
+        sessions=self._sessions()
         required=set()
         if strict_session_id:
             current=self._session(strict_session_id)
@@ -485,8 +556,7 @@ class Workspace:
         checkpoints={(r['organization'],r['run_id']) for r in receipt.get('checkpoint_runs',[])}
         if not checkpoints:
             return
-        with self.control() as db:
-            sessions=[json.loads(r[0]) for r in db.execute('SELECT payload FROM sessions ORDER BY rowid')]
+        sessions=self._sessions()
         for session in sessions:
             scope=session['organization'];run=session['run_id']
             try:
@@ -513,14 +583,20 @@ class Workspace:
         review=app.reviews.store.view(scope,case['case_id'])
         if review['run_id']!=run:
             raise Conflict('Checkpoint case differs from its original run')
-        with self.control() as db:
-            db.execute('BEGIN IMMEDIATE')
-            current=json.loads(db.execute('SELECT payload FROM sessions WHERE id=?',(session['id'],)).fetchone()[0])
+        if self._verified_mode() and self.authority.get(session['id']) is not None:
+            current=self.authority.get(session['id'])
             if current['case_id'] and current['case_id']!=case['case_id']:
-                raise Conflict('Checkpoint session already refers to another case')
-            current |= {'run_id':run,'case_id':case['case_id']}
-            db.execute('UPDATE sessions SET payload=? WHERE id=?',(canonical(current),session['id']))
-            db.commit()
+                raise Conflict('Checkpoint sandbox already refers to another case')
+            self._save(current|{'run_id':run,'case_id':case['case_id']})
+        else:
+            with self.control() as db:
+                db.execute('BEGIN IMMEDIATE')
+                current=json.loads(db.execute('SELECT payload FROM sessions WHERE id=?',(session['id'],)).fetchone()[0])
+                if current['case_id'] and current['case_id']!=case['case_id']:
+                    raise Conflict('Checkpoint session already refers to another case')
+                current |= {'run_id':run,'case_id':case['case_id']}
+                db.execute('UPDATE sessions SET payload=? WHERE id=?',(canonical(current),session['id']))
+                db.commit()
         source=session.get('conversation_plan')
         if source:
             row=self.preparations.store.for_revision('local-conversations',source['conversation_id'],source['revision'])
@@ -564,20 +640,25 @@ class Workspace:
             self.preparations.step('local-conversations', row['id'])
         return self.conversation(conversation_id) | {'audience_receipt':receipt}
 
+    def _draft_session_id(self,conversation_id,request_id):
+        if self._verified_mode():
+            row=self.authority.request('conversation',conversation_id,request_id)
+            return row['session_id'] if row else None
+        with self.control() as db:
+            row=db.execute('SELECT session_id FROM conversation_draft_requests WHERE conversation_id=? AND request_id=?',
+                           (conversation_id,request_id)).fetchone()
+            return row[0] if row else None
+
     def preparation_generation(self, organization, row):
         self._preparation_scope(organization)
-        with self.control() as db:
-            match = db.execute("SELECT session_id FROM conversation_draft_requests WHERE conversation_id=? AND request_id=?",
-                               (row["inputs"]["conversation_id"], row["id"] + ":draft")).fetchone()
-        if match:
-            return self._generation(self._session(match[0]))
-        app = self._conversation_app()
-        run_id = row["run_id"]
+        session_id=self._draft_session_id(row['inputs']['conversation_id'],row['id']+':draft')
+        if session_id:return self._generation(self._session(session_id))
+        app=self._conversation_app();run_id=row['run_id']
         if run_id is None:
-            source = app.conversations.view(organization, row["inputs"]["conversation_id"])
-            plan = next((p for p in source["plans"] if p["request_id"] == row["plan_request_id"]), None)
-            run_id = plan["run_id"] if plan else None
-        return self._run_generation(app, organization, run_id) if run_id else None
+            source=app.conversations.view(organization,row['inputs']['conversation_id'])
+            plan=next((p for p in source['plans'] if p['request_id']==row['plan_request_id']),None)
+            run_id=plan['run_id'] if plan else None
+        return self._run_generation(app,organization,run_id) if run_id else None
 
     def start_preparation(self, conversation_id, request_id, expected_revision, fixture, allow_model_copy, use_audience_catalogue=False):
         self.preparations.admit("local-conversations", conversation_id, request_id, expected_revision, fixture, allow_model_copy, use_audience_catalogue)
@@ -602,12 +683,10 @@ class Workspace:
             if generation and generation.get('ancestry_pending'):
                 public |= {'status':'blocked','detail':REVISION_BLOCKS['ancestry_unavailable']}
             if row["status"] == "review_ready":
-                with self.control() as db:
-                    admitted = db.execute("SELECT session_id FROM conversation_draft_requests WHERE conversation_id=? AND request_id=?",
-                                          (conversation_id, row["id"] + ":draft")).fetchone()
+                admitted=self._draft_session_id(conversation_id,row['id']+':draft')
                 ready = False
                 if admitted:
-                    session = self._session(admitted[0])
+                    session = self._session(admitted)
                     if session["case_id"]:
                         report = self._app(session).reviews.store.view(session["organization"], session["case_id"])["validation_report"]
                         ready = report["review_ready"]
@@ -643,6 +722,8 @@ class Workspace:
                 raise Conflict("Prepare a grounded model campaign before revising copy")
             app = self._app(session)
             prior = app.reviews.store.revision_request(session["organization"], request_id)
+            if self._verified_mode() and self.authority.get(identity) is None and prior is None:
+                raise Conflict('Legacy sandbox environment requires migration before new revision intent')
             if prior is None:
                 app = self._app(session, with_model=True)
             app.revisions.admit(session["organization"], session["case_id"], request_id, expected_subject, target_id, feedback, allow_model_copy)
@@ -680,8 +761,7 @@ class Workspace:
                 db.execute("INSERT INTO copy_revision_blocks VALUES(?,?,?) ON CONFLICT(organization,revision_id) DO UPDATE SET code=excluded.code WHERE code<>excluded.code", (scope, revision_id, code))
 
     def recover_copy_revisions(self):
-        with self.control() as db:
-            sessions = [json.loads(r[0]) for r in db.execute("SELECT payload FROM sessions")]
+        sessions=self._sessions()
         for session in sessions:
             if not session["case_id"]:
                 continue
@@ -691,8 +771,7 @@ class Workspace:
                     app.tasks.cancel(scope, row["run_id"], app.clock())
 
     def advance_copy_revisions(self):
-        with self.control() as db:
-            sessions = [json.loads(r[0]) for r in db.execute("SELECT payload FROM sessions")]
+        sessions=self._sessions()
         for session in sessions:
             if not session["case_id"]:
                 continue
@@ -752,9 +831,16 @@ class Workspace:
         fingerprint = digest({"conversation_id": conversation_id, "revision": expected_revision, "plan_id": plan_id})
         session_id = "workspace_" + digest({"conversation_id": conversation_id, "plan_id": plan_id})[:24]
         with self.lock:
+            if self._verified_mode():
+                old=self.authority.request('conversation',conversation_id,request_id)
+                if old:
+                    if old['inputs']!={'conversation_id':conversation_id,'revision':expected_revision,'plan_id':plan_id}:
+                        raise Conflict('Draft request already binds different proposal inputs')
+                    return self.prepare(old['session_id'],partial=partial)
             with self.control() as db:
                 prior_draft = db.execute("SELECT * FROM conversation_draft_requests WHERE conversation_id=? AND request_id=?", (conversation_id, request_id)).fetchone()
                 if prior_draft:
+                    if self._verified_mode():raise Conflict('Legacy draft request requires explicit migration')
                     if prior_draft["request_hash"] != fingerprint:
                         raise Conflict("Draft request already binds different proposal inputs")
                     return self.prepare(prior_draft["session_id"], partial=partial)
@@ -778,6 +864,12 @@ class Workspace:
                        "organization": session_id, "database_scope": "conversations", "clock": start, "parent_id": None,
                        "clock_mode": "REAL" if model_copy else "SIMULATED", "created_at": self.real_clock(), "run_id": None,
                        "case_id": None, "cohort_id": None, "conversation_plan": plan, **({"audience_selection":selection} if requires_audience else {})}
+            if self._verified_mode():
+                self._legacy_collision(session_id)
+                current=self.authority.create(session,'conversation',conversation_id,request_id,
+                    {'conversation_id':conversation_id,'revision':expected_revision,'plan_id':plan_id})
+                self._project_session(current)
+                return self.prepare(session_id,partial=partial)
             with self.control() as db:
                 db.execute("BEGIN IMMEDIATE")
                 try:
@@ -813,6 +905,8 @@ class Workspace:
         identifier(request_id), identifier(cohort_id)
         with self.lock:
             parent = self._session(identity)
+            if self._verified_mode() and self.authority.get(identity) is None:
+                raise Conflict('Legacy parent environment requires explicit migration before verified continuation')
             app, scope = self._app(parent), parent["organization"]
             try:
                 old = app.followups.get(scope, "followup-request:" + request_id)
@@ -854,6 +948,8 @@ class Workspace:
             raise ValueError("Choose fixture copy or explicit model-copy permission")
         with self.lock:
             parent = self._session(identity)
+            if self._verified_mode() and self.authority.get(identity) is None:
+                raise Conflict('Legacy parent environment requires explicit migration before verified continuation')
             app = self._app(parent)
             p = app.followups.get(parent["organization"],proposal_id)
             if p["parent_id"] != identity or not p["eligible"]:
@@ -861,6 +957,20 @@ class Workspace:
             sid = "workspace_" + digest({"followup":proposal_id})[:24]
             fingerprint = digest({"parent":identity,"proposal":proposal_id,"mode":mode,"allow_model_copy":allow_model_copy})
             session_fingerprint = digest({"proposal":proposal_id,"mode":mode,"allow_model_copy":allow_model_copy})
+            if self._verified_mode():
+                old=self.authority.request('followup','followup-prepare',request_id,parent_id=identity)
+                inputs={'parent':identity,'proposal':proposal_id,'mode':mode,'allow_model_copy':allow_model_copy}
+                if old:
+                    if old['inputs']!=inputs:raise Conflict('Follow-up preparation request already binds different inputs')
+                    return self.prepare(old['session_id'])
+                self._legacy_collision(sid)
+                child={'id':sid,'name':'Follow-up experiment','mode':mode,'organization':parent['organization'],
+                    'clock':max(parent['clock'],self.real_clock()),'clock_mode':'SIMULATED','created_at':self.real_clock(),
+                    'parent_id':identity,'database_scope':parent.get('database_scope','campaign'),
+                    'run_id':None,'case_id':None,'cohort_id':None,'followup_id':proposal_id}
+                current=self.authority.create(child,'followup','followup-prepare',request_id,inputs)
+                self._project_session(current)
+                return self.prepare(sid)
             with self.control() as db:
                 db.execute("BEGIN IMMEDIATE")
                 try:
@@ -891,6 +1001,20 @@ class Workspace:
             raise ValueError("Choose fixture or model copy")
         identity = "workspace_" + digest({"request_id": request_id})[:24]
         fingerprint = digest({"mode": mode, "parent_id": parent_id})
+        if self._verified_mode():
+            with self.lock:
+                self._legacy_collision(identity)
+                parent=self.authority.get(parent_id) if parent_id else None
+                if parent_id and parent is None:raise Conflict('Legacy parent environment requires explicit migration')
+                start=(datetime.fromisoformat(self.pack['checked_on']).replace(tzinfo=timezone.utc).timestamp()+43200 if mode=='fixture' else self.real_clock())
+                session={'id':identity,'name':'Working capital / '+('model copy' if mode=='model' else 'offline demo'),
+                    'mode':mode,'organization':parent['organization'] if parent else identity,
+                    'database_scope':parent['database_scope'] if parent else 'campaign','parent_id':parent_id,
+                    'clock':max(start,parent['clock']) if parent else start,'clock_mode':'SIMULATED' if parent or mode=='fixture' else 'REAL',
+                    'created_at':self.real_clock(),'run_id':None,'case_id':None,'cohort_id':None}
+                current=self.authority.create(session,'root','root',request_id,{'mode':mode,'parent_id':parent_id})
+                self._project_session(current)
+                return self.prepare(identity)
         with self.lock:
             with self.control() as db:
                 old = db.execute("SELECT * FROM sessions WHERE id=?", (identity,)).fetchone()
@@ -917,6 +1041,8 @@ class Workspace:
             session = self._session(identity)
             if session["case_id"]:
                 return self.view(identity)
+            if self._verified_mode() and self.authority.get(identity) is None:
+                raise Conflict('Legacy sandbox environment is inspectable; migrate it before verified preparation')
             app = self._app(session, with_model=True)
             store = app.reviews.store
             scope = session["organization"]
@@ -1045,14 +1171,18 @@ class Workspace:
             request_id = payload["request_id"]
             identifier(request_id)
             fingerprint = digest({"action": action, "payload": payload})
+            owned=self._verified_mode()
+            if owned:
+                if self.authority.begin(identity,action,payload):return self.view(identity)|{'command_replayed':True}
+                session=self.authority.get(identity);app=self._app(session)
             with self.control() as db:
-                old = db.execute("SELECT * FROM commands WHERE session_id=? AND request_id=?", (identity, request_id)).fetchone()
+                old = None if owned else db.execute("SELECT * FROM commands WHERE session_id=? AND request_id=?", (identity, request_id)).fetchone()
                 if old:
                     if old["request_hash"] != fingerprint:
                         raise Conflict("Workspace request already binds different action inputs")
                     if old["done"]:
                         return self.view(identity) | {"command_replayed": True}
-                else:
+                elif not owned:
                     db.execute("INSERT INTO commands VALUES(?,?,?,0)", (identity, request_id, fingerprint))
             store = app.reviews.store
             if action in {"approve", "reject"}:
@@ -1076,9 +1206,10 @@ class Workspace:
                     raise Conflict("Open an outcome window first")
                 cohort = app.learning.source.accepted(scope, case)
                 target = cohort["window_start"] + 7 * 86400 if action == "observe" else cohort["window_end"]
-                session["clock"] = max(session["clock"], target)
-                session["clock_mode"] = "SIMULATED"
-                self._save(session)
+                if not owned:
+                    session["clock"] = max(session["clock"], target)
+                    session["clock_mode"] = "SIMULATED"
+                    self._save(session)
                 # The existing app's clock closes over this session dictionary.
                 rows = []
                 for member in cohort["members"]:
@@ -1092,8 +1223,10 @@ class Workspace:
                     app.learning.store.finalize(scope, "local-operator", request_id, session["cohort_id"], cohort["window_end"])
             else:
                 raise ValueError("Unknown workspace action")
-            with self.control() as db:
-                db.execute("UPDATE commands SET done=1 WHERE session_id=? AND request_id=?", (identity, request_id))
+            if owned:self.authority.complete(identity,request_id)
+            else:
+                with self.control() as db:
+                    db.execute("UPDATE commands SET done=1 WHERE session_id=? AND request_id=?", (identity, request_id))
             return self.view(identity)
 
     def artifact(self, identity, kind, expected_subject):

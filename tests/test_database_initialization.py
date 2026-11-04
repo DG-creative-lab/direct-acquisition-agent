@@ -31,7 +31,7 @@ class DatabaseInitializationTests(unittest.TestCase):
         for _ in range(3):
             db = Database(path)
             with db.connect() as connection:
-                self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 13)
+                self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 14)
                 self.assertEqual(connection.execute("PRAGMA integrity_check").fetchone()[0], "ok")
                 self.assertIsNotNone(connection.execute("SELECT name FROM sqlite_master WHERE name='legacy_task_admissions'").fetchone())
 
@@ -86,7 +86,7 @@ class DatabaseInitializationTests(unittest.TestCase):
                         second = pool.submit(initialize, "second")
                         first.result(timeout=15)
                         second.result(timeout=15)
-                self.assertCountEqual(observations, [("first", True, version), ("second", True, 13)])
+                self.assertCountEqual(observations, [("first", True, version), ("second", True, 14)])
                 self.assert_reopenable(path)
 
     def test_two_processes_can_initialize_versions_zero_and_one(self):
@@ -173,7 +173,7 @@ class DatabaseInitializationTests(unittest.TestCase):
             Database(path)
         self.assertEqual(len(attempts), 2)
         self.assertEqual(sleep.call_count, 1)
-        self.assertEqual(versions, ["PRAGMA USER_VERSION=1", "PRAGMA USER_VERSION=2", "PRAGMA USER_VERSION=3", "PRAGMA USER_VERSION=4", "PRAGMA USER_VERSION=5", "PRAGMA USER_VERSION=6", "PRAGMA USER_VERSION=7", "PRAGMA USER_VERSION=8", "PRAGMA USER_VERSION=9", "PRAGMA USER_VERSION=10", "PRAGMA USER_VERSION=11", "PRAGMA USER_VERSION=12", "PRAGMA USER_VERSION=13"])
+        self.assertEqual(versions, ["PRAGMA USER_VERSION=1", "PRAGMA USER_VERSION=2", "PRAGMA USER_VERSION=3", "PRAGMA USER_VERSION=4", "PRAGMA USER_VERSION=5", "PRAGMA USER_VERSION=6", "PRAGMA USER_VERSION=7", "PRAGMA USER_VERSION=8", "PRAGMA USER_VERSION=9", "PRAGMA USER_VERSION=10", "PRAGMA USER_VERSION=11", "PRAGMA USER_VERSION=12", "PRAGMA USER_VERSION=13", "PRAGMA USER_VERSION=14"])
         self.assert_reopenable(path)
 
     def test_wal_retry_is_bounded_and_does_not_hide_other_sqlite_errors(self):
@@ -200,3 +200,31 @@ class DatabaseInitializationTests(unittest.TestCase):
                 self.assertEqual(len(attempts), 1)
                 sleep.assert_not_called()
                 self.assert_reopenable(path)
+
+    def test_authority_migration_rolls_back_version_identity_and_tables_together(self):
+        path=self.root/'authority-migration.sqlite';Database(path)
+        tables=('workflow_preparations','workspace_commands','workspace_requests','campaign_environments','workspace_locations','application_store_identity')
+        with closing(sqlite3.connect(path)) as db,db:
+            for table in tables:db.execute('DROP TABLE '+table)
+            db.execute('PRAGMA user_version=13')
+            cutoff=db.execute('SELECT * FROM legacy_task_admissions').fetchall()
+        with patch('uuid.uuid4',side_effect=OSError('identity insertion interrupted')):
+            with self.assertRaises(OSError):Database(path)
+        with closing(sqlite3.connect(path)) as db:
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],13)
+            actual={r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            self.assertFalse(set(tables)&actual)
+            self.assertEqual(db.execute('SELECT * FROM legacy_task_admissions').fetchall(),cutoff)
+        Database(path)
+        with closing(sqlite3.connect(path)) as db:
+            original=db.execute('SELECT id FROM application_store_identity').fetchone()[0]
+        self.assert_reopenable(path)
+        with closing(sqlite3.connect(path)) as db:
+            self.assertEqual(db.execute('SELECT id FROM application_store_identity').fetchone()[0],original)
+
+    def test_current_store_missing_identity_is_not_silently_reenrolled(self):
+        path=self.root/'lost-identity.sqlite';Database(path)
+        with closing(sqlite3.connect(path)) as db,db:
+            db.execute('DROP TRIGGER application_identity_no_delete')
+            db.execute('DELETE FROM application_store_identity')
+        with self.assertRaisesRegex(ValueError,'identity is unavailable'):Database(path)

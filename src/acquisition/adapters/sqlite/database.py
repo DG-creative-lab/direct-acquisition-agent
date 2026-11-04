@@ -304,6 +304,64 @@ PRAGMA user_version=13;
 """
 
 
+WORKSPACE_AUTHORITY = """
+CREATE TABLE IF NOT EXISTS application_store_identity(singleton INTEGER PRIMARY KEY CHECK(singleton=1),id TEXT NOT NULL);
+CREATE TRIGGER IF NOT EXISTS application_identity_no_update BEFORE UPDATE ON application_store_identity
+ BEGIN SELECT RAISE(ABORT,'Application store identity is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS application_identity_no_delete BEFORE DELETE ON application_store_identity
+ BEGIN SELECT RAISE(ABORT,'Application store identity is immutable'); END;
+CREATE TABLE IF NOT EXISTS workspace_locations(
+ organization TEXT NOT NULL,id TEXT NOT NULL,run_organization TEXT NOT NULL,store_scope TEXT NOT NULL,
+ store_key TEXT NOT NULL,store_identity TEXT NOT NULL,PRIMARY KEY(organization,id));
+CREATE TRIGGER IF NOT EXISTS workspace_location_no_update BEFORE UPDATE ON workspace_locations
+ BEGIN SELECT RAISE(ABORT,'Sandbox location is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS workspace_location_no_delete BEFORE DELETE ON workspace_locations
+ BEGIN SELECT RAISE(ABORT,'Sandbox location is immutable'); END;
+CREATE TABLE IF NOT EXISTS campaign_environments(
+ organization TEXT NOT NULL,id TEXT NOT NULL,intent TEXT NOT NULL,fingerprint TEXT NOT NULL,
+ epoch INTEGER NOT NULL,clock REAL NOT NULL CHECK(clock>=0 AND clock<253402300800),
+ clock_mode TEXT NOT NULL CHECK(clock_mode IN('REAL','SIMULATED')),run_id TEXT,case_id TEXT,cohort_id TEXT,
+ PRIMARY KEY(organization,id),FOREIGN KEY(run_id) REFERENCES runs(id));
+CREATE TRIGGER IF NOT EXISTS environment_intent_no_update BEFORE UPDATE OF organization,id,intent,fingerprint ON campaign_environments
+ BEGIN SELECT RAISE(ABORT,'Sandbox intent is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS environment_time_monotonic BEFORE UPDATE OF clock,clock_mode ON campaign_environments
+ WHEN NEW.clock<OLD.clock OR (OLD.clock_mode='SIMULATED' AND NEW.clock_mode!='SIMULATED')
+ BEGIN SELECT RAISE(ABORT,'Sandbox time cannot be reset'); END;
+CREATE TRIGGER IF NOT EXISTS environment_no_delete BEFORE DELETE ON campaign_environments
+ BEGIN SELECT RAISE(ABORT,'Sandbox intent is immutable'); END;
+CREATE TABLE IF NOT EXISTS workspace_requests(
+ organization TEXT NOT NULL,scope TEXT NOT NULL,request_id TEXT NOT NULL,kind TEXT NOT NULL,
+ inputs TEXT NOT NULL,environment_organization TEXT NOT NULL,environment_id TEXT NOT NULL,
+ PRIMARY KEY(organization,scope,request_id),
+ FOREIGN KEY(environment_organization,environment_id) REFERENCES campaign_environments(organization,id));
+CREATE TRIGGER IF NOT EXISTS workspace_request_no_update BEFORE UPDATE ON workspace_requests
+ BEGIN SELECT RAISE(ABORT,'Workspace request intent is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS workspace_request_no_delete BEFORE DELETE ON workspace_requests
+ BEGIN SELECT RAISE(ABORT,'Workspace request intent is immutable'); END;
+CREATE TABLE IF NOT EXISTS workspace_commands(
+ organization TEXT NOT NULL,environment_id TEXT NOT NULL,request_id TEXT NOT NULL,
+ inputs TEXT NOT NULL,done INTEGER NOT NULL CHECK(done IN(0,1)),
+ PRIMARY KEY(organization,environment_id,request_id),
+ FOREIGN KEY(organization,environment_id) REFERENCES campaign_environments(organization,id));
+CREATE TRIGGER IF NOT EXISTS workspace_command_no_rebind BEFORE UPDATE OF organization,environment_id,request_id,inputs ON workspace_commands
+ BEGIN SELECT RAISE(ABORT,'Workspace command inputs are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS workspace_command_no_reopen BEFORE UPDATE OF done ON workspace_commands
+ WHEN OLD.done=1 AND NEW.done!=1 BEGIN SELECT RAISE(ABORT,'Completed workspace command cannot reopen'); END;
+CREATE TRIGGER IF NOT EXISTS workspace_command_no_delete BEFORE DELETE ON workspace_commands
+ BEGIN SELECT RAISE(ABORT,'Workspace command inputs are immutable'); END;
+CREATE TABLE IF NOT EXISTS workflow_preparations(
+ organization TEXT NOT NULL,id TEXT NOT NULL,request_id TEXT NOT NULL,conversation_id TEXT NOT NULL,
+ revision INTEGER NOT NULL,intent TEXT NOT NULL,fingerprint TEXT NOT NULL,epoch INTEGER NOT NULL,progress TEXT NOT NULL,
+ PRIMARY KEY(organization,id),UNIQUE(organization,request_id),UNIQUE(organization,conversation_id,revision),
+ FOREIGN KEY(organization,conversation_id) REFERENCES conversations(organization,id));
+CREATE TRIGGER IF NOT EXISTS preparation_intent_no_update BEFORE UPDATE OF organization,id,request_id,conversation_id,revision,intent,fingerprint ON workflow_preparations
+ BEGIN SELECT RAISE(ABORT,'Preparation intent is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS preparation_no_delete BEFORE DELETE ON workflow_preparations
+ BEGIN SELECT RAISE(ABORT,'Preparation intent is immutable'); END;
+PRAGMA user_version=14;
+"""
+
+
 class Database:
     def __init__(self, path: str | Path):
         self.path = Path(path)
@@ -311,7 +369,7 @@ class Database:
         with self.transaction() as connection:
             # Version discovery and every migration share one SQLite write lock.
             version = connection.execute("PRAGMA user_version").fetchone()[0]
-            if version not in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}:
+            if version not in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}:
                 raise ValueError(f"Unsupported database schema {version}")
             if version<13:
                 # Partially newer fixtures/restores may contain guards referencing
@@ -355,7 +413,32 @@ class Database:
                 self._validate_admission_schema(connection)
             if version < 13:
                 self._apply_migration(connection, ADMISSION_CUTOVER)
+            if version < 14:
+                self._initialize_workspace_schema(connection)
+            else:self._validate_workspace_schema(connection)
         self._enable_wal()
+
+    @classmethod
+    def _initialize_workspace_schema(cls,connection):
+        from uuid import uuid4
+        cls._apply_migration(connection,WORKSPACE_AUTHORITY)
+        connection.execute('INSERT OR IGNORE INTO application_store_identity VALUES(1,?)',('store_'+uuid4().hex,))
+        cls._validate_workspace_schema(connection)
+
+    @staticmethod
+    def _validate_workspace_schema(connection):
+        if connection.execute('SELECT id FROM application_store_identity WHERE singleton=1').fetchone() is None:
+            raise ValueError('Application store identity is unavailable')
+
+    @classmethod
+    def existing(cls,path):
+        """Open a known current store without migration or a nested write lock."""
+        database=cls.__new__(cls);database.path=Path(path)
+        if not database.path.is_file():raise ValueError('Authoritative application store is unavailable')
+        with database.connect() as db:
+            if db.execute('PRAGMA user_version').fetchone()[0]!=14:
+                raise ValueError('Migrate the authoritative application store before workspace access')
+        return database
 
     @staticmethod
     def _validate_admission_schema(connection):

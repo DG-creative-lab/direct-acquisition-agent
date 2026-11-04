@@ -424,7 +424,7 @@ class WorkflowAdmissionMigrationTests(unittest.TestCase):
         original=Database._apply_migration
         def eleven(db,script):
             if script not in {WORKFLOW_ADMISSIONS,ADMISSION_CUTOVER}:original(db,script)
-        with patch.object(Database,'_apply_migration',side_effect=eleven):
+        with patch.object(Database,'_apply_migration',side_effect=eleven),patch.object(Database,'_initialize_workspace_schema'):
             app=build(self.path,clock=lambda:self.now)
             store=build_admissions(self.path,clock=lambda:self.now)
             org='one';cid=app.conversations.create(org,'chat')['id']
@@ -445,7 +445,7 @@ class WorkflowAdmissionMigrationTests(unittest.TestCase):
         store=build_admissions(self.path,clock=lambda:self.now)
         self.assertEqual(store.admit(self.intent,self.now),self.receipt)
         with store.database.connect() as db:
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],13)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],14)
             self.assertEqual(db.execute('PRAGMA integrity_check').fetchone()[0],'ok')
             self.assertEqual(db.execute('PRAGMA foreign_key_check').fetchall(),[])
             with self.assertRaises(sqlite3.IntegrityError):db.execute('DELETE FROM admission_requests')
