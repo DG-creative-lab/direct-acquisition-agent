@@ -10,6 +10,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ('checkpoint-polling-recovery-receipt','workspace.py',
+     "'checkpoint_recovery_pending':recovery_pending","'checkpoint_recovery_pending':False",
+     'test_execution_controls.ExecutionFollowupTests.test_checkpoint_recovery_remains_pollable_after_old_progress_loses_its_blocker'),
+    ('checkpoint-polling-unproven-recovery','workspace.py',
+     "recovery_pending=bool(not session['case_id'] and source and any(",
+     "recovery_pending=bool(not session['case_id']) or bool(not session['case_id'] and source and any(",
+     'test_execution_controls.ExecutionFollowupTests.test_checkpoint_recovery_remains_pollable_after_old_progress_loses_its_blocker'),
     ('workspace-audience-independent-identity','workflows/workspace_state.py',
      "expected_snapshot=synthetic_snapshot_id(session['organization'],1000,42,as_of)","expected_snapshot=source.get('snapshot_id')",
      'test_workspace_authority.WorkspaceAuthorityTests.test_claimed_generation_parameters_cannot_certify_a_different_audience'),

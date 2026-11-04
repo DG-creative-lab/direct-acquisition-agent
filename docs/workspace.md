@@ -50,6 +50,8 @@ The compatibility control store does not claim a distributed transaction with th
 
 A single background executor advances saved preparation records outside HTTP requests. Worker execution is serialized with direct preparation commands; progress reads and revisioned message appends remain available during inference. A per-root file lock prevents a second server from opening the same workspace. Domain SQLite transactions, exact subjects, scoped reads, leases, inference reservations and authoritative receipt journals remain in force. This is a local prototype rather than a multi-user deployment architecture.
 
+Progress reads can temporarily combine an older case mapping or preparation row with newer recovery state. The server reports pending checkpoint recovery from the exact saved stop receipt, which also drives the executor's retry. Chat keeps polling that pending mapping even after a transient blocker clears. An ordinary blocked preparation without a recovery receipt stops polling. These presentation hints grant no approval or inference permission.
+
 ## Local HTTP boundary
 
 The server binds only to `127.0.0.1`. It rejects absolute-form request targets before authentication or routing, then uses the same parsed origin-form target for both. It checks the Host header, a per-start browser token, the exact local Origin for mutations and bounded JSON request bodies. There is no permissive CORS response. The startup token is injected into the served HTML and expires on server restart; reload the page to obtain a new one. Static paths must stay inside `frontend/dist`, and artifact routes resolve only a known campaign and exact displayed subject. Errors do not return provider bodies or credentials.

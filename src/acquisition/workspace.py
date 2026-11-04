@@ -451,7 +451,17 @@ class Workspace:
             return {"run_id": None, "status": "admitted", "failed_tasks": [], "provider_error": None,
                     "outcome_uncertain": False, "unresolved_calls": []}
         generation=self._run_generation(app, scope, run)
-        return generation | {'checkpoint_recovery':self._checkpoint_block(scope,run)}
+        # A progress read can capture old cancelled metadata after recovery has
+        # cleared its blocker. The immutable stop receipt still proves that the
+        # executor retries this exact checkpoint, unlike an ordinary blocked run.
+        source=session.get('conversation_plan')
+        recovery_pending=bool(not session['case_id'] and source and any(
+            checkpoint['organization']==scope and checkpoint['run_id']==run
+            for receipt in self._conversation_app().execution.stopped_checkpoints('local-conversations')
+            if receipt['conversation_id']==source['conversation_id']
+            for checkpoint in receipt['checkpoint_runs']))
+        return generation | {'checkpoint_recovery':self._checkpoint_block(scope,run),
+                             'checkpoint_recovery_pending':recovery_pending}
 
     @staticmethod
     def _run_generation(app, scope, run):

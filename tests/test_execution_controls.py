@@ -1157,6 +1157,40 @@ print(json.dumps(SqliteExecution(Database(sys.argv[1])).view('local-conversation
         self.assertEqual(sum(e['kind']=='review_opened' for e in review['events']),1)
         self.assertFalse(review['approval_valid'])
 
+    def test_checkpoint_recovery_remains_pollable_after_old_progress_loses_its_blocker(self):
+        from acquisition.adapters.sqlite.reviews import SqliteReviews
+        c,sid=self.checkpoint('progress-read-race')
+        unrelated,_=self.checkpoint('another-progress-read-race')
+        self.w.stop_execution(unrelated,'stop-another-progress-read-race',1)
+        before=self.w.conversation(c)
+        self.assertFalse(before['campaigns'][0]['generation'].get('checkpoint_recovery_pending',False))
+        with patch.object(SqliteReviews,'open_case',side_effect=OSError('case storage unavailable')):
+            self.w.stop_execution(c,'stop-progress-read-race',1)
+        original=self.w.preparation_generation
+        interleaved=[]
+        def recover_after_progress_snapshot(organization,row):
+            if row['inputs']['conversation_id']==c and not interleaved:
+                self.assertEqual(row['status'],'cancelled')
+                interleaved.append(True)
+                self.w.recover_execution()
+            return original(organization,row)
+        with patch.object(self.w,'preparation_generation',side_effect=recover_after_progress_snapshot), \
+                patch('acquisition.workspace.OpenRouter',side_effect=AssertionError('projection recovery dispatched inference')):
+            packet=self.w.conversation(c)
+        self.assertEqual(interleaved,[True])
+        self.assertEqual(packet['preparations'][0]['status'],'cancelled')
+        self.assertNotIn('checkpoint_recovery',packet['preparations'][0])
+        campaign=packet['campaigns'][0]
+        self.assertIsNone(campaign['case_id'])
+        self.assertIsNone(campaign['generation']['checkpoint_recovery'])
+        self.assertTrue(campaign['generation'].get('checkpoint_recovery_pending',False))
+        self.assertEqual(packet['execution']['used'],before['execution']['used'])
+        ready=self.w.conversation(c)
+        self.assertEqual(ready['preparations'][0]['status'],'review_ready')
+        self.assertIsNotNone(ready['campaigns'][0]['case_id'])
+        self.assertFalse(ready['campaigns'][0]['generation']['checkpoint_recovery_pending'])
+        self.assertFalse(self.w.view(sid)['review']['approval_valid'])
+
     def test_model_followup_inherits_the_parent_conversation_allowance(self):
         self.model=copy_tests.CopyRoutingModel()
         subject=self.state['review']['subject']['id']

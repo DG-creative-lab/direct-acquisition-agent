@@ -63,7 +63,7 @@ Python checks require Python 3.11 or later; the interface requires Node 22.12+ a
 | Preparation progress grants no authority | One submitted model brief reaches a valid unapproved candidate; approval invalidates after a later message | Synthetic campaigns and simulated delivery only |
 | Interrupted work cannot be presented as ordinary failure | Unknown network outcome and interrupted planner/copy reservation remain uncertain on restart, with no additional provider call | No provider-side reconciliation is implemented |
 | Progress is a read-only projection | Guarded 202 admission leaves a queued task without calling the worker; browser reload reaches review with one admission and no plan/draft/approve/handoff POST | Background execution requires the local server; direct legacy endpoints remain synchronous |
-| Checkpoint polling follows recoverable progress | A real backend restores authority while the browser receives one stale case mapping with matching ready progress; review appears without another effect. An ordinary blocked preparation with no recovery receipt stops polling | Local eventual projection reads; polling grants no approval or inference authority |
+| Checkpoint polling follows recoverable progress | Real SQLite recovery interleaves with old campaign/progress reads. Exact saved stop receipts keep both ready-progress and cancelled-progress reads pollable until the case appears. An ordinary blocked preparation, even alongside another conversation's stopped checkpoint, cannot claim recovery | Local eventual projection reads; polling grants no approval or inference authority |
 
 | Message replay cannot transfer consent to a newer brief | Browser loses an acknowledged message response, another writer appends a correction, reload retries the original identity, and no preparation is admitted for the newer revision | Consent remains bound to the original message receipt revision |
 | Staleness cannot hide possible provider charges | Planner and copy timeout/crash after an edit retain both historical status and unresolved journal details across restart; browser checks new and older stale records | No automatic provider reconciliation or uncertain retry |
@@ -799,8 +799,9 @@ preparation or blocker and stopped polling, leaving the completed draft hidden.
 The client keeps its existing read-only polling active while a campaign has
 reached `waiting` or `succeeded`, still has no review-case ID, and its preparation
 reports `review_ready` for the same revision and campaign run. Explicit
-checkpoint-recovery markers continue to keep polling active. A missing case
-alone does not imply automatic recovery. Readiness, approval, simulated
+checkpoint-recovery blockers and a pending-recovery hint backed by the exact
+saved stop receipt also keep polling active. A missing case alone does not
+imply automatic recovery. Readiness, approval, simulated
 acceptance and inference remain controlled by the existing backend. No retry
 setting or timeout was increased.
 
@@ -839,3 +840,31 @@ Follow-up verification: both checkpoint browser cases passed five consecutive
 repetitions each. `make interface-check` passed the production build, formatting
 and all 84 browser tests. `make test` passed all 636 backend tests;
 `make arch-check` and `git diff --check` passed. No live provider calls were made.
+
+The next CI run exposed a second reachable read schedule. A conversation read
+captures its campaign mapping and cancelled preparation row, then checkpoint
+recovery creates the case, updates the row and clears the blocker before the
+read obtains generation state. The response has neither ready progress nor a
+blocker, so matching only `review_ready` still stops polling too early. CI did
+not retain its trace; a real SQLite probe and a browser test independently
+reproduce this schedule and the same five-second missing-review failure.
+
+The backend now projects `checkpoint_recovery_pending` only for a missing case
+whose exact organization/run belongs to this conversation's immutable stop
+receipt. That receipt is also the executor's recovery input. It remains
+discoverable after the blocker clears, and the hint clears when the case mapping
+is read. No new recovery task, inference, approval or acceptance is admitted by
+this read. An unrelated checkpoint's stop receipt is insufficient.
+
+The browser test holds recovery until an actual progress read has captured the
+old row, then restores the real case during that read. Its response is not
+rewritten. This complements the earlier injected ready-progress packet and the
+ordinary blocked/no-retry case. All three browser cases passed five repetitions
+each. Two declared mutations remove the recovery hint or falsely advertise all
+missing cases as recoverable. CI now retains failed browser traces, screenshots
+and error context for seven days.
+
+Final local verification: all 637 backend tests, all 85 browser tests,
+232/232 declared mutations, the production build, formatting, architecture and
+diff checks passed. The three targeted browser cases passed 15/15 repetitions.
+No live provider calls were made.

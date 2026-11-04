@@ -150,6 +150,7 @@ type Conversation = {
     generation?: {
       run_id: string | null;
       status: string;
+      checkpoint_recovery_pending?: boolean;
       provider_error: string | null;
       outcome_uncertain?: boolean;
       unresolved_calls?: { key: string; status: string }[];
@@ -295,21 +296,22 @@ export default function ConversationWorkspace({
       onCampaignsChanged().catch((e) => setError(e.message));
   }, [preparedCampaigns, onCampaignsChanged]);
 
-  // Ready progress can arrive before its case mapping. A blocked checkpoint
-  // without an explicit recovery marker has no automatic continuation to poll.
+  // Poll saved checkpoint recovery even if its blocker clears after an old
+  // progress read. Other missing mappings need matching ready progress.
   const preparing =
     (conversation?.execution?.pending_receipts ?? 0) > 0 ||
     (conversation?.campaigns?.some(
       (c) =>
         !c.case_id &&
-        ["waiting", "succeeded"].includes(c.generation?.status ?? "") &&
-        !!c.generation?.run_id &&
-        conversation.preparations?.some(
-          (p) =>
-            p.status === "review_ready" &&
-            p.inputs.revision === c.revision &&
-            p.generation?.run_id === c.generation?.run_id,
-        ),
+        (c.generation?.checkpoint_recovery_pending ||
+          (["waiting", "succeeded"].includes(c.generation?.status ?? "") &&
+            !!c.generation?.run_id &&
+            conversation.preparations?.some(
+              (p) =>
+                p.status === "review_ready" &&
+                p.inputs.revision === c.revision &&
+                p.generation?.run_id === c.generation?.run_id,
+            ))),
     ) ??
       false) ||
     (conversation?.preparations?.some(
