@@ -11,17 +11,22 @@ from acquisition.contracts import Conflict
 JOURNAL_BINDING_KEY='workspace:journal:v1'
 
 
+def ensure_workspace_identity(connection):
+    """Initialize within the caller's control-store transaction, never enroll domain history."""
+    connection.execute('''CREATE TABLE IF NOT EXISTS workspace_identity (
+        singleton INTEGER PRIMARY KEY CHECK(singleton=1), journal_id TEXT NOT NULL UNIQUE,
+        origin TEXT NOT NULL CHECK(origin IN ('fresh','legacy')))''')
+    origin='legacy' if connection.execute('SELECT 1 FROM sessions LIMIT 1').fetchone() else 'fresh'
+    connection.execute('INSERT OR IGNORE INTO workspace_identity VALUES(1,?,?)',('journal_'+uuid.uuid4().hex,origin))
+    connection.execute("CREATE TRIGGER IF NOT EXISTS workspace_identity_no_update BEFORE UPDATE ON workspace_identity BEGIN SELECT RAISE(ABORT,'Workspace identity is immutable'); END")
+    connection.execute("CREATE TRIGGER IF NOT EXISTS workspace_identity_no_delete BEFORE DELETE ON workspace_identity BEGIN SELECT RAISE(ABORT,'Workspace identity is immutable'); END")
+
+
 def initialize_workspace_identity(connection):
     """Pin an existing legacy journal or a new empty journal exactly once."""
     connection.execute('BEGIN IMMEDIATE')
     try:
-        connection.execute('''CREATE TABLE IF NOT EXISTS workspace_identity (
-            singleton INTEGER PRIMARY KEY CHECK(singleton=1), journal_id TEXT NOT NULL UNIQUE,
-            origin TEXT NOT NULL CHECK(origin IN ('fresh','legacy')))''')
-        origin='legacy' if connection.execute('SELECT 1 FROM sessions LIMIT 1').fetchone() else 'fresh'
-        connection.execute('INSERT OR IGNORE INTO workspace_identity VALUES(1,?,?)',('journal_'+uuid.uuid4().hex,origin))
-        connection.execute("CREATE TRIGGER IF NOT EXISTS workspace_identity_no_update BEFORE UPDATE ON workspace_identity BEGIN SELECT RAISE(ABORT,'Workspace identity is immutable'); END")
-        connection.execute("CREATE TRIGGER IF NOT EXISTS workspace_identity_no_delete BEFORE DELETE ON workspace_identity BEGIN SELECT RAISE(ABORT,'Workspace identity is immutable'); END")
+        ensure_workspace_identity(connection)
         connection.commit()
     except BaseException:
         connection.rollback()

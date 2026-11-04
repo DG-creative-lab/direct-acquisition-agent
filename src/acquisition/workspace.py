@@ -16,6 +16,7 @@ from acquisition.conversations import ACTIVE_PREPARATION, AudienceSelectionRejec
 from acquisition.adapters.environment import openrouter_key
 from acquisition.adapters.openrouter import OpenRouter
 from acquisition.adapters.sqlite.workspace_ancestry import initialize_workspace_identity
+from acquisition.adapters.sqlite.workspace_projection import initialize_control_tables
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.learning import identifier
 from acquisition.reasoning import ModelConfig
@@ -49,12 +50,7 @@ class Workspace:
         self.root.mkdir(parents=True, exist_ok=True)
         self.lock = threading.RLock()
         with self.control() as db:
-            db.execute("CREATE TABLE IF NOT EXISTS sessions(id TEXT PRIMARY KEY, request_hash TEXT NOT NULL, payload TEXT NOT NULL)")
-            db.execute("CREATE TABLE IF NOT EXISTS commands(session_id TEXT NOT NULL, request_id TEXT NOT NULL, request_hash TEXT NOT NULL, done INTEGER NOT NULL, PRIMARY KEY(session_id,request_id))")
-            db.execute("CREATE TABLE IF NOT EXISTS conversation_draft_requests(conversation_id TEXT NOT NULL, request_id TEXT NOT NULL, request_hash TEXT NOT NULL, session_id TEXT NOT NULL, PRIMARY KEY(conversation_id,request_id))")
-            db.execute("CREATE TABLE IF NOT EXISTS followup_prepare_requests(organization TEXT NOT NULL, request_id TEXT NOT NULL, request_hash TEXT NOT NULL, session_id TEXT NOT NULL, PRIMARY KEY(organization,request_id))")
-            db.execute("CREATE TABLE IF NOT EXISTS copy_revision_blocks(organization TEXT NOT NULL, revision_id TEXT NOT NULL, code TEXT NOT NULL, PRIMARY KEY(organization,revision_id))")
-            db.execute('CREATE TABLE IF NOT EXISTS checkpoint_recovery_blocks(organization TEXT NOT NULL, run_id TEXT NOT NULL, code TEXT NOT NULL, PRIMARY KEY(organization,run_id))')
+            initialize_control_tables(db)
             initialize_workspace_identity(db)
         self._legacy_preparations = build_preparations(self.root / "workspace.sqlite", self)
         self._owned_preparations = None

@@ -68,6 +68,7 @@ The workspace's **Knowledge** view shows advisory campaign playbooks, the baseli
 | Understand modules, state and transactions | [Architecture](docs/architecture.md) |
 | Assess a path to hosted operation and scale | [Scalability](docs/scalability.md) |
 | Run and recover the local application | [Workspace operations](docs/workspace.md) |
+| Inspect or rebuild registered new-format projections offline | [Projection recovery](docs/workspace.md#offline-projection-inspection-and-rebuild) |
 | Inspect approval and invalidation semantics | [Review reference](docs/reviews.md) |
 | Inspect outcome contracts and Bayesian assumptions | [Learning reference](docs/learning.md) |
 | Inspect versioned synthetic audience sources | [Audience catalogue](docs/audience-catalogue.md) |

@@ -10,7 +10,8 @@ existing campaign, review and learning boundaries.
 moves new preparation intent, sandbox environment, time, command identity and
 scoped domain mappings into application storage. Unsealed compatibility stores
 retain their existing operating paths. Legacy workspace records are not silently
-certified. Full projection rebuild, explicit legacy migration and restore/
+certified. Phase 4b adds explicit offline projection inspection and rebuild for
+registered new-format environments. Explicit legacy migration and restore/
 execution activation remain planned. Approval and acceptance retain their
 existing controls.
 
@@ -301,9 +302,63 @@ Selected legacy sessions are inspectable, but new workspace continuation or
 decisions require explicit migration; their former projected clock is not a new
 time grant. Unsealed compatibility operation remains unchanged. Preserve the
 root application store and referenced campaign stores together. A location/store
-identity detects replacement, not arbitrary stale backups. Full rebuild,
-legacy migration, backup generation checks and execution activation are later
-gates, not supported recovery promises in this slice.
+identity detects replacement, not arbitrary stale backups. The phase 4b command
+below reconstructs registered new-format projections only. Legacy migration,
+backup generation checks and execution activation remain later gates.
+
+## Offline projection rebuild, phase 4b
+
+`conversations.WorkspaceProjectionRebuild` owns the inspection/rebuild use case
+through narrow source and projection ports. Bootstrap supplies the existing
+environment validation policy, a read-only application-store reader and the
+SQLite projection adapter. Runtime, inference, review and learning policies do
+not move into the projection layer. No source schema migration is needed.
+
+The command acquires the same per-root `server.lock` as the local server. It
+requires an existing schema-14 root already selected as `verified-paused/v1`.
+It reads only registered stores, checks their immutable identities and selected
+policy, and validates owned environment/run/case/cohort links and preparation
+intent. Location-only admissions are reported without inventing environments.
+It does not discover arbitrary files, initialize source stores, regenerate
+guidance, load a model key, run a coordinator or activate a scheduler.
+
+Rebuild reconstructs owned session rows, exact original conversation/experiment
+request indexes and command completion projections in one control-store
+transaction. Progress continues to be read from application journals; copying
+frozen preparation consent back into a legacy authority table is unnecessary.
+Cached diagnostic keys tied to positively owned runs/revisions are discarded;
+legacy diagnostic keys remain protected even in the same organization.
+Optional `expected_plan` binds the inspected source and projection fingerprints.
+The projection is checked again after the write lock, protected records are
+compared after reconstruction, and source projection facts are rechecked before
+commit. A concurrent change rolls back the projection update. The source
+connections use SQLite read-only mode and query-only enforcement.
+
+Rows not referring to positively owned environments, opaque legacy preparation
+records, existing journal identity and unrelated tables are preserved. A native
+request key belonging to a protected legacy row blocks reconstruction rather
+than being rebound. Unsupported layouts/triggers, unreadable projection files,
+file aliases and missing/replaced source stores are refused. There is no force,
+drop-history, implicit legacy enrollment or independence attestation option.
+
+A crash before projection commit leaves the prior rows, or an empty newly
+created projection file, for the same command to rebuild. Lost acknowledgement
+after commit can be retried without domain effects. The new index does not
+certify a missing legacy journal or prove that an authoritative backup contains
+all later effects. Inspection fingerprints are not backup manifests or approval
+receipts. Preserve the original legacy journal and authoritative stores.
+
+An interrupted projection transaction can leave a hot SQLite rollback journal.
+Under the root lock, query-only inspection opens the existing projection with
+recovery permission so SQLite can restore its prior committed rows. This never
+creates a missing projection during inspection or grants write access to an
+application source store. The forced-cache-spill crash test exercises this path.
+
+Acceptance covers real SQLite, fresh CLI processes, hard process exit before
+commit, lost acknowledgement, protected mixed history, concurrent source/control
+writes, clock and command preservation, uncertain provider observations, source
+integrity and lock release. Verified work remains paused. The full activated
+campaign journey and deliberate migration/restore procedure belong to phase 5.
 
 ## Transitions and commit boundaries
 
@@ -336,14 +391,15 @@ or automatic retry of uncertain provider requests.
 | Process dies before the new admission commits | No runnable partial admission; retry original identity |
 | Process dies after admission but before acknowledgement | Read the original receipt and resume its tasks without recreating consent |
 | Process dies after call reservation | Keep outcome uncertain until a recorded observation resolves it; do not dispatch again automatically |
-| Workspace projection is deleted after the complete cutover | Rebuild from domain intent, mappings, time and receipts without provider calls, new consent, new approval or changed accounting |
+| New-format workspace projection is missing while registered application stores remain intact | Offline rebuild restores owned indexes from intent, mappings, time and receipts without provider calls, new consent, new approval or changed accounting; legacy-only authority is not recovered |
 | Existing run has positive authoritative parent evidence | Recover that relationship without rewriting historical tasks, artifacts or provider receipts |
 | Existing run has missing or conflicting ancestry | Pause effectful work and expose the reason. Absence of a parent is not proof of standalone ownership |
 | Workspace backup is stale, partial, recreated or unrelated | It cannot prove complete ancestry or authorize independence |
 | Authoritative database is rolled back to an old backup | Historical inspection only until deliberate reconciliation. Calls/effects after that checkpoint may be unknown; never reset allowance and automatically resume |
 
-Projection rebuild is a target acceptance gate and is not implemented yet.
-Until the migration is implemented, keep the current conservative recovery and
+Explicit projection rebuild is implemented for registered new-format state;
+it is not a migration or backup-restore activation procedure.
+Until legacy migration is implemented, keep the current conservative recovery and
 journal checks. A database or journal ID proves identity, not completeness.
 Migration must be explicit, restartable and auditable, with an inventory of
 unresolved records. It must preserve historical receipts, v1/v2 artifact readers,
@@ -372,13 +428,13 @@ transparent recovery from arbitrary partial backups is promised.
    without ownership. Test one shared allowance, stop-through revision, foreign
    scope rejection and zero dispatch from bypass paths. Store sealing and SQL
    guards close mixed-writer gaps. Verified execution activation remains deferred.
-4. **Rebuildable workspace, storage slice implemented.** Schema 14 moves new selected coordinator intent, campaign
+4. **Rebuildable workspace, phases 4a and 4b implemented.** Schema 14 moves new selected coordinator intent, campaign
    mappings, request fingerprints, storage scope, fixture/model mode and sandbox
-   time out of workspace authority. Full rebuild and the activated journey remain deferred. Acceptance for the later slice: delete only the projection
-   database in tests, restart, compare exact domain records, and complete the
-   original chat journey with zero reconstruction inference. Kill the process
-   after domain commit and before projection update. Review/learning history,
-   stopped revisions and uncertain calls must retain their meaning.
+   time out of workspace authority. Explicit offline rebuild now restores owned
+   indexes. Tests delete the projection, rebuild in a fresh process and compare
+   exact domain records, original request lookup and paused progress. Process
+   interruption and lost acknowledgement cannot repeat a domain effect. The
+   original activated chat journey remains a phase-5 acceptance gate.
 5. **Migration and restore activation.** Test mixed legacy/new histories,
    ambiguous CLI runs, missing or stale journals, conflicting parents, atomic
    migration rollback and interrupted migration resume. Positive evidence can
@@ -398,13 +454,13 @@ slots per account independently of production origin resolution. It explores all
 recorded replay and late/unknown observations, and a fresh Python process. This
 is a bounded reservation baseline. Separate admission tests now cover paused
 planning's atomic writes, scoped consent, concurrent admission and real crashes.
-Full workspace rebuild, legacy activation and alternate-writer cutover remain
-unproven until their later slices.
+Legacy migration, restore activation and the full executable new-format journey
+remain unproven until their later slices.
 
 No generic repository, service locator, event bus, new orchestration framework or
-microservice split is introduced. The next reviewable change is moving remaining
-coordinator/session authority into the application store and rebuilding workspace
-projections. Execution activation still needs its separate migration/restore gate.
+microservice split is introduced. The next reviewable change is the explicit
+legacy migration and supported restore/activation contract. Projection recovery
+does not enable verified execution.
 
 ### Environment link integrity
 

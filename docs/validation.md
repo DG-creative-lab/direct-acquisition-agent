@@ -64,6 +64,10 @@ Python checks require Python 3.11 or later; the interface requires Node 22.12+ a
 | Interrupted work cannot be presented as ordinary failure | Unknown network outcome and interrupted planner/copy reservation remain uncertain on restart, with no additional provider call | No provider-side reconciliation is implemented |
 | Progress is a read-only projection | Guarded 202 admission leaves a queued task without calling the worker; browser reload reaches review with one admission and no plan/draft/approve/handoff POST | Background execution requires the local server; direct legacy endpoints remain synchronous |
 | Checkpoint polling follows recoverable progress | Real SQLite recovery interleaves with old campaign/progress reads. Exact saved stop receipts keep both ready-progress and cancelled-progress reads pollable until the case appears. An ordinary blocked preparation, even alongside another conversation's stopped checkpoint, cannot claim recovery | Local eventual projection reads; polling grants no approval or inference authority |
+| Projection reconstruction grants no authority | Independent snapshots of every application table remain unchanged after inspection, rebuild, process exit and retry; paused workers still dispatch nothing | Registered new-format stores only; no legacy migration or restore activation |
+| Legacy projection records remain protected | Opaque preparations, BLOBs, journal identity, unrelated session/command rows and legacy diagnostics survive; a conflicting native request key blocks rebuild | Unreadable files and unsupported layouts are refused rather than replaced |
+| Projection writes are atomic and bound to observed inputs | Hard exit before commit rolls back, lost acknowledgement replays, changed source/control records reject commit, stale inspection plans fail and locks release immediately | Supported single-server root lock; fingerprints bind projection inputs, not backup completeness |
+| Rebuilt progress discards only owned diagnostics | Exact owned run/revision cache keys are removed while diagnostics for legacy keys in the same organization survive | Current progress and permission come from application journals; cache deletion admits no work |
 
 | Message replay cannot transfer consent to a newer brief | Browser loses an acknowledged message response, another writer appends a correction, reload retries the original identity, and no preparation is admitted for the newer revision | Consent remains bound to the original message receipt revision |
 | Staleness cannot hide possible provider charges | Planner and copy timeout/crash after an edit retain both historical status and unresolved journal details across restart; browser checks new and older stale records | No automatic provider reconciliation or uncertain retry |
@@ -867,4 +871,51 @@ and error context for seven days.
 Final local verification: all 637 backend tests, all 85 browser tests,
 232/232 declared mutations, the production build, formatting, architecture and
 diff checks passed. The three targeted browser cases passed 15/15 repetitions.
+No live provider calls were made.
+
+## Offline workspace projection rebuild, issue 33 phase 4b
+
+`tests/test_workspace_projection.py` exercises 21 recovery scenarios against
+real SQLite. The oracle compares independent snapshots of all application
+tables, not the projection adapter's expected rows. A missing projection is
+inspected without being created, then rebuilt in a fresh CLI process. Owned
+identity, original request lookup, fixture/model mode, simulation clock,
+accepted/cohort facts, stopped preparation and unknown provider observations
+retain their original meaning. Verified workers remain paused after rebuild.
+
+The mixed-history fixture retains opaque legacy consent, original command rows,
+an existing journal identity and unrelated binary data. Conflicting legacy keys,
+unreadable files, unsupported layouts and file aliases fail without discarding
+history. Missing or replaced application stores are not recreated or enrolled.
+An unsealed store is not implicitly selected for verified admission.
+
+Fault tests exit the process after projection writes but before commit, lose the
+acknowledgement after commit, change source clock facts before commit and insert
+a legacy row after inspection. The crash forces SQLite cache spill so recovery
+must handle a real hot rollback journal, not only unflushed process memory.
+Query-only projection inspection permits SQLite's own rollback under the root
+lock; authoritative source connections remain strictly read-only. These tests
+check rollback or exact replay without a new
+domain effect. Source-integrity and stale-plan errors release the root lock at
+exception return, without garbage collection. A location-only interruption is
+reported without inventing a campaign environment.
+
+The diagnostic fixture distinguishes an owned run/revision from legacy keys in
+the same organization. Only positively owned cache entries are discarded, so
+restored progress is read from application facts rather than stale blocker text.
+Nine targeted mutation cases cover SQLite crash recovery, the root lock, source identity, control and
+source freshness, atomic commit, legacy preservation and diagnostic ownership.
+The existing nested-migration mutation now targets the read-only reader's
+equivalent branch; its protected invariant is unchanged.
+
+These tests do not demonstrate executable verified campaigns, legacy
+certification, arbitrary partial-backup recovery or absence of post-checkpoint
+spend. Source fingerprints are inspection bindings. The migration, supported
+restore procedure and activation journey remain phase-5 acceptance work.
+
+Verification: `make test` passed all 658 backend tests, `make interface-check`
+passed the production build, formatting and all 85 browser tests, and
+`make mutation-check` detected 241/241 declared mutations, including all nine
+projection cases. The 21 focused recovery scenarios passed with forced SQLite
+cache spill in the pre-commit crash case. Architecture and diff checks passed.
 No live provider calls were made.

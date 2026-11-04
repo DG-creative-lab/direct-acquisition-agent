@@ -125,6 +125,20 @@ def build_workspace_state(root,clock=time.time):
     return WorkspaceState(store)
 
 
+def build_workspace_projection(root):
+    """Offline reconstruction only. Never create, seal, migrate or execute source stores."""
+    from acquisition.adapters.sqlite.workspace_projection import ReadOnlyDatabase, SqliteWorkspaceProjection
+    from acquisition.adapters.sqlite.workspace_state import SqliteWorkspaceState
+    from acquisition.workflows.workspace_state import validate_environment_run
+    from acquisition.conversations import WorkspaceProjectionRebuild
+    root=Path(root)
+    if not (root/'conversations.sqlite').resolve().is_relative_to(root.resolve()):
+        raise Conflict('The authoritative source must remain inside its server-owned root')
+    source=SqliteWorkspaceState(root,ReadOnlyDatabase.existing(root/'conversations.sqlite'),None,None,
+                               partial(validate_environment_run,synthetic_snapshot_id=generated_snapshot_identity))
+    return WorkspaceProjectionRebuild(source,SqliteWorkspaceProjection(root))
+
+
 def verified_admission_mode(path):
     from acquisition.adapters.sqlite.admission_guard import read_admission_policy
     return read_admission_policy(path)

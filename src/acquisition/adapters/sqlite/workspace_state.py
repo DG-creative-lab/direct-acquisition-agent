@@ -5,6 +5,7 @@ records carry intent, time, commands and domain links. Locations cannot run work
 """
 import json
 import re
+from contextlib import ExitStack
 from pathlib import Path
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.conversations import EnvironmentIntent, WORKSPACE_OWNER, environment_time
@@ -42,7 +43,7 @@ class SqliteWorkspaceState:
     def target(self,location):
         path=self.path(location['store_scope'],location['store_key'])
         if not path.exists():raise Conflict('The authoritative sandbox store is missing; restore its original store')
-        database=self.database if location['store_scope']=='conversations' else Database.existing(path)
+        database=self.database if location['store_scope']=='conversations' else type(self.database).existing(path)
         if self.store_identity(database)!=location['store_identity']:
             raise Conflict('Sandbox location refers to a different application store')
         return database
@@ -109,6 +110,64 @@ class SqliteWorkspaceState:
                 db.execute('BEGIN')
                 row=self.read(db,location['run_organization'],location['id'])
                 if row is not None:result.append(row)
+        return result
+
+    def projection(self):
+        """Read known stores only. No migration, enrollment or current context rebuild."""
+        from .preparation_intents import SqlitePreparationIntents
+        from .workspace_projection import ReadOnlyDatabase
+        self.path('conversations','conversations')
+        result={'sessions':[], 'requests':[], 'commands':[], 'preparations':[], 'stores':[], 'pending_locations':[],
+                'diagnostics':{'checkpoint_recovery_blocks':[], 'copy_revision_blocks':[]}}
+        with ExitStack() as stack:
+            root=stack.enter_context(ReadOnlyDatabase.existing(self.database.path).connect())
+            root.execute('BEGIN')
+            if not verified_required(root):raise Conflict('Projection rebuild requires an already selected verified-paused store')
+            locations=[dict(r) for r in root.execute('SELECT * FROM workspace_locations WHERE organization=? ORDER BY id',(WORKSPACE_OWNER,))]
+            connections={('conversations','conversations'):root}
+            result['root_identity']=root.execute('SELECT id FROM application_store_identity WHERE singleton=1').fetchone()[0]
+            for location in locations:
+                key=(location['store_scope'],location['store_key'])
+                if key not in connections:
+                    db=stack.enter_context(ReadOnlyDatabase.existing(self.path(*key)).connect())
+                    db.execute('BEGIN');connections[key]=db
+                db=connections[key]
+                identity=db.execute('SELECT id FROM application_store_identity WHERE singleton=1').fetchone()
+                if identity is None or identity[0]!=location['store_identity']:
+                    raise Conflict('Projection source differs from its registered application store')
+                if not verified_required(db):raise Conflict('Every projection source must remain verified-paused')
+                session=self.read(db,location['run_organization'],location['id'])
+                if session is None:
+                    result['pending_locations'].append(location['id']);continue
+                if session['database_scope']!=location['store_scope'] or session['organization']!=location['run_organization']:
+                    raise Conflict('Projection source differs from its registered organization')
+                result['sessions'].append(session)
+                if session['run_id'] is not None:
+                    result['diagnostics']['checkpoint_recovery_blocks'].append((session['organization'],session['run_id']))
+                if session['case_id'] is not None:
+                    for row in db.execute('SELECT receipt FROM review_commands WHERE organization=? ORDER BY rowid',(session['organization'],)):
+                        receipt=json.loads(row[0])
+                        if receipt.get('kind')=='copy_revision_admission' and receipt['inputs']['case_id']==session['case_id']:
+                            result['diagnostics']['copy_revision_blocks'].append((session['organization'],receipt['id']))
+                requests=[dict(r) for r in db.execute('SELECT * FROM workspace_requests WHERE environment_organization=? AND environment_id=? ORDER BY scope,request_id',
+                                                     (session['organization'],session['id']))]
+                if not requests:raise Conflict('Projection source is missing its original creation command')
+                for request in requests:
+                    request['inputs']=json.loads(request['inputs']);result['requests'].append(request)
+                for command in db.execute('SELECT * FROM workspace_commands WHERE organization=? AND environment_id=? ORDER BY request_id',
+                                          (session['organization'],session['id'])):
+                    command=dict(command);command['inputs']=json.loads(command['inputs']);result['commands'].append(command)
+            for key,db in sorted(connections.items()):
+                if db.execute('PRAGMA quick_check').fetchone()[0]!='ok':raise Conflict('Projection source failed SQLite integrity checks')
+                known={(l['run_organization'],l['id']) for l in locations if (l['store_scope'],l['store_key'])==key}
+                for organization in sorted({org for org,_ in known}):
+                    if any((organization,r[0]) not in known for r in db.execute('SELECT id FROM campaign_environments WHERE organization=?',(organization,))):
+                        raise Conflict('An authoritative environment is missing its registered location')
+                result['stores'].append({'scope':key[0],'key':key[1],
+                                         'identity':db.execute('SELECT id FROM application_store_identity WHERE singleton=1').fetchone()[0]})
+            result['preparations']=[SqlitePreparationIntents.decode(r,root) for r in root.execute(
+                'SELECT * FROM workflow_preparations WHERE organization=? ORDER BY id',('local-conversations',))]
+            result['fingerprint']=digest(result)
         return result
 
     def request(self,kind,scope,request_id,*,parent_id=None):
