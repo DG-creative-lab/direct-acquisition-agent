@@ -308,6 +308,47 @@ test("an independent variant edit receives only its own feedback", async ({
   });
 });
 
+test("blocked preparation without checkpoint recovery stops polling after case storage is restored", async ({
+  page,
+}) => {
+  // The storage failure ends before the server starts. This ordinary blocked
+  // preparation has no stopped-checkpoint receipt for the coordinator to retry.
+  await workspace("checkpoint", async (url) => {
+    await page.goto(url);
+    await page
+      .getByRole("button", { name: "Copy campaign", exact: true })
+      .click();
+    const progress = page.getByRole("region", {
+      name: "Campaign preparation progress",
+    });
+    await expect(progress).toContainText("Preparation needs attention");
+    const value = await current(page);
+    expect(value.preparations[0].status).toBe("blocked");
+    expect(value.preparations[0].checkpoint_recovery).toBeUndefined();
+    expect(value.campaigns[0].generation.status).toBe("waiting");
+    expect(value.campaigns[0].case_id).toBeNull();
+    expect(value.execution.pending_receipts).toBe(0);
+    // Observe three polling intervals: no background conversation reads should
+    // continue when the server has no automatic recovery to advance.
+    await expect(
+      page.waitForRequest(
+        (request) =>
+          request.method() === "GET" &&
+          request.url() === `${url}/api/conversations/${value.id}`,
+        { timeout: 1800 },
+      ),
+    ).rejects.toThrow(/Timeout/);
+    const after = await current(page);
+    expect(after.preparations[0].status).toBe("blocked");
+    expect(after.campaigns[0].case_id).toBeNull();
+    expect(after.execution.used).toBe(value.execution.used);
+    await expect(
+      page.getByRole("button", { name: /Review campaign/ }),
+    ).toHaveCount(0);
+    await expect(progress).toContainText("Preparation needs attention");
+  });
+});
+
 test("stopping a completed checkpoint recovers its unapproved review without inference", async ({
   page,
 }) => {

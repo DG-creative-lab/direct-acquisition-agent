@@ -63,7 +63,7 @@ Python checks require Python 3.11 or later; the interface requires Node 22.12+ a
 | Preparation progress grants no authority | One submitted model brief reaches a valid unapproved candidate; approval invalidates after a later message | Synthetic campaigns and simulated delivery only |
 | Interrupted work cannot be presented as ordinary failure | Unknown network outcome and interrupted planner/copy reservation remain uncertain on restart, with no additional provider call | No provider-side reconciliation is implemented |
 | Progress is a read-only projection | Guarded 202 admission leaves a queued task without calling the worker; browser reload reaches review with one admission and no plan/draft/approve/handoff POST | Background execution requires the local server; direct legacy endpoints remain synchronous |
-| Completed checkpoint recovery keeps polling | A real backend restores authority while the browser receives one stale case mapping with newer ready progress; review appears without another effect | Local eventual projection reads; polling grants no approval or inference authority |
+| Checkpoint polling follows recoverable progress | A real backend restores authority while the browser receives one stale case mapping with matching ready progress; review appears without another effect. An ordinary blocked preparation with no recovery receipt stops polling | Local eventual projection reads; polling grants no approval or inference authority |
 
 | Message replay cannot transfer consent to a newer brief | Browser loses an acknowledged message response, another writer appends a correction, reload retries the original identity, and no preparation is admitted for the newer revision | Consent remains bound to the original message receipt revision |
 | Staleness cannot hide possible provider charges | Planner and copy timeout/crash after an edit retain both historical status and unresolved journal details across restart; browser checks new and older stale records | No automatic provider reconciliation or uncertain retry |
@@ -796,10 +796,13 @@ campaign mapping before recovery updates the case, then read newer preparation
 progress after recovery clears the blocker. The former client saw no active
 preparation or blocker and stopped polling, leaving the completed draft hidden.
 
-The client now keeps its existing read-only polling active while a campaign has
-reached `waiting` or `succeeded` and still has no review-case ID. Readiness,
-approval, simulated acceptance and inference remain controlled by the existing
-backend. No retry setting or timeout was increased.
+The client keeps its existing read-only polling active while a campaign has
+reached `waiting` or `succeeded`, still has no review-case ID, and its preparation
+reports `review_ready` for the same revision and campaign run. Explicit
+checkpoint-recovery markers continue to keep polling active. A missing case
+alone does not imply automatic recovery. Readiness, approval, simulated
+acceptance and inference remain controlled by the existing backend. No retry
+setting or timeout was increased.
 
 The existing browser test now delivers this single intermediate response from
 a real recovery run deterministically. It failed before the client change and
@@ -820,3 +823,19 @@ formatting and all 83 browser tests. The forced-race checkpoint test passed ten
 consecutive repetitions. Architecture and diff checks passed. Backend source
 and authority rules are unchanged; CI reruns the full Python matrix on the
 published fix. No paid model requests were made.
+
+A follow-up review found that the original missing-case condition also polled
+ordinary blocked preparations indefinitely. If case storage fails before a
+stop receipt exists, the coordinator saves `blocked` and does not automatically
+retry when storage returns. The new browser regression creates that real SQLite
+state, restores storage before serving the interface, and observes three polling
+intervals without another conversation read. It also checks that progress stays
+blocked, no review appears and model usage does not increase. The regression
+failed against the broad condition before the matching-ready-progress check was
+added. The existing forced-race recovery test covers the transition that must
+continue polling.
+
+Follow-up verification: both checkpoint browser cases passed five consecutive
+repetitions each. `make interface-check` passed the production build, formatting
+and all 84 browser tests. `make test` passed all 636 backend tests;
+`make arch-check` and `git diff --check` passed. No live provider calls were made.
