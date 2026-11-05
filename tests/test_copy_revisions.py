@@ -55,16 +55,54 @@ class RevisionModel(CombinedModel):
         return super().complete(request)
 
 
+def _set_up_workspace(self):
+    self.temp = tempfile.TemporaryDirectory()
+    self.addCleanup(self.temp.cleanup)
+    self.root = Path(self.temp.name)
+    self.now = 1792972800.0
+    self.model = RevisionModel()
+    for p in (patch("acquisition.workspace.openrouter_key", return_value="fake"), patch("acquisition.workspace.OpenRouter", return_value=self.model)):
+        p.start(); self.addCleanup(p.stop)
+    self.w = Workspace(self.root, real_clock=lambda: self.now)
+
+
+class CopyRevisionSourceFenceTests(unittest.TestCase):
+    setUp = _set_up_workspace
+
+    def test_source_changes_during_inference_fence_later_calls_and_publication(self):
+        for change in ("message", "evidence", "suppression", "operator", "run"):
+            with self.subTest(change=change):
+                # Reset a fresh case for every independent interleaving.
+                self._check_case_change(change)
+
+    def _check_case_change(self, change):
+        with tempfile.TemporaryDirectory() as root:
+            w = Workspace(root, real_clock=lambda: self.now)
+            c = w.create_conversation("c", "Fresh")["id"]; w.message_conversation(c, "m", 0, "Prepare £600 for contractors with model copy.")
+            w.start_preparation(c, "p", 1, False, True)
+            for _ in range(6): w.advance_preparations()
+            sid = w.conversation(c)["campaigns"][0]["session_id"]; base = w.view(sid)
+            scope = w._session(sid)["organization"]; app = w._app(w._session(sid))
+            target = next(x["id"] for x in base["review"]["manifest"]["creatives"] if x["arm"] == "B")
+            w.request_copy_revision(sid, "r", base["review"]["subject"]["id"], target, "Make the hook more direct.", True)
+            original = self.model.complete
+            def interleave(request):
+                result = original(request)
+                if change == "message": w.message_conversation(c, "edit", 1, "Use £300 instead.")
+                elif change == "evidence": app.reviews.store.activate(scope, "local-operator", "policy-change", app.reviews.store.evidence(scope)["pack"], ReviewPolicy(max_approval_seconds=60))
+                elif change == "suppression": app.reviews.store.suppress(scope, "local-operator", "suppress", next(r["id"] for r in base["audience"] if r["arm"] == "B"), "New suppression.")
+                elif change == "operator": app.reviews.store.register_actor(scope, "local-operator", ("operator",), enabled=False)
+                else: app.tasks.cancel(scope, base["session"]["run_id"], self.now)
+                return result
+            with patch.object(self.model, "complete", side_effect=interleave) as dispatch: w.advance_copy_revisions()
+            self.assertEqual(dispatch.call_count, 1)
+            w.advance_copy_revisions()
+            self.assertEqual(w.view(sid)["review"]["subject"], base["review"]["subject"])
+
+
 class CopyRevisionTests(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
-        self.now = 1792972800.0
-        self.model = RevisionModel()
-        for p in (patch("acquisition.workspace.openrouter_key", return_value="fake"), patch("acquisition.workspace.OpenRouter", return_value=self.model)):
-            p.start(); self.addCleanup(p.stop)
-        self.w = Workspace(self.root, real_clock=lambda: self.now)
+        _set_up_workspace(self)
         self.c = self.w.create_conversation("conversation", "Revision campaign")["id"]
         self.w.message_conversation(self.c, "message", 0, "Prepare a £600 contractor campaign with model copy.")
         self.w.start_preparation(self.c, "prepare", 1, False, True)
@@ -307,36 +345,6 @@ class CopyRevisionTests(unittest.TestCase):
         later_scope = self.w._session(later)["organization"]
         with self.w.control() as db:
             self.assertIsNone(db.execute("SELECT code FROM copy_revision_blocks WHERE organization=? AND revision_id=?", (later_scope, blocked["id"])).fetchone())
-
-    def test_source_changes_during_inference_fence_later_calls_and_publication(self):
-        for change in ("message", "evidence", "suppression", "operator", "run"):
-            with self.subTest(change=change):
-                # Reset a fresh case for every independent interleaving.
-                self.setUp_case_change(change)
-
-    def setUp_case_change(self, change):
-        with tempfile.TemporaryDirectory() as root:
-            w = Workspace(root, real_clock=lambda: self.now)
-            c = w.create_conversation("c", "Fresh")["id"]; w.message_conversation(c, "m", 0, "Prepare £600 for contractors with model copy.")
-            w.start_preparation(c, "p", 1, False, True)
-            for _ in range(6): w.advance_preparations()
-            sid = w.conversation(c)["campaigns"][0]["session_id"]; base = w.view(sid)
-            scope = w._session(sid)["organization"]; app = w._app(w._session(sid))
-            target = next(x["id"] for x in base["review"]["manifest"]["creatives"] if x["arm"] == "B")
-            w.request_copy_revision(sid, "r", base["review"]["subject"]["id"], target, "Make the hook more direct.", True)
-            original = self.model.complete
-            def interleave(request):
-                result = original(request)
-                if change == "message": w.message_conversation(c, "edit", 1, "Use £300 instead.")
-                elif change == "evidence": app.reviews.store.activate(scope, "local-operator", "policy-change", app.reviews.store.evidence(scope)["pack"], ReviewPolicy(max_approval_seconds=60))
-                elif change == "suppression": app.reviews.store.suppress(scope, "local-operator", "suppress", next(r["id"] for r in base["audience"] if r["arm"] == "B"), "New suppression.")
-                elif change == "operator": app.reviews.store.register_actor(scope, "local-operator", ("operator",), enabled=False)
-                else: app.tasks.cancel(scope, base["session"]["run_id"], self.now)
-                return result
-            with patch.object(self.model, "complete", side_effect=interleave) as dispatch: w.advance_copy_revisions()
-            self.assertEqual(dispatch.call_count, 1)
-            w.advance_copy_revisions()
-            self.assertEqual(w.view(sid)["review"]["subject"], base["review"]["subject"])
 
     def test_expired_publication_lease_cannot_publish(self):
         self.admit(); self.w.advance_copy_revisions()

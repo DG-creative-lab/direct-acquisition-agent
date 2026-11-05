@@ -31,64 +31,17 @@ class ActionGateway(CombinedModel):
         return super().complete(request)
 
 
-class ConversationActionTests(unittest.TestCase):
-    def setUp(self):
-        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
-        self.root=Path(self.temp.name);self.now=1793404800.
-        self.w=Workspace(self.root,real_clock=lambda:self.now);self.gateway=ActionGateway()
-        for p in (patch('acquisition.workspace.openrouter_key',return_value='fixture'),
-                  patch('acquisition.workspace.OpenRouter',return_value=self.gateway)):
-            p.start();self.addCleanup(p.stop)
-        self.c=self.w.create_conversation('c','Follow-up continuity')['id']
-        self.w.message_conversation(self.c,'m',0,FIXTURE_MESSAGE)
-        self.w.start_preparation(self.c,'prepare',1,True,False,True)
-        for _ in range(3):self.w.advance_preparations()
-        view=self.w.conversation(self.c);entry=view['preparations'][0]['audience_candidates']['entries'][0]
-        self.w.select_conversation_audience(self.c,request_id='source',expected_revision=1,plan_id=view['current_plan']['result']['id'],
-            dataset_id=entry['dataset_id'],version=entry['version'],checksum=entry['checksum'],manifest_id=entry['id'])
-        for _ in range(6):self.w.advance_preparations()
-        self.sid=self.w.conversation(self.c)['campaigns'][0]['session_id']
-        self.base=self.w.view(self.sid)
+def _set_up_workspace(self):
+    self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+    self.root=Path(self.temp.name);self.now=1793404800.
+    self.w=Workspace(self.root,real_clock=lambda:self.now);self.gateway=ActionGateway()
+    for p in (patch('acquisition.workspace.openrouter_key',return_value='fixture'),
+              patch('acquisition.workspace.OpenRouter',return_value=self.gateway)):
+        p.start();self.addCleanup(p.stop)
 
-    def ask(self,content='status?',key='question',consent=False):
-        return self.w.route_followup(self.c,key,1,content,consent)
 
-    def routed(self,content='Change the budget to £400.',key='change',consent=False):
-        self.ask(content,key,consent);self.w.advance_actions()
-        action=self.w.conversation(self.c)['actions'][-1]
-        self.assertEqual(action['status'],'succeeded')
-        return action
-
-    def confirm(self,action,key='confirm'):
-        return self.w.confirm_followup(self.c,action['id'],key,action['result']['target']['id'],1)
-
-    def test_read_questions_preserve_revision_source_approval_and_original_preparation(self):
-        subject=self.base['review']['subject']['id']
-        approved=self.w.action(self.sid,'approve',{'request_id':'approve','subject_id':subject,'reason':'Reviewed the exact synthetic campaign.'})
-        for i,question in enumerate(('status?','Why did you choose this audience?','Why were these businesses excluded?','Explain validation')):
-            view=self.ask(question,str(i))
-            self.assertEqual(view['revision'],1)
-            self.assertEqual(len(view['messages']),1)
-            self.assertEqual(len(view['preparations']),1)
-            self.assertIsNotNone(view['actions'][-1]['result'])
-        current=self.w.view(self.sid)
-        self.assertEqual(current['review']['subject']['id'],subject)
-        self.assertEqual(current['review']['manifest']['brief']['audience_source'],self.base['review']['manifest']['brief']['audience_source'])
-        self.assertTrue(current['review']['approval_valid'])
-        self.assertEqual(self.gateway.routing_requests,[]);self.assertEqual(self.gateway.copy.requests,[])
-
-    def test_fuzzy_inspection_uses_one_bounded_call_and_saved_evidence(self):
-        self.gateway.action='explain_exclusions'
-        action=self.routed('What kept some of the records out of the shortlist?')
-        self.assertEqual(len(self.gateway.routing_requests),1)
-        self.assertEqual(action['result']['evidence']['exclusion_reasons'],self.base['review']['manifest']['exclusion_reasons'])
-        self.assertIn(str(self.base['review']['manifest']['counts']['excluded']),action['result']['text'])
-        self.assertEqual(self.w.conversation(self.c)['revision'],1)
-        self.w.advance_actions();self.assertEqual(len(self.gateway.routing_requests),1)
-        app=self.w._conversation_app();row=app.actions.store.get('local-conversations',action['id'])
-        self.assertEqual(row['model_config']['max_calls'],1)
-        self.assertEqual(row['context']['agent_assets']['skills'][0]['id'],'route-followup/v2')
-        self.assertIn('task_observation',{s['kind'] for s in row['context']['agent_assets']['sources']})
+class ConversationActionContextTests(unittest.TestCase):
+    setUp = _set_up_workspace
 
     def test_short_budget_answer_routes_with_the_actual_planner_question_before_confirmation(self):
         from test_conversations import proposal
@@ -166,6 +119,61 @@ class ConversationActionTests(unittest.TestCase):
         self.assertEqual([m['content'] for m in dialogue['messages']],messages)
         self.assertEqual(dialogue['planner_response']['question'],question)
         self.assertLessEqual(len(canonical(request).encode()),24000)
+
+
+class ConversationActionTests(unittest.TestCase):
+    def setUp(self):
+        _set_up_workspace(self)
+        self.c=self.w.create_conversation('c','Follow-up continuity')['id']
+        self.w.message_conversation(self.c,'m',0,FIXTURE_MESSAGE)
+        self.w.start_preparation(self.c,'prepare',1,True,False,True)
+        for _ in range(3):self.w.advance_preparations()
+        view=self.w.conversation(self.c);entry=view['preparations'][0]['audience_candidates']['entries'][0]
+        self.w.select_conversation_audience(self.c,request_id='source',expected_revision=1,plan_id=view['current_plan']['result']['id'],
+            dataset_id=entry['dataset_id'],version=entry['version'],checksum=entry['checksum'],manifest_id=entry['id'])
+        for _ in range(6):self.w.advance_preparations()
+        self.sid=self.w.conversation(self.c)['campaigns'][0]['session_id']
+        self.base=self.w.view(self.sid)
+
+    def ask(self,content='status?',key='question',consent=False):
+        return self.w.route_followup(self.c,key,1,content,consent)
+
+    def routed(self,content='Change the budget to £400.',key='change',consent=False):
+        self.ask(content,key,consent);self.w.advance_actions()
+        action=self.w.conversation(self.c)['actions'][-1]
+        self.assertEqual(action['status'],'succeeded')
+        return action
+
+    def confirm(self,action,key='confirm'):
+        return self.w.confirm_followup(self.c,action['id'],key,action['result']['target']['id'],1)
+
+    def test_read_questions_preserve_revision_source_approval_and_original_preparation(self):
+        subject=self.base['review']['subject']['id']
+        approved=self.w.action(self.sid,'approve',{'request_id':'approve','subject_id':subject,'reason':'Reviewed the exact synthetic campaign.'})
+        for i,question in enumerate(('status?','Why did you choose this audience?','Why were these businesses excluded?','Explain validation')):
+            view=self.ask(question,str(i))
+            self.assertEqual(view['revision'],1)
+            self.assertEqual(len(view['messages']),1)
+            self.assertEqual(len(view['preparations']),1)
+            self.assertIsNotNone(view['actions'][-1]['result'])
+        current=self.w.view(self.sid)
+        self.assertEqual(current['review']['subject']['id'],subject)
+        self.assertEqual(current['review']['manifest']['brief']['audience_source'],self.base['review']['manifest']['brief']['audience_source'])
+        self.assertTrue(current['review']['approval_valid'])
+        self.assertEqual(self.gateway.routing_requests,[]);self.assertEqual(self.gateway.copy.requests,[])
+
+    def test_fuzzy_inspection_uses_one_bounded_call_and_saved_evidence(self):
+        self.gateway.action='explain_exclusions'
+        action=self.routed('What kept some of the records out of the shortlist?')
+        self.assertEqual(len(self.gateway.routing_requests),1)
+        self.assertEqual(action['result']['evidence']['exclusion_reasons'],self.base['review']['manifest']['exclusion_reasons'])
+        self.assertIn(str(self.base['review']['manifest']['counts']['excluded']),action['result']['text'])
+        self.assertEqual(self.w.conversation(self.c)['revision'],1)
+        self.w.advance_actions();self.assertEqual(len(self.gateway.routing_requests),1)
+        app=self.w._conversation_app();row=app.actions.store.get('local-conversations',action['id'])
+        self.assertEqual(row['model_config']['max_calls'],1)
+        self.assertEqual(row['context']['agent_assets']['skills'][0]['id'],'route-followup/v2')
+        self.assertIn('task_observation',{s['kind'] for s in row['context']['agent_assets']['sources']})
 
     def test_amendment_proposal_has_no_effect_until_exact_confirmation(self):
         subject=self.base['review']['subject']['id']
