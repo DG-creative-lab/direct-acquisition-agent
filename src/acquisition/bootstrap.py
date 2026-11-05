@@ -139,6 +139,19 @@ def build_workspace_projection(root):
     return WorkspaceProjectionRebuild(source,SqliteWorkspaceProjection(root))
 
 
+def build_legacy_migration_inventory(root):
+    """Observation only. Never construct Workspace, migrate a schema or load a provider."""
+    from acquisition.adapters.sqlite.legacy_inventory import SqliteLegacyInventory
+    from acquisition.adapters.sqlite.workspace_state import SqliteWorkspaceState
+    from acquisition.workflows.workspace_state import validate_environment_run
+    from acquisition.conversations import LegacyMigrationInventory
+    # read() uses the inventory's already pinned read-only connection. Its
+    # complete link checks are shared with normal workspace and rebuild reads.
+    environments=SqliteWorkspaceState(root,None,None,None,
+        partial(validate_environment_run,synthetic_snapshot_id=generated_snapshot_identity))
+    return LegacyMigrationInventory(SqliteLegacyInventory(root,environments.read))
+
+
 def verified_admission_mode(path):
     from acquisition.adapters.sqlite.admission_guard import read_admission_policy
     return read_admission_policy(path)

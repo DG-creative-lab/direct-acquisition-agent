@@ -919,3 +919,158 @@ passed the production build, formatting and all 85 browser tests, and
 projection cases. The 21 focused recovery scenarios passed with forced SQLite
 cache spill in the pre-commit crash case. Architecture and diff checks passed.
 No live provider calls were made.
+
+## Legacy migration inventory, issue 33 phase 5a
+
+The offline `acquisition.legacy_migration inspect` command produces a
+`legacy-migration-plan/v1` proposal. All source connections are read-only, including
+historical schemas. It never constructs a workspace, selects a store policy,
+enrolls a legacy run, changes an allowance, dispatches inference or records approval.
+The only writable coordination object is the existing root's `server.lock`.
+
+| Invariant | Independent evidence | Limit |
+| --- | --- | --- |
+| Inspection conserves history | Full SQL-table and file-byte comparisons before/after repeated inspection and a fresh-process CLI; opaque binary tables, malformed sessions, preparation inputs and original receipts remain unchanged | SQLite may use shared memory for read locks; no cold-backup claim |
+| Permission comes from its recorded source | Native planner/routing/revision task matching; an internally consistent replacement plan conflicts with the native admission; routing permission stays routing-only | Unsupported old model-copy consent proofs remain incomplete |
+| Ownership needs positive scoped facts | Native conversation proposal and domain descendant fixtures, missing-parent/cycle/conflicting-owner checks, and contradictory account-index tests | No absent-parent inference or independence certification |
+| A journal witness is not completeness | Lost, recreated and stale populated journals; matching identity explicitly reports unproven completeness; historical independence receipt remains non-authoritative | Arbitrary partial restore remains unsupported |
+| Uncertainty survives inspection | Fake-provider network failure and interrupted reservation retain uncertain status, recorded call count and unknown remaining allowance; a definitive rejection remains a historical observation | No live billing verification, provider retry or account reset |
+| Owned projections cannot replace authority | Corrupt owned session ignored in favor of registered environment/preparation evidence; wrong source identity, hardlink alias and escaping paths cannot supply support | No repair is performed |
+| Partial admissions stay inspectable | Native admission without a runtime write and a staged verified request appear as pending, without finishing either admission | Applying migration remains deferred |
+| Recovery does not happen inside inspection | Old/future schemas, missing/unreadable stores and a forced cache-spill hot journal are retained; changed source invalidates the plan; locks release after failure | SQLite recovery must be handled separately |
+| Report is metadata, not authority | Fresh-process output excludes prompts, context and response bodies; arbitrary preparation fields are filtered; apply/activate commands are rejected; every executable/migration/activation flag remains false | Historical approvals still require their normal current-authority checks |
+
+`tests/test_legacy_inventory.py` supplies 27 focused scenarios using real SQLite,
+fresh processes, source fingerprints and fake providers. Fourteen targeted
+mutation cases remove pause/ownership/integrity/uncertainty/redaction and source
+checks, accidentally initialize an old schema, or hide a partial admission.
+Verification: `make test` passed all 685 backend tests with loopback access,
+including all 27 inventory scenarios. `make arch-check` passed, and
+`make mutation-check` detected 255/255 declared mutations, including all 14 new
+inventory cases. Diff checks passed. No frontend files changed and no live
+provider calls were made. Transactional migration, supported restore and verified
+execution activation remain later acceptance gates.
+
+### Review: complete environment validation and typed generation choices
+
+The inventory now delegates environment reads to the existing authoritative
+workspace reader through a bootstrap-wired callback. It uses the inventory's
+pinned read-only transaction and checks the exact admitted run/creation inputs,
+review case, learning cohort, original clock and parent before classifying an
+environment as supported. Projection records depend on that environment even
+when validation fails, so a conflict cannot leave a rebuild recommendation.
+The normal reader and effectful workflows are unchanged.
+
+Six additional real-SQLite tests reproduce missing, foreign and wrong-run review
+cases; missing and wrong-case cohorts; backward clocks and incompatible clock
+modes; valid paused runs with the same runtime key but different mode or audience;
+and nonboolean generation choices. Required and optional choices are tested with
+strings, objects, lists, integers and null. CLI output cannot contain the injected
+credential-shaped marker; valid optional booleans remain exact. Full SQL and file
+byte comparisons prove failed inspections leave the source records intact, and
+an unrelated valid environment remains supported. The fault-injection cases
+failed against the prior implementation and pass with the shared reader and
+optional type check.
+
+Three targeted mutation cases cover bypassing that reader, losing projection
+conflict propagation and omitting the optional choice type check.
+
+Review verification: `make test` passed all 691 backend tests with loopback
+access, including all 33 inventory scenarios. `make arch-check` and
+`git diff --check` passed. The targeted mutation run detected all 17/17 inventory
+mutations, including the three new cases. No live provider calls were made;
+inspection remains read-only and verified execution remains paused.
+
+### Review: validate the complete legacy session metadata projection
+
+Legacy session parsing now validates every exported payload field before
+assigning organization, metadata or discovery/ownership hints. It uses the
+public bounded identifier and UTC-time contracts, closed mode/clock-mode/storage
+enums, nullable link identifiers, and typed conversation-hint identifiers and
+revision. Missing historical clock mode is not inferred. Invalid journal keys
+use fingerprint locators in both record and evidence references, while internal
+record identities still bind the original key. Invalid values never enter the
+report or CLI diagnostics, and malformed hints cannot taint a valid original run.
+
+Four real-SQLite regressions cover clock-mode corruption, malformed required and
+optional identifiers, invalid nested conversation hints, and valid metadata with
+present or absent clock modes. They include credential-shaped strings, long
+strings, objects, lists and numeric values, fresh-process CLI output, continued
+visibility of an unrelated valid run, and exact SQL/file-byte preservation. The
+fault-injection cases reproduced the prior implementation's unsafe reporting.
+Five targeted mutations cover enum validation, required/optional identifier
+validation, opaque-key rendering and conversation-hint validation.
+
+Review verification: `make test` passed all 695 backend tests with loopback
+access, including all 37 inventory scenarios. Architecture and diff checks
+passed. The targeted mutation run detected all 22/22 inventory mutations,
+including the five new session cases. No live provider calls were made.
+Inspection remains read-only and verified execution remains paused.
+
+### Review: native reference formats before public display
+
+The general bounded-identity contract accepts realistic provider keys and is
+insufficient for public legacy metadata. The inventory now applies field-specific
+native v1 identifier formats to session keys, organizations and optional run,
+case, cohort and parent references. Other strings become opaque fingerprint
+locators with explicit unverified-reference reasons. Internal lookup and record
+identities retain the original scoped inputs; no historical source is rewritten.
+Conversation/brief hints outside their native formats cannot affect another
+run's ownership classification. Native shape is a display rule, not proof of
+ancestry, consent, approval or migration readiness.
+
+Two additional real-SQLite regressions cover a realistic 73-character key-shaped
+marker that explicitly passes the general identity validator, and historical
+aliases that must stay opaque. They cover every
+exported identifier position and both conversation-hint identifiers, fresh-process
+CLI output, source preservation, native-format passthrough and opaque historical
+aliases. Both tests failed against the prior implementation. Two new targeted
+mutations cover bypassing reference redaction and trusting an unverified hint;
+the existing opaque-key mutation now targets the shared public-reference rule.
+
+Review verification: `make test` passed all 697 backend tests with loopback
+access, including all 39 inventory scenarios. Architecture and diff checks
+passed. The targeted mutation run detected all 24/24 inventory mutations,
+including both new cases. No live provider calls were made. Inspection remains
+read-only, original records are preserved and verified execution remains paused.
+
+### Review of caller-supplied request references
+
+The inventory fingerprints request IDs in both preparation journals, runtime
+metadata, pending admission locators and request-keyed evidence. Standalone
+ownership scopes use the same rule because campaign IDs can come from the caller.
+Run matching by the original request key uses the corresponding fingerprint
+within the original store and organization.
+
+Real SQLite tests submit credential-shaped IDs through preparation, planning,
+runtime and copy revision APIs. The assertions cover CLI output, partial
+admissions, staged requests, standalone scope aliases and source preservation.
+The existing journal-parent test exercises request-key matching without a run ID.
+
+The full backend suite passed all 700 tests, including 42 inventory tests.
+Architecture and diff checks passed. The targeted mutation run detected all
+28 inventory mutations, including the four new request reference cases.
+
+### Review of the inventory report boundary
+
+The normal campaign API accepts a credential-shaped organization identifier.
+Previously the inventory forwarded it from the same source dictionary used for
+matching. Organization values appeared in records, evidence and resolved owners.
+The earlier field-level fixes covered individual paths through that dictionary.
+
+The report now selects fields in one projection after classification. It applies
+one organization fingerprint rule to all three positions, retains the fixed
+local label and checks the shapes of the metadata it emits. This supersedes the
+earlier fingerprint-based matching approach. The classifier uses the original
+values and scoped parent links.
+
+The integration regression creates two organizations with credential-shaped
+identifiers through the campaign API, reuses a request key across those scopes
+and checks a descendant that inherits the first owner's scope. It verifies the
+whole CLI output, consistent fingerprints, separate organizations and preserved
+source rows. A separate projection test introduces extra source fields and
+unsupported metadata strings to exercise the closed display surface.
+
+All 702 backend tests passed, including 44 inventory tests. Architecture and
+diff checks passed. The targeted run detected all 30 inventory mutations,
+including the two new checks for organization references and report fields.

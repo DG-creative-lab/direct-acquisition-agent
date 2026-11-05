@@ -26,6 +26,15 @@ def initialize_control_tables(db):
 
 
 class ReadOnlyDatabase(Database):
+    @classmethod
+    def unmigrated(cls, path):
+        """Read an existing historical schema without initializing or upgrading it."""
+        value = cls.__new__(cls)
+        value.path = Path(path)
+        if not value.path.is_file():
+            raise ValueError('Inspection source is unavailable')
+        return value
+
     @contextmanager
     def connect(self):
         db = sqlite3.connect(self.path.resolve().as_uri() + '?mode=ro', uri=True, timeout=10, isolation_level=None)

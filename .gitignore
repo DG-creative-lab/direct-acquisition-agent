@@ -45,3 +45,4 @@ dist/
 !/docs/conversational-copy-revision.md
 !/docs/execution-controls.md
 !/docs/execution-authority-decision.md
+!/docs/legacy-migration.md
