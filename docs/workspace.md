@@ -104,6 +104,21 @@ checkpoints and do not prove absence of later provider work. Verified execution
 remains paused. Explicit legacy migration and supported restore/activation remain
 separate work under [issue 33's decision](execution-authority-decision.md).
 
+## Read-only legacy migration inventory
+
+Phase 5a supplies a separate observation command for mixed legacy and verified
+histories. Stop the server and all writers, then run:
+
+```sh
+PYTHONPATH=src python3 -m acquisition.legacy_migration --root .local/workspace inspect
+```
+
+It reports source fingerprints, scoped evidence, parent dependencies and supported,
+conflicting, incomplete or uncertain records. It neither rebuilds projections nor
+migrates or activates execution. Missing or unreadable sources remain unresolved;
+older records and the schema-v3 cutoff stay intact. See the
+[inventory contract and limits](legacy-migration.md) before interpreting a plan.
+
 ## Local HTTP boundary
 
 The server binds only to `127.0.0.1`. It rejects absolute-form request targets before authentication or routing, then uses the same parsed origin-form target for both. It checks the Host header, a per-start browser token, the exact local Origin for mutations and bounded JSON request bodies. There is no permissive CORS response. The startup token is injected into the served HTML and expires on server restart; reload the page to obtain a new one. Static paths must stay inside `frontend/dist`, and artifact routes resolve only a known campaign and exact displayed subject. Errors do not return provider bodies or credentials.

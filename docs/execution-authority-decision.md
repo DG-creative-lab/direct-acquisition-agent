@@ -435,7 +435,12 @@ transparent recovery from arbitrary partial backups is promised.
    exact domain records, original request lookup and paused progress. Process
    interruption and lost acknowledgement cannot repeat a domain effect. The
    original activated chat journey remains a phase-5 acceptance gate.
-5. **Migration and restore activation.** Test mixed legacy/new histories,
+5. **Migration and restore activation, phase 5a inventory implemented.** The
+   [read-only inventory and versioned plan](legacy-migration.md) report scoped
+   evidence, parent dependencies and supported/conflicting/incomplete/uncertain
+   classifications. Unknown ownership never becomes standalone by absence.
+   Inspection does not migrate, certify or enable any record. Later slices must
+   test mixed legacy/new histories,
    ambiguous CLI runs, missing or stale journals, conflicting parents, atomic
    migration rollback and interrupted migration resume. Positive evidence can
    recover known ownership; unknown records remain inspectable and paused.
@@ -458,9 +463,9 @@ Legacy migration, restore activation and the full executable new-format journey
 remain unproven until their later slices.
 
 No generic repository, service locator, event bus, new orchestration framework or
-microservice split is introduced. The next reviewable change is the explicit
-legacy migration and supported restore/activation contract. Projection recovery
-does not enable verified execution.
+microservice split is introduced. The remaining work is transactional legacy
+migration and the supported restore/activation contract. Inventory and projection
+recovery do not enable verified execution.
 
 ### Environment link integrity
 

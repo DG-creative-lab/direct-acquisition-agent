@@ -97,6 +97,13 @@ Unsealed compatibility stores still keep preparation intent, routing and sandbox
 
 [Issue 33's execution-authority decision](execution-authority-decision.md) defines ownership, transaction boundaries, recovery and the staged cutover. The schema-13 cutover connects application callers to verified admissions behind an explicit, persistent `verified-paused/v1` store selection. The public admission port preserves original commands and source references; workflows compose existing factories; SQLite commits admission, tasks, owner and receipt together. Python and SQL guards close raw creation and execution paths, including cached older writers. New-format work remains paused, while unsealed compatibility stores retain their operating paths. New execution ancestry does not depend on workspace reconstruction. Schema 14 implements that storage move for new selected work. Phase 4b adds explicit offline projection rebuild from registered application stores through narrow source and projection ports. Source connections are read-only, replacement of owned indexes is transactional, and legacy records stay protected. Explicit legacy migration and execution activation remain deferred; compatibility histories retain their original storage obligations.
 
+Phase 5a adds a read-only [legacy inventory](legacy-migration.md) through a
+`conversations` inspection service and narrow source port. SQLite readers expose
+observed source evidence; pure classification composes ownership dependencies and
+records unresolved facts. Workspace claims never create ownership. The report is
+versioned and content-bound but grants no migration or execution authority.
+No schema or effectful workflow changes are introduced by this phase.
+
 ## Audience and experiment semantics
 
 A snapshot contains supplied segment, model/version, propensity, suppression, address and contact metadata. The agent does not train the segmentation model. Duplicate business identities are all excluded. Ordered exclusion reasons make terminal counts reconcile. The synthetic source's completeness flag describes its own batch; a real feed needs independent completeness and freshness checks.
