@@ -10,9 +10,6 @@ SPEC.loader.exec_module(CHECKER)
 
 
 class ArchitectureTests(unittest.TestCase):
-    def test_actual_module_imports_and_cycles(self):
-        self.assertEqual(CHECKER.check(ROOT), [])
-
     def test_harmful_boundary_mutations_are_detected(self):
         examples = [
             ("acquisition.runtime.application", "from acquisition.campaigns import Brief"),

@@ -50,6 +50,11 @@ ungrounded; never downgrade a v3 capability's inputs to bypass its checks.
 
 ## Verification
 
+A test must prove a behavior someone cares about. If you cannot name the
+regression and what observable result would fail, do not add it. Extend an
+existing test when it exercises the same boundary. Before removing a test,
+show where the same failure would still be caught.
+
 Run `make test` and `make arch-check`. Test real SQLite and process restarts,
 not only mocked repositories. Maintain the invariant ledger in
 `docs/validation.md`. Add targeted checks for every new effect or

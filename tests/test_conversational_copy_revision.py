@@ -28,15 +28,42 @@ class CopyRoutingModel(RevisionModel):
         return super().complete(request)
 
 
+def _set_up_workspace(self):
+    self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+    self.root=Path(self.temp.name);self.now=1793404800.
+    self.model=CopyRoutingModel()
+    for p in (patch('acquisition.workspace.openrouter_key',return_value='fixture'),
+              patch('acquisition.workspace.OpenRouter',return_value=self.model)):
+        p.start();self.addCleanup(p.stop)
+    self.w=Workspace(self.root,real_clock=lambda:self.now)
+
+
+class MultiSegmentCopyRoutingTests(unittest.TestCase):
+    setUp = _set_up_workspace
+
+    def test_multiple_segment_variants_require_the_segment_name(self):
+        from test_conversations import proposal
+        self.model.planner.results=[proposal(segments=['inventory','contractors'],copy_mode='model')]
+        c=self.w.create_conversation('combined','Combined campaign')['id']
+        self.w.message_conversation(c,'combined-m',0,'Prepare a £600 inventory and contractor experiment with model copy.')
+        self.w.start_preparation(c,'combined-prep',1,False,True,True)
+        for _ in range(3):self.w.advance_preparations()
+        view=self.w.conversation(c);entry=view['preparations'][0]['audience_candidates']['entries'][0]
+        self.w.select_conversation_audience(c,request_id='combined-source',expected_revision=1,plan_id=view['current_plan']['result']['id'],
+            dataset_id=entry['dataset_id'],version=entry['version'],checksum=entry['checksum'],manifest_id=entry['id'])
+        for _ in range(8):self.w.advance_preparations()
+        self.w.route_followup(c,'which-b',1,'Make variant B more direct.',False);self.w.advance_actions()
+        self.assertEqual(self.w.conversation(c)['actions'][-1]['result']['copy_revision']['status'],'needs_target')
+        self.w.route_followup(c,'inventory-answer',1,'inventory',False);self.w.advance_actions()
+        proposal=self.w.conversation(c)['actions'][-1]['result']['copy_revision']
+        self.assertEqual(proposal['status'],'ready')
+        self.assertEqual((proposal['target']['segment'],proposal['target']['arm']),('inventory','B'))
+        self.assertEqual(self.model.revision_calls,[])
+
+
 class ConversationalCopyRevisionTests(unittest.TestCase):
     def setUp(self):
-        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
-        self.root=Path(self.temp.name);self.now=1793404800.
-        self.model=CopyRoutingModel()
-        for p in (patch('acquisition.workspace.openrouter_key',return_value='fixture'),
-                  patch('acquisition.workspace.OpenRouter',return_value=self.model)):
-            p.start();self.addCleanup(p.stop)
-        self.w=Workspace(self.root,real_clock=lambda:self.now)
+        _set_up_workspace(self)
         self.c=self.w.create_conversation('copy-chat','Copy campaign')['id']
         self.w.message_conversation(self.c,'m',0,'Prepare a £600 contractor campaign with model copy.')
         self.w.start_preparation(self.c,'prepare',1,False,True,True)
@@ -384,25 +411,6 @@ class ConversationalCopyRevisionTests(unittest.TestCase):
         self.assertEqual(second['result']['copy_revision']['status'],'ready')
         with self.assertRaises(Conflict):self.confirm(second,request='shared')
         self.assertEqual(len(self.w.view(self.sid)['copy_revisions']),1)
-
-    def test_multiple_segment_variants_require_the_segment_name(self):
-        from test_conversations import proposal
-        self.model.planner.results=[proposal(segments=['inventory','contractors'],copy_mode='model')]
-        c=self.w.create_conversation('combined','Combined campaign')['id']
-        self.w.message_conversation(c,'combined-m',0,'Prepare a £600 inventory and contractor experiment with model copy.')
-        self.w.start_preparation(c,'combined-prep',1,False,True,True)
-        for _ in range(3):self.w.advance_preparations()
-        view=self.w.conversation(c);entry=view['preparations'][0]['audience_candidates']['entries'][0]
-        self.w.select_conversation_audience(c,request_id='combined-source',expected_revision=1,plan_id=view['current_plan']['result']['id'],
-            dataset_id=entry['dataset_id'],version=entry['version'],checksum=entry['checksum'],manifest_id=entry['id'])
-        for _ in range(8):self.w.advance_preparations()
-        self.w.route_followup(c,'which-b',1,'Make variant B more direct.',False);self.w.advance_actions()
-        self.assertEqual(self.w.conversation(c)['actions'][-1]['result']['copy_revision']['status'],'needs_target')
-        self.w.route_followup(c,'inventory-answer',1,'inventory',False);self.w.advance_actions()
-        proposal=self.w.conversation(c)['actions'][-1]['result']['copy_revision']
-        self.assertEqual(proposal['status'],'ready')
-        self.assertEqual((proposal['target']['segment'],proposal['target']['arm']),('inventory','B'))
-        self.assertEqual(self.model.revision_calls,[])
 
     def test_fixture_campaigns_cannot_be_silently_converted_to_model_revisions(self):
         from acquisition.conversations import FIXTURE_MESSAGE
