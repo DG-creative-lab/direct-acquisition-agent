@@ -24,7 +24,7 @@ from .database import stored_plan_hash
 from .execution import account, require_active
 from .tasks import finite_time, insert_run, event, scoped_run
 from .admission_sources import require_owner, freshness_fence
-from .admission_guard import verified_required
+from .admission_guard import seal_legacy_writes, verified_required
 
 
 def planning_source(db, organization, conversation_id):
@@ -65,16 +65,7 @@ class SqliteAdmissions:
     def seal_legacy_writes(self):
         """An irreversible format selection, never permission to execute."""
         with self.database.transaction() as db:
-            if verified_required(db):return
-            if db.execute("SELECT 1 FROM tasks WHERE status='running' LIMIT 1").fetchone() or db.execute(
-                    "SELECT 1 FROM model_calls WHERE status='reserved' LIMIT 1").fetchone():
-                raise Conflict('Quiesce running tasks and reconcile reserved inference before admission cutover')
-            if db.execute('''SELECT 1 FROM conversation_plans p LEFT JOIN runs r
-                    ON r.organization=p.organization AND r.request_id=json_extract(p.payload,'$.run_request_id')
-                    WHERE r.id IS NULL LIMIT 1''').fetchone():
-                raise Conflict('Reconcile the original legacy planning admission before cutover')
-            now=self.clock();finite_time(now)
-            db.execute("INSERT INTO admission_store_policy VALUES(1,'verified-paused/v1',?)",(now,))
+            seal_legacy_writes(db, self.clock)
 
     def request_inputs(self, organization, request_id):
         identity(organization),identity(request_id)

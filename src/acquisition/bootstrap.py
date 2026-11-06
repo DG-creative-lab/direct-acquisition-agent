@@ -121,7 +121,7 @@ def build_workspace_state(root,clock=time.time):
         validate_environment(session,kind,inputs,source,now,request_id,fixture_clock)
         return EnvironmentIntent.freeze(session)
     run_policy=partial(validate_environment_run,synthetic_snapshot_id=generated_snapshot_identity)
-    store=SqliteWorkspaceState(root,Database(Path(root)/'conversations.sqlite'),clock,validate,run_policy)
+    store=SqliteWorkspaceState(root,Database.existing(Path(root)/'conversations.sqlite'),clock,validate,run_policy)
     return WorkspaceState(store)
 
 
@@ -140,8 +140,8 @@ def build_workspace_projection(root):
 
 
 def build_legacy_migration_inventory(root):
-    """Observation only. Never construct Workspace, migrate a schema or load a provider."""
-    from acquisition.adapters.sqlite.legacy_inventory import SqliteLegacyInventory
+    """Offline legacy ownership migration, without workspace startup or providers."""
+    from acquisition.adapters.sqlite.legacy_migration import SqliteLegacyMigration
     from acquisition.adapters.sqlite.workspace_state import SqliteWorkspaceState
     from acquisition.workflows.workspace_state import validate_environment_run
     from acquisition.conversations import LegacyMigrationInventory
@@ -149,7 +149,7 @@ def build_legacy_migration_inventory(root):
     # complete link checks are shared with normal workspace and rebuild reads.
     environments=SqliteWorkspaceState(root,None,None,None,
         partial(validate_environment_run,synthetic_snapshot_id=generated_snapshot_identity))
-    return LegacyMigrationInventory(SqliteLegacyInventory(root,environments.read))
+    return LegacyMigrationInventory(SqliteLegacyMigration(root,environments.read))
 
 
 def verified_admission_mode(path):
@@ -157,8 +157,8 @@ def verified_admission_mode(path):
     return read_admission_policy(path)
 
 
-def build_admissions(path, clock=time.time, *, _database=None):
-    """Explicit opt-in storage API. No workspace/CLI caller or activation yet."""
+def build_admissions(path, clock=time.time, *, _database=None, verified_admissions=False):
+    """Compose admissions, selecting the paused format at database opening when requested."""
     from acquisition.adapters.sqlite.admission_sources import load_source
     from acquisition.workflows.admission_coverage import campaign_brief, coverage_intent
     def workflow_source(db, organization, kind, references, now):
@@ -175,7 +175,9 @@ def build_admissions(path, clock=time.time, *, _database=None):
             # prepare_request only sizes/validates the envelope. No provider or
             # journal is available to this deliberately paused storage API.
             ConversationPlanner(Inference(None,None,config,clock)).preflight(frozen)
-    return SqliteAdmissions(_database or Database(path),preflight,clock,
+    if _database is not None and verified_admissions:
+        raise ValueError('Select verified admissions while opening the database')
+    return SqliteAdmissions(_database or Database(path,verified_admissions=verified_admissions,clock=clock),preflight,clock,
                             workflow_source=workflow_source,workflow_intent=coverage_intent)
 
 
@@ -442,9 +444,8 @@ def build(path: str | Path, clock: Callable[[], float] = time.time,
           gateway: ModelGateway | None = None, model_config: ModelConfig | None = None,
           workspace_organization: str | None = None, *, verified_admissions=False) -> Application:
     if type(verified_admissions) is not bool:raise ValueError('Choose an explicit admission mode')
-    database = Database(path)
+    database = Database(path,verified_admissions=verified_admissions,clock=clock)
     admission_store=build_admissions(path,clock,_database=database)
-    if verified_admissions:admission_store.seal_legacy_writes()
     admissions=WorkflowAdmissions(admission_store,clock)
     if workspace_organization is not None and not admissions.required():
         bind_workspace_journal(database,workspace_organization)

@@ -3,10 +3,11 @@ import { command, read } from "./api";
 
 export type Execution = {
   accounting_complete?: boolean;
+  account_unresolved?: boolean;
   unresolved_runs?: string[];
   recovery_scopes?: { organization: string; run_id: string }[];
   status: string;
-  limit: number;
+  limit: number | null;
   used: number;
   remaining: number | null;
   stopped: boolean;
@@ -92,25 +93,35 @@ export default function ConversationExecution<T>({
             )}
           </span>
         </p>
-        {active && !execution.stopped && revision > 0 && (
-          <button className="button secondary" onClick={stop} disabled={busy}>
-            {busy ? "Stopping…" : "Stop work"}
-          </button>
-        )}
+        {active &&
+          !execution.stopped &&
+          !execution.account_unresolved &&
+          revision > 0 && (
+            <button className="button secondary" onClick={stop} disabled={busy}>
+              {busy ? "Stopping…" : "Stop work"}
+            </button>
+          )}
       </div>
-      {execution.stopped && (
+      {execution.stopped && !execution.account_unresolved && (
         <p>
           Send a new brief to start new work. The shared allowance does not
           reset. Existing campaign history and approvals are preserved.
         </p>
       )}
-      {execution.accounting_complete === false && (
+      {execution.account_unresolved && (
         <p>
-          Historical campaign ancestry needs recovery. Model calls are paused
-          and usage is incomplete until a local operator restores the original
-          relationship or explicitly reconciles an independent legacy run.
+          The original execution account or stop history needs recovery. Ask a
+          local operator to reconcile the records before continuing.
         </p>
       )}
+      {execution.accounting_complete === false &&
+        !execution.account_unresolved && (
+          <p>
+            Historical campaign ancestry needs recovery. Model calls are paused
+            and usage is incomplete until a local operator restores the original
+            relationship or explicitly reconciles an independent legacy run.
+          </p>
+        )}
       {execution.counts.uncertain > 0 && (
         <p>
           Some provider outcomes are uncertain and may have been charged.
@@ -125,26 +136,27 @@ export default function ConversationExecution<T>({
       )}
       <details>
         <summary>Inspect model usage</summary>
-        {execution.accounting_complete === false && (
-          <div>
-            <p>
-              Operator recovery: use <code>execution-unresolved</code> to
-              inspect the runs below. After verifying a run is independent, use{" "}
-              <code>execution-resolve-independent</code> with its exact
-              fingerprint and a reason. See{" "}
-              <code>docs/execution-controls.md</code> for the commands and
-              database selection. This does not approve a campaign.
-            </p>
-            <ul>
-              {execution.recovery_scopes?.map((scope) => (
-                <li key={scope.run_id}>
-                  Organization: <code>{scope.organization}</code>; run:{" "}
-                  <code>{scope.run_id}</code>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        {execution.accounting_complete === false &&
+          !execution.account_unresolved && (
+            <div>
+              <p>
+                Operator recovery: use <code>execution-unresolved</code> to
+                inspect the runs below. After verifying a run is independent,
+                use <code>execution-resolve-independent</code> with its exact
+                fingerprint and a reason. See{" "}
+                <code>docs/execution-controls.md</code> for the commands and
+                database selection. This does not approve a campaign.
+              </p>
+              <ul>
+                {execution.recovery_scopes?.map((scope) => (
+                  <li key={scope.run_id}>
+                    Organization: <code>{scope.organization}</code>; run:{" "}
+                    <code>{scope.run_id}</code>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         <p>
           {execution.counts.completed} completed · {execution.counts.rejected}{" "}
           rejected · {execution.counts.in_progress} in progress ·{" "}

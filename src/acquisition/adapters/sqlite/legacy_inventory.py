@@ -9,9 +9,10 @@ from pathlib import Path
 
 from acquisition.contracts import Conflict, digest
 from acquisition.conversations import WORKSPACE_OWNER, identity as session_identifier, environment_time
+from .execution import account_evidence
 from .legacy_sources import LegacyFacts, record, record_id
 from .workspace_projection import ReadOnlyDatabase, SqliteWorkspaceProjection, values_hash, sql_name
-from .workspace_ancestry import journal_identity
+from .workspace_ancestry import JOURNAL_BINDING_KEY, journal_identity, pre_history_binding
 
 
 def file_digest(path):
@@ -120,7 +121,7 @@ class SqliteLegacyInventory:
         data = {table: sorted([tuple(r) for r in db.execute('SELECT * FROM '+sql_name(table))], key=repr) for table in tables}
         return values_hash((db.execute('PRAGMA user_version').fetchone()[0], schema, data)), set(tables)
 
-    def snapshot(self):
+    def snapshot(self, open_source=None):
         files, records, issues, hashes = [], [], [], {}
         with ExitStack() as stack:
             connections, metadata, inodes = {}, {}, {}
@@ -147,8 +148,11 @@ class SqliteLegacyInventory:
                     hashes[key] = file_digest(path); return None, key
                 inodes[physical] = key
                 try:
-                    db = stack.enter_context(ReadOnlyDatabase.unmigrated(path).connect())
-                    db.execute('BEGIN')
+                    if open_source is None:
+                        db = stack.enter_context(ReadOnlyDatabase.unmigrated(path).connect())
+                        db.execute('BEGIN')
+                    else:
+                        db = open_source(path)
                     if db.execute('PRAGMA quick_check').fetchone()[0] != 'ok':
                         raise sqlite3.DatabaseError('integrity')
                     fingerprint, tables = self.fingerprint(db)
@@ -273,21 +277,28 @@ class SqliteLegacyInventory:
                         scopes.update(r[0] for r in db.execute('SELECT DISTINCT organization FROM '+table))
                 for org in sorted(scopes,key=repr):
                     records.extend(facts.pending(org))
+                    association = facts.one('execution_commands', org, 'AND request_id=?', (JOURNAL_BINDING_KEY,))
+                    bound_before_history = bool(association and pre_history_binding(db, org))
                     for run in facts.rows('runs', org, 'ORDER BY id'):
                         try:
                             value = facts.run(run)
                         except (sqlite3.Error, ValueError, TypeError, KeyError):
                             value = record(key, 'run', org, run['id']); value['missing'].append('runtime_source_is_unsupported_or_incomplete')
-                        association = facts.one('execution_commands', org, 'AND request_id=?', ('workspace:journal:v1',))
+                        if facts.one('legacy_run_bindings', org, 'AND run_id=?', (run['id'],)):
+                            value['migration_recorded'] = True
+                        if facts.one('execution_pending_origins', org, 'AND run_id=?', (run['id'],)):
+                            value['origin_pending'] = True
                         if association:
-                            facts.evidence(value, 'execution_commands', 'workspace:journal:v1', association)
+                            facts.evidence(value, 'execution_commands', JOURNAL_BINDING_KEY, association)
                             try:
                                 inputs, receipt = json.loads(association['inputs']), json.loads(association['receipt'])
                                 observed = metadata[journal_key].get('journal_identity', {})
-                                matching = (inputs == receipt and inputs.get('kind') == 'workspace_journal_binding'
+                                matching = (type(inputs) is dict and bool(observed) and inputs == receipt
+                                            and inputs.get('kind') == 'workspace_journal_binding'
                                             and inputs.get('journal_id') == observed.get('journal_id')
                                             and inputs.get('database_kind') == Path(key).name)
                                 value['preserve']['journal_association'] = 'identity_match_completeness_unproven' if matching else 'identity_mismatch_or_missing'
+                                value['journal_bound_before_history'] = matching and bound_before_history
                                 if not matching and value['format'] != 'verified':
                                     value['conflicts'].append('bound_original_journal_is_missing_or_different')
                             except (ValueError,TypeError,KeyError):
@@ -342,30 +353,60 @@ class SqliteLegacyInventory:
 
             # Workspace claims can expose a contradiction, never grant ownership
             # or turn absence of a parent into a standalone declaration.
-            runs = {r['id']: r for r in records if r['kind'] == 'run'}
+            runs = {(r['store'], r['organization'], r['key']): r for r in records if r['kind'] == 'run'}
+            requests = {(r['store'], r['organization'], r.get('native_request_id')): r for r in runs.values()}
+            mapped_sessions = {}
             for session, key, value in sessions:
-                source = next((r for r in runs.values() if r['store'] == key and r['organization'] == session['organization'] and
-                               (r['key'] == session.get('run_id') or r.get('native_request_id') == session['id'])), None)
+                scope = (key, session['organization'])
+                run = runs.get((*scope, session['run_id']))
+                request = requests.get((*scope, session['id']))
+                if request is not None and session['run_id'] is not None and run is not request:
+                    value['conflicts'].append('journal_runtime_mapping_conflicts')
+                    for conflicting in (run, request):
+                        if conflicting is not None:
+                            conflicting['conflicts'].append('journal_runtime_mapping_conflicts')
+                    continue
+                source = run or request
                 if source:
+                    mapped_sessions[session['id']] = (session, source)
                     value['parents'].append(source['id'])
                     plan = session.get('conversation_plan')
                     if type(plan) is dict and type(plan.get('conversation_id')) is str and type(plan.get('revision')) is int:
                         verified_hint = (native_session_reference('conversation_id',plan['conversation_id'])
                                          and native_session_reference('plan_id',plan['id']))
                         if verified_hint:
-                            source['journal_owner'] = ['local-conversations','conversation',plan['conversation_id'],plan['revision']]
+                            claim = ['local-conversations','conversation',plan['conversation_id'],plan['revision']]
+                            if 'journal_owner' in source and source['journal_owner'] != claim:
+                                source['conflicts'].append('journal_conversation_claims_disagree')
+                            source['journal_owner'] = claim
                         else:
                             value['missing'].append('unverified_legacy_conversation_hint')
                     elif plan:
                         source['conflicts'].append('journal_conversation_claim_is_invalid')
-                    if session.get('parent_id'):
-                        source['missing'].append('workspace_parent_claim_requires_domain_evidence')
                 else:
                     value['missing'].append('original_runtime_mapping_is_unavailable')
+            for session, source in mapped_sessions.values():
+                if session['parent_id'] is None:
+                    continue
+                parent = mapped_sessions.get(session['parent_id'])
+                if parent is None or not source['parents']:
+                    source['missing'].append('workspace_parent_claim_requires_domain_evidence')
+                elif parent[1]['id'] not in source['parents']:
+                    source['conflicts'].append('workspace_parent_claim_differs_from_domain_evidence')
             for value in records:
                 if metadata.get(value['store'], {}).get('state') == 'conflicting':
                     value['conflicts'].append('source_identity_or_path_conflicts')
+            migration_accounts = []
+            if root and metadata[root_key].get('recorded_policy') == 'verified-paused/v1':
+                for row in root.execute(
+                    'SELECT a.organization,a.conversation_id,a.policy,a.call_limit,a.stopped_through '
+                    'FROM conversation_execution a JOIN conversations c '
+                    'ON c.organization=a.organization AND c.id=a.conversation_id '
+                    'ORDER BY a.organization,a.conversation_id'):
+                    if account_evidence(root, row['organization'], row['conversation_id']).resolved:
+                        migration_accounts.append(list(row))
             result = {'files': sorted(files, key=lambda f: f['key']), 'records': sorted(records, key=lambda r: r['id']),
+                      'migration_accounts': migration_accounts,
                       'issues': sorted(issues, key=lambda i: (i['source'],i['code']))}
             result = public_metadata(result)
             result['fingerprint'] = digest({'observations': result, 'source_hashes': hashes})

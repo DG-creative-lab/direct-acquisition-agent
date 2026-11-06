@@ -6,6 +6,22 @@ A conversation has one shared allowance of 48 reserved model calls under `conver
 
 The chat shows calls used and remaining when accounting is complete. Unresolved history changes the summary to known calls and **remaining allowance unknown**; the API returns `remaining: null`. **Inspect model usage** shows completed, rejected, in-progress and uncertain calls, original runs and brief revisions, and provider-reported cost. Every reservation consumes one slot, including rejected or unknown requests. Recorded response replay consumes no additional slot. Changing the brief, restarting or preparing another experiment in that conversation does not reset usage. There is no public allowance-increase command.
 
+An account is initialized only when its scoped execution links, stop journal,
+and native runtime and call evidence show no earlier account use. Surviving
+planning, routing or task records can identify history after both the account
+and run index are lost. Before initializing a new allowance, the adapter
+checks that surviving call receipts in the organization have a valid ownership
+link, a scoped owner supported by the original runtime plan, or a verifiable
+standalone admission. Matching task IDs alone leave the receipt unresolved.
+An interrupted admission can still resume by its original request when no
+runtime or call evidence shows prior execution. The workspace keeps any known
+usage and recorded stops visible with an unknown allowance. The account's stop fence
+must match its recorded stop commands before new execution or migration.
+An existing account also requires its paid-run links to match the surviving
+receipt and ownership history. A missing or conflicting link leaves the
+allowance and cost coverage incomplete and blocks new admission and
+reservations. Restore the original account, run links and stop records.
+
 **Stop work** applies to the exact displayed brief revision and earlier work in that conversation. It stops pending planning, routing, generation and revisions, and fences later admission and draft publication from those revisions. Send a new brief to start new work through the ordinary planner, audience confirmation and generation controls. The remaining shared allowance is unchanged.
 
 Cancellation does not withdraw an existing approval, erase history, undo simulated acceptance or restore approval rejected when a revision was requested. A campaign already at its review checkpoint remains reviewable subject to current authority. No approval or delivery authority is added.

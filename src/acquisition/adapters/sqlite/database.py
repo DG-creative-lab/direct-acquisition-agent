@@ -4,7 +4,7 @@ from pathlib import Path
 import json
 import time
 
-from acquisition.contracts import digest
+from acquisition.contracts import Conflict, digest
 
 
 SCHEMA = """
@@ -363,7 +363,9 @@ PRAGMA user_version=14;
 
 
 class Database:
-    def __init__(self, path: str | Path):
+    def __init__(self, path: str | Path, *, verified_admissions=False, clock=time.time):
+        if type(verified_admissions) is not bool:
+            raise ValueError('Choose an explicit admission mode')
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.transaction() as connection:
@@ -371,6 +373,10 @@ class Database:
             version = connection.execute("PRAGMA user_version").fetchone()[0]
             if version not in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}:
                 raise ValueError(f"Unsupported database schema {version}")
+            if (verified_admissions and version < 10
+                    and connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='runs'").fetchone()
+                    and connection.execute('SELECT 1 FROM runs LIMIT 1').fetchone()):
+                raise Conflict('Reconcile historical execution ancestry before cutting over a pre-v10 store')
             if version<13:
                 # Partially newer fixtures/restores may contain guards referencing
                 # tables that an older migration rebuilds. Remove and recreate
@@ -397,11 +403,16 @@ class Database:
                 self._apply_migration(connection, CONVERSATION_ACTIONS)
                 self._validate_action_schema(connection)
             if version < 9:
+                first_accounting = connection.execute("""SELECT 1 FROM sqlite_master WHERE type='table'
+                    AND name IN ('conversation_execution','execution_runs','execution_commands')""").fetchone() is None
                 self._apply_migration(connection, EXECUTION)
-                self._initialize_execution_schema(connection)
+                self._initialize_execution_schema(connection, first_accounting=first_accounting)
             if version < 10:
                 self._apply_migration(connection, EXECUTION_RECOVERY)
                 self._initialize_execution_recovery_schema(connection)
+            elif verified_admissions:
+                from .execution import quarantine_weak_independence_receipts
+                quarantine_weak_independence_receipts(connection)
             else:
                 from .execution import recover_pending_origins
                 recover_pending_origins(connection)
@@ -416,6 +427,10 @@ class Database:
             if version < 14:
                 self._initialize_workspace_schema(connection)
             else:self._validate_workspace_schema(connection)
+            if verified_admissions:
+                # Seal under the same write lock that skipped legacy recovery.
+                from .admission_guard import seal_legacy_writes
+                seal_legacy_writes(connection, clock)
         self._enable_wal()
 
     @classmethod
@@ -452,12 +467,12 @@ class Database:
         quarantine_old_origins(connection)
 
     @staticmethod
-    def _initialize_execution_schema(connection):
+    def _initialize_execution_schema(connection, *, first_accounting):
         connection.execute('SELECT organization,conversation_id,policy,call_limit,stopped_through FROM conversation_execution LIMIT 0')
         connection.execute('SELECT organization,run_id,owner_organization,conversation_id,revision FROM execution_runs LIMIT 0')
         connection.execute('SELECT organization,request_id,inputs,receipt FROM execution_commands LIMIT 0')
         from .execution import backfill_execution
-        backfill_execution(connection)
+        backfill_execution(connection, first_accounting=first_accounting)
 
     @staticmethod
     def _validate_action_schema(connection):

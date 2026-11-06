@@ -59,7 +59,9 @@ class Workspace:
 
     @property
     def authority(self):
-        if self._authority is None:self._authority=build_workspace_state(self.root,self.real_clock)
+        if self._authority is None:
+            if self._requested_verified:self._verified_mode()
+            self._authority=build_workspace_state(self.root,self.real_clock)
         return self._authority
 
     @property
@@ -169,7 +171,7 @@ class Workspace:
         # Constructing Workspace before acquiring the server lock does not seal.
         path=self.root/'conversations.sqlite'
         if self._requested_verified:
-            build_admissions(path,self.real_clock).seal_legacy_writes()
+            build_admissions(path,self.real_clock,verified_admissions=True)
             self._requested_verified=False
         return path.exists() and verified_admission_mode(path)
 

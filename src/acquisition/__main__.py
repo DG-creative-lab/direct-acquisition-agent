@@ -62,8 +62,7 @@ def main() -> None:
             return
         model = args.model or ("openai/gpt-oss-120b" if args.command in {"create-model", "demo-model"} else None)
         from acquisition.bootstrap import build_admissions
-        admission_store=build_admissions(args.db)
-        if args.verified_admissions or args.command=='admission-cutover':admission_store.seal_legacy_writes()
+        admission_store=build_admissions(args.db,verified_admissions=args.verified_admissions or args.command=='admission-cutover')
         gateway = OpenRouter(openrouter_key(args.env_file)) if model and not admission_store.required() else None
         force_tools = args.tool_choice == "required" if args.tool_choice else model == "openai/gpt-oss-120b"
         config = ModelConfig(model, max_calls=args.model_max_calls, force_tool_choice=force_tools) if model else None

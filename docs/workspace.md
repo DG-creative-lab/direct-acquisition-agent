@@ -101,10 +101,10 @@ Only registered new-format environments can be reconstructed. If a lost journal
 contained legacy-only authority, this command cannot recover or certify it.
 Inspection fingerprints bind observed projection inputs; they are not cold-backup
 checkpoints and do not prove absence of later provider work. Verified execution
-remains paused. Explicit legacy migration and supported restore/activation remain
-separate work under [issue 33's decision](execution-authority-decision.md).
+remains paused. Legacy ownership migration and supported restore/activation
+are separate gates under [issue 33's decision](execution-authority-decision.md).
 
-## Read-only legacy migration inventory
+## Legacy ownership migration
 
 Phase 5a supplies a separate observation command for mixed legacy and verified
 histories. Stop the server and all writers, then run:
@@ -116,8 +116,9 @@ PYTHONPATH=src python3 -m acquisition.legacy_migration --root .local/workspace i
 It reports source fingerprints, scoped evidence, parent dependencies and supported,
 conflicting, incomplete or uncertain records. It neither rebuilds projections nor
 migrates or activates execution. Missing or unreadable sources remain unresolved;
-older records and the schema-v3 cutoff stay intact. See the
-[inventory contract and limits](legacy-migration.md) before interpreting a plan.
+older records and the schema-v3 cutoff stay intact. Phase 5b adds explicit
+apply for supported ownership in an already sealed conversation store. Review
+the [migration procedure and limits](legacy-migration.md) before applying a plan.
 
 ## Local HTTP boundary
 
