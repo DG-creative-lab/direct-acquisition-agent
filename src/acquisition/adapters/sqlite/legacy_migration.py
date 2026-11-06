@@ -5,6 +5,7 @@ from contextlib import ExitStack, closing, contextmanager
 from pathlib import Path
 
 from acquisition.contracts import Conflict, canonical
+from acquisition.local_root import require_live_root
 from acquisition.conversations import MIGRATION_STORE, WORKSPACE_OWNER
 from .admission_guard import verified_required
 from .database import Database
@@ -64,6 +65,7 @@ class SqliteLegacyMigration(SqliteLegacyInventory):
 
     @contextmanager
     def transaction(self):
+        require_live_root(self.root)
         with ExitStack() as stack:
             opened = {}
 

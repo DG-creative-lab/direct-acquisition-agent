@@ -19,6 +19,8 @@ Python checks require Python 3.11 or later; the interface requires Node 22.12+ a
 
 | Protected outcome | Executable evidence | Boundary of the evidence |
 | --- | --- | --- |
+| Local checkpoints preserve scoped history and remain inspection-only | SQLite row comparisons across application stores and the legacy journal, committed WAL data, fresh-process status, worker/reservation, approval and learning fences | Trusted local operator and current checkout. Post-checkpoint spend, revocation and simulator effects remain unknown |
+| A partial, mixed, corrupt or active checkpoint cannot publish | Recomputed manifests with an unrelated registered store or an inconsistent SQLite index, corrupt source and staged indexes, missing files, digest changes, aliases, sidecars, active root/SQLite locks, running and reserved work, staged-copy damage and killed copy processes | Local POSIX publication and selected failure schedules. No power-loss test or live provider claim |
 | Ineligible records never enter mailing | Literal 18-record fixture, ordered exclusions, duplicate/suppressed businesses and disjoint counts | Synthetic source completeness and supplied metadata only |
 | Population and integer budget reconcile | Hand-written population plus 3 seeds × 3 sizes × 4 budgets = 36 cases | Bounded examples, not general load/marketing effectiveness |
 | Controls share selected enrollment | Scores require assignments from the same top-score cohort; controls absent from mailing | Small groups may lack controls; selected cohort is not the whole market |
@@ -98,7 +100,7 @@ These are bounded schedules and fake-model responses. They do not establish sema
 
 Pure domain tests use literal expected populations, money and posterior values. Persistence tests use real temporary SQLite databases, controlled clocks, concurrent connections and injected failures. CLI tests cross OS process boundaries to exercise restart, review, export, learning and replay. HTTP tests send real requests to the loopback server. Frontend client tests use the real backend, and Chromium tests inspect the rendered interface.
 
-CI runs the backend suite and architecture check on Python 3.11 through 3.14. The mutation suite runs once in a separate, parallel Python 3.12 job. The architecture checker still has a self-test with deliberately forbidden imports.
+CI runs the complete backend suite in two parallel shards on each Python version from 3.11 through 3.14. Standard unittest discovery supplies both shards. Whole modules stay together, and measured module runtimes balance the two groups. The first shard also runs the architecture check for its Python version. Run the same groups locally with `make test-shard SHARD=1` and `make test-shard SHARD=2`. The mutation suite runs once in a separate, parallel Python 3.12 job. The architecture checker still has a self-test with deliberately forbidden imports.
 
 The mutation command creates temporary source copies and weakens selected enforcement points, including leases, reservations, uncertain-call fencing, retired-workflow admission, timestamp validation, migration locking, review expiry/epochs, cohort maturity/completeness, atomic finalization, snapshot memory, Origin checks, exact-subject binding, planning budget provenance, current-revision projection, conversation scope, targeted execution, stale-budget correction handling and relative-budget recognition. The results apply to the declared probes. They are not a general mutation score. Frontend regressions are reported separately.
 
@@ -110,7 +112,7 @@ The [grounding reference](product-grounding.md) records a dated GPT-OSS-120B run
 
 ## Remaining gaps
 
-There is no asserted line/branch coverage percentage or overall correctness percentage. Selected fault positions and concurrency schedules leave untested interleavings. General semantic claim detection, real data completeness, marketing impact, production authentication, external agency effects, multi-host throughput, disk-full/power-loss behavior, backup restoration, real outcome corrections and repeated-exposure attribution remain outside the demonstrated evidence.
+There is no asserted line/branch coverage percentage or overall correctness percentage. Selected fault positions and concurrency schedules leave untested interleavings. General semantic claim detection, real data completeness, marketing impact, production authentication, external agency effects, multi-host throughput, disk-full/power-loss behavior, execution from a restored checkpoint, real outcome corrections and repeated-exposure attribution remain outside the demonstrated evidence.
 
 A UI review cannot establish approval correctness, and module unit tests cannot establish restart behavior. Preserve checks at the boundary where each real effect is authorized and persisted as the system evolves.
 

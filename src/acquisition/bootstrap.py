@@ -13,6 +13,7 @@ from acquisition.campaigns import FollowupStore
 from acquisition.adapters.files import export_draft
 from acquisition.adapters.sqlite.audiences import SqliteAudiences
 from acquisition.adapters.sqlite.database import Database
+from acquisition.local_root import inspection_only
 from acquisition.adapters.sqlite.drafts import SqliteDrafts
 from acquisition.adapters.sqlite.tasks import SqliteTasks
 from acquisition.adapters.synthetic import generate, generated_snapshot_identity
@@ -123,6 +124,11 @@ def build_workspace_state(root,clock=time.time):
     run_policy=partial(validate_environment_run,synthetic_snapshot_id=generated_snapshot_identity)
     store=SqliteWorkspaceState(root,Database.existing(Path(root)/'conversations.sqlite'),clock,validate,run_policy)
     return WorkspaceState(store)
+
+
+def build_workspace_checkpoint():
+    from acquisition.adapters.sqlite.workspace_checkpoint import SqliteWorkspaceCheckpoint
+    return SqliteWorkspaceCheckpoint()
 
 
 def build_workspace_projection(root):
@@ -447,7 +453,7 @@ def build(path: str | Path, clock: Callable[[], float] = time.time,
     database = Database(path,verified_admissions=verified_admissions,clock=clock)
     admission_store=build_admissions(path,clock,_database=database)
     admissions=WorkflowAdmissions(admission_store,clock)
-    if workspace_organization is not None and not admissions.required():
+    if workspace_organization is not None and not inspection_only(path) and not admissions.required():
         bind_workspace_journal(database,workspace_organization)
     audiences, drafts = SqliteAudiences(database), SqliteDrafts(database, clock)
     tasks = SqliteTasks(database, retired_capabilities=ModelMonthlyMail.legacy_capabilities())

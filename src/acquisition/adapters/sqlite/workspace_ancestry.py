@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from acquisition.contracts import Conflict
+from acquisition.local_root import require_live_root
 
 JOURNAL_BINDING_KEY='workspace:journal:v1'
 
@@ -93,6 +94,7 @@ def bind_workspace_journal(database, organization):
 
 @contextmanager
 def workspace_ancestry_guard(domain_path):
+    require_live_root(domain_path)
     domain=Path(domain_path).resolve()
     if domain.name=='conversations.sqlite':
         root=domain.parent

@@ -18,6 +18,7 @@ from acquisition.adapters.openrouter import OpenRouter
 from acquisition.adapters.sqlite.workspace_ancestry import initialize_workspace_identity
 from acquisition.adapters.sqlite.workspace_projection import initialize_control_tables
 from acquisition.contracts import Conflict, NotFound, canonical, digest
+from acquisition.local_root import require_live_root
 from acquisition.learning import identifier
 from acquisition.reasoning import ModelConfig
 from acquisition.creative import validate_fact_pack, fixture_catalog
@@ -47,6 +48,7 @@ class Workspace:
         self._requested_verified=verified_admissions
         self.real_clock = real_clock
         self.root = Path(root)
+        require_live_root(self.root)
         self.root.mkdir(parents=True, exist_ok=True)
         self.lock = threading.RLock()
         with self.control() as db:
@@ -118,6 +120,7 @@ class Workspace:
 
     @contextmanager
     def control(self):
+        require_live_root(self.root)
         db = sqlite3.connect(self.root / "workspace.sqlite", timeout=10, isolation_level=None)
         db.row_factory = sqlite3.Row
         try:
