@@ -4,7 +4,7 @@ test:
 	PYTHONPATH=src python3 -m unittest discover -s tests -v
 
 test-shard:
-	PYTHONPATH=src python3 scripts/run_backend_shard.py "$(SHARD)"
+	PYTHONPATH=src python3 -m scripts.run_backend_shard "$(SHARD)"
 
 arch-check:
 	python3 scripts/check_architecture.py
