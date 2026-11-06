@@ -130,6 +130,10 @@ def build_workspace_checkpoint():
     from acquisition.adapters.sqlite.workspace_checkpoint import SqliteWorkspaceCheckpoint
     return SqliteWorkspaceCheckpoint()
 
+def build_checkpoint_reconciliation():
+    from acquisition.adapters.sqlite.checkpoint_reconciliation import SqliteCheckpointReconciliation
+    return SqliteCheckpointReconciliation()
+
 
 def build_workspace_projection(root):
     """Offline reconstruction only. Never create, seal, migrate or execute source stores."""

@@ -1,10 +1,10 @@
-"""Create, verify and restore a local workspace checkpoint offline."""
+"""Create, verify, restore or reconcile a local workspace checkpoint offline."""
 import argparse
 import json
 import sqlite3
 from pathlib import Path
 
-from acquisition.bootstrap import build_workspace_checkpoint
+from acquisition.bootstrap import build_checkpoint_reconciliation, build_workspace_checkpoint
 from acquisition.contracts import Conflict
 
 
@@ -14,14 +14,26 @@ def main():
     create = commands.add_parser('create', help='Snapshot a quiesced, verified-paused workspace')
     verify = commands.add_parser('verify', help='Validate a bundle without writing to it')
     restore = commands.add_parser('restore', help='Restore a verified bundle into a new or empty root')
-    for command in (create, verify, restore):
+    reconcile = commands.add_parser('reconcile', help='Inspect scoped evidence from a later checkpoint without writing')
+    for command in (create, verify, restore, reconcile):
         command.add_argument('--bundle', type=Path, required=True)
     for command in (create, restore):
         command.add_argument('--root', type=Path, required=True)
     restore.add_argument('--checkpoint-id', required=True)
+    reconcile.add_argument('--checkpoint-id', required=True)
+    reconcile.add_argument('--organization', required=True)
+    reconcile.add_argument('--later-bundle', type=Path)
+    reconcile.add_argument('--later-checkpoint-id')
     args = parser.parse_args()
-    checkpoint = build_workspace_checkpoint()
     try:
+        if args.command == 'reconcile':
+            report = build_checkpoint_reconciliation().inspect(
+                args.bundle, args.checkpoint_id, args.organization,
+                later_bundle=args.later_bundle, later_checkpoint_id=args.later_checkpoint_id,
+            )
+            print(json.dumps(report, indent=2))
+            return
+        checkpoint = build_workspace_checkpoint()
         if args.command == 'create':
             manifest = checkpoint.create(args.root, args.bundle)
         elif args.command == 'verify':
