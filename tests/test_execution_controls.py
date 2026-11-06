@@ -264,6 +264,7 @@ class ExecutionTests(unittest.TestCase):
         app=self.w._conversation_app()
         other=self.w.create_conversation('other-binding','Other binding')['id']
         self.w.message_conversation(other,'m',0,'Prepare a £600 contractor campaign.')
+        self.assertEqual(app.execution.view('local-conversations', other)['remaining'], 48)
         inputs={'brief':{'conversation_id':self.c,'conversation_revision':1}}
         run=app.tasks.create('local-conversations','binding-test',[TaskSpec('local.test',inputs)],self.now)
         with app.calls.database.transaction() as db:
@@ -454,7 +455,10 @@ class ExecutionFollowupTests(unittest.TestCase):
             self.assertEqual(provider.call_count,0)
             self.assertEqual(direct.tasks.inspect(session['organization'],session['run_id']),before)
             usage=direct.execution.view('local-conversations',self.c)
+            self.assertFalse(usage['account_unresolved'])
             self.assertFalse(usage['accounting_complete'])
+            self.assertIsNone(usage['remaining'])
+            self.assertFalse(usage['cost_complete'])
             self.assertEqual(usage['status'],'blocked')
             self.w.recover_execution()
             self.assertFalse(direct.execution.pending(session['organization'],session['run_id']))
