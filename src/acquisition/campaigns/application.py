@@ -3,7 +3,7 @@ from acquisition.contracts import digest
 from acquisition.creative import Creative, creative_record
 
 from .domain import Brief, build_draft
-from .ports import DraftStore
+from .ports import DraftLease, DraftStore
 
 
 class CampaignService:
@@ -18,9 +18,12 @@ class CampaignService:
         return self.prepare_with_catalogue(organization, snapshot_id, brief, operation_id, tuple(c for c in self.creatives if not hasattr(brief, "segments") or c.segment in brief.segments))
 
     def prepare_with_catalogue(self, organization: str, snapshot_id: str, brief: Brief,
-                               operation_id: str, creatives: tuple[Creative, ...]) -> dict:
+                               operation_id: str, creatives: tuple[Creative, ...], *, lease: DraftLease | None = None) -> dict:
         snapshot = self.audiences.get(organization, snapshot_id)
         draft = build_draft(snapshot, brief, creatives)
-        draft_id = self.drafts.put(organization, operation_id, draft)
+        if lease is None:
+            draft_id = self.drafts.put(organization, operation_id, draft)
+        else:
+            draft_id = self.drafts.put(organization, operation_id, draft, lease=lease)
         return {"draft_id": draft_id, "manifest_hash": draft_id.removeprefix("draft_"),
                 "counts": draft.manifest["counts"], "variable_cost_pence": draft.manifest["variable_cost_pence"]}

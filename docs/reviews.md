@@ -58,7 +58,7 @@ PYTHONPATH=src python3 -m acquisition --db .local/manual.sqlite --organization d
 PYTHONPATH=src python3 -m acquisition --db .local/manual.sqlite --organization demo-org review-refresh --case CASE_ID --subject SUBJECT_ID --actor operator --request-id refresh-1
 ```
 
-Refresh applies the full current suppression set to the immutable original snapshot, recomputes selection and assignments through campaign rules and publishes a new revision. It preserves the existing copy. Preparation may leave an unreferenced immutable draft if a competing revision or evidence update wins. Only the final transactional compare-and-swap publishes authority. Use a new request ID after that conflict.
+Refresh checks the operator and exact current subject, applies the current suppression set to its immutable snapshot and recomputes selection and assignments through campaign rules. It preserves the existing copy. The snapshot, draft, new review subject, audit event and command receipt commit together under current review authority.
 
 Copy changes require a new generated run with a new `--request-id` and the original `--campaign-id`. New generation uses the organization's active fact pack. Take its saved draft ID and publish it with `review-replace --case CASE_ID --subject SUBJECT_ID --draft DRAFT_ID --actor operator --request-id replace-1`. Replacement must remain in the same campaign and pass current evidence and suppression validation. Refresh cannot repair outdated grounded copy; regenerate it against the current pack. Both operations require a fresh reviewer decision.
 

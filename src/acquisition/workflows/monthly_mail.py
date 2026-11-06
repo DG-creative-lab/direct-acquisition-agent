@@ -1,7 +1,7 @@
 from dataclasses import asdict
 
 from acquisition.audiences import AudienceStore
-from acquisition.campaigns import Brief, CampaignService, brief_from
+from acquisition.campaigns import Brief, CampaignService, DraftLease, brief_from
 from acquisition.creative import fixture_catalog
 from acquisition.runtime import Claim, Outcome, TaskSpec
 
@@ -72,8 +72,9 @@ class ConversationMail(MonthlyMail):
     def _draft(self, claim):
         brief = brief_from(claim.inputs["brief"])
         creatives = tuple(c for c in fixture_catalog() if c.segment in brief.segments)
+        lease = DraftLease(claim.run_id, claim.task_id, claim.token) if claim.inputs.get('execution_admission_id') else None
         return self.campaigns.prepare_with_catalogue(claim.organization, claim.inputs["snapshot_id"],
-                                                      brief, claim.run_id + ":draft", creatives)
+                                                      brief, claim.run_id + ":draft", creatives, lease=lease)
 
     def capabilities(self):
         return {"audiences.inspect_conversation.v1": self.inspect,

@@ -167,7 +167,8 @@ class Workspace:
             if not database.is_file() or not database.resolve().is_relative_to(self.root.resolve()):
                 raise Conflict('Restore the original legacy application store before inspection')
         clock=(lambda:self.authority.clock(session['id'],self.real_clock())) if authoritative is not None else self.real_clock if verified else (lambda:max(self.real_clock(),session['clock']) if session.get('clock_mode')=='REAL' else session['clock'])
-        return build(database,clock=clock,gateway=gateway,model_config=config,workspace_organization=session['organization'],verified_admissions=verified)
+        return build(database,clock=clock,gateway=gateway,model_config=config,workspace_organization=session['organization'],
+                     verified_admissions=verified, **({'execution_clock': self.real_clock} if verified else {}))
 
     def _verified_mode(self):
         # Only the root's authoritative application store selects this format.

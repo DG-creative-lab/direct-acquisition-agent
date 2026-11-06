@@ -25,6 +25,7 @@ from .execution import account, require_active
 from .tasks import finite_time, insert_run, event, scoped_run
 from .admission_sources import require_owner, freshness_fence
 from .admission_guard import seal_legacy_writes, verified_required
+from .fixture_execution import POLICY as FIXTURE_POLICY, fixture_enabled, grant_fixture_execution
 
 
 def planning_source(db, organization, conversation_id):
@@ -61,6 +62,10 @@ class SqliteAdmissions:
 
     def required(self):
         with self.database.connect() as db:return verified_required(db)
+
+    def fixture_execution(self):
+        with self.database.connect() as db:
+            return verified_required(db) and fixture_enabled(db)
 
     def seal_legacy_writes(self):
         """An irreversible format selection, never permission to execute."""
@@ -343,6 +348,9 @@ class SqliteAdmissions:
             if not required:record_admission()
             event(db,run,None,'execution_admitted',{'admission_id':intent.id,'status':'paused',
                   'policy':a['policy'] if a else 'standalone-per-run'},now)
+            if required and grant_fixture_execution(db, intent, run):
+                event(db, run, None, 'fixture_execution_granted',
+                      {'admission_id': intent.id, 'policy': FIXTURE_POLICY}, now)
             return receipt
 
     def _receipt(self, db, row):

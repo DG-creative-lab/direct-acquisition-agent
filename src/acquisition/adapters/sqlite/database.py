@@ -364,9 +364,11 @@ PRAGMA user_version=14;
 
 
 class Database:
-    def __init__(self, path: str | Path, *, verified_admissions=False, clock=time.time):
+    def __init__(self, path: str | Path, *, verified_admissions=False, clock=time.time, fixture_execution=False):
         if type(verified_admissions) is not bool:
             raise ValueError('Choose an explicit admission mode')
+        if type(fixture_execution) is not bool or (fixture_execution and not verified_admissions):
+            raise ValueError('Fixture execution requires an explicit verified workspace initialization')
         self.path = Path(path)
         if inspection_only(self.path):
             if verified_admissions:
@@ -380,6 +382,8 @@ class Database:
         with self.transaction() as connection:
             # Version discovery and every migration share one SQLite write lock.
             version = connection.execute("PRAGMA user_version").fetchone()[0]
+            if fixture_execution and (version != 0 or connection.execute('SELECT 1 FROM sqlite_schema LIMIT 1').fetchone()):
+                raise Conflict('Fixture execution requires a fresh application store')
             if version not in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}:
                 raise ValueError(f"Unsupported database schema {version}")
             if (verified_admissions and version < 10
@@ -440,6 +444,9 @@ class Database:
                 # Seal under the same write lock that skipped legacy recovery.
                 from .admission_guard import seal_legacy_writes
                 seal_legacy_writes(connection, clock)
+            if fixture_execution:
+                from .fixture_execution import install_fixture_execution
+                install_fixture_execution(connection, clock())
         self._enable_wal()
 
     @classmethod

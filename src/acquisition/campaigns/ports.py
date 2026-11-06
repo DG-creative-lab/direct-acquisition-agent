@@ -1,10 +1,18 @@
+from dataclasses import dataclass
 from typing import Protocol
 
 from .domain import Draft
 
 
+@dataclass(frozen=True)
+class DraftLease:
+    run_id: str
+    task_id: str
+    token: str
+
+
 class DraftStore(Protocol):
-    def put(self, organization: str, operation_id: str, draft: Draft) -> str: ...
+    def put(self, organization: str, operation_id: str, draft: Draft, *, lease: DraftLease | None = None) -> str: ...
     def get(self, organization: str, draft_id: str) -> Draft: ...
 
 
