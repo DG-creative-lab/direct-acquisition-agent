@@ -13,7 +13,7 @@ from acquisition.campaigns import FollowupStore
 from acquisition.adapters.files import export_draft
 from acquisition.adapters.sqlite.audiences import SqliteAudiences
 from acquisition.adapters.sqlite.database import Database
-from acquisition.local_root import inspection_only
+from acquisition.local_root import inspection_only, require_live_root, workspace_root_lock
 from acquisition.adapters.sqlite.drafts import SqliteDrafts
 from acquisition.adapters.sqlite.tasks import SqliteTasks
 from acquisition.adapters.synthetic import generate, generated_snapshot_identity
@@ -32,7 +32,6 @@ from acquisition.workflows.model_mail import ModelMonthlyMail, ConversationModel
 from acquisition.adapters.sqlite.reviews import SqliteReviews
 from acquisition.reviews import ReviewService, CopyRevisionService
 from acquisition.workflows.copy_revision import CopyRevisionWorkflow
-from acquisition.workflows.review import ReviewProposalBuilder
 from acquisition.learning import LearningService
 from acquisition.adapters.sqlite.learning import SqliteLearning
 from acquisition.workflows.learning import AcceptedCohortSource
@@ -129,6 +128,20 @@ def build_workspace_state(root,clock=time.time):
 def build_workspace_checkpoint():
     from acquisition.adapters.sqlite.workspace_checkpoint import SqliteWorkspaceCheckpoint
     return SqliteWorkspaceCheckpoint()
+
+def initialize_fixture_workspace(root, clock=time.time):
+    """Explicit local initialization, serialized against the workspace server."""
+    root = Path(root)
+    require_live_root(root)
+    if root.is_symlink():
+        raise Conflict('Use a fresh local fixture workspace directory')
+    root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    with workspace_root_lock(root):
+        if any(path.name != 'server.lock' for path in root.iterdir()):
+            raise Conflict('Fixture execution requires a fresh workspace root')
+        database = root / 'conversations.sqlite'
+        database.touch(mode=0o600, exist_ok=False)
+        Database(database, verified_admissions=True, clock=clock, fixture_execution=True)
 
 def build_checkpoint_reconciliation():
     from acquisition.adapters.sqlite.checkpoint_reconciliation import SqliteCheckpointReconciliation
@@ -452,15 +465,17 @@ class Application:
 
 def build(path: str | Path, clock: Callable[[], float] = time.time,
           gateway: ModelGateway | None = None, model_config: ModelConfig | None = None,
-          workspace_organization: str | None = None, *, verified_admissions=False) -> Application:
+          workspace_organization: str | None = None, *, verified_admissions=False,
+          execution_clock: Callable[[], float] | None = None) -> Application:
     if type(verified_admissions) is not bool:raise ValueError('Choose an explicit admission mode')
     database = Database(path,verified_admissions=verified_admissions,clock=clock)
     admission_store=build_admissions(path,clock,_database=database)
     admissions=WorkflowAdmissions(admission_store,clock)
     if workspace_organization is not None and not inspection_only(path) and not admissions.required():
         bind_workspace_journal(database,workspace_organization)
-    audiences, drafts = SqliteAudiences(database), SqliteDrafts(database, clock)
-    tasks = SqliteTasks(database, retired_capabilities=ModelMonthlyMail.legacy_capabilities())
+    execution_clock = execution_clock or clock
+    audiences, drafts = SqliteAudiences(database), SqliteDrafts(database, clock, execution_clock=execution_clock)
+    tasks = SqliteTasks(database, retired_capabilities=ModelMonthlyMail.legacy_capabilities(), execution_clock=execution_clock)
     campaigns = CampaignService(audiences, drafts, fixture_catalog())
     workflow = MonthlyMail(audiences, campaigns)
     memory, calls = SqliteCreative(database), SqliteCalls(database, clock)
@@ -502,10 +517,10 @@ def build(path: str | Path, clock: Callable[[], float] = time.time,
     revision_service = CopyRevisionService(reviews, drafts, memory, tasks, clock, revision_config, copy_assets,revision_admission)
     discovery = AudienceDiscovery(LocalAudienceSource(Path(__file__).resolve().parents[2] / "config/audience-catalogue"), clock)
     capabilities = revision_workflow.capabilities() | workflow.capabilities() | ConversationMail(audiences, campaigns).capabilities() | model_workflow.capabilities() | conversation_model.capabilities() | {PLANNER_CAPABILITY: planner.plan, FIXTURE_CAPABILITY: planner.fixture_plan, ACTION_CAPABILITY:router.route, COPY_ACTION_CAPABILITY:router.route}
-    return Application(tasks, audiences, drafts, Worker(tasks, capabilities, clock, lease_seconds=180 if inference else 60,
+    return Application(tasks, audiences, drafts, Worker(tasks, capabilities, execution_clock, lease_seconds=180 if inference else 60,
                        eligible=lambda capability, inputs: model_workflow.eligible(capability, inputs) and conversation_model.eligible(capability, inputs) and planner.eligible(capability, inputs) and revision_workflow.eligible(capability, inputs) and router.eligible(capability, inputs)), clock,
                        campaigns.catalogue_hash, memory, calls, inference,
-                       ReviewService(reviews, ReviewProposalBuilder(audiences, drafts, campaigns)),
+                       ReviewService(reviews),
                        LearningService(SqliteLearning(database, clock), AcceptedCohortSource(reviews, drafts)), conversations, revision_service, SqliteFollowups(database),
                        discovery, ConversationAudiences(conversations, discovery, SqliteAudienceSelections(database, clock), audiences, clock), actions,
                        ConversationExecution(SqliteExecution(database), clock),admissions,model_config)

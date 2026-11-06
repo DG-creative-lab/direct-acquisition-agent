@@ -3,22 +3,22 @@
 import json
 import csv
 import io
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import datetime, timezone, timedelta
 from uuid import uuid4
 
-from acquisition.audiences import Business, Snapshot
-from acquisition.campaigns import Draft, validate_copy_revision
+from acquisition.campaigns import brief_from, build_draft, validate_copy_revision
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.conversations import validate_result
 from acquisition.creative import fact_pack_id, validate_fact_pack, validate_copy_assets
-from acquisition.reviews import ReviewPolicy, current_reasons, subject, text, timestamp, validate_candidate, validate_population, validate_copy, validation_report
+from acquisition.reviews import ReviewPolicy, creatives_from, current_reasons, subject, text, timestamp, validate_candidate, validate_population, validate_copy, validation_report
 
 from .followups import require_followup
 from .selected_audience import require_selected_audience
 from .database import Database
 from .actors import require_actor
-from .drafts import verify
+from .audiences import read_snapshot, write_snapshot
+from .drafts import read_draft, write_draft
 from .tasks import scoped_run
 from .revision_provenance import require_revision_current, require_revision_lease
 from .execution import require_brief_active
@@ -64,21 +64,8 @@ class SqliteReviews:
         return payload
 
     def _bundle(self, db, organization, draft_id):
-        row = db.execute("SELECT * FROM drafts WHERE organization=? AND id=?", (organization, draft_id)).fetchone()
-        if row is None:
-            raise NotFound("Draft not found in this organization")
-        draft = Draft(json.loads(row["manifest"]), row["mailing"], row["assignments"])
-        verify(organization, draft)
-        if draft.id != draft_id:
-            raise Conflict("Draft integrity failure")
-        row = db.execute("SELECT payload FROM audiences WHERE organization=? AND id=?",
-                         (organization, draft.manifest["snapshot_id"])).fetchone()
-        if row is None:
-            raise NotFound("Audience snapshot not found")
-        data = json.loads(row[0])
-        snapshot = Snapshot(records=tuple(Business(**r) for r in data.pop("records")), **data)
-        if snapshot.id != draft.manifest["snapshot_id"] or snapshot.organization != organization:
-            raise Conflict("Audience integrity failure")
+        draft = read_draft(db, organization, draft_id)
+        snapshot = read_snapshot(db, organization, draft.manifest["snapshot_id"])
         contexts = {}
         for creative in draft.manifest["creatives"]:
             identity = creative.get("context_id")
@@ -422,23 +409,14 @@ class SqliteReviews:
             return self._record(db, organization, request_id, fingerprint, {"kind": "suppression_recorded", "actor": actor, "business_id": business_id,
                 "audience_epoch": authority["audience_epoch"] + (0 if existing else 1), "at": now})
 
-    def prepare(self, organization, case_id, expected_subject, actor, request_id):
-        with self.database.transaction() as db:
-            self._now()
-            self._actor(db, organization, actor, "operator")
-            _, cached = self._cached(db, organization, actor, request_id, "refresh", {"case_id": case_id, "expected_subject": expected_subject})
-            if cached:
-                return {"receipt": cached}
-            case = self._case(db, organization, case_id)
-            if case["current_subject"] != expected_subject:
-                raise Conflict("A different review subject is current")
-            self._run_ready(db, organization, case)
-            if db.execute("SELECT 1 FROM simulated_agency_jobs WHERE organization=? AND case_id=?", (organization, case_id)).fetchone():
-                raise Conflict("Accepted simulated jobs are immutable; create a new campaign")
-            proposal = self._subject(db, organization, expected_subject)
-            return {"subject": proposal, "authority": self._authority(db, organization), "suppressions": sorted(self._suppressed(db, organization))}
+    def refresh(self, organization, case_id, expected_subject, actor, request_id):
+        return self._propose(organization, case_id, expected_subject, actor, request_id, "refresh")
 
-    def propose(self, organization, case_id, expected_subject, draft_id, actor, request_id, audience_epoch, evidence_epoch, kind="replace", *, claim=None):
+    def propose(self, organization, case_id, expected_subject, draft_id, actor, request_id, audience_epoch, evidence_epoch, *, claim=None):
+        return self._propose(organization, case_id, expected_subject, actor, request_id, "replace",
+                             draft_id=draft_id, epochs=(audience_epoch, evidence_epoch), claim=claim)
+
+    def _propose(self, organization, case_id, expected_subject, actor, request_id, kind, *, draft_id=None, epochs=None, claim=None):
         with self.database.transaction() as db:
             now = self._now()
             self._actor(db, organization, actor, "operator")
@@ -447,8 +425,6 @@ class SqliteReviews:
             payload = {"case_id": case_id, "expected_subject": expected_subject}
             if kind == "replace":
                 payload["draft_id"] = draft_id
-            if kind not in {"replace", "refresh"}:
-                raise ValueError("Unknown proposal operation")
             fingerprint, cached = self._cached(db, organization, actor, request_id, kind, payload)
             if cached:
                 return cached
@@ -464,10 +440,20 @@ class SqliteReviews:
             self._run_ready(db, organization, case)
             old = self._subject(db, organization, expected_subject)
             authority = self._authority(db, organization)
-            if (audience_epoch, evidence_epoch) != (authority["audience_epoch"], authority["evidence_epoch"]):
+            if epochs is not None and epochs != (authority["audience_epoch"], authority["evidence_epoch"]):
                 raise Conflict("Evidence changed during preparation; retry with a new request ID")
+            original, snapshot, _ = self._bundle(db, organization, old["draft_id"])
+            if kind == "refresh":
+                # Refresh has its own exact-subject authority. Rebuild the original
+                # campaign inside this transaction with current suppression flags.
+                suppressed = self._suppressed(db, organization)
+                updated = replace(snapshot, records=tuple(
+                    replace(row, suppressed=True) if row.business_id in suppressed else row for row in snapshot.records))
+                refreshed = build_draft(updated, brief_from(original.manifest["brief"]), creatives_from(original))
+                write_snapshot(db, updated)
+                draft_id = write_draft(db, organization, case_id + ":refresh:" + request_id, refreshed, self._now())
+                now = self._now()
             draft = self._validate(db, organization, case, draft_id, authority, now)
-            original = self._bundle(db, organization, old["draft_id"])[0]
             if draft.manifest["brief"]["campaign_id"] != original.manifest["brief"]["campaign_id"]:
                 raise Conflict("Replacement belongs to a different campaign")
             if claim is not None:

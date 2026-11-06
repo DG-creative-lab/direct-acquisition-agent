@@ -12,8 +12,9 @@ scoped domain mappings into application storage. Unsealed compatibility stores
 retain their existing operating paths. Legacy workspace records are not silently
 certified. Phase 4b adds explicit offline projection inspection and rebuild for
 registered new-format environments. Explicit legacy migration and
-inspection-only restore are implemented. Execution activation remains planned.
-Approval and acceptance retain their existing controls.
+inspection-only restore are implemented. Fresh workspaces can explicitly
+enable verified fixture execution for the conversation journey. Approval and
+acceptance retain their existing controls.
 
 ## Evidence and decision
 
@@ -203,9 +204,9 @@ through the new API and includes staged revisions in its limit. These guards
 avoid duplicating an operation through the two service paths. They do not claim
 that every old raw-task writer has been converted; that is the next slice.
 
-Every new task carries an explicit admission-format marker. Claim and reservation
-both reject these paused tasks, including after process restart or if the
-admission row is missing. There is no activation toggle in this implementation.
+Every new task carries an explicit admission-format marker. Claim rejects
+paused tasks, including after process restart or if the admission row is
+missing. Reservation rejects verified work independently of fixture settings.
 Admission receipt reads verify the stored request, task plan, run and ownership
 from one read snapshot; they never perform current approval or dispatch decisions.
 
@@ -244,8 +245,8 @@ witness binding are skipped for these stores.
 
 Database guards also cover cached older writers that lack the Python checks.
 In a sealed store a run needs its admission before insertion, task rows must
-match the saved task plan, task execution status updates are refused and new
-inference reservations are refused. Schema 13 makes the admission-to-run foreign
+match the saved task plan, and new inference reservations are refused. The
+default paused store also refuses task execution status updates. Schema 13 makes the admission-to-run foreign
 key deferred: the verified adapter writes admission first, then runtime rows,
 ownership and audit in one transaction. Commit still requires the runtime row;
 an interruption rolls back the whole admission. Schema-12 records and receipts
@@ -260,10 +261,23 @@ a bounded explanation instead of promising model generation. No provider key
 or client is loaded for paused model admission; explicit frozen model settings
 and generation permission remain required.
 
-There is no activation command or executable verified mode in this slice.
-Positive new-format model dispatch and the full verified campaign journey remain
-acceptance work for activation. Existing compatibility journeys are tested
-separately and do not prove new-format execution.
+### Fixture execution in a fresh workspace
+
+The [local initializer](workspace.md#start-a-verified-fixture-workspace)
+requires an empty root and uses the exclusive server lock. It selects verified
+admission and installs the versioned fixture policy in the same SQLite
+transaction. This opt-in extension retains the schema-14 admission seal and
+checkpoint compatibility. Existing stores keep their original selection.
+
+The allowlist covers only the exact fixture planning and fixture conversation
+campaign task sequences, with the native conversation owner and absent model
+settings and consent. Admission commits the immutable run grant and its audit
+event with the original run. Python checks the exact binding, grant, current
+revision and stop fence before claim and commit. The SQLite effect trigger
+also checks the grant and task plan. Inference reservation retains its separate
+verified fence. Draft publication checks the claimed task and its lease in the
+artifact transaction. Restart reclaims an expired attempt using the server
+clock and the same idempotent draft operation.
 
 ## Application-owned workspace state, phase 4a
 
@@ -427,7 +441,8 @@ same organization and store. External effects and completeness remain unknown.
    An explicit schema/capability gate must prevent old writers creating new work
    without ownership. Test one shared allowance, stop-through revision, foreign
    scope rejection and zero dispatch from bypass paths. Store sealing and SQL
-   guards close mixed-writer gaps. Verified execution activation remains deferred.
+   guards close mixed-writer gaps. Verified fixture activation is explicit on
+   fresh roots.
 4. **Rebuildable workspace, phases 4a and 4b implemented.** Schema 14 moves new selected coordinator intent, campaign
    mappings, request fingerprints, storage scope, fixture/model mode and sandbox
    time out of workspace authority. Explicit offline rebuild now restores owned
@@ -461,8 +476,8 @@ slots per account independently of production origin resolution. It explores all
 recorded replay and late/unknown observations, and a fresh Python process. This
 is a bounded reservation baseline. Separate admission tests now cover paused
 planning's atomic writes, scoped consent, concurrent admission and real crashes.
-Activation, reconciliation with external evidence and the full executable
-new-format journey remain later gates.
+Paid activation and reconciliation with external evidence remain later gates.
+The fresh verified offline fixture journey has its own acceptance coverage.
 
 No generic repository, service locator, event bus, new orchestration framework or
 microservice split is introduced. Inventory, migration, projection recovery and checkpoint restore keep verified

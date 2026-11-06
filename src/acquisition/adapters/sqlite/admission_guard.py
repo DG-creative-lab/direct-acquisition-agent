@@ -1,7 +1,7 @@
 """Store-format and immutable admission checks shared by effect boundaries.
 
 This is SQLite enforcement, not runtime policy. No workspace ancestry inference
-is consulted for new-format work. This slice has no execution activation state.
+is consulted for new-format work. Fixture grants are a separate store extension.
 """
 import json
 import sqlite3

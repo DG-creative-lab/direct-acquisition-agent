@@ -1,15 +1,19 @@
 import json
 import math
+import time
 import uuid
 from dataclasses import asdict
 from collections.abc import Callable
 
 from acquisition.contracts import Conflict, NotFound, canonical, digest
+from acquisition.local_root import inspection_only
 from acquisition.runtime import Claim, LeaseLost, Outcome, TaskSpec
 
 from .database import Database, stored_plan_hash
 from .execution import bind_run, ancestry_pending
 from .admission_guard import binding, verified_required, require_legacy_writer
+from .fixture_execution import POLICY as FIXTURE_POLICY, fixture_active, fixture_enabled, fixture_granted
+from .fixture_execution import require_fixture_deadline
 
 
 def finite_time(now: float) -> None:
@@ -68,7 +72,7 @@ def insert_run(connection, organization, request_id, specs, now, *, reservation_
 
 
 def admission_paused(connection, organization, run_id):
-    # No activation path exists until the complete entry-point cutover.
+    # An admission marker alone never permits execution in an unsealed store.
     return (connection.execute('SELECT 1 FROM execution_admissions WHERE organization=? AND run_id=?',
                                (organization,run_id)).fetchone() is not None or
             connection.execute('''SELECT 1 FROM tasks t JOIN runs r ON r.id=t.run_id
@@ -77,9 +81,10 @@ def admission_paused(connection, organization, run_id):
 
 
 class SqliteTasks:
-    def __init__(self, database: Database, retired_capabilities: frozenset[str] = frozenset()):
+    def __init__(self, database: Database, retired_capabilities: frozenset[str] = frozenset(), *, execution_clock=time.time):
         self.database = database
         self.retired_capabilities = retired_capabilities
+        self.execution_clock = execution_clock
 
     def _legacy_allowed(self, connection, organization, run_id):
         row = connection.execute("""SELECT a.request_hash FROM legacy_task_admissions a
@@ -120,9 +125,9 @@ class SqliteTasks:
         finite_time(now + lease_seconds)
         def can_run(connection, row):
             if verified_required(connection):
-                binding(connection,organization,row['run_id'])
-                return False  # Both new admissions and unmigrated history stay paused.
-            if admission_paused(connection,organization,row['run_id']):
+                if not fixture_active(connection, organization, row['run_id']):
+                    return False
+            elif admission_paused(connection,organization,row['run_id']):
                 return False
             if ancestry_pending(connection,organization,row['run_id']):
                 return False
@@ -132,6 +137,11 @@ class SqliteTasks:
                 raise Conflict("Retired capability has no matching preserved legacy admission")
             return True
         with self.database.transaction() as connection:
+            if fixture_enabled(connection):
+                current = self.execution_clock()
+                finite_time(current)
+                now = max(now, current)
+                finite_time(now + lease_seconds)
             if run_id is not None:
                 scoped_run(connection, organization, run_id)
             expired = connection.execute("""SELECT t.* FROM tasks t JOIN runs r ON r.id=t.run_id
@@ -167,19 +177,26 @@ class SqliteTasks:
         if not math.isfinite(now):
             raise LeaseLost("Attempt requires a finite clock reading")
         run = scoped_run(connection, claim.organization, claim.run_id)
-        if verified_required(connection):
-            binding(connection,claim.organization,claim.run_id)
+        verified = verified_required(connection)
+        if verified:
+            if not fixture_active(connection, claim.organization, claim.run_id):
+                raise LeaseLost('Verified admission execution is paused')
+            current = self.execution_clock()
+            if not math.isfinite(current):
+                raise LeaseLost('Attempt requires a finite execution clock')
+            now = max(now, current)
+        elif admission_paused(connection, claim.organization, claim.run_id):
             raise LeaseLost('Verified admission execution is paused')
         row = connection.execute("SELECT * FROM tasks WHERE id=? AND run_id=?",
                                  (claim.task_id, claim.run_id)).fetchone()
         if (row is None or run["status"] != "running" or row["status"] != "running"
                 or row["token"] != claim.token or row["lease_until"] <= now):
             raise LeaseLost("Attempt expired, cancelled or superseded")
-        return row
+        return row, verified
 
     def settle(self, claim: Claim, outcome: Outcome, now: float) -> None:
         with self.database.transaction() as connection:
-            self._owned(connection, claim, now)
+            row, fixture = self._owned(connection, claim, now)
             connection.execute("UPDATE tasks SET status=?,output=?,token=NULL,lease_until=NULL WHERE id=?",
                                (outcome.status, canonical(outcome.data), claim.task_id))
             pending = connection.execute("SELECT COUNT(*) FROM tasks WHERE run_id=? AND status!='succeeded'",
@@ -187,10 +204,12 @@ class SqliteTasks:
             status = "waiting" if outcome.status == "waiting" else ("running" if pending else "succeeded")
             connection.execute("UPDATE runs SET status=? WHERE id=?", (status, claim.run_id))
             event(connection, claim.run_id, claim.task_id, "task_" + outcome.status, outcome.data, now)
+            if fixture:
+                require_fixture_deadline(row["lease_until"], self.execution_clock())
 
     def fail(self, claim: Claim, code: str, retry: bool, now: float) -> None:
         with self.database.transaction() as connection:
-            row = self._owned(connection, claim, now)
+            row, fixture = self._owned(connection, claim, now)
             retry = retry and row["attempts"] < row["max_attempts"]
             finite_time(now + min(30, 2 ** row["attempts"]))
             connection.execute("""UPDATE tasks SET status=?,output=?,token=NULL,lease_until=NULL,available_at=?
@@ -200,11 +219,15 @@ class SqliteTasks:
                 connection.execute("UPDATE runs SET status='failed' WHERE id=?", (claim.run_id,))
             event(connection, claim.run_id, claim.task_id, "task_retry_scheduled" if retry else "task_failed",
                   {"error_code": code}, now)
+            if fixture:
+                require_fixture_deadline(row["lease_until"], self.execution_clock())
 
     def acknowledge(self, organization: str, run_id: str, reference: str, now: float) -> None:
         finite_time(now)
         with self.database.transaction() as connection:
             run = scoped_run(connection, organization, run_id)
+            if verified_required(connection) and not fixture_active(connection, organization, run_id):
+                raise Conflict('This run has no current fixture execution authority')
             if run["status"] != "waiting":
                 raise Conflict("Run is not waiting for acknowledgement")
             row = connection.execute("SELECT * FROM tasks WHERE run_id=? AND status='waiting'", (run_id,)).fetchone()
@@ -249,8 +272,10 @@ class SqliteTasks:
                 try:
                     intent=binding(connection,organization,run_id)
                     valid=intent is not None
+                    fixture = required and not inspection_only(self.database.path) and fixture_granted(connection, organization, run_id, intent)
                 except (Conflict,ValueError,KeyError):
-                    intent=None;valid=False
-                result['admission']={'status':'paused','binding_valid':valid,
-                    'id':intent.id if intent else None,'policy':'verified-paused/v1' if required else 'staged-admission/v1'}
+                    intent=None;valid=False;fixture=False
+                result['admission']={'status':'fixture' if fixture else 'paused','binding_valid':valid,
+                    'id':intent.id if intent else None,
+                    'policy':FIXTURE_POLICY if fixture else 'verified-paused/v1' if required else 'staged-admission/v1'}
             return result

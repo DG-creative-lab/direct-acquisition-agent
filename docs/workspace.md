@@ -42,7 +42,7 @@ Conversation messages, planning requests and conversation-origin campaign review
 
 For an explicitly selected `verified-paused/v1` store, new preparation intent, frozen planning context and copy consent live in the root application database. New campaign environments retain their mode, original creation command, clock and domain links in their own application database. A root application catalogue binds each server-owned location to its original store identity. Children inherit the actual parent store and organization. A missing or replaced store is blocked rather than recreated from a session payload.
 
-These owned records can be read after `workspace.sqlite` is removed, without reconstruction inference or changed permission. The offline command below can explicitly rebuild their presentation indexes. This is not a legacy migration or backup recovery guarantee. Legacy sessions remain inspectable, using trusted current time in selected mode, but need explicit migration before new workspace preparation, decisions or follow-ups. Legacy pending coordinators are not copied into the new intent store. Existing domain receipts remain historical observations. Verified tasks remain paused and cannot call a model. Unsealed workspaces keep the operating behavior described above.
+These owned records can be read after `workspace.sqlite` is removed, without reconstruction inference or changed permission. The offline command below can explicitly rebuild their presentation indexes. This is not a legacy migration or backup recovery guarantee. Legacy sessions remain inspectable, using trusted current time in selected mode, but need explicit migration before new workspace preparation, decisions or follow-ups. Legacy pending coordinators are not copied into the new intent store. Existing domain receipts remain historical observations. Verified tasks are paused by default. The fresh fixture workspace below enables a narrow offline path. Verified admissions keep paid inference paused.
 
 For new owned environments, command inputs and any explicit simulation-clock advance are one application transaction. A failed command insert rolls back the clock. After that admission, a later domain operation can still fail; retry uses the same command and the existing domain receipt. The command does not create approval or learning authority. Completed replay observes current state. Use the [local workspace checkpoint procedure](workspace-checkpoints.md) to preserve the original root, campaign stores and legacy journal together.
 
@@ -51,6 +51,28 @@ The compatibility control store does not claim a distributed transaction with th
 A single background executor advances saved preparation records outside HTTP requests. Worker execution is serialized with direct preparation commands; progress reads and revisioned message appends remain available during inference. A per-root file lock prevents a second server from opening the same workspace. Domain SQLite transactions, exact subjects, scoped reads, leases, inference reservations and authoritative receipt journals remain in force. This is a local prototype rather than a multi-user deployment architecture.
 
 Progress reads can temporarily combine an older case mapping or preparation row with newer recovery state. The server reports pending checkpoint recovery from the exact saved stop receipt, which also drives the executor's retry. Chat keeps polling that pending mapping even after a transient blocker clears. An ordinary blocked preparation without a recovery receipt stops polling. These presentation hints grant no approval or inference permission.
+
+## Start a verified fixture workspace
+
+Initialize a new empty root and start the regular workspace server on it.
+
+```sh
+PYTHONPATH=src python3 -m acquisition.workspace_fixture --root .local/verified-fixture
+make workspace WORKSPACE_ROOT=.local/verified-fixture
+```
+
+Open a conversation and choose **Try the offline example**. The saved
+preparation runs fixture planning and builds the conversation campaign. Review
+the exact subject, approve it, then separately confirm simulated handoff. Open
+the synthetic outcome window, observe early results and finalize the complete
+cohort. The simulation remains local.
+
+The setting persists in the conversation database. Restart the same root with
+the ordinary server command. The worker uses the server clock for leases and
+preserves the separate simulation clock. Stop fences the exact revision.
+A completed draft at the waiting checkpoint remains available for explicit
+review. Standalone campaigns, follow-ups and paid workflows stay paused in
+verified mode. Restored roots remain inspection-only.
 
 ## Offline projection inspection and rebuild
 

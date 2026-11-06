@@ -82,6 +82,10 @@ rebuilds. Use the current checkout for inspection. For example, the run CLI
 can read saved task status and model-call receipts. Put any exports in a
 separate directory.
 
+A checkpoint may preserve fixture execution policy and grants from its
+source. These are historical records in a restored root. Fixture initialization
+requires a fresh root.
+
 ```sh
 PYTHONPATH=src python3 -m acquisition \
   --db .local/workspace-inspection/conversations.sqlite \

@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
 from threading import Barrier, Event
+from unittest.mock import patch
 
 from acquisition.bootstrap import build
 from acquisition.campaigns import Brief, build_draft
@@ -246,16 +247,22 @@ class ReviewTests(unittest.TestCase):
         self.handoff(approval)
         self.assertEqual(self.count("simulated_agency_jobs"), 1)
 
-    def test_evidence_changes_during_preparation_fail_the_compare_and_swap(self):
-        original = self.app.reviews.builder.refresh
-        def intervening(*args):
-            draft_id = original(*args)
-            self.store.activate("one", "operator", "intervening", self.pack | {"version": "facts-new"}, ReviewPolicy())
-            return draft_id
-        self.app.reviews.builder.refresh = intervening
-        with self.assertRaises(Conflict):
-            self.app.reviews.refresh("one", self.case, self.subject, "operator", "refresh")
-        self.assertEqual(self.store.view("one", self.case)["subject"]["id"], self.subject)
+    def test_refresh_serializes_evidence_changes_and_replacement_rejects_stale_epochs(self):
+        def rebuild(*args):
+            with sqlite3.connect(self.path, timeout=0) as writer:
+                with self.assertRaisesRegex(sqlite3.OperationalError, "locked"):
+                    writer.execute("BEGIN IMMEDIATE")
+            return build_draft(*args)
+
+        before = self.store.evidence("one")
+        with patch("acquisition.adapters.sqlite.reviews.build_draft", side_effect=rebuild) as builder:
+            receipt = self.app.reviews.refresh("one", self.case, self.subject, "operator", "refresh")
+            builder.assert_called_once()
+        self.store.activate("one", "operator", "new-evidence", self.pack | {"version": "facts-new"}, ReviewPolicy())
+        with self.assertRaisesRegex(Conflict, "Evidence changed"):
+            self.store.propose("one", self.case, receipt["subject_id"], receipt["draft_id"], "operator",
+                               "stale-replacement", before["audience_epoch"], before["evidence_epoch"])
+        self.assertEqual(self.store.view("one", self.case)["subject"]["id"], receipt["subject_id"])
 
     def test_acceptance_reads_time_after_acquiring_its_write_lock(self):
         approval = self.approve(ttl=1)

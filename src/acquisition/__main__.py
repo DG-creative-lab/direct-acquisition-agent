@@ -70,7 +70,7 @@ def main() -> None:
         app = build(args.db, gateway=gateway, model_config=config)
         scope = args.organization
         if args.command=='admission-cutover':
-            result={'policy':'verified-paused/v1','execution':'paused'}
+            result={'policy':'verified-paused/v1','execution':'fixture-only' if admission_store.fixture_execution() else 'paused'}
         elif args.command=='execution-unresolved':
             result=app.execution.unresolved(scope)
         elif args.command=='execution-resolve-independent':
