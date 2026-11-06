@@ -1,10 +1,10 @@
 """Offline, transactional projection repair. Application stores are read-only."""
-import fcntl
 import sqlite3
-from contextlib import contextmanager, closing
+from contextlib import ExitStack, contextmanager, closing
 from pathlib import Path
 
 from acquisition.contracts import Conflict, digest
+from acquisition.local_root import workspace_root_lock, inspection_only, require_live_root
 from .database import Database
 from .workspace_ancestry import ensure_workspace_identity
 
@@ -37,7 +37,10 @@ class ReadOnlyDatabase(Database):
 
     @contextmanager
     def connect(self):
-        db = sqlite3.connect(self.path.resolve().as_uri() + '?mode=ro', uri=True, timeout=10, isolation_level=None)
+        uri = self.path.resolve().as_uri() + '?mode=ro'
+        if inspection_only(self.path):
+            uri += '&immutable=1'
+        db = sqlite3.connect(uri, uri=True, timeout=10, isolation_level=None)
         db.row_factory = sqlite3.Row
         try:
             db.execute('PRAGMA query_only=ON')
@@ -71,18 +74,15 @@ class SqliteWorkspaceProjection:
     def exclusive(self):
         if not self.root.is_dir():
             raise Conflict('Use an existing workspace root')
-        path = self.root / 'server.lock'
-        if path.is_symlink():
-            raise Conflict('The workspace lock must be a regular local file')
-        with path.open('a+') as lock:
+        if inspection_only(self.root):
+            yield
+            return
+        with ExitStack() as stack:
             try:
-                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                stack.enter_context(workspace_root_lock(self.root))
             except BlockingIOError:
                 raise Conflict('Stop the workspace server before inspecting or rebuilding projections') from None
-            try:
-                yield
-            finally:
-                fcntl.flock(lock, fcntl.LOCK_UN)
+            yield
 
     def check_path(self):
         for suffix in ('', '-wal', '-shm', '-journal'):
@@ -135,7 +135,8 @@ class SqliteWorkspaceProjection:
             # Existing projections may need SQLite's own hot-journal rollback.
             # Do not create a file; SQL remains query-only. Application sources
             # always use ReadOnlyDatabase instead of this recovery connection.
-            db = sqlite3.connect(self.path.resolve().as_uri() + '?mode=rw', uri=True, timeout=10, isolation_level=None)
+            mode = '?mode=ro&immutable=1' if inspection_only(self.path) else '?mode=rw'
+            db = sqlite3.connect(self.path.resolve().as_uri() + mode, uri=True, timeout=10, isolation_level=None)
             try:
                 db.execute('PRAGMA query_only=ON'); db.execute('BEGIN')
                 if db.execute('PRAGMA quick_check').fetchone()[0] != 'ok':
@@ -162,6 +163,7 @@ class SqliteWorkspaceProjection:
             db.executemany(f'DELETE FROM {table} WHERE organization=? AND {key}=?', keys)
 
     def rebuild(self, rows, expected_projection, expected_source, read_source):
+        require_live_root(self.root)
         self.check_path()
         missing = not self.path.exists()
         if missing:

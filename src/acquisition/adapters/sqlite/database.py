@@ -5,6 +5,7 @@ import json
 import time
 
 from acquisition.contracts import Conflict, digest
+from acquisition.local_root import inspection_only, require_live_root
 
 
 SCHEMA = """
@@ -367,6 +368,14 @@ class Database:
         if type(verified_admissions) is not bool:
             raise ValueError('Choose an explicit admission mode')
         self.path = Path(path)
+        if inspection_only(self.path):
+            if verified_admissions:
+                require_live_root(self.path)
+            with self.connect() as connection:
+                if connection.execute('PRAGMA user_version').fetchone()[0] != 14:
+                    raise ValueError('Unsupported application schema for checkpoint inspection')
+                self._validate_workspace_schema(connection)
+            return
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.transaction() as connection:
             # Version discovery and every migration share one SQLite write lock.
@@ -544,7 +553,11 @@ class Database:
 
     @contextmanager
     def connect(self):
-        connection = sqlite3.connect(self.path, timeout=10, isolation_level=None)
+        checkpoint = inspection_only(self.path)
+        source = self.path.resolve().as_uri() + '?mode=ro&immutable=1' if checkpoint else self.path
+        if checkpoint and not self.path.is_file():
+            raise Conflict('This store is absent from the inspection-only checkpoint')
+        connection = sqlite3.connect(source, uri=checkpoint, timeout=10, isolation_level=None)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys=ON")
         try:
@@ -554,6 +567,7 @@ class Database:
 
     @contextmanager
     def transaction(self):
+        require_live_root(self.path)
         with self.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             try:

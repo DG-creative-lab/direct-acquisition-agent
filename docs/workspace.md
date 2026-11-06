@@ -44,7 +44,7 @@ For an explicitly selected `verified-paused/v1` store, new preparation intent, f
 
 These owned records can be read after `workspace.sqlite` is removed, without reconstruction inference or changed permission. The offline command below can explicitly rebuild their presentation indexes. This is not a legacy migration or backup recovery guarantee. Legacy sessions remain inspectable, using trusted current time in selected mode, but need explicit migration before new workspace preparation, decisions or follow-ups. Legacy pending coordinators are not copied into the new intent store. Existing domain receipts remain historical observations. Verified tasks remain paused and cannot call a model. Unsealed workspaces keep the operating behavior described above.
 
-For new owned environments, command inputs and any explicit simulation-clock advance are one application transaction. A failed command insert rolls back the clock. After that admission, a later domain operation can still fail; retry uses the same command and the existing domain receipt. The command does not create approval or learning authority. Completed replay observes current state. Save the original root application store and every referenced campaign store together; arbitrary partial restore and legacy enrollment remain deferred.
+For new owned environments, command inputs and any explicit simulation-clock advance are one application transaction. A failed command insert rolls back the clock. After that admission, a later domain operation can still fail; retry uses the same command and the existing domain receipt. The command does not create approval or learning authority. Completed replay observes current state. Use the [local workspace checkpoint procedure](workspace-checkpoints.md) to preserve the original root, campaign stores and legacy journal together.
 
 The compatibility control store does not claim a distributed transaction with the domain database. A command is durably admitted with a fingerprint before execution. If a domain commit succeeds but metadata/response persistence fails, retrying the same command reuses domain idempotency and completes the metadata. A monotonic sandbox-clock advance may remain visible after a later operation fails. It does not create an approval, outcome or belief by itself. Reusing a request ID for another action or changed inputs is rejected before that advance. Completed command replay refreshes current state and is labelled as receipt observation, not another effect.
 
@@ -101,8 +101,7 @@ Only registered new-format environments can be reconstructed. If a lost journal
 contained legacy-only authority, this command cannot recover or certify it.
 Inspection fingerprints bind observed projection inputs; they are not cold-backup
 checkpoints and do not prove absence of later provider work. Verified execution
-remains paused. Legacy ownership migration and supported restore/activation
-are separate gates under [issue 33's decision](execution-authority-decision.md).
+remains paused. Use the [checkpoint procedure](workspace-checkpoints.md) for a cold backup and inspection-only restore.
 
 ## Legacy ownership migration
 

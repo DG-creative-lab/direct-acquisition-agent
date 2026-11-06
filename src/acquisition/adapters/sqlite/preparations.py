@@ -5,6 +5,7 @@ import sqlite3
 from contextlib import contextmanager
 
 from acquisition.contracts import Conflict, NotFound, canonical
+from acquisition.local_root import require_live_root
 from acquisition.conversations import identity
 
 
@@ -21,6 +22,7 @@ class SqlitePreparations:
 
     @contextmanager
     def connect(self):
+        require_live_root(self.path)
         db = sqlite3.connect(self.path, timeout=10, isolation_level=None)
         db.row_factory = sqlite3.Row
         try:

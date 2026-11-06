@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from acquisition.workspace import Workspace
+from acquisition.contracts import Conflict
 
 
 def main():
@@ -25,7 +26,10 @@ def main():
         if command == "message":
             sub.add_argument("--content", required=True)
     args = parser.parse_args()
-    workspace = Workspace(args.root,verified_admissions=args.verified_admissions)
+    try:
+        workspace = Workspace(args.root,verified_admissions=args.verified_admissions)
+    except (Conflict, BlockingIOError) as error:
+        parser.exit(2, str(error) + "\n")
     if args.command == "new":
         result = workspace.create_conversation(args.request_id, args.title)
     elif args.command == "list":

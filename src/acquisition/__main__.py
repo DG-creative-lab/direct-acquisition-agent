@@ -4,6 +4,7 @@ from pathlib import Path
 
 from acquisition.bootstrap import build
 from acquisition.contracts import Conflict, NotFound
+from acquisition.local_root import inspection_only
 from acquisition.adapters.environment import openrouter_key
 from acquisition.adapters.openrouter import OpenRouter, inexpensive_models
 from acquisition.reasoning import ModelConfig, ModelError
@@ -63,7 +64,7 @@ def main() -> None:
         model = args.model or ("openai/gpt-oss-120b" if args.command in {"create-model", "demo-model"} else None)
         from acquisition.bootstrap import build_admissions
         admission_store=build_admissions(args.db,verified_admissions=args.verified_admissions or args.command=='admission-cutover')
-        gateway = OpenRouter(openrouter_key(args.env_file)) if model and not admission_store.required() else None
+        gateway = OpenRouter(openrouter_key(args.env_file)) if model and not inspection_only(args.db) and not admission_store.required() else None
         force_tools = args.tool_choice == "required" if args.tool_choice else model == "openai/gpt-oss-120b"
         config = ModelConfig(model, max_calls=args.model_max_calls, force_tool_choice=force_tools) if model else None
         app = build(args.db, gateway=gateway, model_config=config)

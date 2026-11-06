@@ -1,11 +1,11 @@
 """Loopback-only, same-origin transport for the trusted local workspace."""
 
 import argparse
-import fcntl
 import json
 import mimetypes
 import secrets
 import threading
+from contextlib import ExitStack
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
@@ -14,6 +14,7 @@ from acquisition.contracts import Conflict, NotFound
 from acquisition.conversations import ActionNotSaved, AudienceSelectionRejected, MessageRejectedConflict, MessageRejectedInvalid, MessageRejectedNotFound
 from acquisition.reasoning import ModelError
 from acquisition.workspace import Workspace
+from acquisition.local_root import workspace_root_lock, require_live_root
 
 
 class WorkspaceServer(ThreadingHTTPServer):
@@ -24,9 +25,10 @@ class WorkspaceServer(ThreadingHTTPServer):
         self.token = secrets.token_urlsafe(32)
         self.preparation_stop = threading.Event()
         self.preparation_worker = None
-        self.root_lock = (workspace.root / "server.lock").open("a+")
+        require_live_root(workspace.root)
+        self.root_lock = ExitStack()
+        self.root_lock.enter_context(workspace_root_lock(workspace.root))
         try:
-            fcntl.flock(self.root_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             super().__init__(("127.0.0.1", port), Handler)
             self.workspace.recover_execution()
             self.workspace.preparations.recover("local-conversations")
@@ -227,13 +229,20 @@ def main():
     parser.add_argument("--root", type=Path, default=Path(".local/workspace"))
     parser.add_argument('--verified-admissions',action='store_true',help='Select verified admissions after the server lock is acquired. Execution stays paused.')
     args = parser.parse_args()
+    try:
+        require_live_root(args.root)
+    except Conflict as error:
+        parser.exit(2, str(error) + "\n")
     assets = Path(__file__).resolve().parents[2] / "frontend/dist"
     if not (assets / "index.html").exists():
         parser.error(
             "Build the interface first: pnpm --dir frontend install --frozen-lockfile "
             "&& pnpm --dir frontend run build"
         )
-    server = WorkspaceServer(args.port, Workspace(args.root,verified_admissions=args.verified_admissions), assets)
+    try:
+        server = WorkspaceServer(args.port, Workspace(args.root,verified_admissions=args.verified_admissions), assets)
+    except (Conflict, BlockingIOError) as error:
+        parser.exit(2, str(error) + "\n")
     print(f"Synthetic workspace: http://127.0.0.1:{server.server_port}", flush=True)
     try:
         server.serve_forever()

@@ -11,9 +11,9 @@ moves new preparation intent, sandbox environment, time, command identity and
 scoped domain mappings into application storage. Unsealed compatibility stores
 retain their existing operating paths. Legacy workspace records are not silently
 certified. Phase 4b adds explicit offline projection inspection and rebuild for
-registered new-format environments. Explicit legacy migration and restore/
-execution activation remain planned. Approval and acceptance retain their
-existing controls.
+registered new-format environments. Explicit legacy migration and
+inspection-only restore are implemented. Execution activation remains planned.
+Approval and acceptance retain their existing controls.
 
 ## Evidence and decision
 
@@ -303,8 +303,8 @@ decisions require explicit migration; their former projected clock is not a new
 time grant. Unsealed compatibility operation remains unchanged. Preserve the
 root application store and referenced campaign stores together. A location/store
 identity detects replacement, not arbitrary stale backups. The phase 4b command
-below reconstructs registered new-format projections only. Legacy migration,
-backup generation checks and execution activation remain later gates.
+below reconstructs registered new-format projections only. Legacy migration and
+checkpoint restore have separate commands and preserve the execution pause.
 
 ## Offline projection rebuild, phase 4b
 
@@ -405,10 +405,9 @@ restartable and auditable, with an inventory of unresolved records. It
 preserves historical receipts, v1/v2 artifact readers, the schema-v3 legacy
 cutoff and approval invalidation rules.
 
-Backup work must distinguish inspection from execution activation. A restore
-does not itself activate schedulers or paid work. A consistent local snapshot
-still cannot attest provider effects that happened after its checkpoint. No
-transparent recovery from arbitrary partial backups is promised.
+The [local workspace checkpoint](workspace-checkpoints.md) captures a stopped
+root and publishes a validated inspection-only restore. The database history
+remains at the checkpoint. Provider effects after that point remain unknown.
 
 ## Implementation sequence and acceptance gates
 
@@ -435,7 +434,7 @@ transparent recovery from arbitrary partial backups is promised.
    exact domain records, original request lookup and paused progress. Process
    interruption and lost acknowledgement cannot repeat a domain effect. The
    original activated chat journey remains a phase-5 acceptance gate.
-5. **Migration and restore activation, phases 5a and 5b implemented.** The
+5. **Migration and inspection-only restore implemented.** The
    [read-only inventory and versioned plan](legacy-migration.md) report scoped
    evidence, parent dependencies and supported/conflicting/incomplete/uncertain
    classifications. Unknown ownership never becomes standalone by absence.
@@ -445,8 +444,9 @@ transparent recovery from arbitrary partial backups is promised.
    origins. Tests cover mixed history, ambiguous CLI runs, recreated and
    stale journals, conflicting parents, rollback and fresh-process receipt
    recovery with the workspace journal missing.
-   Exercise the full offline journey and document the supported backup procedure
-   before enabling execution for migrated stores.
+   Cold capture and read-only validation cover the application stores and original
+   workspace journal. Restore publishes the complete checkpoint with workers and
+   mutations disabled.
 
 Each slice keeps `make test` and `make arch-check` green. UI changes additionally
 require `make interface-check`. Mutation probes must show that tests detect
@@ -460,13 +460,12 @@ slots per account independently of production origin resolution. It explores all
 recorded replay and late/unknown observations, and a fresh Python process. This
 is a bounded reservation baseline. Separate admission tests now cover paused
 planning's atomic writes, scoped consent, concurrent admission and real crashes.
-Supported restore, activation and the full executable new-format journey
-remain later gates.
+Activation, reconciliation of post-checkpoint effects and the full executable
+new-format journey remain later gates.
 
 No generic repository, service locator, event bus, new orchestration framework or
-microservice split is introduced. The remaining work is the supported
-restore/activation contract and the full offline verified journey. Inventory,
-migration and projection recovery keep verified execution paused.
+microservice split is introduced. Inventory, migration, projection recovery and checkpoint restore keep verified
+execution paused.
 
 ### Environment link integrity
 

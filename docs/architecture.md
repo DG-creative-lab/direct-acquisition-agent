@@ -26,6 +26,8 @@ flowchart LR
 
 The browser and CLI are entry points to the same application rules. A single local server serializes worker execution and holds a per-root POSIX file lock. Revisioned message appends and read-only progress use their own SQLite transactions so they can proceed during inference. The supported worker topology is one active worker. Selected concurrent database tests establish specific transaction invariants, not general multi-node readiness.
 
+The [local checkpoint adapter](workspace-checkpoints.md) uses the same root lock and SQLite writer locks to capture the application stores and legacy journal while writers are stopped. The restored root opens for historical inspection with application mutations fenced.
+
 ## Module ownership
 
 | Module | Responsibility | Authority it does not own |
@@ -59,6 +61,7 @@ src/acquisition/
   bootstrap.py                composition root
   workspace.py                local workspace facade
   workspace_server.py         loopback transport and static asset serving
+  workspace_checkpoint.py     offline checkpoint capture, validation and restore
   conversation_cli.py         explicit conversation and planner commands
   __main__.py                 CLI entry point
 config/                       editorial guidance, fact pack and evaluation cases
@@ -108,7 +111,8 @@ journal association and existing attribution. Under source locks, SQLite
 revalidates the exact plan and records a per-run binding and a replayable
 receipt in the sealed conversation store. Apply preserves the accounting index
 and all unresolved origin markers. Historical receipts can be read directly
-from that store. Backup, restore and execution activation remain separate gates.
+from that store. Local checkpoints restore for inspection. Execution activation
+and reconciliation after the checkpoint remain separate work.
 
 ## Audience and experiment semantics
 

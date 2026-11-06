@@ -46,3 +46,4 @@ dist/
 !/docs/execution-controls.md
 !/docs/execution-authority-decision.md
 !/docs/legacy-migration.md
+!/docs/workspace-checkpoints.md

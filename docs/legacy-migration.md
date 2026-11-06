@@ -90,7 +90,8 @@ Re-inspection lists eligible recorded bindings as
 This slice binds legacy run ownership in the canonical conversation store.
 Legacy session, clock, preparation and command records still live in their
 original journals. Standalone campaign stores remain inspection sources.
-Activation and supported backup and restore are separate gates.
+The [checkpoint procedure](workspace-checkpoints.md) preserves these journals
+and restores them for inspection. Execution activation remains separate work.
 
 ## Meaning of the plan
 
