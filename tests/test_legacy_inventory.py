@@ -638,7 +638,7 @@ class LegacyInventoryTests(unittest.TestCase):
             return result
         with patch.object(service.source,'snapshot',side_effect=changed),self.assertRaisesRegex(Conflict,'changed during inspection'):service.inspect()
 
-    def test_fresh_process_report_redacts_prompts_and_has_no_apply_or_activation(self):
+    def test_fresh_process_report_redacts_prompts_and_requires_explicit_apply(self):
         cid,app,run=self.planner();before=self.facts();result=self.cli('inspect')
         self.assertEqual(result.returncode,0,result.stderr);report=json.loads(result.stdout)
         self.assertEqual(report,self.inspect());self.assertNotIn(FIXTURE_MESSAGE,result.stdout)

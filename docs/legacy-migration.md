@@ -1,8 +1,8 @@
-# Legacy migration inventory
+# Legacy ownership migration
 
-Phase 5a of [issue 33's execution-authority decision](execution-authority-decision.md)
-provides an offline inventory and proposed migration plan. It does not migrate,
-certify, resume or activate a record. Verified execution stays paused.
+Phases 5a and 5b of [the execution authority decision](execution-authority-decision.md)
+provide an offline inventory and transactional ownership migration. Verified
+execution stays paused.
 
 ## Inspect an existing root
 
@@ -17,7 +17,7 @@ only that coordination file if absent. Source connections use SQLite read-only
 mode with `query_only`; neither schemas nor source records are written. SQLite
 may use shared-memory files for read locks. A source requiring hot-journal
 rollback is reported for separate recovery instead of being opened for writing.
-No missing database is initialized. There is no `apply` or `activate` command.
+No missing database is initialized.
 
 Discovery includes `conversations.sqlite`, `workspace.sqlite`, and canonical
 campaign stores referenced by the root's location catalogue or valid legacy
@@ -29,6 +29,68 @@ Each source is read from a pinned transaction. A second full observation must
 match before the report returns. A change invalidates the proposed plan.
 This detects observed changes during inspection; it is not a distributed
 snapshot or a cold-backup protocol. Keep writers stopped throughout inspection.
+
+## Apply a reviewed plan
+
+Apply targets an existing schema-14 `conversations.sqlite` sealed under
+`verified-paused/v1`. Sealing is a separate format decision. On an unsealed
+schema-14 store, review the [cutover contract](execution-authority-decision.md)
+before running `PYTHONPATH=src python3 -m acquisition --db
+.local/workspace/conversations.sqlite admission-cutover`. Inspect again after
+the seal. An unsealed inventory ID cannot apply to the changed store.
+
+Explicit cutover refuses a pre-v10 store that contains recorded runs and leaves
+its schema and records unchanged. Preserve and inspect that history for separate
+ancestry reconciliation. This slice does not provide an automatic safe upgrade
+and cutover for that case.
+
+Review the current report. When `apply_available` is true, records marked
+`migrate_paused_ownership` are the eligible bindings. Run with the exact
+`plan_id` from that report:
+
+```sh
+PYTHONPATH=src python3 -m acquisition.legacy_migration --root .local/workspace apply --plan-id "$plan_id"
+```
+
+Apply takes the root lock and reserves SQLite write locks on the journal and
+the discovered databases. It recalculates the plan from those locked sources.
+Missing or unreadable sources, unsupported paths, a rollback journal that
+requires separate recovery, or a changed plan ID block the write. Use canonical
+local files and keep filesystem writers, file copies and restores stopped
+throughout the operation.
+
+Only the conversation store commits changes. A supported legacy run needs
+positive conversation provenance, a matching historical task plan, an existing
+scoped account and ownership index, and a matching journal association recorded
+before the organization's first run. Apply records the existing owner and
+revision, evidence fingerprint and parent dependencies with an immutable
+receipt. Existing ownership indexes, quarantine markers, allowances and stop
+state are preserved. The account's stop fence must agree with its scoped
+stop receipts. A missing account with surviving execution history or a
+recreated row that contradicts that history requires reconciliation.
+A journal identity match cannot prove the absence of later
+history. Unattributed or quarantined runs and missing or weak journal
+associations stay unresolved, including after reopening a sealed store.
+
+If the process stops before commit, retry the same reviewed plan after
+inspection confirms the evidence is unchanged. If commit succeeds and the
+response is lost, the same plan ID returns the historical
+`legacy-ownership-migration/v1` receipt. To check whether apply committed,
+run the receipt-only command:
+
+```sh
+PYTHONPATH=src python3 -m acquisition.legacy_migration --root .local/workspace receipt --plan-id "$plan_id"
+```
+
+Receipt lookup reads only the existing conversation store and works when the
+workspace journal is missing. A missing receipt produces a distinct error.
+Re-inspection lists eligible recorded bindings as
+`retain_migrated_paused_binding`.
+
+This slice binds legacy run ownership in the canonical conversation store.
+Legacy session, clock, preparation and command records still live in their
+original journals. Standalone campaign stores remain inspection sources.
+Activation and supported backup and restore are separate gates.
 
 ## Meaning of the plan
 
@@ -121,18 +183,18 @@ Call counts are local observations. Remaining allowance is unknown in this repor
 it does not recompute or reset an account. Billing and backup completeness are
 always unverified. Historical approvals and receipts are never current permission.
 
-Every record has `executable: false`. The plan always sets `apply_available`,
-`execution_activation`, `legacy_certification` and `migration_ready` to false,
-even if all inspected bindings are supported. Later slices must implement and
-test transactional migration, interruption/replay, the supported backup/restore
-procedure, and explicit activation with a complete offline journey. A saved
-inventory report cannot authorize any of those operations.
+Every record has `executable: false`. The plan reports `apply_available` for
+an eligible batch. `execution_activation`, `legacy_certification` and
+`migration_ready` stay false because ownership binding grants no execution
+permission. Provider observations, historical task inputs, the schema-v3
+cutoff, approvals, acceptance and learning records stay in their original
+tables and retain their existing authority checks.
 
 ## Module ownership
 
-`conversations` owns the classification policy, plan version and inspection
-service behind `LegacyMigrationSource`. The SQLite adapter discovers bounded
-sources and reads scoped historical facts without invoking recovery writers.
-`bootstrap.py` connects the port and adapter. The CLI only serializes the report.
-The runtime, inference reservation, validation, approval and learning paths are
-unchanged.
+`conversations` owns classification, binding eligibility and the exact-plan
+command behind `LegacyMigrationSource`. The SQLite adapter discovers sources,
+reads scoped facts, and commits the selected bindings and receipt.
+`bootstrap.py` connects the port and adapter. The CLI serializes reports and
+receipts. The existing sealed-store fences enforce the pause at task claim and
+inference reservation.

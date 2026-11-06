@@ -1,6 +1,6 @@
 from .workspace_state import WorkspaceState, EnvironmentIntent, ENVIRONMENT_SCHEMA, WORKSPACE_OWNER, environment_time, preparation_record
 from .projection import WorkspaceProjectionRebuild, PROJECTION_SCHEMA
-from .legacy_migration import LegacyMigrationInventory, MIGRATION_PLAN_SCHEMA
+from .legacy_migration import LegacyMigrationInventory, MIGRATION_PLAN_SCHEMA, MIGRATION_STORE
 from .actions import ConversationActions, ActionNotSaved
 from .audiences import ConversationAudiences, AudienceSelectionRejected
 from .application import ConversationService, MessageRejectedConflict, MessageRejectedInvalid, MessageRejectedNotFound

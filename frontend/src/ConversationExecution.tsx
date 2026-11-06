@@ -3,10 +3,11 @@ import { command, read } from "./api";
 
 export type Execution = {
   accounting_complete?: boolean;
+  account_unresolved?: boolean;
   unresolved_runs?: string[];
   recovery_scopes?: { organization: string; run_id: string }[];
   status: string;
-  limit: number;
+  limit: number | null;
   used: number;
   remaining: number | null;
   stopped: boolean;
@@ -36,6 +37,8 @@ export default function ConversationExecution<T>({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const recoveryScopes = execution.recovery_scopes ?? [];
+  const ancestryUnresolved = recoveryScopes.length > 0;
   const epoch = useRef(0);
   useEffect(() => {
     epoch.current++;
@@ -92,19 +95,28 @@ export default function ConversationExecution<T>({
             )}
           </span>
         </p>
-        {active && !execution.stopped && revision > 0 && (
-          <button className="button secondary" onClick={stop} disabled={busy}>
-            {busy ? "Stopping…" : "Stop work"}
-          </button>
-        )}
+        {active &&
+          !execution.stopped &&
+          !execution.account_unresolved &&
+          revision > 0 && (
+            <button className="button secondary" onClick={stop} disabled={busy}>
+              {busy ? "Stopping…" : "Stop work"}
+            </button>
+          )}
       </div>
-      {execution.stopped && (
+      {execution.stopped && !execution.account_unresolved && (
         <p>
           Send a new brief to start new work. The shared allowance does not
           reset. Existing campaign history and approvals are preserved.
         </p>
       )}
-      {execution.accounting_complete === false && (
+      {execution.account_unresolved && (
+        <p>
+          The execution account, run links, or stop history needs recovery. Ask
+          a local operator to reconcile the records before continuing.
+        </p>
+      )}
+      {ancestryUnresolved && (
         <p>
           Historical campaign ancestry needs recovery. Model calls are paused
           and usage is incomplete until a local operator restores the original
@@ -125,7 +137,7 @@ export default function ConversationExecution<T>({
       )}
       <details>
         <summary>Inspect model usage</summary>
-        {execution.accounting_complete === false && (
+        {ancestryUnresolved && (
           <div>
             <p>
               Operator recovery: use <code>execution-unresolved</code> to
@@ -136,7 +148,7 @@ export default function ConversationExecution<T>({
               database selection. This does not approve a campaign.
             </p>
             <ul>
-              {execution.recovery_scopes?.map((scope) => (
+              {recoveryScopes.map((scope) => (
                 <li key={scope.run_id}>
                   Organization: <code>{scope.organization}</code>; run:{" "}
                   <code>{scope.run_id}</code>

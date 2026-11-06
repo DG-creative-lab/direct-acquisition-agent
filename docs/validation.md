@@ -938,7 +938,7 @@ The only writable coordination object is the existing root's `server.lock`.
 | A journal witness is not completeness | Lost, recreated and stale populated journals; matching identity explicitly reports unproven completeness; historical independence receipt remains non-authoritative | Arbitrary partial restore remains unsupported |
 | Uncertainty survives inspection | Fake-provider network failure and interrupted reservation retain uncertain status, recorded call count and unknown remaining allowance; a definitive rejection remains a historical observation | No live billing verification, provider retry or account reset |
 | Owned projections cannot replace authority | Corrupt owned session ignored in favor of registered environment/preparation evidence; wrong source identity, hardlink alias and escaping paths cannot supply support | No repair is performed |
-| Partial admissions stay inspectable | Native admission without a runtime write and a staged verified request appear as pending, without finishing either admission | Applying migration remains deferred |
+| Partial admissions stay inspectable | Native admission without a runtime write and a staged verified request appear as pending, without finishing either admission | Inspection performs no migration |
 | Recovery does not happen inside inspection | Old/future schemas, missing/unreadable stores and a forced cache-spill hot journal are retained; changed source invalidates the plan; locks release after failure | SQLite recovery must be handled separately |
 | Report is metadata, not authority | Fresh-process output excludes prompts, context and response bodies; arbitrary preparation fields are filtered; apply/activate commands are rejected; every executable/migration/activation flag remains false | Historical approvals still require their normal current-authority checks |
 
@@ -1076,3 +1076,98 @@ unsupported metadata strings to exercise the closed display surface.
 All 702 backend tests passed, including 44 inventory tests. Architecture and
 diff checks passed. The targeted run detected all 30 inventory mutations,
 including the two new checks for organization references and report fields.
+
+## Transactional legacy ownership migration, issue 33 phase 5b
+
+Explicit apply records positively evidenced, already-attributed legacy runs
+in a sealed schema-14 conversation store with a matching pre-history journal
+association. The immutable batch receipt and per-run bindings commit together.
+The other inspected databases are locked while SQLite commits the target
+transaction.
+
+| Invariant | Executable evidence |
+| --- | --- |
+| The reviewed plan binds current evidence at the effect boundary | Change the journal after inspection and reject the old ID. Competing writers to the journal and application database cannot obtain write locks during save and can obtain them after completion. |
+| Migration adds only proven scope | A mixed store includes a fixture campaign with a native planner, a new paused admission, an unowned CLI run and recorded model usage. A separate case substitutes a different journal parent while retaining the original domain parent. |
+| Unknown or missing authority stays visible | Conflicting inputs, uncertain inference, missing accounts and unbound or missing journals stay unresolved. Recreating a journal or restoring a stale copy with the same identity preserves quarantine and unknown allowance through apply and restart. |
+| History survives atomic apply and replay | Compare all pre-existing tables, including task inputs, reviews, simulated acceptance, finalized learning and original call records. Interrupt a fresh process after writes and before commit, compare all rows, then retry and replay from fresh processes. |
+| Receipt lookup is read-only | Query an uncommitted plan through the receipt command and compare all rows. After a commit, remove the source journal and recover the exact receipt from a fresh process without recreating the journal or acquiring its workspace lock. |
+| Migration stays paused and durable | Check zero worker ticks, one retained historical fake-provider call, preserved stop state and rejection of update, delete and replace against committed migration records. |
+
+The test scope uses synthetic data and a fake provider. Historical ownership
+bindings are separate from new-format admissions. Supported backup and restore,
+explicit activation and the full offline verified journey remain acceptance gates.
+
+Verification passed with 714 backend tests, the architecture check and 69
+targeted migration, inventory and recovery mutations.
+
+## Cutover preserves legacy quarantine
+
+Explicit verified selection skips origin recovery and seals the store under
+the same SQLite write lock. A rejected cutover rolls back without clearing
+quarantine. Existing schema-v10 and later markers remain intact. Cutover of a
+pre-v10 store with recorded runs stops before schema changes and requires
+separate ancestry reconciliation. Ordinary unsealed opens retain their existing
+recovery behavior. A new or existing sandbox store uses the same boundary.
+An add-only pass restores missing quarantine for weak historical independence
+receipts before selection, and also repairs them on sealed-store startup. It
+does not infer ownership, clear markers or rewrite old receipts.
+
+Real SQLite tests cover both CLI forms, the workspace, a direct builder, an
+existing standalone sandbox, a competing opener, failed cutovers and rejected
+pre-v10 cutovers. They check weak and valid receipts across organizations,
+rollback, repeated selection, unknown remaining allowance, preserved quarantine
+and legacy cutoff, and paused execution after reopening. Mutation probes remove
+the cutover, sandbox and weak-receipt quarantine fences.
+
+## Legacy execution account recovery
+
+A real SQLite regression retains the original run link and stop receipt after
+deleting the account row. It exercises workspace reopening, exact stop receipt
+replay, inspection and apply. It repeats the check after inserting a
+default-valued replacement row. The recorded stop stays visible, remaining
+allowance is unknown, and apply records only the separate healthy account's
+binding.
+
+Verification passed with 722 backend tests, 85 browser tests, the architecture
+check and both targeted account recovery mutations.
+
+The missing-account check also covers loss of the execution index. The
+regressions retain an unstopped planning run with one recorded fake-provider
+call, an original task with an orphaned call receipt, and a routing run with no
+planning history. Reopening keeps the allowance unknown and a later model
+request fails before dispatch. A first run can still initialize its account
+in the admission transaction. The schema-nine backfill regression covers
+stores that predate execution accounting.
+
+Verification passed with 724 backend tests, the architecture check and both
+targeted native-history mutations.
+
+A further real-SQLite regression removes the account, run index, run and task
+while retaining the planning admission and original call receipt. Reopening,
+replaying the original request and submitting a later brief leave the allowance
+unknown and the original provider call count intact. A fresh account in the
+same organization stays unresolved. A different organization can initialize
+its own allowance.
+
+Verification passed with 725 backend tests, the architecture check and three
+targeted account-history mutations.
+
+The planning-history regression also retains a task with matching identifiers
+after removing its ownership inputs and losing the account, index, run and
+planning admission. The receipt keeps the allowance unknown and the provider
+call count stays fixed. An intact original runtime plan with valid scoped
+ownership still permits account initialization for a separate conversation.
+
+Verification passed with 725 backend tests, the architecture check and three
+targeted account-history mutations.
+
+The existing-account regression removes only the execution link for a run
+with a recorded call. After reopening, the allowance and cost coverage stay
+incomplete. Previously queued work cannot reserve another call and a later
+planning request cannot be admitted. Substituting another valid account for
+the original owner blocks both accounts. Restoring the exact link restores
+the original count. The descendant regression also removes the links from
+the campaign organization. The direct reader reports an unknown allowance
+until workspace recovery restores the links from the saved ancestry. The
+companion mutation removes the existing-account receipt fence.

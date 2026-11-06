@@ -29,6 +29,23 @@ def verified_required(db):
     return row is not None
 
 
+def seal_legacy_writes(db, clock):
+    """Select the paused format while holding the caller's SQLite write lock."""
+    from .tasks import finite_time
+    if verified_required(db):
+        return
+    if db.execute("SELECT 1 FROM tasks WHERE status='running' LIMIT 1").fetchone() or db.execute(
+            "SELECT 1 FROM model_calls WHERE status='reserved' LIMIT 1").fetchone():
+        raise Conflict('Quiesce running tasks and reconcile reserved inference before admission cutover')
+    if db.execute('''SELECT 1 FROM conversation_plans p LEFT JOIN runs r
+            ON r.organization=p.organization AND r.request_id=json_extract(p.payload,'$.run_request_id')
+            WHERE r.id IS NULL LIMIT 1''').fetchone():
+        raise Conflict('Reconcile the original legacy planning admission before cutover')
+    now = clock()
+    finite_time(now)
+    db.execute("INSERT INTO admission_store_policy VALUES(1,'verified-paused/v1',?)", (now,))
+
+
 def require_legacy_writer(db):
     if verified_required(db):
         raise Conflict('This store requires verified admission; legacy task creation is closed')

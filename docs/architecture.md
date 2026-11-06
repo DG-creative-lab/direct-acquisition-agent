@@ -95,14 +95,20 @@ Unsealed compatibility stores still keep preparation intent, routing and sandbox
 
 `conversations` owns the environment contract and narrow storage port; `workflows` verifies campaign source relationships; SQLite adapters verify scoped facts and implement transactions; `bootstrap.py` wires them together. A simulation clock advance and its exact command admission commit together in the same application database. Review, acceptance and learning still make their own current-authority decisions. No environment or command record grants approval.
 
-[Issue 33's execution-authority decision](execution-authority-decision.md) defines ownership, transaction boundaries, recovery and the staged cutover. The schema-13 cutover connects application callers to verified admissions behind an explicit, persistent `verified-paused/v1` store selection. The public admission port preserves original commands and source references; workflows compose existing factories; SQLite commits admission, tasks, owner and receipt together. Python and SQL guards close raw creation and execution paths, including cached older writers. New-format work remains paused, while unsealed compatibility stores retain their operating paths. New execution ancestry does not depend on workspace reconstruction. Schema 14 implements that storage move for new selected work. Phase 4b adds explicit offline projection rebuild from registered application stores through narrow source and projection ports. Source connections are read-only, replacement of owned indexes is transactional, and legacy records stay protected. Explicit legacy migration and execution activation remain deferred; compatibility histories retain their original storage obligations.
+[Issue 33's execution-authority decision](execution-authority-decision.md) defines ownership, transaction boundaries, recovery and the staged cutover. The schema-13 cutover connects application callers to verified admissions behind an explicit, persistent `verified-paused/v1` store selection. The public admission port preserves original commands and source references; workflows compose existing factories; SQLite commits admission, tasks, owner and receipt together. Python and SQL guards close raw creation and execution paths, including cached older writers. New-format work remains paused, while unsealed compatibility stores retain their operating paths. New execution ancestry does not depend on workspace reconstruction. Schema 14 implements that storage move for new selected work. Phase 4b adds explicit offline projection rebuild from registered application stores through narrow source and projection ports. Source connections are read-only, replacement of owned indexes is transactional, and legacy records stay protected.
 
 Phase 5a adds a read-only [legacy inventory](legacy-migration.md) through a
 `conversations` inspection service and narrow source port. SQLite readers expose
 observed source evidence; pure classification composes ownership dependencies and
 records unresolved facts. Workspace claims never create ownership. The report is
 versioned and content-bound but grants no migration or execution authority.
-No schema or effectful workflow changes are introduced by this phase.
+Phase 5b adds explicit apply. The migration service selects proven legacy
+ownership using the original scoped task and parent evidence, the pre-history
+journal association and existing attribution. Under source locks, SQLite
+revalidates the exact plan and records a per-run binding and a replayable
+receipt in the sealed conversation store. Apply preserves the accounting index
+and all unresolved origin markers. Historical receipts can be read directly
+from that store. Backup, restore and execution activation remain separate gates.
 
 ## Audience and experiment semantics
 

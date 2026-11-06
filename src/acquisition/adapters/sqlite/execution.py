@@ -1,7 +1,9 @@
 """Shared inference accounting and stop fences in the authoritative domain DB."""
 
 import json
+from dataclasses import dataclass
 from decimal import Decimal
+from sqlite3 import Row
 
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.conversations import EXECUTION_POLICY, CONVERSATION_CALL_LIMIT
@@ -95,18 +97,157 @@ def reached_review_checkpoint(db, organization, run_id):
             'SELECT 1 FROM drafts WHERE organization=? AND id=?',(organization,output['draft_id'])).fetchone() is not None)
 
 
-def account(db, organization, conversation_id):
+@dataclass(frozen=True)
+class AccountEvidence:
+    row: Row | None
+    revision: int
+    recorded_stop: int
+    resolved: bool
+
+
+def native_execution_exists(db, organization, conversation_id, new_run_id):
+    """Find surviving runtime evidence independently of the accounting index."""
+    return db.execute("""WITH native_requests AS (
+        SELECT payload FROM conversation_plans WHERE organization=:org AND conversation_id=:conversation
+        UNION ALL
+        SELECT payload FROM conversation_actions WHERE organization=:org AND conversation_id=:conversation
+    ), task_history AS (
+        SELECT t.run_id,t.capability,COALESCE(r.organization,c.organization) AS organization,
+               CASE WHEN json_valid(t.inputs) THEN t.inputs END AS inputs
+        FROM tasks t LEFT JOIN runs r ON r.id=t.run_id
+        LEFT JOIN model_calls c ON r.id IS NULL AND c.run_id=t.run_id AND c.task_id=t.id
+        WHERE t.run_id IS NOT :new_run AND (r.id IS NOT NULL OR c.task_id IS NOT NULL)
+    )
+    SELECT 1 FROM native_requests n JOIN runs r ON r.organization=:org
+        AND r.request_id=json_extract(CASE WHEN json_valid(n.payload) THEN n.payload END,'$.run_request_id')
+    WHERE r.id IS NOT :new_run
+    UNION ALL
+    SELECT 1 FROM task_history WHERE
+        (organization=:org AND (
+            (capability IN ('conversations.plan.v1','conversations.fixture_plan.v1')
+                AND json_extract(inputs,'$.conversation_id')=:conversation)
+            OR (capability IN ('conversations.route.v1','conversations.route.v2')
+                AND json_extract(inputs,'$.inputs.conversation_id')=:conversation)))
+        OR (:org='local-conversations' AND json_extract(inputs,'$.brief.conversation_id')=:conversation)
+    LIMIT 1""", {'org': organization, 'conversation': conversation_id, 'new_run': new_run_id}).fetchone() is not None
+
+
+def unreconciled_call_exists(db, organization, conversation_id, *, account_exists):
+    """Check receipt ownership against the index used to spend and display allowance."""
+    from .admission_guard import binding
+    from .database import stored_plan_hash
+
+    scope = (organization, conversation_id)
+    # Conversation campaigns can run under a different organization. Include
+    # their native brief scope even if every link to that campaign was lost.
+    receipts = db.execute('''WITH run_organizations AS (
+        SELECT :org AS organization
+        UNION
+        SELECT organization FROM execution_runs WHERE owner_organization=:org AND conversation_id=:conversation
+        UNION
+        SELECT r.organization FROM runs r JOIN tasks t ON t.run_id=r.id
+        WHERE :org='local-conversations' AND
+            json_extract(CASE WHEN json_valid(t.inputs) THEN t.inputs END,'$.brief.conversation_id')=:conversation
+    )
+    SELECT c.organization,c.run_id,r.organization AS run_organization,r.request_hash,
+        e.owner_organization,e.conversation_id,e.revision,MIN(t.id IS NOT NULL) AS complete_tasks
+        FROM model_calls c
+        LEFT JOIN runs r ON r.id=c.run_id
+        LEFT JOIN tasks t ON t.id=c.task_id AND t.run_id=c.run_id
+        LEFT JOIN execution_runs e ON e.organization=c.organization AND e.run_id=c.run_id
+        WHERE c.organization IN run_organizations OR r.organization IN run_organizations
+        GROUP BY c.organization,c.run_id''', {'org': organization, 'conversation': conversation_id})
+    memo = {}
+    for row in receipts:
+        run_id = row['run_id']
+        run_scope = row['organization']
+        indexed = tuple(row[k] for k in ('owner_organization', 'conversation_id', 'revision')) if row['owner_organization'] is not None else None
+        try:
+            if row['run_organization'] not in (None, run_scope):
+                return True
+            origin = run_origin(db, run_scope, run_id, memo=memo)
+            if indexed and origin and indexed != origin:
+                return True
+            owner = indexed or origin
+            if owner is not None:
+                source = db.execute('SELECT revision FROM conversations WHERE organization=? AND id=?', owner[:2]).fetchone()
+                if source is None or type(owner[2]) is not int or not 0 < owner[2] <= source[0]:
+                    return True
+                if indexed is not None and owner[:2] != scope:
+                    continue
+                if account_exists and indexed is None and owner[:2] == scope:
+                    return True
+            if not row['complete_tasks'] or not row['request_hash'] or stored_plan_hash(db, run_id) != row['request_hash']:
+                return True
+            if owner is None and not independent_resolution(db, run_scope, run_id):
+                # Pre-admission schemas have no verified standalone records.
+                has_admissions = db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='execution_admissions'").fetchone()
+                intent = binding(db, run_scope, run_id) if has_admissions else None
+                if intent is None or intent.ownership.kind != 'standalone':
+                    return True
+        except (Conflict, KeyError, TypeError, ValueError, AttributeError):
+            return True
+    return False
+
+
+def account_evidence(db, organization, conversation_id, *, new_run_id=None, first_accounting=False, repair_links=False):
+    """Check the account against its durable stop and inference journals."""
     source = db.execute('SELECT revision FROM conversations WHERE organization=? AND id=?',
                         (organization, conversation_id)).fetchone()
     if source is None:
         raise NotFound('Conversation not found in this organization')
-    db.execute('INSERT OR IGNORE INTO conversation_execution VALUES(?,?,?,?,0)',
-               (organization, conversation_id, EXECUTION_POLICY, CONVERSATION_CALL_LIMIT))
+    revision = source[0]
+    recorded_stop, journal_valid = 0, True
+    for command in db.execute('''SELECT inputs,receipt FROM execution_commands WHERE organization=? AND (
+        json_extract(CASE WHEN json_valid(inputs) THEN inputs END,'$.conversation_id')=? OR
+        json_extract(CASE WHEN json_valid(receipt) THEN receipt END,'$.conversation_id')=?)''',
+        (organization, conversation_id, conversation_id)):
+        try:
+            inputs, receipt = json.loads(command['inputs']), json.loads(command['receipt'])
+            stopped = inputs['revision']
+            if (inputs != {'conversation_id': conversation_id, 'revision': stopped}
+                    or type(stopped) is not int or not 0 < stopped <= revision
+                    or receipt['kind'] != 'execution_stopped' or receipt['conversation_id'] != conversation_id
+                    or type(receipt['revision']) is not int or receipt['revision'] != stopped):
+                raise ValueError('Invalid execution stop')
+            recorded_stop = max(recorded_stop, stopped)
+        except (ValueError, KeyError, TypeError):
+            journal_valid = False
     row = db.execute('SELECT * FROM conversation_execution WHERE organization=? AND conversation_id=?',
                      (organization, conversation_id)).fetchone()
-    if row['policy'] != EXECUTION_POLICY:
-        raise Conflict('Restore the original execution policy before continuing')
-    return row
+    if row is None:
+        linked = db.execute('SELECT 1 FROM execution_runs WHERE owner_organization=? AND conversation_id=? LIMIT 1',
+                            (organization, conversation_id)).fetchone()
+        resolved = (journal_valid and not recorded_stop and linked is None
+                    and not unreconciled_call_exists(db, organization, conversation_id, account_exists=False)
+                    and (first_accounting or not native_execution_exists(db, organization, conversation_id, new_run_id)))
+    else:
+        resolved = (journal_valid and row['policy'] == EXECUTION_POLICY
+                    and type(row['call_limit']) is int and row['call_limit'] > 0
+                    and type(row['stopped_through']) is int and row['stopped_through'] == recorded_stop
+                    and (repair_links or not unreconciled_call_exists(db, organization, conversation_id, account_exists=True)))
+    return AccountEvidence(row, revision, recorded_stop, resolved)
+
+
+def require_account_evidence(db, organization, conversation_id, **options):
+    evidence = account_evidence(db, organization, conversation_id, **options)
+    if not evidence.resolved:
+        raise Conflict('Restore the original execution account, run links and stop history before continuing')
+    return evidence
+
+
+def account(db, organization, conversation_id, **options):
+    evidence = require_account_evidence(db, organization, conversation_id, **options)
+    if evidence.row is not None:
+        return evidence.row
+    initialize_account(db, organization, conversation_id)
+    return db.execute('SELECT * FROM conversation_execution WHERE organization=? AND conversation_id=?',
+                      (organization, conversation_id)).fetchone()
+
+
+def initialize_account(db, organization, conversation_id):
+    db.execute('INSERT INTO conversation_execution VALUES(?,?,?,?,0)',
+               (organization, conversation_id, EXECUTION_POLICY, CONVERSATION_CALL_LIMIT))
 
 
 def run_origin(db, organization, run_id, ancestors=(), memo=None):
@@ -151,7 +292,9 @@ def run_origin(db, organization, run_id, ancestors=(), memo=None):
     return origin
 
 
-def bind_run(db, organization, run_id, *, historical=False):
+def bind_run(db, organization, run_id, *, historical=False, new_run=False, first_accounting=False, repair_links=False):
+    # Explicit legacy recovery can restore links while the account is blocked.
+    # The inference path never uses repair_links, even for a receipt replay.
     origin = run_origin(db, organization, run_id)
     old = db.execute('SELECT owner_organization,conversation_id,revision FROM execution_runs WHERE organization=? AND run_id=?',
                      (organization, run_id)).fetchone()
@@ -164,7 +307,8 @@ def bind_run(db, organization, run_id, *, historical=False):
     if origin is None:
         return None
     owner, conversation_id, revision = origin
-    a = account(db, owner, conversation_id)
+    a = account(db, owner, conversation_id, new_run_id=run_id if new_run else None,
+                first_accounting=first_accounting, repair_links=repair_links)
     if not historical and revision <= a['stopped_through']:
         raise ModelError('conversation_execution_cancelled')
     if old is None:
@@ -200,9 +344,8 @@ def require_resolved_ancestry(db, organization, run_id):
 
 
 def require_active(db, owner, conversation_id, revision):
-    row = db.execute('SELECT stopped_through FROM conversation_execution WHERE organization=? AND conversation_id=?',
-                     (owner, conversation_id)).fetchone()
-    if row and revision <= row[0]:
+    evidence = require_account_evidence(db, owner, conversation_id)
+    if revision <= evidence.recorded_stop:
         raise Conflict('This brief was stopped. Send a new brief to start new work; the shared allowance does not reset.')
 
 
@@ -239,9 +382,9 @@ def reserve_execution(db, scope):
         raise ModelError('conversation_request_budget_exhausted')
 
 
-def backfill_execution(db):
+def backfill_execution(db, *, first_accounting=False):
     for run in db.execute('SELECT organization,id FROM runs').fetchall():
-        bind_run(db, run['organization'], run['id'], historical=True)
+        bind_run(db, run['organization'], run['id'], historical=True, first_accounting=first_accounting, repair_links=True)
 
 
 def quarantine_old_origins(db):
@@ -254,8 +397,8 @@ def quarantine_old_origins(db):
             db.execute('INSERT OR IGNORE INTO execution_pending_origins VALUES(?,?)',(run['organization'],run['id']))
 
 
-def recover_pending_origins(db):
-    """Reconcile an already-upgraded journal using only durable provenance."""
+def quarantine_weak_independence_receipts(db):
+    """Restore quarantine without attributing runs or changing old receipts."""
     for row in db.execute("SELECT organization,request_id,inputs FROM execution_commands WHERE request_id LIKE 'independent:%'").fetchall():
         if pre_history_binding(db,row['organization']):
             continue
@@ -266,12 +409,20 @@ def recover_pending_origins(db):
             (SELECT 1 FROM execution_runs e WHERE e.organization=r.organization AND e.run_id=r.id)''',
             (row['organization'],run_id)).fetchone():
             db.execute('INSERT OR IGNORE INTO execution_pending_origins VALUES(?,?)',(row['organization'],run_id))
+
+
+def recover_pending_origins(db):
+    """Reconcile an already-upgraded journal using only durable provenance."""
+    from .admission_guard import verified_required
+    quarantine_weak_independence_receipts(db)
+    if verified_required(db):
+        return
     for run in db.execute('SELECT organization,run_id FROM execution_pending_origins').fetchall():
         # Keep one conflicting history quarantined without preventing recovery
         # of another campaign. No requests, receipts or artifact bytes change.
         db.execute('SAVEPOINT recover_execution_origin')
         try:
-            bind_run(db,run['organization'],run['run_id'],historical=True)
+            bind_run(db,run['organization'],run['run_id'],historical=True,repair_links=True)
         except (Conflict,NotFound):
             db.execute('ROLLBACK TO recover_execution_origin')
         finally:
@@ -302,6 +453,7 @@ class SqliteExecution:
 
     def resolve_independent(self, organization, request_id, inputs, now):
         from .actors import require_actor
+        from .admission_guard import require_legacy_writer
         from .tasks import finite_time, event, scoped_run
         finite_time(now)
         key=RESOLUTION_PREFIX+request_id
@@ -319,6 +471,7 @@ class SqliteExecution:
                 if json.loads(prior['inputs'])!=inputs:
                     raise Conflict('Resolution request already binds different inputs')
                 return json.loads(prior['receipt'])
+            require_legacy_writer(db)
             run_id=inputs['run_id']
             scoped_run(db,organization,run_id)
             previous=independent_resolution(db,organization,run_id)
@@ -349,8 +502,10 @@ class SqliteExecution:
             return receipt
 
     def descendant(self, organization, campaign_id, parent_run_id):
+        from .admission_guard import require_legacy_writer
         inputs={'kind':'descendant_admission','campaign_id':campaign_id,'parent_run_id':parent_run_id}
         with self.database.transaction() as db:
+            require_legacy_writer(db)
             previous=descendant_parent(db,organization,campaign_id)
             if previous is not None and previous!=parent_run_id:
                 raise Conflict('Campaign already binds another execution parent')
@@ -363,9 +518,9 @@ class SqliteExecution:
             # without rewriting requests, artifact bytes or provider receipts.
             run=db.execute('SELECT id FROM runs WHERE organization=? AND request_id=?',(organization,campaign_id)).fetchone()
             if run:
-                bind_run(db,organization,run[0],historical=True)
+                bind_run(db,organization,run[0],historical=True,repair_links=True)
             for row in db.execute('SELECT id FROM runs WHERE organization=?',(organization,)).fetchall():
-                bind_run(db,organization,row[0],historical=True)
+                bind_run(db,organization,row[0],historical=True,repair_links=True)
         return inputs
 
     def stopped_checkpoints(self, organization):
@@ -375,9 +530,9 @@ class SqliteExecution:
 
     def view(self, organization, conversation_id):
         with self.database.transaction() as db:
-            a = account(db, organization, conversation_id)
-            revision = db.execute('SELECT revision FROM conversations WHERE organization=? AND id=?',
-                                  (organization, conversation_id)).fetchone()[0]
+            evidence = account_evidence(db, organization, conversation_id)
+            if evidence.resolved and evidence.row is None:
+                initialize_account(db, organization, conversation_id)
             rows = db.execute('''SELECT c.*,r.status AS run_status,e.revision,t.capability FROM execution_runs e
                 JOIN runs r ON r.id=e.run_id AND r.organization=e.organization
                 JOIN model_calls c ON c.organization=e.organization AND c.run_id=e.run_id
@@ -407,36 +562,41 @@ class SqliteExecution:
             calls.append({'run_id':row['run_id'], 'key':row['call_key'], 'capability':row['capability'],
                           'revision':row['revision'], 'status':outcome})
         counts = {s:sum(c['status'] == s for c in calls) for s in ('in_progress', 'uncertain', 'rejected', 'completed')}
-        stopped = revision > 0 and revision <= a['stopped_through']
-        return {'policy':a['policy'], 'limit':a['call_limit'], 'used':len(calls),
-                'accounting_complete':not unresolved,'unresolved_runs':unresolved,
+        stopped = evidence.revision > 0 and evidence.revision <= evidence.recorded_stop
+        complete = evidence.resolved and not unresolved
+        limit = (evidence.row['call_limit'] if evidence.row is not None else CONVERSATION_CALL_LIMIT) if evidence.resolved else None
+        remaining = max(0, limit-len(calls)) if complete else None
+        return {'policy':EXECUTION_POLICY, 'limit':limit, 'used':len(calls), 'account_unresolved':not evidence.resolved,
+                'accounting_complete':complete,'unresolved_runs':unresolved,
                 'recovery_scopes':scopes,
-                'remaining':None if unresolved else max(0, a['call_limit']-len(calls)), 'counts':counts,
-                'stopped':stopped, 'stopped_through':a['stopped_through'], 'calls':calls,
+                'remaining':remaining, 'counts':counts,
+                'stopped':stopped, 'stopped_through':evidence.recorded_stop, 'calls':calls,
                 'active_runs':[dict(r) for r in active],
-                'status':'cancelled' if stopped else 'blocked' if unresolved else 'budget_exhausted' if len(calls)>=a['call_limit'] else
+                'status':'cancelled' if stopped else 'blocked' if not complete else 'budget_exhausted' if remaining==0 else
                          'running' if active else 'uncertain' if counts['uncertain'] else 'idle',
                 'reported_cost_usd':str(cost), 'cost_reported_calls':reported,
                 'pending_receipts':sum(r['status']=='reserved' for r in rows),
-                'cost_complete':not unresolved and reported == len(calls), 'billing_verified':False}
+                'cost_complete':complete and reported == len(calls), 'billing_verified':False}
 
     def stop(self, organization, conversation_id, request_id, revision, now):
         from .tasks import finite_time, event
         finite_time(now)
         inputs = {'conversation_id':conversation_id, 'revision':revision}
         with self.database.transaction() as db:
-            a = account(db, organization, conversation_id)
+            source = db.execute('SELECT revision FROM conversations WHERE organization=? AND id=?',
+                                (organization, conversation_id)).fetchone()
+            if source is None:
+                raise NotFound('Conversation not found in this organization')
             previous = db.execute('SELECT inputs,receipt FROM execution_commands WHERE organization=? AND request_id=?',
                                   (organization, request_id)).fetchone()
             if previous:
                 if json.loads(previous['inputs']) != inputs:
                     raise Conflict('Stop request already binds different inputs')
                 return json.loads(previous['receipt'])
+            account(db, organization, conversation_id)
             if request_id.startswith((DESCENDANT_PREFIX,INDEPENDENT_PREFIX,RESOLUTION_PREFIX,'workspace:')):
                 raise ValueError('Use a stop request identity outside the internal execution namespaces')
-            current = db.execute('SELECT revision FROM conversations WHERE organization=? AND id=?',
-                                 (organization, conversation_id)).fetchone()[0]
-            if current != revision:
+            if source[0] != revision:
                 raise Conflict('The brief changed. Stop the exact displayed revision.')
             db.execute('UPDATE conversation_execution SET stopped_through=MAX(stopped_through,?) WHERE organization=? AND conversation_id=?',
                        (revision, organization, conversation_id))

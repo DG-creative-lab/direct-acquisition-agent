@@ -104,7 +104,7 @@ class SqliteTasks:
             if any(s.capability in self.retired_capabilities for s in specs):
                 raise ValueError("Retired capabilities cannot be admitted as new runs")
             run_id = insert_run(connection,organization,request_id,specs,now)
-            bind_run(connection, organization, run_id)
+            bind_run(connection, organization, run_id, new_run=True)
             return run_id
 
     def find_run(self, organization: str, request_id: str) -> str | None:

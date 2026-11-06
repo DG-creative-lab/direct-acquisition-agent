@@ -399,11 +399,11 @@ or automatic retry of uncertain provider requests.
 
 Explicit projection rebuild is implemented for registered new-format state;
 it is not a migration or backup-restore activation procedure.
-Until legacy migration is implemented, keep the current conservative recovery and
-journal checks. A database or journal ID proves identity, not completeness.
-Migration must be explicit, restartable and auditable, with an inventory of
-unresolved records. It must preserve historical receipts, v1/v2 artifact readers,
-the schema-v3 legacy cutoff, and approval invalidation rules.
+Legacy migration keeps the conservative recovery and journal checks. A database
+or journal ID proves identity only. The explicit ownership migration is
+restartable and auditable, with an inventory of unresolved records. It
+preserves historical receipts, v1/v2 artifact readers, the schema-v3 legacy
+cutoff and approval invalidation rules.
 
 Backup work must distinguish inspection from execution activation. A restore
 does not itself activate schedulers or paid work. A consistent local snapshot
@@ -435,15 +435,16 @@ transparent recovery from arbitrary partial backups is promised.
    exact domain records, original request lookup and paused progress. Process
    interruption and lost acknowledgement cannot repeat a domain effect. The
    original activated chat journey remains a phase-5 acceptance gate.
-5. **Migration and restore activation, phase 5a inventory implemented.** The
+5. **Migration and restore activation, phases 5a and 5b implemented.** The
    [read-only inventory and versioned plan](legacy-migration.md) report scoped
    evidence, parent dependencies and supported/conflicting/incomplete/uncertain
    classifications. Unknown ownership never becomes standalone by absence.
-   Inspection does not migrate, certify or enable any record. Later slices must
-   test mixed legacy/new histories,
-   ambiguous CLI runs, missing or stale journals, conflicting parents, atomic
-   migration rollback and interrupted migration resume. Positive evidence can
-   recover known ownership; unknown records remain inspectable and paused.
+   Inspection remains read-only. Explicit apply records supported existing
+   ownership and a receipt in the same transaction in the sealed conversation
+   store. Apply rechecks the plan under source locks and preserves unresolved
+   origins. Tests cover mixed history, ambiguous CLI runs, recreated and
+   stale journals, conflicting parents, rollback and fresh-process receipt
+   recovery with the workspace journal missing.
    Exercise the full offline journey and document the supported backup procedure
    before enabling execution for migrated stores.
 
@@ -459,13 +460,13 @@ slots per account independently of production origin resolution. It explores all
 recorded replay and late/unknown observations, and a fresh Python process. This
 is a bounded reservation baseline. Separate admission tests now cover paused
 planning's atomic writes, scoped consent, concurrent admission and real crashes.
-Legacy migration, restore activation and the full executable new-format journey
-remain unproven until their later slices.
+Supported restore, activation and the full executable new-format journey
+remain later gates.
 
 No generic repository, service locator, event bus, new orchestration framework or
-microservice split is introduced. The remaining work is transactional legacy
-migration and the supported restore/activation contract. Inventory and projection
-recovery do not enable verified execution.
+microservice split is introduced. The remaining work is the supported
+restore/activation contract and the full offline verified journey. Inventory,
+migration and projection recovery keep verified execution paused.
 
 ### Environment link integrity
 

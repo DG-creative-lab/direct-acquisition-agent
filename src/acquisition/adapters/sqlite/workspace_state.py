@@ -64,7 +64,8 @@ class SqliteWorkspaceState:
         else:
             key='conversations' if session['database_scope']=='conversations' else session['organization']
         path=self.path(session['database_scope'],key)
-        database=self.database if session['database_scope']=='conversations' else Database(path)
+        database=(self.database if session['database_scope']=='conversations'
+                  else Database(path,verified_admissions=True,clock=self.real_clock))
         # Format selection precedes any environment or runtime work in a new store.
         from .admissions import SqliteAdmissions
         SqliteAdmissions(database,None,self.real_clock).seal_legacy_writes()
