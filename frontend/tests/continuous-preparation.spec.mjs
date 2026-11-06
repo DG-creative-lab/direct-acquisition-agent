@@ -22,7 +22,8 @@ model = CombinedModel(result)
 original = model.complete
 class Gateway:
     def complete(self, request):
-        time.sleep(0.5)
+        if scenario != 'lost-admission':
+            time.sleep(0.5)
         name = request['tools'][0]['function']['name']
         if scenario in {'changed-uncertain', 'legacy-stale-uncertain'} and name == 'submit_campaign_brief':
             w.message_conversation(w.conversations()['conversations'][0]['id'], 'edit', 1, 'Use £300 instead.')
@@ -176,23 +177,52 @@ test("one authorized submission continues after reload to an unapproved review",
 test("a lost admission acknowledgement reconciles saved progress without another request", async ({
   page,
 }) => {
-  await fakeWorkspace("success", async (url) => {
+  // This case controls the lost HTTP response. The slow-provider case above
+  // separately checks that in-flight generation stays visible.
+  await fakeWorkspace("lost-admission", async (url) => {
     let admissions = 0;
+    let admission;
     await page.route("**/api/conversations/*/preparations", async (route) => {
       admissions += 1;
-      await route.fetch();
+      admission = await route.fetch();
       await route.abort("failed");
     });
     await page.goto(url);
-    await submit(page);
-    await expect(
-      page.getByRole("region", { name: "Campaign preparation progress" }),
-    ).toBeVisible();
+    await Promise.all([
+      page.waitForEvent("requestfailed", {
+        predicate: (request) =>
+          request.method() === "POST" &&
+          request.url().endsWith("/preparations"),
+      }),
+      submit(page),
+    ]);
+    expect(admission.status()).toBe(202);
+    const saved = await admission.json();
+    const preparationId = saved.preparations[0].id;
     await page.reload();
-    await page
-      .getByRole("region", { name: "Choose campaign audience" })
-      .getByRole("button", { name: "Use v1", exact: true })
-      .click();
+    // Wait for the browser's poll to observe the original preparation at review.
+    // The UI assertion then measures rendering after the server is ready.
+    await Promise.all([
+      page.waitForResponse(async (response) => {
+        if (
+          response.url() !== `${url}/api/conversations/${saved.id}` ||
+          response.request().method() !== "GET" ||
+          !response.ok()
+        ) {
+          return false;
+        }
+        const conversation = await response.json();
+        return (
+          conversation.preparations.some(
+            (p) => p.id === preparationId && p.status === "review_ready",
+          ) && conversation.campaigns.some((campaign) => campaign.case_id)
+        );
+      }),
+      page
+        .getByRole("region", { name: "Choose campaign audience" })
+        .getByRole("button", { name: "Use v1", exact: true })
+        .click(),
+    ]);
     await expect(
       page.getByRole("button", { name: /Review campaign/ }),
     ).toBeVisible();
