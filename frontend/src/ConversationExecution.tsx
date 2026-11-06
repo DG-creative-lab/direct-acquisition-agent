@@ -37,6 +37,8 @@ export default function ConversationExecution<T>({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const recoveryScopes = execution.recovery_scopes ?? [];
+  const ancestryUnresolved = recoveryScopes.length > 0;
   const epoch = useRef(0);
   useEffect(() => {
     epoch.current++;
@@ -110,18 +112,17 @@ export default function ConversationExecution<T>({
       )}
       {execution.account_unresolved && (
         <p>
-          The original execution account or stop history needs recovery. Ask a
-          local operator to reconcile the records before continuing.
+          The execution account, run links, or stop history needs recovery. Ask
+          a local operator to reconcile the records before continuing.
         </p>
       )}
-      {execution.accounting_complete === false &&
-        !execution.account_unresolved && (
-          <p>
-            Historical campaign ancestry needs recovery. Model calls are paused
-            and usage is incomplete until a local operator restores the original
-            relationship or explicitly reconciles an independent legacy run.
-          </p>
-        )}
+      {ancestryUnresolved && (
+        <p>
+          Historical campaign ancestry needs recovery. Model calls are paused
+          and usage is incomplete until a local operator restores the original
+          relationship or explicitly reconciles an independent legacy run.
+        </p>
+      )}
       {execution.counts.uncertain > 0 && (
         <p>
           Some provider outcomes are uncertain and may have been charged.
@@ -136,27 +137,26 @@ export default function ConversationExecution<T>({
       )}
       <details>
         <summary>Inspect model usage</summary>
-        {execution.accounting_complete === false &&
-          !execution.account_unresolved && (
-            <div>
-              <p>
-                Operator recovery: use <code>execution-unresolved</code> to
-                inspect the runs below. After verifying a run is independent,
-                use <code>execution-resolve-independent</code> with its exact
-                fingerprint and a reason. See{" "}
-                <code>docs/execution-controls.md</code> for the commands and
-                database selection. This does not approve a campaign.
-              </p>
-              <ul>
-                {execution.recovery_scopes?.map((scope) => (
-                  <li key={scope.run_id}>
-                    Organization: <code>{scope.organization}</code>; run:{" "}
-                    <code>{scope.run_id}</code>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+        {ancestryUnresolved && (
+          <div>
+            <p>
+              Operator recovery: use <code>execution-unresolved</code> to
+              inspect the runs below. After verifying a run is independent, use{" "}
+              <code>execution-resolve-independent</code> with its exact
+              fingerprint and a reason. See{" "}
+              <code>docs/execution-controls.md</code> for the commands and
+              database selection. This does not approve a campaign.
+            </p>
+            <ul>
+              {recoveryScopes.map((scope) => (
+                <li key={scope.run_id}>
+                  Organization: <code>{scope.organization}</code>; run:{" "}
+                  <code>{scope.run_id}</code>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <p>
           {execution.counts.completed} completed · {execution.counts.rejected}{" "}
           rejected · {execution.counts.in_progress} in progress ·{" "}

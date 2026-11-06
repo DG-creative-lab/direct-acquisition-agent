@@ -426,9 +426,11 @@ test("unattributed historical calls label the displayed cost as incomplete", asy
       controls.getByText(/Provider-reported cost: \$0 \(incomplete\)/),
     ).toBeVisible();
     const view = await current(page);
+    expect(view.execution.account_unresolved).toBe(true);
     expect(view.execution.accounting_complete).toBe(false);
     expect(view.execution.cost_complete).toBe(false);
     expect(view.execution.unresolved_runs).toHaveLength(1);
+    expect(view.execution.limit).toBeNull();
     expect(view.execution.remaining).toBeNull();
     await expect(controls.getByText(/Operator recovery:/)).toBeVisible();
     await expect(controls.getByText(/Organization:/)).toBeVisible();
@@ -469,14 +471,16 @@ subprocess.check_call(prefix+['execution-resolve-independent','--run',run,'--req
     await expect(controls.getByText(/remaining allowance unknown/)).toHaveCount(
       0,
     );
-    await expect(
-      controls.getByText(
-        new RegExp(`${view.execution.limit - view.execution.used} remaining`),
-      ),
-    ).toBeVisible();
     const recovered = await current(page);
     expect(recovered.execution.accounting_complete).toBe(true);
     expect(recovered.execution.used).toBe(view.execution.used);
+    expect(recovered.execution.limit).toBe(48);
+    expect(recovered.execution.remaining).toBe(48 - view.execution.used);
+    await expect(
+      controls.getByText(
+        new RegExp(`${recovered.execution.remaining} remaining`),
+      ),
+    ).toBeVisible();
   });
 });
 
