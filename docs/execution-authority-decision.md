@@ -406,8 +406,9 @@ preserves historical receipts, v1/v2 artifact readers, the schema-v3 legacy
 cutoff and approval invalidation rules.
 
 The [local workspace checkpoint](workspace-checkpoints.md) captures a stopped
-root and publishes a validated inspection-only restore. The database history
-remains at the checkpoint. Provider effects after that point remain unknown.
+root and publishes a validated inspection-only restore. A read-only comparison
+with a later checkpoint can corroborate selected local observations for the
+same organization and store. External effects and completeness remain unknown.
 
 ## Implementation sequence and acceptance gates
 
@@ -460,7 +461,7 @@ slots per account independently of production origin resolution. It explores all
 recorded replay and late/unknown observations, and a fresh Python process. This
 is a bounded reservation baseline. Separate admission tests now cover paused
 planning's atomic writes, scoped consent, concurrent admission and real crashes.
-Activation, reconciliation of post-checkpoint effects and the full executable
+Activation, reconciliation with external evidence and the full executable
 new-format journey remain later gates.
 
 No generic repository, service locator, event bus, new orchestration framework or

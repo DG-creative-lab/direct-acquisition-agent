@@ -179,10 +179,18 @@ def validate_layout(root):
     return keys
 
 
-def validate_checkpoint(root):
+def checkpoint_file_stamp(path):
+    info = path.stat(follow_symlinks=False)
+    return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns
+
+
+@contextmanager
+def open_checkpoint(root):
+    """Keep the validated read-only SQLite connections open for inspection."""
     keys = validate_layout(root)
     manifest_path = root / CHECKPOINT_FILE
     file_identity(root, manifest_path)
+    stamps = {manifest_path: checkpoint_file_stamp(manifest_path)}
     with read_file(manifest_path) as (stream, _):
         raw = stream.read(MAX_MANIFEST + 1)
     if len(raw) > MAX_MANIFEST:
@@ -204,6 +212,7 @@ def validate_checkpoint(root):
         for key in keys:
             path = root / key
             file_identity(root, path)
+            stamps[path] = checkpoint_file_stamp(path)
             info = file_metadata(path, remaining)
             remaining -= info['bytes']
             expected = manifest['stores'][key]
@@ -214,7 +223,14 @@ def validate_checkpoint(root):
         for key, info in validate_stores(connections).items():
             if canonical(info | files[key]) != canonical(manifest['stores'][key]):
                 raise Conflict('A checkpoint store differs from its recorded identity or schema')
-    return manifest
+        yield manifest, connections
+        if keys != validate_layout(root) or any(checkpoint_file_stamp(path) != stamp for path, stamp in stamps.items()):
+            raise Conflict('The checkpoint changed during inspection')
+
+
+def validate_checkpoint(root):
+    with open_checkpoint(root) as (manifest, _):
+        return manifest
 
 
 def output_path(value, source):
