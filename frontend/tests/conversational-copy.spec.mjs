@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { spawn, execFileSync } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -62,6 +62,12 @@ if scenario=='unattributed':
         db.execute('INSERT INTO execution_pending_origins VALUES(?,?)',(scope,run))
 original=model.complete
 def complete(request):
+    if scenario=='held-until-stopped' and request['tools'][0]['function']['name']!='propose_conversation_action':
+        import time
+        deadline=time.monotonic()+30
+        while not (root/'release-model-response').exists():
+            if time.monotonic()>=deadline:raise RuntimeError('Test did not release the model response')
+            time.sleep(.01)
     if scenario=='delayed' and request['tools'][0]['function']['name']!='propose_conversation_action':
         import time
         time.sleep(3)
@@ -580,7 +586,7 @@ w._app(s).reviews.store.register_actor(s['organization'],'local-operator',('oper
 test("stopping an active revision reconciles a lost response and retains accounting", async ({
   page,
 }) => {
-  await workspace("delayed", async (url) => {
+  await workspace("held-until-stopped", async (url, root) => {
     await open(page, url);
     await ask(page, "Make variant B more direct.");
     await consent(page).check();
@@ -599,6 +605,7 @@ test("stopping an active revision reconciles a lost response and retains account
     const controls = page.getByRole("region", { name: "Execution controls" });
     await expect(controls).toContainText("Work stopped");
     await expect(controls).toContainText("may still return after stopping");
+    await writeFile(join(root, "release-model-response"), "release");
     await expect
       .poll(async () => (await current(page)).execution.pending_receipts)
       .toBe(0);

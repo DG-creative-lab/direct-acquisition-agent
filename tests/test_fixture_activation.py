@@ -137,6 +137,23 @@ with patch.object(SqliteTasks, 'settle', exit_after_draft):
         self.assertTrue(replayed['command_replayed'])
         self.assertEqual(replayed['learning']['events'], complete['learning']['events'])
         self.assertEqual(self.w.action(sid, 'handoff', handoff_command)['review']['handoff'], accepted)
+        hypothesis = self.w.propose_followup(sid, 'offline-hypothesis', cohort_id)
+        self.assertTrue(hypothesis['hypotheses'])
+        for audience in hypothesis['hypotheses']:
+            self.assertEqual(audience['evidence']['source_cohort'], cohort_id)
+            self.assertEqual(audience['mode'], 'SYNTHETIC_ONLY')
+            self.assertEqual(audience['authority'], 'ADVISORY_ONLY_NO_COPY_OR_APPROVAL_INHERITANCE')
+        self.assertEqual(self.workspace().propose_followup(sid, 'offline-hypothesis', cohort_id), hypothesis)
+        checkpoint = build_workspace_checkpoint()
+        bundle, restored = self.parent / 'hypothesis-checkpoint', self.parent / 'hypothesis-restore'
+        manifest = checkpoint.create(self.root, bundle)
+        checkpoint.restore(bundle, restored, manifest['checkpoint_id'])
+        before = tree(restored)
+        inspection = build(restored / 'conversations.sqlite', clock=lambda: self.now)
+        self.assertEqual(inspection.followups.get(scope, hypothesis['id']), hypothesis)
+        with self.assertRaisesRegex(Conflict, 'inspection-only'):
+            inspection.followups.put(scope, 'restore-hypothesis', hypothesis)
+        self.assertEqual(tree(restored), before)
         with app.tasks.database.connect() as db:
             self.assertEqual(db.execute('SELECT count(*) FROM draft_operations WHERE organization=?', (scope,)).fetchone()[0], 1)
             self.assertEqual(db.execute('SELECT count(*) FROM simulated_agency_jobs WHERE organization=?', (scope,)).fetchone()[0], 1)
