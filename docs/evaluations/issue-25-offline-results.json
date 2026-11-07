@@ -1,0 +1,533 @@
+{
+  "schema": "conversation-offline-evaluation-result/v1",
+  "evaluated_commit": "1b7160179d8df90d3435befdae4eb0ef175f14e8",
+  "evaluated_at": "2026-11-07T21:49:10.895860+00:00",
+  "corpus_sha256": "ae7c3f0394562d5957d20f215eb7be4b95819bbbf979dc6409729d3897cc2f14",
+  "runner_sha256": "5a8e7af14da1c820dea411cc279ec5186c627bcd1933170851d26a3e4c7bd286",
+  "limits": [
+    "Scripted responses do not measure model intent recognition or editorial quality.",
+    "Latency is local harness wall time, not provider or production latency.",
+    "No real provider price or customer-performance measurement.",
+    "Paid inference remains paused; fake-model journeys use disposable test stores."
+  ],
+  "results": [
+    {
+      "id": "inventory-supplier-timing",
+      "expected": {
+        "review_ready": true,
+        "budget_pence": 43700,
+        "segments": [
+          "inventory"
+        ]
+      },
+      "passed": true,
+      "observed_status": "review_ready",
+      "false_acceptance": false,
+      "false_rejection": false,
+      "required_checks": {
+        "artifact_integrity": "passed",
+        "source_run": "passed",
+        "source_provenance": "passed",
+        "current_epochs": "passed",
+        "product_evidence": "passed",
+        "population_budget": "passed",
+        "copy_contract": "passed"
+      },
+      "approval_valid": false,
+      "journey": {
+        "subject_id": "subject_c54d577c3242fb13ae171d232137deded9ae0d48233d056cb96e2734eddf44a8",
+        "cohort_id": "cohort_ce90de404ed370a6e7bd361026a29ffd97a0041d249a88652eb5647aeaecc381",
+        "followup_id": "followup_636c1f34aad61b3d44ddc80c544ec621814f3fc693a696227b818b5e78acbc1b",
+        "hypotheses": [
+          {
+            "segment": "inventory",
+            "status": "weak",
+            "authority": "ADVISORY_ONLY_NO_COPY_OR_APPROVAL_INHERITANCE"
+          }
+        ],
+        "preference_history_revisions": 3,
+        "replay_added_calls": 0,
+        "inspection_added_calls": 0,
+        "unnecessary_planner_clarifications": 0,
+        "confirmed_amendment_budget_pence": 51200
+      },
+      "elapsed_seconds": 18.902,
+      "fake_provider_calls": 6,
+      "request_bytes": 45532,
+      "trace": [
+        {
+          "tool": "submit_campaign_brief",
+          "request_sha256": "d0673a577045a24e99fc5909c82e780b88e6ea9a0feea3a9714692bc040eeeb3",
+          "request_bytes": 8499
+        },
+        {
+          "tool": "read_editorial_context",
+          "request_sha256": "6e6118d81a1e468b954786f421a696fb452b1448bbf16cb8cee427d707bf943d",
+          "request_bytes": 2122
+        },
+        {
+          "tool": "submit_grounded_copy",
+          "request_sha256": "e71f6e17bc1973a1e0918a8f06be088bf88339801ad11b52e293f20b985a96ca",
+          "request_bytes": 11665
+        },
+        {
+          "tool": "record_claim_check",
+          "request_sha256": "949c7f39887f78e8fb337186793bdc32244a9414d9aaf4c29e94c2a9d5194ff1",
+          "request_bytes": 5804
+        },
+        {
+          "tool": "propose_conversation_action",
+          "request_sha256": "c3b2f3cf6a8dcf8ed8d1f0100be0a669b667091f780b629db9a6535671a6ad6f",
+          "request_bytes": 7945
+        },
+        {
+          "tool": "submit_campaign_brief",
+          "request_sha256": "5c3a50148f4144ef6485ca30d5e1d392c3f76700d1045d68a6a2399eb253e2a4",
+          "request_bytes": 9497
+        }
+      ],
+      "live_provider_calls": 0
+    },
+    {
+      "id": "contractors-milestone-costs",
+      "expected": {
+        "review_ready": true,
+        "budget_pence": 68300,
+        "segments": [
+          "contractors"
+        ]
+      },
+      "passed": true,
+      "observed_status": "review_ready",
+      "false_acceptance": false,
+      "false_rejection": false,
+      "required_checks": {
+        "artifact_integrity": "passed",
+        "source_run": "passed",
+        "source_provenance": "passed",
+        "current_epochs": "passed",
+        "product_evidence": "passed",
+        "population_budget": "passed",
+        "copy_contract": "passed"
+      },
+      "approval_valid": false,
+      "journey": {
+        "subject_id": "subject_f480490918d059a910df19c93c4ee4d990af26b27a8d4cc1e44cea525c89904d",
+        "cohort_id": "cohort_d43244ffae26e368f02db8c29977a3e135b9bc049cb6b60a50a691c2529fcb30",
+        "followup_id": "followup_39a90bf4b9b89f8a7d8c46202c7810ddef610effbc906cd22f73b6527cc783c4",
+        "hypotheses": [
+          {
+            "segment": "contractors",
+            "status": "weak",
+            "authority": "ADVISORY_ONLY_NO_COPY_OR_APPROVAL_INHERITANCE"
+          }
+        ],
+        "preference_history_revisions": 3,
+        "replay_added_calls": 0,
+        "inspection_added_calls": 0,
+        "unnecessary_planner_clarifications": 0,
+        "confirmed_amendment_budget_pence": 51200
+      },
+      "elapsed_seconds": 31.461,
+      "fake_provider_calls": 10,
+      "request_bytes": 78013,
+      "trace": [
+        {
+          "tool": "submit_campaign_brief",
+          "request_sha256": "0847d5f1102f1b69834da977141ed97e27921090bdc1c8cc60c30bb414fa148e",
+          "request_bytes": 8529
+        },
+        {
+          "tool": "read_editorial_context",
+          "request_sha256": "a20efcbd60b234d6c1371fad08f64a3656cd5021a122574c1a6e35ac76a318f1",
+          "request_bytes": 2124
+        },
+        {
+          "tool": "submit_grounded_copy",
+          "request_sha256": "fd783affcd169aa05a2068acb9a9e5da7a75842757d4bd85b3d8dc41eab3fe2d",
+          "request_bytes": 11701
+        },
+        {
+          "tool": "record_claim_check",
+          "request_sha256": "9a02ac2f0cca15496f26c694ab9b3d979aba770dfeab5f14ff0ecd0902676196",
+          "request_bytes": 5789
+        },
+        {
+          "tool": "propose_conversation_action",
+          "request_sha256": "1390a0a07838a2fb7d80e4130876ff078f3908214ad2fc49048375c5f00e8de3",
+          "request_bytes": 7882
+        },
+        {
+          "tool": "read_editorial_context",
+          "request_sha256": "ab378d6338b36a8a55af9adad81a5e674912f34e89d1769504c1d1bea08ae343",
+          "request_bytes": 2513
+        },
+        {
+          "tool": "submit_grounded_copy",
+          "request_sha256": "d1c43a0025e8e7ce773d0560b3e3b8fd9f40616da414d27ec49b48caa7c41735",
+          "request_bytes": 16150
+        },
+        {
+          "tool": "record_claim_check",
+          "request_sha256": "978c1b83f3b0136f18fbb877bdc833d2856142b464d587a059340cfad39998d4",
+          "request_bytes": 5794
+        },
+        {
+          "tool": "propose_conversation_action",
+          "request_sha256": "96891e5902e6437da8cc431b3e18335fb9432203170798cc07e936dfa4abafa1",
+          "request_bytes": 7999
+        },
+        {
+          "tool": "submit_campaign_brief",
+          "request_sha256": "fa3669db37430badc91b3e2326fb65ab86e38bf3af98409fcd163e058b81a0ef",
+          "request_bytes": 9532
+        }
+      ],
+      "live_provider_calls": 0
+    },
+    {
+      "id": "combined-separate-framing",
+      "expected": {
+        "review_ready": true,
+        "budget_pence": 82700,
+        "segments": [
+          "contractors",
+          "inventory"
+        ]
+      },
+      "passed": true,
+      "observed_status": "review_ready",
+      "false_acceptance": false,
+      "false_rejection": false,
+      "required_checks": {
+        "artifact_integrity": "passed",
+        "source_run": "passed",
+        "source_provenance": "passed",
+        "current_epochs": "passed",
+        "product_evidence": "passed",
+        "population_budget": "passed",
+        "copy_contract": "passed"
+      },
+      "approval_valid": false,
+      "journey": {
+        "subject_id": "subject_a2b6ef7633541e79b27465009893e0bf214eca9f83ce1d5da58f26ee7106dac3",
+        "cohort_id": "cohort_102a034110da9364bd9f3df44abca71886220c40dd7b66090e2db2b151a299a2",
+        "followup_id": "followup_0c7ba1f69b29d4587aed6b705cff5ffbcaf00896bb230101594f848f8e248c02",
+        "hypotheses": [
+          {
+            "segment": "contractors",
+            "status": "weak",
+            "authority": "ADVISORY_ONLY_NO_COPY_OR_APPROVAL_INHERITANCE"
+          },
+          {
+            "segment": "inventory",
+            "status": "weak",
+            "authority": "ADVISORY_ONLY_NO_COPY_OR_APPROVAL_INHERITANCE"
+          }
+        ],
+        "preference_history_revisions": 3,
+        "replay_added_calls": 0,
+        "inspection_added_calls": 0,
+        "unnecessary_planner_clarifications": 0,
+        "confirmed_amendment_budget_pence": 51200
+      },
+      "elapsed_seconds": 47.725,
+      "fake_provider_calls": 13,
+      "request_bytes": 100024,
+      "trace": [
+        {
+          "tool": "submit_campaign_brief",
+          "request_sha256": "528676cef30c84c7888840340eea32bcbdddeb4d60faee0a51aa37018fee0fe3",
+          "request_bytes": 8508
+        },
+        {
+          "tool": "read_editorial_context",
+          "request_sha256": "e68d0e66cf6dc1cf7f953cdac3a6ad652d5a83c585b53677e307804e92972d97",
+          "request_bytes": 2124
+        },
+        {
+          "tool": "submit_grounded_copy",
+          "request_sha256": "48afb57c4a64f8ee847e7875aa36a19de80d392497ee42778fc8c47a0cdc7816",
+          "request_bytes": 11711
+        },
+        {
+          "tool": "record_claim_check",
+          "request_sha256": "9a02ac2f0cca15496f26c694ab9b3d979aba770dfeab5f14ff0ecd0902676196",
+          "request_bytes": 5789
+        },
+        {
+          "tool": "read_editorial_context",
+          "request_sha256": "a55d5c7ce5cce76ce5d947d98a18cc96e98f796511b23410645aa5f479f7ab30",
+          "request_bytes": 2122
+        },
+        {
+          "tool": "submit_grounded_copy",
+          "request_sha256": "9fb2f67beade62401311eb29d72177c39794c8e60dad82d2ff05b9a871e46ba8",
+          "request_bytes": 11681
+        },
+        {
+          "tool": "record_claim_check",
+          "request_sha256": "949c7f39887f78e8fb337186793bdc32244a9414d9aaf4c29e94c2a9d5194ff1",
+          "request_bytes": 5804
+        },
+        {
+          "tool": "propose_conversation_action",
+          "request_sha256": "1adb6bc32c050e20cc2f1bda1abd61cb8fdbc7f81dd8858669291dbc9116b7aa",
+          "request_bytes": 9088
+        },
+        {
+          "tool": "read_editorial_context",
+          "request_sha256": "96a4780daa29a54199126c5e331ac085c4965ca0eeba0a749d3bb7cf1c0c9be3",
+          "request_bytes": 2513
+        },
+        {
+          "tool": "submit_grounded_copy",
+          "request_sha256": "9289d4cf17cf15cf80df6fdeadc3cb0f7ed4c184fe50d25bbe484973c4f363de",
+          "request_bytes": 16160
+        },
+        {
+          "tool": "record_claim_check",
+          "request_sha256": "978c1b83f3b0136f18fbb877bdc833d2856142b464d587a059340cfad39998d4",
+          "request_bytes": 5794
+        },
+        {
+          "tool": "propose_conversation_action",
+          "request_sha256": "5c96c11cabdb3becef366bd9d37b4c6eef0634526d80a43e621463fcd5a4cc1b",
+          "request_bytes": 9205
+        },
+        {
+          "tool": "submit_campaign_brief",
+          "request_sha256": "5073531643ae4c25926ac9b6c3660e0be045b12b5b69428187e7d257f6aa65d4",
+          "request_bytes": 9525
+        }
+      ],
+      "live_provider_calls": 0
+    },
+    {
+      "id": "unsupported-email",
+      "expected": {
+        "review_ready": false,
+        "reason": "Email execution is outside the supported postal channel."
+      },
+      "passed": false,
+      "observed_status": "review_ready",
+      "false_acceptance": true,
+      "false_rejection": false,
+      "required_checks": {
+        "artifact_integrity": "passed",
+        "source_run": "passed",
+        "source_provenance": "passed",
+        "current_epochs": "passed",
+        "product_evidence": "passed",
+        "population_budget": "passed",
+        "copy_contract": "passed"
+      },
+      "approval_valid": false,
+      "elapsed_seconds": 2.031,
+      "fake_provider_calls": 1,
+      "request_bytes": 8487,
+      "trace": [
+        {
+          "tool": "submit_campaign_brief",
+          "request_sha256": "90269a07ae664901724a7c59ab75a7716f131003a267efd437d975f0c51026e2",
+          "request_bytes": 8487
+        }
+      ],
+      "live_provider_calls": 0
+    },
+    {
+      "id": "unsupported-france",
+      "expected": {
+        "review_ready": false,
+        "reason": "France is outside the supported UK scope."
+      },
+      "passed": false,
+      "observed_status": "review_ready",
+      "false_acceptance": true,
+      "false_rejection": false,
+      "required_checks": {
+        "artifact_integrity": "passed",
+        "source_run": "passed",
+        "source_provenance": "passed",
+        "current_epochs": "passed",
+        "product_evidence": "passed",
+        "population_budget": "passed",
+        "copy_contract": "passed"
+      },
+      "approval_valid": false,
+      "elapsed_seconds": 2.244,
+      "fake_provider_calls": 1,
+      "request_bytes": 8481,
+      "trace": [
+        {
+          "tool": "submit_campaign_brief",
+          "request_sha256": "d0aaed651af6a2e1bdeb178f0a616db08d33d4d65db80c2cfa3f47cd1357ef14",
+          "request_bytes": 8481
+        }
+      ],
+      "live_provider_calls": 0
+    },
+    {
+      "id": "unsupported-personal-mortgage",
+      "expected": {
+        "review_ready": false,
+        "reason": "A personal mortgage is not the supported iwoca Flexi-Loan product."
+      },
+      "passed": false,
+      "observed_status": "review_ready",
+      "false_acceptance": true,
+      "false_rejection": false,
+      "required_checks": {
+        "artifact_integrity": "passed",
+        "source_run": "passed",
+        "source_provenance": "passed",
+        "current_epochs": "passed",
+        "product_evidence": "passed",
+        "population_budget": "passed",
+        "copy_contract": "passed"
+      },
+      "approval_valid": false,
+      "elapsed_seconds": 2.141,
+      "fake_provider_calls": 1,
+      "request_bytes": 8487,
+      "trace": [
+        {
+          "tool": "submit_campaign_brief",
+          "request_sha256": "dcca9d22696027cb15feb9cc42a50d21f97cffdc92eeb0247606aaadecda9d75",
+          "request_bytes": 8487
+        }
+      ],
+      "live_provider_calls": 0
+    },
+    {
+      "id": "unsupported-lending-decision",
+      "expected": {
+        "review_ready": false,
+        "reason": "Credit decisions and guaranteed lending are unsupported objectives."
+      },
+      "passed": false,
+      "observed_status": "review_ready",
+      "false_acceptance": true,
+      "false_rejection": false,
+      "required_checks": {
+        "artifact_integrity": "passed",
+        "source_run": "passed",
+        "source_provenance": "passed",
+        "current_epochs": "passed",
+        "product_evidence": "passed",
+        "population_budget": "passed",
+        "copy_contract": "passed"
+      },
+      "approval_valid": false,
+      "elapsed_seconds": 1.902,
+      "fake_provider_calls": 1,
+      "request_bytes": 8474,
+      "trace": [
+        {
+          "tool": "submit_campaign_brief",
+          "request_sha256": "f523f36660c74f001b1618a41884098797f0f4aec6484ae6fc6fbe9a8022eebf",
+          "request_bytes": 8474
+        }
+      ],
+      "live_provider_calls": 0
+    },
+    {
+      "id": "missing-budget",
+      "expected": {
+        "review_ready": false,
+        "reason": "The budget is missing."
+      },
+      "passed": true,
+      "observed_status": "needs_input",
+      "false_acceptance": false,
+      "false_rejection": false,
+      "elapsed_seconds": 0.458,
+      "fake_provider_calls": 1,
+      "request_bytes": 8448,
+      "trace": [
+        {
+          "tool": "submit_campaign_brief",
+          "request_sha256": "fc80b424f3194f46edbdf041103074735c780b888941bc7f88b0b878fb8ca57a",
+          "request_bytes": 8448
+        }
+      ],
+      "live_provider_calls": 0
+    },
+    {
+      "id": "ambiguous-budget",
+      "expected": {
+        "review_ready": false,
+        "reason": "The planner cannot choose between two unconfirmed budgets."
+      },
+      "passed": true,
+      "observed_status": "failed",
+      "false_acceptance": false,
+      "false_rejection": false,
+      "elapsed_seconds": 0.483,
+      "fake_provider_calls": 2,
+      "request_bytes": 17675,
+      "trace": [
+        {
+          "tool": "submit_campaign_brief",
+          "request_sha256": "14c528cba7f140f34e902a4dccbaa803d0afd426854d08b4a49457e834fc44ee",
+          "request_bytes": 8463
+        },
+        {
+          "tool": "submit_campaign_brief",
+          "request_sha256": "1a93418b54e000686c1dd4dc86ec1e9c696ca42065de3f50992bc382627ab075",
+          "request_bytes": 9212
+        }
+      ],
+      "live_provider_calls": 0
+    },
+    {
+      "id": "relative-budget-correction",
+      "expected": {
+        "review_ready": false,
+        "reason": "A relative correction requires a confirmed absolute total."
+      },
+      "passed": true,
+      "observed_status": "failed",
+      "false_acceptance": false,
+      "false_rejection": false,
+      "elapsed_seconds": 0.46,
+      "fake_provider_calls": 2,
+      "request_bytes": 17855,
+      "trace": [
+        {
+          "tool": "submit_campaign_brief",
+          "request_sha256": "b79b9c212827ef4e6e951eb14a53d47f337a343ae05f1d313bb05731b74b74f2",
+          "request_bytes": 8554
+        },
+        {
+          "tool": "submit_campaign_brief",
+          "request_sha256": "b791275bb1393904eeecdc137991af9e2d99a6efb8b53745b0fbea122cba048a",
+          "request_bytes": 9301
+        }
+      ],
+      "live_provider_calls": 0
+    },
+    {
+      "id": "verified-fixture-and-restore",
+      "passed": true,
+      "live_provider_calls": 0,
+      "fake_provider_calls": 0,
+      "restored_bytes_unchanged": true,
+      "elapsed_seconds": 3.067
+    },
+    {
+      "id": "uncertain-stop-restart",
+      "passed": true,
+      "live_provider_calls": 0,
+      "fake_provider_calls": 1,
+      "replay_added_calls": 0,
+      "used": 1,
+      "elapsed_seconds": 0.948
+    }
+  ],
+  "passed": 8,
+  "total": 12,
+  "false_acceptances": 4,
+  "false_rejections": 0,
+  "live_provider_calls": 0
+}
