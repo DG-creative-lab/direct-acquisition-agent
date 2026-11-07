@@ -1227,6 +1227,42 @@ test("finalized chat proposes a frozen disjoint next campaign requiring fresh ap
     const { followup, sid } = await finalizedFollowup(page, url);
     const parent = (await backend(page, `/api/sessions/${sid}`)).body;
     const p = parent.followups[0];
+    const hypothesis = p.hypotheses[0];
+    expect(hypothesis.evidence_status).toBe("strong");
+    const evidenceRegion = followup.getByRole("region", {
+      name: /experiment hypothesis/,
+    });
+    await expect(evidenceRegion).toContainText(
+      "Strong source comparison under the illustrative policy",
+    );
+    await expect(evidenceRegion).toContainText("Earlier lift may not repeat");
+    await expect(evidenceRegion).toContainText("Synthetic source outcomes");
+    await evidenceRegion.getByText(/Evidence and uncertainty for/).click();
+    await expect(evidenceRegion).toContainText(p.source_cohort);
+    await expect(evidenceRegion).toContainText(hypothesis.candidate.hook);
+    await expect(evidenceRegion).toContainText("zero observed outcomes");
+    await evidenceRegion
+      .getByText(/Evidence and uncertainty for/)
+      .scrollIntoViewIfNeeded();
+    await page.screenshot({
+      path: "../.local/evidence-followup-desktop.png",
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await evidenceRegion
+      .getByText(/Evidence and uncertainty for/)
+      .scrollIntoViewIfNeeded();
+    await page.screenshot({
+      path: "../.local/evidence-followup-mobile.png",
+    });
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBe(await page.evaluate(() => document.documentElement.clientWidth));
+    await page.reload();
+    expect(
+      (await backend(page, `/api/sessions/${sid}`)).body.followups[0]
+        .hypotheses,
+    ).toEqual(p.hypotheses);
+    await page.setViewportSize({ width: 1280, height: 800 });
     await expect(
       followup.getByRole("button", {
         name: "Generate grounded follow-up",

@@ -22,7 +22,8 @@ from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.local_root import require_live_root
 from acquisition.learning import identifier
 from acquisition.reasoning import ModelConfig
-from acquisition.creative import validate_fact_pack, fixture_catalog
+from acquisition.creative import validate_fact_pack, fixture_catalog, historical_hook
+from acquisition.learning import followup_hypotheses
 from acquisition.campaigns import FollowupBrief, build_draft, brief_from
 from dataclasses import replace, asdict
 from acquisition.reviews import ReviewPolicy, text, ActorUnavailable
@@ -970,11 +971,17 @@ class Workspace:
                 pass
             if parent["cohort_id"] != cohort_id:
                 raise Conflict("Select the displayed source cohort")
-            source = app.learning.store.view(scope, cohort_id)
+            source = app.learning.store.hypothesis_source(scope, cohort_id)
             if source["status"] != "finalized":
                 raise Conflict("Finalize complete mature learning before proposing a follow-up")
             view = app.reviews.store.view(scope, parent["case_id"])
             segments = tuple(sorted({c["segment"] for c in view["manifest"]["creatives"]}))
+            if source['cohort']['case_id'] != parent['case_id']:
+                raise Conflict('Source learning belongs to another campaign')
+            source_draft = app.drafts.get(scope, source['cohort']['draft_id'])
+            source_creatives = [c | {'hook': historical_hook(c, app.memory.get_context(scope, c['context_id'])
+                                if c.get('fact_pack_id') else None)} for c in source_draft.manifest['creatives']]
+            hypotheses = followup_hypotheses(scope, source, source_creatives, segments)
             budget = view["manifest"]["brief"]["budget_pence"]
             snapshot = app.followup_population(scope, datetime.fromtimestamp(app.clock(), timezone.utc).date().isoformat())
             excluded = app.followups.excluded(scope)
@@ -982,13 +989,13 @@ class Workspace:
             preview_brief = FollowupBrief("preview",budget,segments=segments,followup_id="followup_preview")
             creatives = tuple(c for c in fixture_catalog() if c.segment in segments)
             preview = build_draft(snapshot, preview_brief, creatives)
-            hypothesis = "Retest the source recommendation with contrasting A/B hooks and a no-mail control on a disjoint synthetic population; retain A/B comparison and do not assume the earlier lift will repeat."
+            hypothesis = ' '.join(h['segment'] + ': ' + h['hypothesis'] for h in hypotheses)
             memory = app.learning.store.memory_snapshot(scope, segments)
             p = {"parent_id":identity, "source_cohort":cohort_id, "learning":source,
                 "model_config":asdict(ModelConfig("openai/gpt-oss-120b",max_calls=10,force_tool_choice=True)), "memory":memory, "brief":{"budget_pence":budget,"unit_cost_pence":85,"max_candidates":1000,"policy_version":"demo-marketing/v1","segments":list(segments)},
-                "hypothesis":hypothesis, "snapshot_id":app.audiences.put(snapshot),
+                "hypothesis":hypothesis, "hypotheses":hypotheses, "snapshot_id":app.audiences.put(snapshot),
                 "population":sorted({r["business_id"] for r in csv.DictReader(io.StringIO(preview.assignments_csv))}),
-                "contexts":app.followup_contexts(scope,snapshot,segments,memory,hypothesis),
+                "contexts":app.followup_contexts(scope,snapshot,segments,memory,{h['segment']: h for h in hypotheses}),
                 "epochs":[view["authority"]["evidence_epoch"],view["authority"]["audience_epoch"]],
                 "counts":preview.manifest["counts"], "cost_pence":preview.manifest["variable_cost_pence"],
                 "eligible":preview.manifest["counts"]["mailed"] > 0 and preview.manifest["counts"]["holdout"] > 0,

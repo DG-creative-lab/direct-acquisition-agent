@@ -719,9 +719,11 @@
 }
 
 .conversation-artifacts:has(#artifact-copy-tab[aria-selected="true"])
-  .chat-campaign-facts,
+  > .conversation-campaign-review
+  > .chat-campaign-facts,
 .conversation-artifacts:has(#artifact-copy-tab[aria-selected="true"])
-  .chat-campaign-detail:first-of-type {
+  > .conversation-campaign-review
+  > .chat-campaign-detail:first-of-type {
   display: none;
 }
 .writing-preference {

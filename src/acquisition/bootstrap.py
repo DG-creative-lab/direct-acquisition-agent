@@ -397,7 +397,7 @@ class Application:
                     "input_records":sum(r.segment == segment for r in snapshot.records),
                     "model_version":snapshot.model_version, "snapshot_id":snapshot.id,
                     "situation_hypothesis":guidance["situations"][segment], "outcome_evidence":learning_memory[segment],
-                    "followup_hypothesis":hypothesis}}
+                    "followup_hypothesis":hypothesis[segment] if isinstance(hypothesis, dict) else hypothesis}}
             contexts[segment] = self.memory.put_context(organization,copy_assets(organization, context))
         return contexts
 

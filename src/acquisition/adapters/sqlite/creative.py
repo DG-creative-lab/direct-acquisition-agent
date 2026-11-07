@@ -18,6 +18,17 @@ def editorial_example(organization, segment, preferred, avoid, reason):
     return payload | {'id': 'memory_' + digest({'organization': organization, **payload})}
 
 
+def read_context(connection, organization, context_id):
+    row = connection.execute('SELECT payload FROM creative_contexts WHERE organization=? AND id=?',
+                             (organization, context_id)).fetchone()
+    if row is None:
+        raise NotFound('Creative context not found in this organization')
+    context = json.loads(row[0])
+    if 'context_' + digest({'organization': organization, **context}) != context_id:
+        raise Conflict('Creative context integrity failure')
+    return context
+
+
 class SqliteCreative:
     def __init__(self, database: Database, preference_organization=None):
         self.database, self.preference_organization = database, preference_organization
@@ -69,13 +80,7 @@ class SqliteCreative:
 
     def get_context(self, organization: str, context_id: str) -> dict:
         with self.database.connect() as connection:
-            row = connection.execute("SELECT payload FROM creative_contexts WHERE organization=? AND id=?", (organization, context_id)).fetchone()
-        if row is None:
-            raise NotFound("Creative context not found in this organization")
-        context = json.loads(row[0])
-        if "context_" + digest({"organization": organization, **context}) != context_id:
-            raise Conflict("Creative context integrity failure")
-        return context
+            return read_context(connection, organization, context_id)
 
     def get_catalogue(self, organization: str, operation_id: str) -> tuple[Creative, ...] | None:
         with self.database.connect() as connection:

@@ -5,6 +5,8 @@ from acquisition.contracts import digest
 
 
 DRAWS = 10000
+COMPARISON_POLICY = {'version': 'posterior-comparison/v1', 'minimum_treatment_trials': 30,
+                     'minimum_control_trials': 10, 'probability_beats_other': .9, 'probability_beats_control': .95}
 
 
 def recommend(cohort_id, groups):
@@ -14,15 +16,16 @@ def recommend(cohort_id, groups):
         if set(arms) != {"A", "B", "no_mail"}:
             results.append({"segment": segment, "action": "collect_more_evidence", "reason": "Missing treatment or no-mail control stratum."})
             continue
-        rng = random.Random(digest({"algorithm": "posterior-comparison/v1", "cohort": cohort_id, "segment": segment}))
+        rng = random.Random(digest({"algorithm": COMPARISON_POLICY['version'], "cohort": cohort_id, "segment": segment}))
         draws = {arm: [rng.betavariate(g["alpha"], g["beta"]) for _ in range(DRAWS)] for arm, g in arms.items()}
         winner = max(("A", "B"), key=lambda a: arms[a]["mean"])
         other = "B" if winner == "A" else "A"
         lift = sorted(a - b for a, b in zip(draws[winner], draws["no_mail"]))
         p_best = sum(a > b for a, b in zip(draws[winner], draws[other])) / DRAWS
         p_positive = sum(v > 0 for v in lift) / DRAWS
-        enough = min(arms[a]["trials"] for a in ("A", "B")) >= 30 and arms["no_mail"]["trials"] >= 10
-        ready = enough and p_best >= .9 and p_positive >= .95
+        enough = (min(arms[a]["trials"] for a in ("A", "B")) >= COMPARISON_POLICY['minimum_treatment_trials']
+                  and arms["no_mail"]["trials"] >= COMPARISON_POLICY['minimum_control_trials'])
+        ready = enough and p_best >= COMPARISON_POLICY['probability_beats_other'] and p_positive >= COMPARISON_POLICY['probability_beats_control']
         intervals = {arm: [sorted(values)[int(DRAWS * q)] for q in (.05, .95)] for arm, values in draws.items()}
         results.append({"segment": segment, "action": "propose_next_experiment" if ready else "collect_more_evidence",
             "candidate_arm": winner, "creative_id": arms[winner]["creative_id"], "probability_beats_other": p_best,
