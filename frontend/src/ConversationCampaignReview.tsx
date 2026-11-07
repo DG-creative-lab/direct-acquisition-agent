@@ -66,6 +66,7 @@ export default function ConversationCampaignReview({
   feedbackRequest?: ArtifactComment | null;
 }) {
   const [state, setState] = useState<State | null>(null);
+  const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
@@ -109,13 +110,19 @@ export default function ConversationCampaignReview({
   useEffect(() => {
     const controller = new AbortController();
     const stamp = ++epoch.current;
+    setLoading(true);
     read<State>(`/api/sessions/${sessionId}`, controller.signal)
       .then((value) => {
-        if (stamp === epoch.current) setState(value);
+        if (stamp === epoch.current) {
+          setState(value);
+          setLoading(false);
+        }
       })
       .catch((e) => {
-        if (e.name !== "AbortError" && stamp === epoch.current)
+        if (e.name !== "AbortError" && stamp === epoch.current) {
           setError(e.message);
+          setLoading(false);
+        }
       });
     return () => controller.abort();
   }, [sessionId, reload]);
@@ -227,6 +234,7 @@ export default function ConversationCampaignReview({
   );
   const canRevise =
     interactive &&
+    !loading &&
     (!artifactPane || !selectionChanged) &&
     state.session.mode === "model" &&
     review.candidate_valid &&
@@ -253,10 +261,13 @@ export default function ConversationCampaignReview({
         </button>
         <button
           className="text-button"
-          disabled={busy}
-          onClick={() => setReload((n) => n + 1)}
+          disabled={busy || loading}
+          onClick={() => {
+            setLoading(true);
+            setReload((n) => n + 1);
+          }}
         >
-          Refresh review
+          {loading ? "Refreshing review…" : "Refresh review"}
         </button>
       </header>
       <dl className="chat-campaign-facts">
@@ -386,7 +397,7 @@ export default function ConversationCampaignReview({
                 state={state}
                 creativeId={selectedCreative.id}
                 onComment={
-                  interactive && onComment
+                  interactive && !loading && !busy && onComment
                     ? () =>
                         onComment({
                           session_id: sessionId,
