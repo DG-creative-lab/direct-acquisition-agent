@@ -25,6 +25,12 @@ PYTHONPATH=src python3 -m acquisition remember --segment inventory --preferred '
 
 Use the same `--db` and `--organization` scope as the intended campaign when storing preferences. Existing contexts remain frozen. Never reuse a run request ID after changing its inputs.
 
+The chat workspace also supports [confirmed writing preferences](writing-preferences.md)
+from saved copy comments, with audience scope, source provenance, versioned
+correction and retirement. New contexts select up to three recent active
+preferences per audience from one read snapshot. Existing CLI examples remain
+available to fill unused places.
+
 ## Reservations, configuration and recovery
 
 Before a request, the journal checks the active task lease and reserves one call against the run's limit. A completed response is reused only when the request hash matches. If the provider outcome or saved receipt is uncertain, the application stops rather than submitting the call again automatically. A late response may record usage after cancellation but cannot authorize a follow-up call or complete the cancelled task.

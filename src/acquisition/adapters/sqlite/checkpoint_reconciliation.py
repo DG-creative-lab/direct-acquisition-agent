@@ -22,6 +22,8 @@ CORROBORATED_HISTORY = REVIEW_EFFECTS | {'model_call'}
 # The leading columns are the native key, in the same order as SQLite's
 # binary sort. Include opaque historical fields in equality, never in reports.
 HISTORY = {
+    'writing_preference': (2, '''SELECT id,printf('%020d',revision),request_id,fingerprint,payload
+        FROM writing_preference_versions WHERE organization=?1 ORDER BY id,revision'''),
     'run': (2, '''SELECT r.organization,r.id,r.request_id,r.request_hash,r.created_at
         FROM runs r LEFT JOIN execution_runs e ON e.organization=r.organization AND e.run_id=r.id
         WHERE r.organization=?1 OR e.owner_organization=?1 ORDER BY r.organization,r.id'''),
@@ -60,6 +62,9 @@ def history_key(value):
 
 
 def keyed_rows(db, query, organization, key_size):
+    if 'FROM writing_preference_versions' in query and db.execute(
+            "SELECT 1 FROM sqlite_schema WHERE name='writing_preference_versions'").fetchone() is None:
+        return
     for row in db.execute(query, (organization,)):
         key = tuple(history_key(value) for value in row[:key_size])
         yield key, tuple(row)

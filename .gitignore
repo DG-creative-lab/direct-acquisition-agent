@@ -47,3 +47,4 @@ dist/
 !/docs/execution-authority-decision.md
 !/docs/legacy-migration.md
 !/docs/workspace-checkpoints.md
+!/docs/writing-preferences.md

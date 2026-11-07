@@ -110,6 +110,177 @@ async function openReview(page, url) {
   await expect(region.getByText("Review & approval")).toBeVisible();
   return region;
 }
+
+test("writing preferences need confirmation, survive a lost response and retain correction and retirement history", async ({
+  page,
+}) => {
+  await workspace("handoff", async (url) => {
+    const region = await openReview(page, url);
+    const sid = await selected(page);
+    const initial = (await backend(page, `/api/sessions/${sid}`)).body;
+    await region.getByRole("button", { name: "Comment in chat" }).click();
+    await page
+      .getByLabel("Message Direct Acquisition")
+      .fill("Use a concrete opening.");
+    await page.getByRole("button", { name: "Save copy comment" }).click();
+    const comment = page.getByRole("region", {
+      name: "Saved artifact comment",
+    });
+    await expect(comment).toHaveCount(1);
+    const endpoint = await page.evaluate(() =>
+      localStorage.getItem("conversation-selected"),
+    );
+    expect(
+      (await backend(page, `/api/conversations/${endpoint}`)).body
+        .writing_preferences,
+    ).toEqual([]);
+    await comment
+      .getByRole("button", { name: "Remember as a writing preference" })
+      .click();
+    await page
+      .getByLabel("Writing preference", { exact: true })
+      .fill("Start with a specific business situation.");
+    await expect(
+      page.getByRole("button", {
+        name: "Confirm writing preference",
+        exact: true,
+      }),
+    ).toBeDisabled();
+    await page
+      .getByRole("button", { name: "Close writing preference" })
+      .click();
+    expect(
+      (await backend(page, `/api/conversations/${endpoint}`)).body
+        .writing_preferences,
+    ).toEqual([]);
+    await comment
+      .getByRole("button", { name: "Remember as a writing preference" })
+      .click();
+    await page
+      .getByLabel("Writing preference", { exact: true })
+      .fill("Start with a specific business situation.");
+    await page
+      .getByLabel("Reason for this decision")
+      .fill("Concrete examples are easier to review.");
+    await page
+      .getByRole("checkbox", { name: "Stock & inventory", exact: true })
+      .check();
+    await page
+      .getByRole("checkbox", { name: "Projects & contractors", exact: true })
+      .check();
+    await page
+      .getByLabel("Use this wording as guidance for the selected audiences")
+      .check();
+    await page.getByRole("dialog").evaluate((dialog) => {
+      dialog.scrollTop = 0;
+    });
+    await page.screenshot({
+      path: "../.local/writing-preference-desktop.png",
+    });
+    const attempts = [];
+    let drop = true;
+    await page.route(
+      "**/api/conversations/*/writing-preferences",
+      async (route) => {
+        attempts.push(route.request().postDataJSON());
+        if (drop) {
+          drop = false;
+          await route.fetch();
+          await route.abort("failed");
+        } else await route.continue();
+      },
+    );
+    await page
+      .getByRole("button", { name: "Confirm writing preference", exact: true })
+      .click();
+    await expect(
+      page.getByRole("button", { name: "Retry saving preference" }),
+    ).toBeVisible();
+    await expect(
+      page.getByLabel("Writing preference", { exact: true }),
+    ).toBeDisabled();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload();
+    await expect(
+      page.getByLabel("Writing preference", { exact: true }),
+    ).toHaveValue("Start with a specific business situation.");
+    await page.getByRole("button", { name: "Retry saving preference" }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    expect(attempts).toHaveLength(2);
+    expect(attempts[0]).toEqual(attempts[1]);
+    await expect(comment).toContainText("Writing preference active");
+    await page.reload();
+    await comment
+      .getByRole("button", { name: "Correct writing preference" })
+      .click();
+    await expect(
+      page.getByLabel(
+        "Use this wording as guidance for the selected audiences",
+      ),
+    ).not.toBeChecked();
+    await page
+      .getByLabel("Writing preference", { exact: true })
+      .fill("Keep the opening short and concrete.");
+    await page
+      .getByRole("checkbox", { name: "Projects & contractors", exact: true })
+      .uncheck();
+    await page
+      .getByLabel("Reason for this decision")
+      .fill("Narrow this to inventory campaigns.");
+    await page
+      .getByLabel("Use this wording as guidance for the selected audiences")
+      .check();
+    await page.getByRole("dialog").evaluate((dialog) => {
+      dialog.scrollTop = 0;
+    });
+    await page.screenshot({
+      path: "../.local/writing-preference-mobile.png",
+    });
+    await page
+      .getByRole("button", { name: "Confirm writing preference", exact: true })
+      .click();
+    await expect(comment).toContainText("Version 2");
+    await comment
+      .getByText("Preference history and source", { exact: true })
+      .click();
+    await expect(comment).toContainText(
+      "Start with a specific business situation.",
+    );
+    await expect(comment).toContainText(initial.review.subject.id);
+    await comment
+      .getByRole("button", { name: "Retire writing preference", exact: true })
+      .click();
+    await page
+      .getByLabel("Reason for this decision")
+      .fill("We no longer need this direction.");
+    await page
+      .getByLabel("Stop using this preference in future generation")
+      .check();
+    await page.getByRole("button", { name: "Confirm retirement" }).click();
+    await page.reload();
+    await expect(comment).toContainText("Writing preference retired");
+    await expect(
+      comment.getByRole("button", { name: "Correct writing preference" }),
+    ).toHaveCount(0);
+    const final = (await backend(page, `/api/sessions/${sid}`)).body;
+    expect(final.review.subject).toEqual(initial.review.subject);
+    expect(final.review.approval).toBeNull();
+    expect(final.copy_revisions).toHaveLength(0);
+    const stored = (await backend(page, `/api/conversations/${endpoint}`)).body;
+    expect(stored.writing_preferences[0].history.map((v) => v.action)).toEqual([
+      "confirm",
+      "correct",
+      "retire",
+    ]);
+    expect(stored.artifact_comments).toHaveLength(1);
+    for (const width of [390, 320]) {
+      await page.setViewportSize({ width, height: 844 });
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+      ).toBe(await page.evaluate(() => document.documentElement.clientWidth));
+    }
+  });
+});
 async function feedback(page, region) {
   await region
     .getByRole("button", { name: "Revise copy", exact: true })

@@ -169,7 +169,8 @@ class Workspace:
                 raise Conflict('Restore the original legacy application store before inspection')
         clock=(lambda:self.authority.clock(session['id'],self.real_clock())) if authoritative is not None else self.real_clock if verified else (lambda:max(self.real_clock(),session['clock']) if session.get('clock_mode')=='REAL' else session['clock'])
         return build(database,clock=clock,gateway=gateway,model_config=config,workspace_organization=session['organization'],
-                     verified_admissions=verified, **({'execution_clock': self.real_clock} if verified else {}))
+                     verified_admissions=verified, preference_organization='local-conversations' if conversation_db else None,
+                     **({'execution_clock': self.real_clock} if verified else {}))
 
     def _verified_mode(self):
         # Only the root's authoritative application store selects this format.
@@ -220,7 +221,8 @@ class Workspace:
             if session.get('conversation_plan', {}).get('conversation_id') == conversation_id and session['case_id']:
                 comments.extend(comment | {'session_id': session['id']} for comment in
                                 application.reviews.store.comments(session['organization'], session['case_id']))
-        return view | {"artifact_comments": comments, "execution":application.execution.view('local-conversations',conversation_id), "actions":self.action_progress(conversation_id), "preparations": self.preparation_progress(conversation_id), "campaigns": [{"session_id": s["id"], "plan_id": s["conversation_plan"]["id"],
+        return view | {"writing_preferences": application.memory.preferences('local-conversations'),
+                       "artifact_comments": comments, "execution":application.execution.view('local-conversations',conversation_id), "actions":self.action_progress(conversation_id), "preparations": self.preparation_progress(conversation_id), "campaigns": [{"session_id": s["id"], "plan_id": s["conversation_plan"]["id"],
                                       "revision": s["conversation_plan"]["revision"], "case_id": s["case_id"],
                                       "generation": self._generation(s)}
                                      for s in sessions if s.get("conversation_plan", {}).get("conversation_id") == conversation_id]}
@@ -239,6 +241,23 @@ class Workspace:
         except ValueError as error:
             raise MessageRejectedInvalid(str(error)) from error
         return self.conversation(conversation_id)
+
+    def change_writing_preference(self, conversation_id, session_id, comment_id, preference_id, action,
+                                  expected_revision, segments, preferred, avoid, reason, confirmed, request_id):
+        try:
+            session = self._session(session_id)
+            if session.get('conversation_plan', {}).get('conversation_id') != conversation_id:
+                raise Conflict('Select the original comment conversation')
+            receipt = self._app(session).memory.change_preference('local-conversations', session['organization'],
+                conversation_id, comment_id, preference_id, action, expected_revision, segments,
+                preferred, avoid, reason, confirmed, 'local-operator', request_id, self.real_clock())
+        except Conflict as error:
+            raise MessageRejectedConflict(str(error)) from error
+        except NotFound as error:
+            raise MessageRejectedNotFound(str(error)) from error
+        except ValueError as error:
+            raise MessageRejectedInvalid(str(error)) from error
+        return self.conversation(conversation_id) | {'preference_receipt': receipt}
 
     def action_context(self, conversation_id, expected_revision):
         app=self._conversation_app();source=app.conversations.view('local-conversations',conversation_id)

@@ -724,3 +724,29 @@
   .chat-campaign-detail:first-of-type {
   display: none;
 }
+.writing-preference {
+  margin-block: 12px;
+}
+.writing-preference p + p {
+  margin-top: 8px;
+}
+.writing-preference .consent {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+}
+.writing-preference .button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.writing-preference code {
+  overflow-wrap: anywhere;
+}
+.writing-preference .modal textarea {
+  min-height: 76px;
+}
+.writing-preference .modal fieldset {
+  margin-top: 16px;
+}

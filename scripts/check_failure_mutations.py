@@ -10,6 +10,18 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ('writing-preference-confirmation', 'creative/domain.py',
+     'if confirmed is not True:', 'if False:',
+     'test_fixture_activation.FixtureActivationTests.test_preference_confirmation_rejects_missing_evidence_cross_scope_and_stale_edits'),
+    ('writing-preference-current-version', 'adapters/sqlite/writing_preferences.py',
+     "previous['revision'] != expected_revision", 'False',
+     'test_fixture_activation.FixtureActivationTests.test_preference_confirmation_rejects_missing_evidence_cross_scope_and_stale_edits'),
+    ('writing-preference-retirement', 'adapters/sqlite/creative.py',
+     "if item['status'] == 'active' and segment in item['segments']", "if segment in item['segments']",
+     'test_fixture_activation.FixtureActivationTests.test_confirmed_preferences_scope_future_contexts_and_preserve_immutable_history_after_restart'),
+    ('writing-preference-source-audit', 'adapters/sqlite/writing_preferences.py',
+     'if not any(json.loads(item[0]) == comment for item in event):', 'if False:',
+     'test_fixture_activation.FixtureActivationTests.test_preference_confirmation_rejects_missing_evidence_cross_scope_and_stale_edits'),
     ('artifact-comment-subject', 'adapters/sqlite/reviews.py',
      'if case["current_subject"] != expected_subject:\n                raise Conflict("The displayed copy has a newer review subject")',
      'if False:\n                raise Conflict("The displayed copy has a newer review subject")',

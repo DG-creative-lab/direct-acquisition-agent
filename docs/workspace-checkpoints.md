@@ -20,8 +20,8 @@ catalogue files from the checkout, generated exports, logs, environment files
 and the server lock are outside the bundle. Historical evidence stays in the
 database in which it was recorded.
 
-The supported source has a schema-14 conversation store and journal, with
-schema-14 application stores. The conversation store and every registered
+The supported source has a schema-14 or schema-15 conversation store and journal, with
+schema-14 or schema-15 application stores. The conversation store and every registered
 campaign store must already select `verified-paused/v1`. Unregistered stores
 at canonical legacy paths can retain their unsealed policy. The command
 includes them as historical evidence and preserves their state verbatim.

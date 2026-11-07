@@ -3,6 +3,24 @@ from dataclasses import asdict, dataclass
 from acquisition.contracts import digest
 
 
+def writing_preference(action, expected_revision, segments, preferred, avoid, reason, confirmed):
+    """Explicit editorial intent, independent of approval and observed outcomes."""
+    if confirmed is not True:
+        raise ValueError("Explicit writing preference confirmation required")
+    if (type(action) is not str or action not in {"confirm", "correct", "retire"}
+            or type(expected_revision) is not int or expected_revision < 0):
+        raise ValueError("Select a writing preference action and exact version")
+    if (not isinstance(segments, list) or not segments
+            or any(type(segment) is not str or segment not in {"inventory", "contractors"} for segment in segments)
+            or len(set(segments)) != len(segments)):
+        raise ValueError("Select one or both supported audiences")
+    for value, required in ((preferred, True), (avoid, False), (reason, True)):
+        if (type(value) is not str or len(value) > 600 or (required and not value.strip())
+                or any(ord(c) < 32 and c != '\n' for c in value)):
+            raise ValueError("Use bounded writing guidance and a reason")
+    return {"segments": sorted(segments), "preferred": preferred.strip(), "avoid": avoid.strip(), "reason": reason.strip()}
+
+
 @dataclass(frozen=True)
 class Creative:
     key: str
