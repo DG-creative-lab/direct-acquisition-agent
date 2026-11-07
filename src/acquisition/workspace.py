@@ -13,6 +13,7 @@ from pathlib import Path
 
 from acquisition.bootstrap import build, build_admissions, build_preparations, build_workspace_state, verified_admission_mode, agent_catalogue
 from acquisition.conversations import ACTIVE_PREPARATION, AudienceSelectionRejected, ActionNotSaved, pending_copy_clarification, EnvironmentIntent
+from acquisition.conversations import MessageRejectedConflict, MessageRejectedInvalid, MessageRejectedNotFound
 from acquisition.adapters.environment import openrouter_key
 from acquisition.adapters.openrouter import OpenRouter
 from acquisition.adapters.sqlite.workspace_ancestry import initialize_workspace_identity
@@ -211,12 +212,33 @@ class Workspace:
 
     def conversation(self, conversation_id):
         self._ensure_descendant_links()
-        view = self._conversation_app().conversations.view("local-conversations", conversation_id)
+        application = self._conversation_app()
+        view = application.conversations.view("local-conversations", conversation_id)
         sessions=self._sessions(reverse=True)
-        return view | {"execution":self._conversation_app().execution.view('local-conversations',conversation_id), "actions":self.action_progress(conversation_id), "preparations": self.preparation_progress(conversation_id), "campaigns": [{"session_id": s["id"], "plan_id": s["conversation_plan"]["id"],
+        comments = []
+        for session in sessions:
+            if session.get('conversation_plan', {}).get('conversation_id') == conversation_id and session['case_id']:
+                comments.extend(comment | {'session_id': session['id']} for comment in
+                                application.reviews.store.comments(session['organization'], session['case_id']))
+        return view | {"artifact_comments": comments, "execution":application.execution.view('local-conversations',conversation_id), "actions":self.action_progress(conversation_id), "preparations": self.preparation_progress(conversation_id), "campaigns": [{"session_id": s["id"], "plan_id": s["conversation_plan"]["id"],
                                       "revision": s["conversation_plan"]["revision"], "case_id": s["case_id"],
                                       "generation": self._generation(s)}
                                      for s in sessions if s.get("conversation_plan", {}).get("conversation_id") == conversation_id]}
+
+    def comment_artifact(self, conversation_id, session_id, expected_subject, target_id, expected_revision, feedback, request_id):
+        try:
+            session = self._session(session_id)
+            if session.get('conversation_plan', {}).get('conversation_id') != conversation_id or not session['case_id']:
+                raise Conflict('Select an artifact from this conversation')
+            self._app(session).reviews.store.comment(session['organization'], session['case_id'], expected_subject,
+                target_id, conversation_id, expected_revision, feedback, 'local-operator', request_id)
+        except Conflict as error:
+            raise MessageRejectedConflict(str(error)) from error
+        except NotFound as error:
+            raise MessageRejectedNotFound(str(error)) from error
+        except ValueError as error:
+            raise MessageRejectedInvalid(str(error)) from error
+        return self.conversation(conversation_id)
 
     def action_context(self, conversation_id, expected_revision):
         app=self._conversation_app();source=app.conversations.view('local-conversations',conversation_id)

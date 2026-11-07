@@ -10,6 +10,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ('artifact-comment-subject', 'adapters/sqlite/reviews.py',
+     'if case["current_subject"] != expected_subject:\n                raise Conflict("The displayed copy has a newer review subject")',
+     'if False:\n                raise Conflict("The displayed copy has a newer review subject")',
+     'test_fixture_activation.FixtureActivationTests.test_artifact_comments_bind_exact_copy_and_replay_after_restart_without_inference'),
+    ('artifact-comment-creative', 'adapters/sqlite/reviews.py',
+     'creative = next((c for c in draft.manifest["creatives"] if c["id"] == target_id), None)',
+     'creative = draft.manifest["creatives"][0]',
+     'test_fixture_activation.FixtureActivationTests.test_artifact_comments_bind_exact_copy_and_replay_after_restart_without_inference'),
     ('fixture-atomic-grant', 'adapters/sqlite/admissions.py',
      'if required and grant_fixture_execution(db, intent, run):', 'if False:',
      'test_fixture_activation.FixtureActivationTests.test_failed_grant_insert_rolls_back_admission_and_retry_keeps_original_request'),

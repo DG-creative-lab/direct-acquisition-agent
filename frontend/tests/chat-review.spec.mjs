@@ -195,6 +195,9 @@ test("chat reviews, revises and approves the exact new subject on desktop and mo
       region.getByText("Revised copy is ready for review", { exact: true }),
     ).toBeVisible();
     await expect(a.locator(".letter-opening")).toHaveText(beforeA);
+    await region.getByLabel("Copy variant", { exact: true }).selectOption({
+      label: "Projects & contractors · Variant B",
+    });
     await expect(
       region.getByRole("heading", {
         name: "When might project invoices fall due?",
@@ -240,6 +243,196 @@ test("chat reviews, revises and approves the exact new subject on desktop and mo
     expect(approved.review.approval.subject_id).toBe(revised.review.subject.id);
     expect(approved.review.handoff).toBeNull();
     expect(errors).toEqual([]);
+  });
+});
+
+test("artifact selection survives reload and a variant comment replays once before confirmed revision", async ({
+  page,
+}) => {
+  await workspace("success", async (url) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const region = await openReview(page, url);
+    const sid = await selected(page);
+    const initial = (await backend(page, `/api/sessions/${sid}`)).body;
+    const target = initial.review.manifest.creatives.find((c) => c.arm === "B");
+    const variant = region.getByLabel("Copy variant", { exact: true });
+    await variant.selectOption(target.id);
+    await page.reload();
+    await expect(variant).toHaveValue(target.id);
+    await region.getByRole("tab", { name: "Audience", exact: true }).click();
+    await expect(region.getByRole("tabpanel")).toContainText(
+      "Audience selection",
+    );
+    await page.reload();
+    await expect(
+      region.getByRole("tab", { name: "Audience", exact: true }),
+    ).toHaveAttribute("aria-selected", "true");
+    await region.getByRole("tab", { name: "Creative copy" }).click();
+    await expect(variant).toHaveValue(target.id);
+    await page.screenshot({
+      path: "../.local/artifact-pane-desktop.png",
+      fullPage: true,
+    });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(
+      page.getByRole("button", { name: "Artifacts", exact: true }),
+    ).toBeVisible();
+    await page.screenshot({
+      path: "../.local/artifact-pane-mobile.png",
+      fullPage: true,
+    });
+    await region.getByRole("button", { name: "Comment in chat" }).click();
+    await expect(page.getByLabel("Message Direct Acquisition")).toBeFocused();
+    await expect(
+      page.getByRole("status").filter({ hasText: "Commenting on" }),
+    ).toContainText("Variant B");
+    await page
+      .getByLabel("Message Direct Acquisition")
+      .fill("Make the selected opening more direct.");
+    const attempts = [];
+    let drop = true;
+    await page.route(
+      "**/api/conversations/*/artifact-comments",
+      async (route) => {
+        attempts.push(route.request().postDataJSON());
+        if (drop) {
+          drop = false;
+          await route.fetch();
+          await route.abort("failed");
+        } else await route.continue();
+      },
+    );
+    await page.getByRole("button", { name: "Save copy comment" }).click();
+    await expect(
+      page.getByRole("button", { name: "Retry saving message" }),
+    ).toBeVisible();
+    await page.reload();
+    await expect(page.getByLabel("Message Direct Acquisition")).toHaveValue(
+      "Make the selected opening more direct.",
+    );
+    await page.getByRole("button", { name: "Retry saving message" }).click();
+    await expect(
+      page.getByRole("region", { name: "Saved artifact comment" }),
+    ).toHaveCount(1);
+    expect(attempts).toHaveLength(2);
+    expect(attempts[0]).toEqual(attempts[1]);
+    expect(attempts[0].target_id).toBe(target.id);
+    expect(attempts[0].expected_subject).toBe(initial.review.subject.id);
+    const saved = (await backend(page, `/api/sessions/${sid}`)).body;
+    expect(saved.copy_revisions).toHaveLength(0);
+    expect(saved.review.subject.id).toBe(initial.review.subject.id);
+    expect(saved.review.approval).toBeNull();
+    await page.getByRole("button", { name: "Request a copy revision" }).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await expect(page.getByLabel("Copy feedback", { exact: true })).toHaveValue(
+      "Make the selected opening more direct.",
+    );
+    await expect(
+      page.getByRole("button", { name: "Generate revision", exact: true }),
+    ).toBeDisabled();
+    for (const close of ["button", "escape"]) {
+      await page
+        .getByLabel("Allow up to five model calls for this revision")
+        .check();
+      if (close === "button") {
+        await page.getByRole("button", { name: "Close copy feedback" }).click();
+      } else {
+        await page.keyboard.press("Escape");
+      }
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await page.getByRole("button", { name: "Chat", exact: true }).click();
+      await page
+        .getByRole("button", { name: "Request a copy revision" })
+        .click();
+      await expect(page.getByRole("dialog")).toBeVisible();
+      await expect(
+        page.getByLabel("Variant to revise", { exact: true }),
+      ).toHaveValue(target.id);
+      await expect(
+        page.getByLabel("Copy feedback", { exact: true }),
+      ).toHaveValue("Make the selected opening more direct.");
+      await expect(
+        page.getByLabel("Allow up to five model calls for this revision"),
+      ).not.toBeChecked();
+      await expect(
+        page.getByRole("button", { name: "Generate revision", exact: true }),
+      ).toBeDisabled();
+      expect(
+        (await backend(page, `/api/sessions/${sid}`)).body.copy_revisions,
+      ).toHaveLength(0);
+    }
+    await page
+      .getByLabel("Allow up to five model calls for this revision")
+      .check();
+    const request = page.waitForRequest(
+      (r) => r.method() === "POST" && r.url().endsWith("/copy-revisions"),
+    );
+    await page
+      .getByRole("button", { name: "Generate revision", exact: true })
+      .click();
+    const payload = (await request).postDataJSON();
+    expect(payload.target_id).toBe(target.id);
+    expect(payload.expected_subject).toBe(initial.review.subject.id);
+    await expect(
+      region.getByText("Revised copy is ready for review", { exact: true }),
+    ).toBeVisible();
+    for (const width of [390, 320]) {
+      await page.setViewportSize({ width, height: 844 });
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+      ).toBe(await page.evaluate(() => document.documentElement.clientWidth));
+    }
+    await page.getByRole("button", { name: "Chat", exact: true }).click();
+    await page.reload();
+    await expect(
+      page.getByRole("region", { name: "Saved artifact comment" }),
+    ).toContainText("Variant B");
+    await page.screenshot({
+      path: "../.local/artifact-chat-mobile.png",
+      fullPage: true,
+    });
+  });
+});
+
+test("a stale fixture comment is rejected before saving and the composer can select the current artifact", async ({
+  page,
+}) => {
+  await workspace("handoff", async (url) => {
+    const region = await openReview(page, url);
+    const sid = await selected(page);
+    await region.getByRole("button", { name: "Comment in chat" }).click();
+    await page
+      .getByLabel("Message Direct Acquisition")
+      .fill("Please check this exact opening.");
+    const initial = (await backend(page, `/api/sessions/${sid}`)).body;
+    const refreshed = await backend(page, `/api/sessions/${sid}/refresh`, {
+      request_id: "advance-subject",
+      subject_id: initial.review.subject.id,
+    });
+    expect(refreshed.status).toBe(200);
+    await page.getByRole("button", { name: "Save copy comment" }).click();
+    await expect(
+      page.getByRole("alert").filter({ hasText: "newer review subject" }),
+    ).toBeVisible();
+    await expect(page.getByLabel("Message Direct Acquisition")).toBeEnabled();
+    await page.getByRole("button", { name: "Remove reference" }).click();
+    await region.getByRole("button", { name: "Refresh review" }).click();
+    await region.getByRole("button", { name: "Comment in chat" }).click();
+    await page
+      .getByLabel("Message Direct Acquisition")
+      .fill("This is the current fixture copy.");
+    await page.getByRole("button", { name: "Save copy comment" }).click();
+    await expect(
+      page.getByRole("region", { name: "Saved artifact comment" }),
+    ).toHaveCount(1);
+    await expect(
+      page.getByRole("button", { name: "Request a copy revision" }),
+    ).toHaveCount(0);
+    const saved = (await backend(page, `/api/sessions/${sid}`)).body;
+    expect(saved.review.approval).toBeNull();
+    expect(saved.copy_revisions).toHaveLength(0);
+    expect(saved.review.subject.id).toBe(refreshed.body.review.subject.id);
   });
 });
 

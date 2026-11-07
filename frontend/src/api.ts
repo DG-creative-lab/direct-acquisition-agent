@@ -290,7 +290,7 @@ export async function command<T = State>(
     !response.ok &&
     [400, 404, 409].includes(response.status) &&
     result.message_not_saved === true &&
-    /^\/api\/conversations\/[^/]+\/messages$/.test(path)
+    /^\/api\/conversations\/[^/]+\/(messages|artifact-comments)$/.test(path)
   ) {
     sessionStorage.removeItem(key);
     throw new MessageNotSavedError(

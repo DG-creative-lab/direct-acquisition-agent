@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowUpRight, Loader2, X } from "lucide-react";
 import { command, money, read } from "./api";
 import type { Act, Creative, State } from "./api";
-import { CopyLetters } from "./CampaignViews";
+import { AudienceView, CopyLetters } from "./CampaignViews";
 import ReviewPanel from "./ReviewPanel";
 import ConversationHandoff from "./ConversationHandoff";
 import ConversationFollowup from "./ConversationFollowup";
@@ -17,18 +17,56 @@ type Feedback = {
   text: string;
   consent: boolean;
 };
+export type ArtifactComment = {
+  session_id: string;
+  subject_id: string;
+  subject_revision: number;
+  target_id: string;
+  segment: string;
+  arm: string;
+  feedback?: string;
+};
+type ArtifactChoice = {
+  tab: "copy" | "audience";
+  creativeId: string;
+  subjectId: string;
+};
+function savedChoice(sessionId: string): ArtifactChoice {
+  try {
+    const value = JSON.parse(
+      localStorage.getItem("artifact-choice:" + sessionId) ?? "null",
+    );
+    if (
+      value &&
+      ["copy", "audience"].includes(value.tab) &&
+      typeof value.creativeId === "string" &&
+      typeof value.subjectId === "string"
+    )
+      return value;
+  } catch {
+    /* A missing preference starts with the current artifact. */
+  }
+  return { tab: "copy", creativeId: "", subjectId: "" };
+}
 export default function ConversationCampaignReview({
   sessionId,
   interactive,
   active,
   onOpenWorkspace,
+  artifactPane = false,
+  onComment,
+  feedbackRequest,
 }: {
   sessionId: string;
   interactive: boolean;
   active: boolean;
   onOpenWorkspace: (sessionId?: string) => void;
+  artifactPane?: boolean;
+  onComment?: (comment: ArtifactComment) => void;
+  feedbackRequest?: ArtifactComment | null;
 }) {
   const [state, setState] = useState<State | null>(null);
+  const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
@@ -36,6 +74,35 @@ export default function ConversationCampaignReview({
   const [showEvidence, setShowEvidence] = useState(false);
   const [reload, setReload] = useState(0);
   const epoch = useRef(0);
+  const handledFeedback = useRef<ArtifactComment | null>(null);
+  const [choice, setChoice] = useState(() => savedChoice(sessionId));
+  const selectArtifact = (value: ArtifactChoice) => {
+    localStorage.setItem("artifact-choice:" + sessionId, JSON.stringify(value));
+    setChoice(value);
+  };
+  useEffect(() => {
+    if (
+      !feedbackRequest ||
+      handledFeedback.current === feedbackRequest ||
+      !state?.review ||
+      feedbackRequest.session_id !== sessionId
+    )
+      return;
+    handledFeedback.current = feedbackRequest;
+    if (feedbackRequest.subject_id !== state.review.subject.id) {
+      setError(
+        "This comment belongs to an earlier revision. Open the current copy to request another edit.",
+      );
+      return;
+    }
+    setFeedback({
+      subject: feedbackRequest.subject_id,
+      target: feedbackRequest.target_id,
+      variants: state.review.manifest.creatives,
+      text: feedbackRequest.feedback ?? "",
+      consent: false,
+    });
+  }, [feedbackRequest, sessionId, state?.review?.subject.id]);
   const pending =
     state?.copy_revisions?.some((r) =>
       ["admitted", "queued", "running", "blocked"].includes(r.status),
@@ -43,13 +110,19 @@ export default function ConversationCampaignReview({
   useEffect(() => {
     const controller = new AbortController();
     const stamp = ++epoch.current;
+    setLoading(true);
     read<State>(`/api/sessions/${sessionId}`, controller.signal)
       .then((value) => {
-        if (stamp === epoch.current) setState(value);
+        if (stamp === epoch.current) {
+          setState(value);
+          setLoading(false);
+        }
       })
       .catch((e) => {
-        if (e.name !== "AbortError" && stamp === epoch.current)
+        if (e.name !== "AbortError" && stamp === epoch.current) {
           setError(e.message);
+          setLoading(false);
+        }
       });
     return () => controller.abort();
   }, [sessionId, reload]);
@@ -150,11 +223,19 @@ export default function ConversationCampaignReview({
   if (!state?.review)
     return <p role="status">{error || "Loading campaign review…"}</p>;
   const review = state.review;
+  const chosenCreative = review.manifest.creatives.find(
+    (c) => c.id === choice.creativeId,
+  );
+  const selectedCreative = chosenCreative ?? review.manifest.creatives[0];
+  const selectionChanged =
+    !!choice.subjectId && choice.subjectId !== review.subject.id;
   const alreadyRequested = state.copy_revisions?.some(
     (r) => r.base_subject_id === review.subject.id,
   );
   const canRevise =
     interactive &&
+    !loading &&
+    (!artifactPane || !selectionChanged) &&
     state.session.mode === "model" &&
     review.candidate_valid &&
     !review.handoff &&
@@ -180,10 +261,13 @@ export default function ConversationCampaignReview({
         </button>
         <button
           className="text-button"
-          disabled={busy}
-          onClick={() => setReload((n) => n + 1)}
+          disabled={busy || loading}
+          onClick={() => {
+            setLoading(true);
+            setReload((n) => n + 1);
+          }}
         >
-          Refresh review
+          {loading ? "Refreshing review…" : "Refresh review"}
         </button>
       </header>
       <dl className="chat-campaign-facts">
@@ -239,9 +323,113 @@ export default function ConversationCampaignReview({
           Snapshot: <code>{review.subject.snapshot_id}</code>
         </p>
       </details>
-      <div className="chat-review-copy">
-        <CopyLetters state={state} />
-      </div>
+      {artifactPane && (
+        <>
+          <div
+            className="artifact-tabs"
+            role="tablist"
+            aria-label="Campaign artifacts"
+          >
+            {(["copy", "audience"] as const).map((tab) => (
+              <button
+                key={tab}
+                role="tab"
+                id={"artifact-" + tab + "-tab"}
+                aria-controls={"artifact-" + tab + "-panel"}
+                aria-selected={choice.tab === tab}
+                onClick={() =>
+                  selectArtifact({
+                    ...choice,
+                    tab,
+                    creativeId: selectedCreative.id,
+                    subjectId: review.subject.id,
+                  })
+                }
+              >
+                {tab === "copy" ? "Creative copy" : "Audience"}
+              </button>
+            ))}
+          </div>
+          {selectionChanged && (
+            <p role="status">
+              A newer campaign revision is available.
+              <button
+                className="text-button"
+                onClick={() =>
+                  selectArtifact({
+                    ...choice,
+                    subjectId: review.subject.id,
+                    creativeId: selectedCreative.id,
+                  })
+                }
+              >
+                View current revision
+              </button>
+            </p>
+          )}
+          {!selectionChanged && choice.tab === "copy" && (
+            <div
+              id="artifact-copy-panel"
+              role="tabpanel"
+              aria-labelledby="artifact-copy-tab"
+            >
+              <label className="form-label" htmlFor="artifact-variant">
+                Copy variant
+              </label>
+              <select
+                id="artifact-variant"
+                value={selectedCreative.id}
+                onChange={(event) =>
+                  selectArtifact({
+                    ...choice,
+                    creativeId: event.target.value,
+                    subjectId: review.subject.id,
+                  })
+                }
+              >
+                {review.manifest.creatives.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {segmentName(c.segment)} · Variant {c.arm}
+                  </option>
+                ))}
+              </select>
+              <CopyLetters
+                state={state}
+                creativeId={selectedCreative.id}
+                onComment={
+                  interactive && !loading && !busy && onComment
+                    ? () =>
+                        onComment({
+                          session_id: sessionId,
+                          subject_id: review.subject.id,
+                          subject_revision: review.subject.revision,
+                          target_id: selectedCreative.id,
+                          segment: selectedCreative.segment,
+                          arm: selectedCreative.arm,
+                        })
+                    : undefined
+                }
+              />
+            </div>
+          )}
+          {!selectionChanged && choice.tab === "audience" && (
+            <AudienceView
+              key={review.subject.id}
+              state={state}
+              busy={busy}
+              act={act}
+              onError={setError}
+              readOnly={!interactive}
+              idPrefix="artifact-"
+            />
+          )}
+        </>
+      )}
+      {!artifactPane && (
+        <div className="chat-review-copy">
+          <CopyLetters state={state} />
+        </div>
+      )}
       {canRevise && (
         <button
           className="button secondary"
@@ -370,7 +558,7 @@ export default function ConversationCampaignReview({
       <ReviewPanel
         state={state}
         busy={busy}
-        readOnly={!interactive}
+        readOnly={!interactive || (artifactPane && selectionChanged)}
         act={act}
         error={error}
         onEvidence={() => setShowEvidence(true)}
@@ -379,7 +567,7 @@ export default function ConversationCampaignReview({
       <ConversationHandoff
         key={`handoff:${sessionId}`}
         state={state}
-        interactive={interactive}
+        interactive={interactive && (!artifactPane || !selectionChanged)}
         busy={busy}
         act={act}
         error={error}

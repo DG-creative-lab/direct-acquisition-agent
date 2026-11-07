@@ -22,7 +22,10 @@ import "./conversation.css";
 import ConversationActions, {
   type ConversationAction,
 } from "./ConversationActions";
-import ConversationCampaignReview from "./ConversationCampaignReview";
+import ConversationCampaignReview, {
+  type ArtifactComment,
+} from "./ConversationCampaignReview";
+import { segmentName } from "./ui";
 import ConversationExecution, { type Execution } from "./ConversationExecution";
 
 type Brief = {
@@ -132,6 +135,13 @@ const activePreparation = (status: string) =>
   ["admitting", "planning", "selecting_audience", "preparing"].includes(status);
 
 type Conversation = {
+  artifact_comments?: (ArtifactComment & {
+    request_id: string;
+    conversation_revision: number;
+    feedback: string;
+    copy_mode: string;
+    at: number;
+  })[];
   execution?: Execution;
   actions?: ConversationAction[];
   preparations?: Preparation[];
@@ -160,6 +170,7 @@ type Conversation = {
 };
 type ConversationSummary = { id: string; title: string; revision: number };
 type PendingMessage = {
+  artifact?: ArtifactComment;
   conversationId: string;
   expected_revision: number;
   content: string;
@@ -222,6 +233,20 @@ export default function ConversationWorkspace({
     () => localStorage.getItem("conversation-review-session") ?? "",
   );
   const [reviewRefresh, setReviewRefresh] = useState(0);
+  const [commentTarget, setCommentTarget] = useState<ArtifactComment | null>(
+    () => savedPendingMessage()?.artifact ?? null,
+  );
+  const [feedbackRequest, setFeedbackRequest] =
+    useState<ArtifactComment | null>(null);
+  const [mobileView, updateMobileView] = useState<"chat" | "artifacts">(() =>
+    localStorage.getItem("conversation-artifact-view") === "artifacts"
+      ? "artifacts"
+      : "chat",
+  );
+  const setMobileView = (value: "chat" | "artifacts") => {
+    localStorage.setItem("conversation-artifact-view", value);
+    updateMobileView(value);
+  };
   const epoch = useRef(0);
   const loadingConversation = !!selected && conversation?.id !== selected;
 
@@ -430,6 +455,7 @@ export default function ConversationWorkspace({
         content: message.trim(),
         allow_model_copy: allowModelCopy,
         route: current.revision > 0 && !current.execution?.stopped,
+        ...(commentTarget ? { artifact: commentTarget } : {}),
       };
       if (pending.conversationId !== current.id)
         throw new Error(
@@ -440,14 +466,22 @@ export default function ConversationWorkspace({
       let saved: Conversation;
       try {
         saved = await command<Conversation>(
-          `/api/conversations/${current.id}/${pending.route ? "actions" : "messages"}`,
-          {
-            expected_revision: pending.expected_revision,
-            content: pending.content,
-            ...(pending.route
-              ? { allow_model_copy: pending.allow_model_copy === true }
-              : {}),
-          },
+          `/api/conversations/${current.id}/${pending.artifact ? "artifact-comments" : pending.route ? "actions" : "messages"}`,
+          pending.artifact
+            ? {
+                expected_revision: pending.expected_revision,
+                session_id: pending.artifact.session_id,
+                expected_subject: pending.artifact.subject_id,
+                target_id: pending.artifact.target_id,
+                feedback: pending.content,
+              }
+            : {
+                expected_revision: pending.expected_revision,
+                content: pending.content,
+                ...(pending.route
+                  ? { allow_model_copy: pending.allow_model_copy === true }
+                  : {}),
+              },
         );
       } catch (error) {
         if (error instanceof MessageNotSavedError) {
@@ -456,11 +490,12 @@ export default function ConversationWorkspace({
         }
         throw error;
       }
-      if (pending.route) {
+      if (pending.route || pending.artifact) {
         sessionStorage.removeItem(pendingMessageKey);
         setPendingMessage(null);
         setMessage("");
         setAllowModelCopy(false);
+        setCommentTarget(null);
         accept(saved);
         return;
       }
@@ -590,15 +625,26 @@ export default function ConversationWorkspace({
     setSelected("");
     setConversation(null);
     setMessage("");
+    setCommentTarget(null);
+    setFeedbackRequest(null);
+    setMobileView("chat");
     localStorage.removeItem("conversation-selected");
     setError("");
   };
   const chooseConversation = (id: string) => {
     setSelected(id);
     setError("");
+    setCommentTarget(null);
+    setFeedbackRequest(null);
+    setMobileView("chat");
     onNavigate();
   };
   const hasMessages = Boolean(conversation?.messages.length);
+  const artifacts = conversation?.campaigns?.filter((c) => c.case_id) ?? [];
+  const artifactCampaign =
+    artifacts.find((c) => c.session_id === reviewing) ??
+    artifacts.find((c) => c.revision === conversation?.revision) ??
+    artifacts[0];
   return (
     <section
       className="conversation-workspace"
@@ -673,388 +719,518 @@ export default function ConversationWorkspace({
           </button>
         ))}
       </aside>
+      {artifactCampaign && (
+        <div className="artifact-mobile-toggle" aria-label="Conversation view">
+          <button
+            className={mobileView === "chat" ? "selected" : ""}
+            aria-pressed={mobileView === "chat"}
+            onClick={() => setMobileView("chat")}
+          >
+            Chat
+          </button>
+          <button
+            className={mobileView === "artifacts" ? "selected" : ""}
+            aria-pressed={mobileView === "artifacts"}
+            onClick={() => setMobileView("artifacts")}
+          >
+            Artifacts
+          </button>
+        </div>
+      )}
       <div
-        className={
-          hasMessages ? "conversation-main" : "conversation-main is-empty"
-        }
+        className={`conversation-surfaces ${artifactCampaign ? "has-artifacts" : ""} mobile-${mobileView}`}
       >
-        {!hasMessages && (
-          <div className="conversation-intro">
-            <h1>What would you like to prepare?</h1>
-            <p>Describe your audience, objective and budget.</p>
-          </div>
-        )}
-        <div className="conversation-thread" aria-live="polite">
-          {conversation?.execution && conversation.revision > 0 && (
-            <ConversationExecution<Conversation>
-              key={conversation.id}
-              id={conversation.id}
-              revision={conversation.revision}
-              execution={conversation.execution}
-              active={
-                preparing ||
-                !!conversation.preparations?.some(
-                  (p) => p.current && p.status === "blocked",
-                )
+        {artifactCampaign && (
+          <aside className="conversation-artifacts" aria-label="Artifact pane">
+            <div className="artifact-heading">
+              <h2>Campaign artifacts</h2>
+              <label className="sr-only" htmlFor="artifact-campaign">
+                Artifact campaign
+              </label>
+              <select
+                id="artifact-campaign"
+                value={artifactCampaign.session_id}
+                onChange={(event) => {
+                  setReviewing(event.target.value);
+                  localStorage.setItem(
+                    "conversation-review-session",
+                    event.target.value,
+                  );
+                  setFeedbackRequest(null);
+                }}
+              >
+                {artifacts.map((c) => (
+                  <option key={c.session_id} value={c.session_id}>
+                    Brief {c.revision}
+                    {c.revision === conversation?.revision
+                      ? " · Current"
+                      : " · Historical"}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <ConversationCampaignReview
+              key={`${artifactCampaign.session_id}:${reviewRefresh}`}
+              sessionId={artifactCampaign.session_id}
+              interactive={artifactCampaign.revision === conversation?.revision}
+              active={active}
+              artifactPane
+              feedbackRequest={feedbackRequest}
+              onComment={
+                busy || pendingMessage
+                  ? undefined
+                  : (target) => {
+                      setCommentTarget(target);
+                      setMobileView("chat");
+                      requestAnimationFrame(() =>
+                        document.getElementById("agent-message")?.focus(),
+                      );
+                    }
               }
-              onChanged={accept}
+              onOpenWorkspace={(target) =>
+                void openCampaign(target ?? artifactCampaign.session_id)
+              }
             />
-          )}
-          {conversation?.messages.map((item) => {
-            const plan = conversation.plans.find(
-              (p) => p.revision === item.revision,
-            );
-            const campaign = conversation.campaigns?.find(
-              (c) => c.plan_id === plan?.result?.id,
-            );
-            const preparation = conversation.preparations?.find(
-              (p) => p.inputs.revision === item.revision,
-            );
-            const coordinated =
-              preparation && activePreparation(preparation.status);
-            const generation = campaign?.generation;
-            const terminal =
-              generation &&
-              !coordinated &&
-              (["failed", "cancelled"].includes(generation.status) ||
-                generation.outcome_uncertain);
-            return (
-              <div className="conversation-turn" key={item.id}>
-                <div className="conversation-user">
-                  <span>You</span>
-                  <p>{item.content}</p>
-                </div>
-                {preparation && (
-                  <>
-                    <PreparationProgress preparation={preparation} />
-                    <AudienceChoice
-                      preparation={preparation}
-                      conversationId={conversation.id}
-                      disabled={!!busy || !!pendingMessage}
-                      onChanged={accept}
-                    />
-                  </>
-                )}
-                {plan && (
-                  <div className="conversation-agent">
-                    <div className="conversation-agent-label">
-                      <span className="agent-dot">
-                        <Check size={11} />
-                      </span>
-                      Direct Acquisition
-                      {!plan.current && <small>Earlier proposal</small>}
-                    </div>
-                    {plan.guidance && (
-                      <details className="planning-guidance">
-                        <summary>Inspect planning guidance</summary>
-                        <p>
-                          Frozen for this planning request. Advisory guidance
-                          does not grant approval.
-                        </p>
-                        <p>
-                          Snapshot: <code>{plan.guidance.id}</code>
-                        </p>
-                        <p>Catalogue: {plan.guidance.content.version}</p>
-                        {plan.guidance.content.procedures?.map((rule) => (
-                          <p key={rule}>{rule}</p>
-                        ))}
-                        {plan.guidance.content.playbooks && (
-                          <div>
-                            <p>
-                              Playbooks:{" "}
-                              {plan.guidance.content.playbooks.version}
-                            </p>
-                            {plan.guidance.content.playbooks.playbooks.map(
-                              (item) => (
-                                <p key={item.id}>
-                                  <strong>{item.title}</strong> ·{" "}
-                                  {item.guidance}
-                                </p>
-                              ),
-                            )}
-                          </div>
-                        )}
-                        <details>
-                          <summary>Complete saved snapshot</summary>
-                          <pre aria-label="Complete frozen planning guidance">
-                            {JSON.stringify(plan.guidance.content, null, 2)}
-                          </pre>
-                        </details>
-                      </details>
-                    )}
-                    {plan.status === "failed" ? (
-                      <p>
-                        Planning could not finish.{" "}
-                        {plan.error?.provider_error === "provider_http_401"
-                          ? "Check the OpenRouter key before starting a new request."
-                          : "Review the request and send a new message to continue."}
-                      </p>
-                    ) : !plan.result ? (
-                      <p>
-                        Planning is {plan.status}.{" "}
-                        {coordinated
-                          ? "The agent is continuing this request."
-                          : "Resume this request to continue."}
-                      </p>
-                    ) : plan.result.outcome === "clarification" ? (
-                      <p>{plan.result.question}</p>
-                    ) : plan.result.outcome === "unsupported" ? (
-                      <p>{plan.result.unsupported_reason}</p>
-                    ) : (
-                      <div className="brief-summary">
-                        <h3>Campaign brief</h3>
-                        <p>{plan.result.objective}</p>
-                        <dl>
-                          <div>
-                            <dt>Audience</dt>
-                            <dd>
-                              {plan.result.segments
-                                .map((s) =>
-                                  s === "contractors"
-                                    ? "Projects and contractors"
-                                    : "Stock and inventory",
-                                )
-                                .join(", ")}
-                            </dd>
-                          </div>
-                          <div>
-                            <dt>Budget</dt>
-                            <dd>{money(plan.result.budget_pence ?? 0)}</dd>
-                          </div>
-                          <div>
-                            <dt>Copy</dt>
-                            <dd>
-                              {plan.result.copy_mode === "fixture"
-                                ? "Offline fixtures"
-                                : "Model-generated"}
-                            </dd>
-                          </div>
-                        </dl>
-                        {campaign?.case_id ? (
-                          <button
-                            className="button primary"
-                            onClick={() => {
-                              setReviewing(campaign.session_id);
-                              localStorage.setItem(
-                                "conversation-review-session",
-                                campaign.session_id,
-                              );
-                            }}
-                            disabled={!!busy}
-                          >
-                            Review campaign <ArrowUpRight size={15} />
-                          </button>
-                        ) : terminal ? (
-                          <div className="generation-failure" role="status">
-                            <strong>
-                              {generation.outcome_uncertain
-                                ? "Generation outcome is uncertain"
-                                : `Campaign generation ${generation.status}`}
-                            </strong>
-                            <p>
-                              {generation.outcome_uncertain
-                                ? "The provider may have processed and charged for this request. Inspect the original run before requesting another generation."
-                                : generation.provider_error ===
-                                    "provider_http_401"
-                                  ? "OpenRouter rejected the API key (401). Update the server key, then send a new message to create a fresh proposal."
-                                  : generation.provider_error ===
-                                      "provider_outcome_unknown"
-                                    ? "The provider outcome is unknown. Inspect this run before explicitly requesting a new proposal."
-                                    : "This saved run cannot resume. Inspect the failure, then send a new message to create a fresh proposal."}
-                            </p>
-                            <details>
-                              <summary>Inspect generation run</summary>
-                              <p>
-                                Run: <code>{generation.run_id}</code>
-                              </p>
-                              <p>Status: {generation.status}</p>
-                              {generation.provider_error && (
-                                <p>Provider: {generation.provider_error}</p>
-                              )}
-                              {generation.failed_tasks.map((task) => (
-                                <p key={task.capability}>
-                                  {task.capability}: {task.error_code}
-                                </p>
-                              ))}
-                              {generation.unresolved_calls?.map((call) => (
-                                <p key={call.key}>
-                                  Unresolved call: <code>{call.key}</code> (
-                                  {call.status})
-                                </p>
-                              ))}
-                            </details>
-                          </div>
-                        ) : (
-                          plan.current &&
-                          !coordinated &&
-                          !preparation && (
-                            <button
-                              className="button secondary"
-                              onClick={() => prepare(plan)}
-                              disabled={!!busy}
-                            >
-                              {campaign
-                                ? "Resume campaign preparation"
-                                : plan.result.copy_mode === "model"
-                                  ? "Generate campaign copy"
-                                  : "Prepare campaign"}
-                            </button>
-                          )
-                        )}
-                        {plan.result.copy_mode === "model" &&
-                          !campaign?.case_id &&
-                          !terminal &&
-                          !coordinated && (
-                            <small>
-                              Uses OpenRouter credit to generate and screen copy
-                              for the selected audience.
-                            </small>
-                          )}
-                        <small>
-                          {campaign?.case_id
-                            ? "Unapproved synthetic draft. No mail is sent."
-                            : terminal
-                              ? "No reviewable campaign was created."
-                              : coordinated
-                                ? "Preparation is in progress. No approval has been granted."
-                                : "Brief proposal. No campaign has been generated yet."}
-                        </small>
-                      </div>
-                    )}
-                    {campaign?.case_id && reviewing === campaign.session_id && (
-                      <ConversationCampaignReview
-                        key={`${campaign.session_id}:${reviewRefresh}`}
-                        sessionId={campaign.session_id}
-                        interactive={plan.current}
-                        active={active}
-                        onOpenWorkspace={(targetId) =>
-                          void openCampaign(targetId ?? campaign.session_id)
-                        }
-                      />
-                    )}
-                  </div>
-                )}
-                <ConversationActions<Conversation>
-                  actions={(conversation.actions ?? []).filter(
-                    (a) => a.revision === item.revision,
-                  )}
-                  conversationId={conversation.id}
-                  disabled={
-                    !!busy ||
-                    !!pendingMessage ||
-                    !!conversation.execution?.stopped ||
-                    conversation.execution?.remaining === 0
-                  }
-                  onChanged={accept}
-                  onReview={(sessionId) => {
-                    setReviewing(sessionId);
-                    localStorage.setItem(
-                      "conversation-review-session",
-                      sessionId,
-                    );
-                    setReviewRefresh((value) => value + 1);
-                  }}
-                />
-              </div>
-            );
-          })}
-          {busy && (
-            <div className="conversation-progress" role="status">
-              <Loader2 className="spin" size={16} />
-              {busy}…
+          </aside>
+        )}
+        <div
+          className={
+            hasMessages ? "conversation-main" : "conversation-main is-empty"
+          }
+        >
+          {!hasMessages && (
+            <div className="conversation-intro">
+              <h1>What would you like to prepare?</h1>
+              <p>Describe your audience, objective and budget.</p>
             </div>
           )}
-          {error && (
-            <p className="conversation-error" role="alert">
-              {error}
+          <div className="conversation-thread" aria-live="polite">
+            {conversation?.execution && conversation.revision > 0 && (
+              <ConversationExecution<Conversation>
+                key={conversation.id}
+                id={conversation.id}
+                revision={conversation.revision}
+                execution={conversation.execution}
+                active={
+                  preparing ||
+                  !!conversation.preparations?.some(
+                    (p) => p.current && p.status === "blocked",
+                  )
+                }
+                onChanged={accept}
+              />
+            )}
+            {conversation?.messages.map((item) => {
+              const plan = conversation.plans.find(
+                (p) => p.revision === item.revision,
+              );
+              const campaign = conversation.campaigns?.find(
+                (c) => c.plan_id === plan?.result?.id,
+              );
+              const preparation = conversation.preparations?.find(
+                (p) => p.inputs.revision === item.revision,
+              );
+              const coordinated =
+                preparation && activePreparation(preparation.status);
+              const generation = campaign?.generation;
+              const terminal =
+                generation &&
+                !coordinated &&
+                (["failed", "cancelled"].includes(generation.status) ||
+                  generation.outcome_uncertain);
+              return (
+                <div className="conversation-turn" key={item.id}>
+                  <div className="conversation-user">
+                    <span>You</span>
+                    <p>{item.content}</p>
+                  </div>
+                  {preparation && (
+                    <>
+                      <PreparationProgress preparation={preparation} />
+                      <AudienceChoice
+                        preparation={preparation}
+                        conversationId={conversation.id}
+                        disabled={!!busy || !!pendingMessage}
+                        onChanged={accept}
+                      />
+                    </>
+                  )}
+                  {plan && (
+                    <div className="conversation-agent">
+                      <div className="conversation-agent-label">
+                        <span className="agent-dot">
+                          <Check size={11} />
+                        </span>
+                        Direct Acquisition
+                        {!plan.current && <small>Earlier proposal</small>}
+                      </div>
+                      {plan.guidance && (
+                        <details className="planning-guidance">
+                          <summary>Inspect planning guidance</summary>
+                          <p>
+                            Frozen for this planning request. Advisory guidance
+                            does not grant approval.
+                          </p>
+                          <p>
+                            Snapshot: <code>{plan.guidance.id}</code>
+                          </p>
+                          <p>Catalogue: {plan.guidance.content.version}</p>
+                          {plan.guidance.content.procedures?.map((rule) => (
+                            <p key={rule}>{rule}</p>
+                          ))}
+                          {plan.guidance.content.playbooks && (
+                            <div>
+                              <p>
+                                Playbooks:{" "}
+                                {plan.guidance.content.playbooks.version}
+                              </p>
+                              {plan.guidance.content.playbooks.playbooks.map(
+                                (item) => (
+                                  <p key={item.id}>
+                                    <strong>{item.title}</strong> ·{" "}
+                                    {item.guidance}
+                                  </p>
+                                ),
+                              )}
+                            </div>
+                          )}
+                          <details>
+                            <summary>Complete saved snapshot</summary>
+                            <pre aria-label="Complete frozen planning guidance">
+                              {JSON.stringify(plan.guidance.content, null, 2)}
+                            </pre>
+                          </details>
+                        </details>
+                      )}
+                      {plan.status === "failed" ? (
+                        <p>
+                          Planning could not finish.{" "}
+                          {plan.error?.provider_error === "provider_http_401"
+                            ? "Check the OpenRouter key before starting a new request."
+                            : "Review the request and send a new message to continue."}
+                        </p>
+                      ) : !plan.result ? (
+                        <p>
+                          Planning is {plan.status}.{" "}
+                          {coordinated
+                            ? "The agent is continuing this request."
+                            : "Resume this request to continue."}
+                        </p>
+                      ) : plan.result.outcome === "clarification" ? (
+                        <p>{plan.result.question}</p>
+                      ) : plan.result.outcome === "unsupported" ? (
+                        <p>{plan.result.unsupported_reason}</p>
+                      ) : (
+                        <div className="brief-summary">
+                          <h3>Campaign brief</h3>
+                          <p>{plan.result.objective}</p>
+                          <dl>
+                            <div>
+                              <dt>Audience</dt>
+                              <dd>
+                                {plan.result.segments
+                                  .map((s) =>
+                                    s === "contractors"
+                                      ? "Projects and contractors"
+                                      : "Stock and inventory",
+                                  )
+                                  .join(", ")}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt>Budget</dt>
+                              <dd>{money(plan.result.budget_pence ?? 0)}</dd>
+                            </div>
+                            <div>
+                              <dt>Copy</dt>
+                              <dd>
+                                {plan.result.copy_mode === "fixture"
+                                  ? "Offline fixtures"
+                                  : "Model-generated"}
+                              </dd>
+                            </div>
+                          </dl>
+                          {campaign?.case_id ? (
+                            <button
+                              className="button primary"
+                              onClick={() => {
+                                setReviewing(campaign.session_id);
+                                setMobileView("artifacts");
+                                setFeedbackRequest(null);
+                                localStorage.setItem(
+                                  "conversation-review-session",
+                                  campaign.session_id,
+                                );
+                              }}
+                              disabled={!!busy}
+                            >
+                              Review campaign <ArrowUpRight size={15} />
+                            </button>
+                          ) : terminal ? (
+                            <div className="generation-failure" role="status">
+                              <strong>
+                                {generation.outcome_uncertain
+                                  ? "Generation outcome is uncertain"
+                                  : `Campaign generation ${generation.status}`}
+                              </strong>
+                              <p>
+                                {generation.outcome_uncertain
+                                  ? "The provider may have processed and charged for this request. Inspect the original run before requesting another generation."
+                                  : generation.provider_error ===
+                                      "provider_http_401"
+                                    ? "OpenRouter rejected the API key (401). Update the server key, then send a new message to create a fresh proposal."
+                                    : generation.provider_error ===
+                                        "provider_outcome_unknown"
+                                      ? "The provider outcome is unknown. Inspect this run before explicitly requesting a new proposal."
+                                      : "This saved run cannot resume. Inspect the failure, then send a new message to create a fresh proposal."}
+                              </p>
+                              <details>
+                                <summary>Inspect generation run</summary>
+                                <p>
+                                  Run: <code>{generation.run_id}</code>
+                                </p>
+                                <p>Status: {generation.status}</p>
+                                {generation.provider_error && (
+                                  <p>Provider: {generation.provider_error}</p>
+                                )}
+                                {generation.failed_tasks.map((task) => (
+                                  <p key={task.capability}>
+                                    {task.capability}: {task.error_code}
+                                  </p>
+                                ))}
+                                {generation.unresolved_calls?.map((call) => (
+                                  <p key={call.key}>
+                                    Unresolved call: <code>{call.key}</code> (
+                                    {call.status})
+                                  </p>
+                                ))}
+                              </details>
+                            </div>
+                          ) : (
+                            plan.current &&
+                            !coordinated &&
+                            !preparation && (
+                              <button
+                                className="button secondary"
+                                onClick={() => prepare(plan)}
+                                disabled={!!busy}
+                              >
+                                {campaign
+                                  ? "Resume campaign preparation"
+                                  : plan.result.copy_mode === "model"
+                                    ? "Generate campaign copy"
+                                    : "Prepare campaign"}
+                              </button>
+                            )
+                          )}
+                          {plan.result.copy_mode === "model" &&
+                            !campaign?.case_id &&
+                            !terminal &&
+                            !coordinated && (
+                              <small>
+                                Uses OpenRouter credit to generate and screen
+                                copy for the selected audience.
+                              </small>
+                            )}
+                          <small>
+                            {campaign?.case_id
+                              ? "Unapproved synthetic draft. No mail is sent."
+                              : terminal
+                                ? "No reviewable campaign was created."
+                                : coordinated
+                                  ? "Preparation is in progress. No approval has been granted."
+                                  : "Brief proposal. No campaign has been generated yet."}
+                          </small>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <ConversationActions<Conversation>
+                    actions={(conversation.actions ?? []).filter(
+                      (a) => a.revision === item.revision,
+                    )}
+                    conversationId={conversation.id}
+                    disabled={
+                      !!busy ||
+                      !!pendingMessage ||
+                      !!conversation.execution?.stopped ||
+                      conversation.execution?.remaining === 0
+                    }
+                    onChanged={accept}
+                    onReview={(sessionId) => {
+                      setReviewing(sessionId);
+                      setMobileView("artifacts");
+                      setFeedbackRequest(null);
+                      localStorage.setItem(
+                        "conversation-review-session",
+                        sessionId,
+                      );
+                      setReviewRefresh((value) => value + 1);
+                    }}
+                  />
+                </div>
+              );
+            })}
+            {(conversation?.artifact_comments ?? [])
+              .sort((a, b) => a.at - b.at)
+              .map((comment) => (
+                <section
+                  className="artifact-comment"
+                  aria-label="Saved artifact comment"
+                  key={comment.session_id + ":" + comment.request_id}
+                >
+                  <div className="conversation-user">
+                    <span>
+                      You · {segmentName(comment.segment)} · Variant{" "}
+                      {comment.arm} · Revision {comment.subject_revision}
+                    </span>
+                    <p>{comment.feedback}</p>
+                  </div>
+                  <p>Comment saved for this copy variant.</p>
+                  {comment.copy_mode === "model" && (
+                    <button
+                      className="text-button"
+                      disabled={
+                        !!busy ||
+                        !!pendingMessage ||
+                        conversation?.revision !==
+                          comment.conversation_revision ||
+                        !!conversation?.execution?.stopped
+                      }
+                      onClick={() => {
+                        setReviewing(comment.session_id);
+                        setFeedbackRequest({ ...comment });
+                        setMobileView("artifacts");
+                      }}
+                    >
+                      Request a copy revision
+                    </button>
+                  )}
+                </section>
+              ))}
+            {busy && (
+              <div className="conversation-progress" role="status">
+                <Loader2 className="spin" size={16} />
+                {busy}…
+              </div>
+            )}
+            {error && (
+              <p className="conversation-error" role="alert">
+                {error}
+              </p>
+            )}
+            {!pendingMessage &&
+            conversation?.messages.length &&
+            !busy &&
+            !preparing &&
+            (preparationIntent?.conversationId === conversation.id ||
+              !conversation.current_plan ||
+              ["queued", "running", "admitted"].includes(
+                conversation.current_plan.status,
+              )) ? (
+              <button
+                className="text-button conversation-resume"
+                onClick={resume}
+              >
+                {preparationIntent?.conversationId === conversation.id
+                  ? "Resume preparation"
+                  : "Resume planning"}
+              </button>
+            ) : null}
+          </div>
+          <form
+            className="conversation-compose"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void send();
+            }}
+          >
+            {commentTarget && (
+              <div className="artifact-comment-target" role="status">
+                <span>
+                  Commenting on {segmentName(commentTarget.segment)} · Variant{" "}
+                  {commentTarget.arm} · Revision{" "}
+                  {commentTarget.subject_revision}
+                </span>
+                <button
+                  type="button"
+                  className="text-button"
+                  disabled={!!busy || !!pendingMessage}
+                  onClick={() => setCommentTarget(null)}
+                >
+                  Remove reference
+                </button>
+              </div>
+            )}
+            <label className="conversation-input-label" htmlFor="agent-message">
+              Message Direct Acquisition
+            </label>
+            <div>
+              <textarea
+                id="agent-message"
+                value={message}
+                onChange={(event) => setMessage(event.target.value)}
+                placeholder="Describe the audience, objective and budget"
+                maxLength={commentTarget ? 500 : 2000}
+                disabled={!!busy || !!pendingMessage || loadingConversation}
+                rows={2}
+              />
+              <button
+                type="submit"
+                className="conversation-send"
+                aria-label={
+                  pendingMessage
+                    ? "Retry saving message"
+                    : commentTarget
+                      ? "Save copy comment"
+                      : "Send to agent"
+                }
+                disabled={
+                  !!busy ||
+                  loadingConversation ||
+                  (!message.trim() && !pendingMessage) ||
+                  (!!pendingMessage && !conversation)
+                }
+              >
+                <Send size={18} />
+              </button>
+            </div>
+            {!commentTarget && (
+              <label className="conversation-consent">
+                <input
+                  type="checkbox"
+                  checked={allowModelCopy}
+                  disabled={!!busy || !!pendingMessage}
+                  onChange={(event) => setAllowModelCopy(event.target.checked)}
+                />
+                Allow model copy for this request
+              </label>
+            )}
+            <p>
+              {commentTarget
+                ? "Your comment is saved against this exact variant. Request a revision separately to generate new copy."
+                : pendingMessage
+                  ? "The last message needs confirmation. Retry saving it before continuing."
+                  : loadingConversation
+                    ? "Loading your saved conversation."
+                    : "First requests allow up to 2 planning calls. Follow-ups may use 1 routing call. Brief changes need confirmation; copy revisions ask for separate permission for up to 5 calls. If allowed, campaign copy adds up to 10 calls. Approval is separate."}
             </p>
+          </form>
+          {!hasMessages && (
+            <div className="conversation-starters">
+              <button
+                className="conversation-example"
+                disabled={!!busy || !!pendingMessage}
+                onClick={startExample}
+              >
+                <span>
+                  Try the offline example <ArrowUpRight size={14} />
+                </span>
+                <small>Contractors · £600 · no model calls</small>
+              </button>
+            </div>
           )}
-          {!pendingMessage &&
-          conversation?.messages.length &&
-          !busy &&
-          !preparing &&
-          (preparationIntent?.conversationId === conversation.id ||
-            !conversation.current_plan ||
-            ["queued", "running", "admitted"].includes(
-              conversation.current_plan.status,
-            )) ? (
-            <button
-              className="text-button conversation-resume"
-              onClick={resume}
-            >
-              {preparationIntent?.conversationId === conversation.id
-                ? "Resume preparation"
-                : "Resume planning"}
-            </button>
-          ) : null}
         </div>
-        <form
-          className="conversation-compose"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void send();
-          }}
-        >
-          <label className="conversation-input-label" htmlFor="agent-message">
-            Message Direct Acquisition
-          </label>
-          <div>
-            <textarea
-              id="agent-message"
-              value={message}
-              onChange={(event) => setMessage(event.target.value)}
-              placeholder="Describe the audience, objective and budget"
-              maxLength={2000}
-              disabled={!!busy || !!pendingMessage || loadingConversation}
-              rows={2}
-            />
-            <button
-              type="submit"
-              className="conversation-send"
-              aria-label={
-                pendingMessage ? "Retry saving message" : "Send to agent"
-              }
-              disabled={
-                !!busy ||
-                loadingConversation ||
-                (!message.trim() && !pendingMessage) ||
-                (!!pendingMessage && !conversation)
-              }
-            >
-              <Send size={18} />
-            </button>
-          </div>
-          <label className="conversation-consent">
-            <input
-              type="checkbox"
-              checked={allowModelCopy}
-              disabled={!!busy || !!pendingMessage}
-              onChange={(event) => setAllowModelCopy(event.target.checked)}
-            />
-            Allow model copy for this request
-          </label>
-          <p>
-            {pendingMessage
-              ? "The last message needs confirmation. Retry saving it before continuing."
-              : loadingConversation
-                ? "Loading your saved conversation."
-                : "First requests allow up to 2 planning calls. Follow-ups may use 1 routing call. Brief changes need confirmation; copy revisions ask for separate permission for up to 5 calls. If allowed, campaign copy adds up to 10 calls. Approval is separate."}
-          </p>
-        </form>
-        {!hasMessages && (
-          <div className="conversation-starters">
-            <button
-              className="conversation-example"
-              disabled={!!busy || !!pendingMessage}
-              onClick={startExample}
-            >
-              <span>
-                Try the offline example <ArrowUpRight size={14} />
-              </span>
-              <small>Contractors · £600 · no model calls</small>
-            </button>
-          </div>
-        )}
       </div>
     </section>
   );
