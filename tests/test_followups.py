@@ -100,6 +100,10 @@ class FollowupTests(unittest.TestCase):
                 hypothesis = next(h for h in p['hypotheses'] if h['segment'] == segment)
                 self.assertEqual(context['audience_summary']['followup_hypothesis'], hypothesis)
                 self.assertIn(hypothesis['evidence_id'], canonical(model.copy.requests))
+                source = next(c for c in self.parent['review']['manifest']['creatives']
+                              if c['id'] == hypothesis['candidate']['creative_id'])
+                self.assertEqual(hypothesis['candidate'].get('hook'), source['opening'])
+                self.assertIn(source['opening'], canonical(model.copy.requests))
                 goal = next(json.loads(r['messages'][1]['content'])['goal'] for r in model.copy.requests
                             if r['tools'][0]['function']['name'] == 'read_editorial_context'
                             and json.loads(r['messages'][1]['content'])['segment'] == segment)
@@ -219,6 +223,122 @@ print(json.dumps(s['session']))
         self.assertTrue(child['review']['candidate_valid'])
         self.assertFalse(child['review']['approval_valid'])
         self.assertEqual(app.followups.get(self.scope, historical['id']), historical)
+
+    def test_finalized_source_outcomes_are_reconciled_before_context_creation_and_again_at_commit(self):
+        import copy
+        p = self.finalized()
+        app = self.w._app(self.w._session(self.sid))
+        database = app.tasks.database
+        with database.connect() as db:
+            rows = [tuple(r) for r in db.execute('SELECT * FROM learning_outcomes WHERE organization=? AND cohort_id=?',
+                                                (self.scope, self.cohort))]
+            members = [tuple(r) for r in db.execute('SELECT * FROM learning_members WHERE organization=? AND cohort_id=?',
+                                                   (self.scope, self.cohort))]
+            commands = db.execute('SELECT count(*) FROM review_commands').fetchone()[0]
+            contexts = db.execute('SELECT count(*) FROM creative_contexts').fetchone()[0]
+        selected = next(row for row in rows if json.loads(row[3])['response'])
+        original = json.loads(selected[3])
+        variants = {
+            'response': original | {'response': False, 'observed_at': p['learning']['cohort']['window_end']},
+            'time': original | {'observed_at': p['learning']['cohort']['window_start'] + 1},
+            'assignment': original | {'creative_id': 'substituted-assignment'},
+        }
+        for name in (*variants, 'missing', 'replacement', 'membership'):
+            with self.subTest(name=name):
+                with database.transaction() as db:
+                    if name in variants:
+                        db.execute('UPDATE learning_outcomes SET payload=? WHERE organization=? AND cohort_id=? AND business_id=?',
+                                   (canonical(variants[name]), self.scope, self.cohort, selected[2]))
+                    elif name == 'membership':
+                        db.execute('DELETE FROM learning_members WHERE organization=? AND business_id=?', (self.scope, selected[2]))
+                    else:
+                        db.execute('DELETE FROM learning_outcomes WHERE organization=? AND cohort_id=? AND business_id=?',
+                                   (self.scope, self.cohort, selected[2]))
+                        if name == 'replacement':
+                            db.execute('INSERT INTO learning_outcomes VALUES(?,?,?,?)',
+                                       (self.scope, self.cohort, 'outside-cohort', canonical(original | {'business_id': 'outside-cohort'})))
+                with self.assertRaises(Conflict):
+                    self.w.propose_followup(self.sid, 'corrupt-source-' + name, self.cohort)
+                with self.assertRaises(Conflict):
+                    app.followups.put(self.scope, 'commit-race-' + name, copy.deepcopy(p))
+                with database.connect() as db:
+                    self.assertEqual(db.execute('SELECT count(*) FROM review_commands').fetchone()[0], commands)
+                    self.assertEqual(db.execute('SELECT count(*) FROM creative_contexts').fetchone()[0], contexts)
+                with database.transaction() as db:
+                    db.execute('DELETE FROM learning_outcomes WHERE organization=? AND cohort_id=?', (self.scope, self.cohort))
+                    db.executemany('INSERT INTO learning_outcomes VALUES(?,?,?,?)', rows)
+                    db.execute('DELETE FROM learning_members WHERE organization=? AND cohort_id=?', (self.scope, self.cohort))
+                    db.executemany('INSERT INTO learning_members VALUES(?,?,?)', members)
+        repaired = self.w.propose_followup(self.sid, 'reconciled-source', self.cohort)
+        self.assertEqual(repaired['hypotheses'], p['hypotheses'])
+        self.assertEqual(app.followups.get(self.scope, p['id']), p)
+
+    def test_context_snapshot_identity_version_and_population_counts_bind_the_proposal(self):
+        import copy
+        from dataclasses import replace
+        from acquisition.bootstrap import copy_assets
+        from acquisition.creative import validate_copy_assets
+        p = self.finalized()
+        app = self.w._app(self.w._session(self.sid))
+        segment = p['brief']['segments'][0]
+        snapshot = app.audiences.get(self.scope, p['snapshot_id'])
+        another = replace(snapshot, records=snapshot.records[:-1])
+        another_id = app.audiences.put(another)
+        hypotheses = {h['segment']: h for h in p['hypotheses']}
+        context_ids = app.followup_contexts(self.scope, another, tuple(p['brief']['segments']), p['memory'], hypotheses)
+        # This is a fully valid context for another real snapshot, not a broken
+        # content hash or a substituted hypothesis.
+        other_context = app.memory.get_context(self.scope, context_ids[segment])
+        validate_copy_assets(other_context, self.scope)
+        with self.assertRaises(Conflict):
+            app.followups.put(self.scope, 'other-snapshot', p | {'contexts': context_ids})
+        original = app.memory.get_context(self.scope, p['contexts'][segment])
+        for field, value in (('snapshot_id', another_id), ('model_version', 'other-model'),
+                             ('input_records', original['audience_summary']['input_records'] + 1)):
+            with self.subTest(field=field):
+                context = copy.deepcopy(original)
+                context['audience_summary'][field] = value
+                context = copy_assets(self.scope, context)
+                validate_copy_assets(context, self.scope)
+                cid = app.memory.put_context(self.scope, context)
+                with self.assertRaises(Conflict):
+                    app.followups.put(self.scope, 'wrong-' + field, p | {'contexts': p['contexts'] | {segment: cid}})
+        self.assertEqual(self.w.propose_followup(self.sid, 'correct-snapshot', self.cohort)['contexts'], p['contexts'])
+
+    def test_grounded_source_hook_uses_its_original_context_after_product_evidence_changes(self):
+        import copy
+        from acquisition.creative.grounding import editorial_read_exchange
+        from acquisition.creative import fact_pack_id
+        from acquisition.reviews import ReviewPolicy
+        model = RevisionModel()
+        with patch('acquisition.workspace.openrouter_key', return_value='fake'), patch('acquisition.workspace.OpenRouter', return_value=model):
+            source = self.w.create('grounded-hook-source', 'model')
+        sid = source['session']['id']
+        approved = self.w.action(sid, 'approve', {'request_id': 'hook-review', 'subject_id': source['review']['subject']['id'], 'reason': 'Reviewed original source.'})
+        self.w.action(sid, 'handoff', {'request_id': 'hook-accept', 'approval_id': approved['review']['approval']['id']})
+        opened = self.w.action(sid, 'open-learning', {'request_id': 'hook-open'})
+        self.w.action(sid, 'finalize', {'request_id': 'hook-final'})
+        session = self.w._session(sid)
+        app = self.w._app(session)
+        original_pack = app.reviews.store.evidence(session['organization'])['pack']
+        updated_pack = copy.deepcopy(original_pack)
+        updated_pack['cta'] = 'Explore the currently reviewed product page.'
+        app.reviews.store.activate(session['organization'], 'local-operator', 'new-hook-facts', updated_pack, ReviewPolicy())
+        p = self.w.propose_followup(sid, 'grounded-hook-proposal', opened['learning']['cohort']['id'])
+        strong = [h for h in p['hypotheses'] if h['evidence_status'] == 'strong']
+        self.assertTrue(strong)
+        for hypothesis in strong:
+            creative = next(c for c in source['review']['manifest']['creatives'] if c['id'] == hypothesis['candidate']['creative_id'])
+            hook = hypothesis['candidate']['hook']
+            self.assertTrue(creative['opening'].startswith(hook))
+            self.assertNotIn(original_pack['cta'], hook)
+            context = app.memory.get_context(session['organization'], p['contexts'][hypothesis['segment']])
+            wire = canonical(editorial_read_exchange(context, fact_pack_id(updated_pack)))
+            self.assertIn(hook, wire)
+            self.assertIn(updated_pack['cta'], wire)
+            self.assertNotIn(original_pack['cta'], wire)
+            self.assertEqual(context['audience_summary']['followup_hypothesis']['candidate']['hook'], hook)
+        self.assertEqual(len(model.copy.requests), 6)
 
     def test_complete_zero_response_cohort_remains_weak_in_real_sqlite(self):
         self.accept()

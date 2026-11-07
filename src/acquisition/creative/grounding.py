@@ -6,7 +6,7 @@ import unicodedata
 from datetime import date
 from urllib.parse import urlparse
 
-from acquisition.contracts import canonical, digest
+from acquisition.contracts import Conflict, canonical, digest
 from acquisition.reasoning import CallScope, Inference, ModelError, tool_contract, validate_assets
 
 from .application import READ, tool
@@ -185,6 +185,25 @@ def bounded_tool(template: dict, values: dict[str, list[str]]) -> dict:
 def product_suffix(pack: dict, fact_id: str) -> str:
     fact = next(f for f in pack["facts"] if f["id"] == fact_id)
     return " " + " ".join((fact["copy"], fact["qualification"], pack["required_qualification"], pack["cta"]))
+
+
+def historical_hook(creative: dict, context: dict | None = None) -> str:
+    """Read original framing without promoting its old product block to evidence."""
+    opening = creative['opening']
+    if type(opening) is not str or not opening.strip():
+        raise Conflict('The source creative has no recorded hook')
+    if creative.get('fact_pack_id'):
+        if (not context or context.get('segment') != creative['segment']
+                or fact_pack_id(context['product_facts']) != creative['fact_pack_id']):
+            raise Conflict('The source creative differs from its frozen product context')
+        try:
+            suffix = product_suffix(context['product_facts'], creative['fact_id'])
+        except StopIteration:
+            raise Conflict('The source creative fact is absent from its frozen context') from None
+        if not opening.endswith(suffix) or not opening[:-len(suffix)].strip():
+            raise Conflict('The source creative product suffix differs from its frozen context')
+        return opening[:-len(suffix)]
+    return opening
 
 
 def claim_screen_request(items: list[dict], context: dict) -> tuple[list[dict], list[dict]]:

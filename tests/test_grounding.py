@@ -1,13 +1,13 @@
 import json
 import tempfile
 import unittest
-from dataclasses import replace
+from dataclasses import asdict, replace
 from datetime import date
 from pathlib import Path
 
 from acquisition.bootstrap import build
 from acquisition.contracts import Conflict, canonical
-from acquisition.creative import fact_pack_id, validate_fact_pack, validate_grounded_catalogue
+from acquisition.creative import fact_pack_id, validate_fact_pack, validate_grounded_catalogue, historical_hook
 from acquisition.creative.grounding import validate_framing
 from acquisition.reasoning import ModelConfig, ModelError
 from test_model_copy import FakeModel, reply
@@ -69,6 +69,17 @@ class GroundingTests(unittest.TestCase):
         for today in (date(2026, 10, 24), date(2026, 11, 25)):
             with self.assertRaises(ValueError):
                 validate_fact_pack(original, today)
+
+    def test_historical_hook_preserves_exact_framing_without_the_old_grounded_product_block(self):
+        creative = self.catalogue()[0]
+        record = asdict(creative)
+        expected = 'If you are considering your next stock purchase, what timing might suit your plans?'
+        self.assertEqual(historical_hook(record, self.context), expected)
+        self.assertNotIn(self.context['product_facts']['cta'], historical_hook(record, self.context))
+        with self.assertRaises(Conflict): historical_hook(record)
+        with self.assertRaises(Conflict): historical_hook(record | {'opening': creative.opening + ' Changed.'}, self.context)
+        changed = self.context | {'product_facts': self.context['product_facts'] | {'cta': 'Substituted product text.'}}
+        with self.assertRaises(Conflict): historical_hook(record, changed)
 
     def test_generated_product_and_outcome_claims_are_blocked_before_semantic_screen(self):
         invalid = ["A tailored solution for project costs.", "A flexible option for your stock order.",

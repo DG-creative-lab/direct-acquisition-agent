@@ -1239,6 +1239,7 @@ test("finalized chat proposes a frozen disjoint next campaign requiring fresh ap
     await expect(evidenceRegion).toContainText("Synthetic source outcomes");
     await evidenceRegion.getByText(/Evidence and uncertainty for/).click();
     await expect(evidenceRegion).toContainText(p.source_cohort);
+    await expect(evidenceRegion).toContainText(hypothesis.candidate.hook);
     await expect(evidenceRegion).toContainText("zero observed outcomes");
     await evidenceRegion
       .getByText(/Evidence and uncertainty for/)

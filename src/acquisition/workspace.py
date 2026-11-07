@@ -22,7 +22,7 @@ from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.local_root import require_live_root
 from acquisition.learning import identifier
 from acquisition.reasoning import ModelConfig
-from acquisition.creative import validate_fact_pack, fixture_catalog
+from acquisition.creative import validate_fact_pack, fixture_catalog, historical_hook
 from acquisition.learning import followup_hypotheses
 from acquisition.campaigns import FollowupBrief, build_draft, brief_from
 from dataclasses import replace, asdict
@@ -971,7 +971,7 @@ class Workspace:
                 pass
             if parent["cohort_id"] != cohort_id:
                 raise Conflict("Select the displayed source cohort")
-            source = app.learning.store.view(scope, cohort_id)
+            source = app.learning.store.hypothesis_source(scope, cohort_id)
             if source["status"] != "finalized":
                 raise Conflict("Finalize complete mature learning before proposing a follow-up")
             view = app.reviews.store.view(scope, parent["case_id"])
@@ -979,7 +979,9 @@ class Workspace:
             if source['cohort']['case_id'] != parent['case_id']:
                 raise Conflict('Source learning belongs to another campaign')
             source_draft = app.drafts.get(scope, source['cohort']['draft_id'])
-            hypotheses = followup_hypotheses(scope, source, source_draft.manifest['creatives'], segments)
+            source_creatives = [c | {'hook': historical_hook(c, app.memory.get_context(scope, c['context_id'])
+                                if c.get('fact_pack_id') else None)} for c in source_draft.manifest['creatives']]
+            hypotheses = followup_hypotheses(scope, source, source_creatives, segments)
             budget = view["manifest"]["brief"]["budget_pence"]
             snapshot = app.followup_population(scope, datetime.fromtimestamp(app.clock(), timezone.utc).date().isoformat())
             excluded = app.followups.excluded(scope)

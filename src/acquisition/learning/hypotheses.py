@@ -52,8 +52,11 @@ def followup_hypotheses(organization, source, creatives, segments):
         if status == 'strong':
             arm = comparison['candidate_arm']
             creative = references[(segment, arm)]
+            if type(creative.get('hook')) is not str or not creative['hook'].strip():
+                raise Conflict('A strong framing hypothesis requires the original source hook')
             candidate = {'arm': arm, 'creative_id': creative['id'], 'headline': creative.get('headline', ''),
-                         'framing_note': creative.get('hypothesis', ''), 'role': 'historical_framing_not_product_evidence'}
+                         'hook': creative['hook'], 'framing_note': creative.get('hypothesis', ''),
+                         'role': 'historical_framing_not_product_evidence'}
             hypothesis = (f'Test whether new hooks informed by source variant {arm} can reproduce its '
                           'source-cohort response advantage on an independent synthetic population, '
                           'against a contrasting new hook and a no-mail control. Earlier lift may not repeat.')

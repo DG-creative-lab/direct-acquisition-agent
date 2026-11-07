@@ -10,6 +10,37 @@ from .actors import require_actor
 from .drafts import verify
 
 
+def reconcile_finalized_outcomes(db, organization, cohort, finalization, now):
+    """Recount native evidence inside the caller's read or write transaction."""
+    try:
+        if (cohort['organization'] != organization or cohort['id'] != 'cohort_' + digest(
+                {k: v for k, v in cohort.items() if k != 'id'}) or not finalization):
+            raise Conflict('Finalized source cohort integrity failure')
+        members = {m['business_id']: m for m in cohort['members']}
+        indexed = {r[0] for r in db.execute(
+            'SELECT business_id FROM learning_members WHERE organization=? AND cohort_id=?', (organization, cohort['id']))}
+        if not members or len(members) != len(cohort['members']) or indexed != set(members):
+            raise Conflict('Finalized source membership no longer matches its cohort')
+        outcomes = {r['business_id']: json.loads(r['payload']) for r in db.execute(
+            'SELECT business_id,payload FROM learning_outcomes WHERE organization=? AND cohort_id=?',
+            (organization, cohort['id']))}
+        if set(outcomes) != set(members):
+            raise Conflict('Finalized source outcomes no longer cover the exact membership')
+        for business_id, outcome in outcomes.items():
+            validate_outcome(outcome, members[business_id], cohort, now)
+        groups = counts_for(cohort['members'], outcomes)
+        recorded = [json.loads(r[0]) for r in db.execute(
+            'SELECT payload FROM learning_beliefs WHERE organization=? AND cohort_id=? ORDER BY segment,arm',
+            (organization, cohort['id']))]
+        if (digest(outcomes) != finalization['outcome_digest'] or digest(groups) != finalization['beliefs_digest']
+                or groups != recorded or finalization['observations'] != len(outcomes)
+                or finalization['successes'] != sum(r['response'] for r in outcomes.values())):
+            raise Conflict('Finalized source outcomes differ from their receipt or beliefs')
+        return groups
+    except (ValueError, TypeError, KeyError) as error:
+        raise Conflict('Finalized source outcome evidence is invalid') from error
+
+
 class SqliteLearning:
     def __init__(self, database, clock):
         self.database, self.clock = database, clock
@@ -159,6 +190,12 @@ class SqliteLearning:
             return self._record(db, organization, request_id, fingerprint, receipt, actor, now)
 
     def view(self, organization, cohort_id):
+        return self._view(organization, cohort_id, reconcile=False)
+
+    def hypothesis_source(self, organization, cohort_id):
+        return self._view(organization, cohort_id, reconcile=True)
+
+    def _view(self, organization, cohort_id, *, reconcile):
         with self.database.connect() as db:
             db.execute("BEGIN")
             now = self._now()
@@ -166,6 +203,11 @@ class SqliteLearning:
             received = db.execute("SELECT COUNT(*) FROM learning_outcomes WHERE organization=? AND cohort_id=?", (organization, cohort_id)).fetchone()[0]
             groups = [json.loads(r[0]) for r in db.execute("SELECT payload FROM learning_beliefs WHERE organization=? AND cohort_id=? ORDER BY segment,arm", (organization, cohort_id))]
             finalized = row["finalized_at"] is not None
+            if finalized and reconcile:
+                finalization = json.loads(row['finalization'] or 'null')
+                if not finalization or row['finalized_at'] != finalization['finalized_at']:
+                    raise Conflict('Finalized source timestamp differs from its receipt')
+                groups = reconcile_finalized_outcomes(db, organization, cohort, finalization, now)
             status = "finalized" if finalized else "awaiting_complete_outcomes" if now >= cohort["window_end"] else "observing"
             return {"cohort": {k: v for k, v in cohort.items() if k != "members"}, "status": status,
                 "enrolled": len(cohort["members"]), "received": received, "missing": len(cohort["members"]) - received,

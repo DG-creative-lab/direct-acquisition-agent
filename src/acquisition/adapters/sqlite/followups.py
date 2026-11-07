@@ -4,7 +4,9 @@ import csv
 import io
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.learning import followup_hypotheses
+from acquisition.creative import historical_hook
 from .actors import require_actor
+from .audiences import read_snapshot
 
 
 def excluded_businesses(db, organization, own_draft=None):
@@ -62,37 +64,48 @@ class SqliteFollowups:
     def put(self, organization, request, p):
         # Draft publication also calls require_followup in this adapter.
         from .drafts import read_draft
+        from .creative import read_context
+        from .learning import reconcile_finalized_outcomes
         key='followup-request:'+request
         with self.database.transaction() as db:
             require_actor(db, organization, 'local-operator', 'operator')
             old=db.execute('SELECT receipt FROM review_commands WHERE organization=? AND request_id=?',(organization,key)).fetchone()
             if old: return json.loads(old[0])
-            row=db.execute('SELECT finalization,payload FROM learning_cohorts WHERE organization=? AND id=?',(organization,p['source_cohort'])).fetchone()
+            row=db.execute('SELECT finalization,finalized_at,payload FROM learning_cohorts WHERE organization=? AND id=?',(organization,p['source_cohort'])).fetchone()
             if row is None or json.loads(row[0] or 'null') != p['learning']['finalization']:
                 raise Conflict('Finalized source learning changed')
             cohort = json.loads(row['payload'])
-            groups = [json.loads(r[0]) for r in db.execute(
-                'SELECT payload FROM learning_beliefs WHERE organization=? AND cohort_id=? ORDER BY segment,arm',
-                (organization, p['source_cohort']))]
+            if (cohort['id'] != p['source_cohort']
+                    or row['finalized_at'] != p['learning']['finalization']['finalized_at']):
+                raise Conflict('Finalized source identity or timestamp differs from its receipt')
+            groups = reconcile_finalized_outcomes(db, organization, cohort, p['learning']['finalization'], p['learning']['as_of'])
             if (p['learning']['cohort'] != {k: v for k, v in cohort.items() if k != 'members'}
                     or groups != p['learning']['beliefs']):
                 raise Conflict('Source hypothesis evidence changed while proposing')
             draft = read_draft(db, organization, cohort['draft_id'])
-            expected = followup_hypotheses(organization, p['learning'], draft.manifest['creatives'], tuple(p['brief']['segments']))
+            source_creatives = [c | {'hook': historical_hook(c, read_context(db, organization, c['context_id'])
+                                if c.get('fact_pack_id') else None)} for c in draft.manifest['creatives']]
+            expected = followup_hypotheses(organization, p['learning'], source_creatives, tuple(p['brief']['segments']))
             if (p.get('hypotheses') != expected
                     or p['hypothesis'] != ' '.join(h['segment'] + ': ' + h['hypothesis'] for h in expected)
                     or set(p['contexts']) != {h['segment'] for h in expected}):
                 raise Conflict('Follow-up hypotheses differ from their source evidence')
+            snapshot = read_snapshot(db, organization, p['snapshot_id'])
             for hypothesis in expected:
                 segment = hypothesis['segment']
                 context_id = p['contexts'][segment]
                 context_row = db.execute('SELECT payload FROM creative_contexts WHERE organization=? AND id=?',
                                          (organization, context_id)).fetchone()
                 context = json.loads(context_row[0]) if context_row else {}
+                summary = context.get('audience_summary', {})
                 if (context_id != 'context_' + digest({'organization': organization, **context})
                         or context.get('segment') != segment
-                        or context.get('audience_summary', {}).get('followup_hypothesis') != hypothesis
-                        or context['audience_summary'].get('outcome_evidence') != p['memory'][segment]):
+                        or summary.get('snapshot_id') != snapshot.id
+                        or summary.get('model_version') != snapshot.model_version
+                        or type(summary.get('input_records')) is not int
+                        or summary['input_records'] != sum(r.segment == segment for r in snapshot.records)
+                        or summary.get('followup_hypothesis') != hypothesis
+                        or summary.get('outcome_evidence') != p['memory'][segment]):
                     raise Conflict('Follow-up context differs from its frozen audience hypothesis')
             if set(p['population']) & excluded_businesses(db, organization):
                 raise Conflict('Population changed while proposing; retry')

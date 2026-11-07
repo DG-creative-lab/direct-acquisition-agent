@@ -174,7 +174,7 @@ export type FollowupHypothesis = {
   evidence_status: "strong" | "weak" | "absent";
   hypothesis: string;
   evidence_id: string;
-  candidate: null | { arm: string; creative_id: string };
+  candidate: null | { arm: string; creative_id: string; hook?: string };
   limitations: string;
   evidence: {
     source_cohort: string;

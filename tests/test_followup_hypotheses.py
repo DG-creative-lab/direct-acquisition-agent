@@ -8,7 +8,8 @@ from acquisition.learning import followup_hypotheses, posterior
 
 SEGMENTS = ('inventory', 'contractors')
 CREATIVES = [{'segment': segment, 'arm': arm, 'id': segment + '-' + arm,
-              'headline': 'Source ' + segment + ' ' + arm, 'hypothesis': 'Historical framing note.'}
+              'headline': 'Source ' + segment + ' ' + arm, 'hypothesis': 'Historical framing note.',
+              'hook': 'The original ' + segment + ' hook for ' + arm + '.'}
              for segment in SEGMENTS for arm in ('A', 'B')]
 
 
@@ -38,6 +39,8 @@ class FollowupHypothesisTests(unittest.TestCase):
         self.assertEqual([h['candidate']['arm'] for h in result], ['A', 'B'])
         for hypothesis in result:
             self.assertEqual(hypothesis['candidate']['creative_id'], hypothesis['segment'] + '-' + hypothesis['candidate']['arm'])
+            self.assertEqual(hypothesis['candidate']['hook'], next(c['hook'] for c in CREATIVES
+                             if c['id'] == hypothesis['candidate']['creative_id']))
             self.assertEqual(sum(g['trials'] for g in hypothesis['evidence']['groups']), 600)
             self.assertEqual(hypothesis['evidence']['source_cohort'], 'source-cohort')
             self.assertGreater(hypothesis['evidence']['comparison']['lift_interval_90'][0], 0)

@@ -111,6 +111,12 @@ export default function ConversationFollowup({
                     Evidence and uncertainty for{" "}
                     {segmentName(hypothesis.segment)}
                   </summary>
+                  {hypothesis.candidate?.hook && (
+                    <p>
+                      Historical source hook, framing only:{" "}
+                      <q>{hypothesis.candidate.hook}</q>
+                    </p>
+                  )}
                   <p>
                     Source cohort:{" "}
                     <code>{hypothesis.evidence.source_cohort}</code>

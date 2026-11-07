@@ -112,6 +112,13 @@ explanation of why responses occurred. Synthetic observations do not establish
 customer performance. New copy retains current product grounding and its own
 review; historical outcomes or approval cannot transfer to rewritten copy.
 
+A strong hypothesis includes the original source hook. For grounded copy, the
+creative module extracts it using that creative's original frozen context and
+removes the exact historical product suffix. The hook remains quoted historical
+framing. Old product wording does not become current evidence, even if the active
+product pack has changed. Fixture and legacy ungrounded hooks retain their
+original text.
+
 The proposal and each model context retain the same audience-specific hypothesis.
 Persistence rechecks the native cohort, counted beliefs and context binding under
 the SQLite write lock. Request replay and process restart read the original
@@ -119,6 +126,14 @@ proposal without recomputing its hypothesis. Historical proposals without these
 fields retain their original presentation and contexts. No schema migration or
 new inference is needed to propose a hypothesis. Verified paid execution and
 restored-workspace execution remain paused.
+
+Hypothesis source reads reconcile the persisted membership index and complete
+outcome rows with the cohort, each assignment and observation window, the outcome
+digest, derived posterior groups and finalization receipt. The save transaction
+repeats this check. Changed, missing or substituted rows block new hypotheses
+without replacing historical receipts. Each model context must also name the
+proposal's exact stored audience snapshot and match its model version and
+per-audience input record count.
 
 Offline checks use held-out strong, weak and absent count patterns for both
 audiences, plus real SQLite zero-response, forgery, replay and restart checks. A
