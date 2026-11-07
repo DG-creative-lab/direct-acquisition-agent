@@ -1099,7 +1099,7 @@ export default function ConversationWorkspace({
                       }
                       onClick={() => {
                         setReviewing(comment.session_id);
-                        setFeedbackRequest(comment);
+                        setFeedbackRequest({ ...comment });
                         setMobileView("artifacts");
                       }}
                     >

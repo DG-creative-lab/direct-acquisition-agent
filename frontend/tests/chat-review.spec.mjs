@@ -331,6 +331,37 @@ test("artifact selection survives reload and a variant comment replays once befo
     await expect(
       page.getByRole("button", { name: "Generate revision", exact: true }),
     ).toBeDisabled();
+    for (const close of ["button", "escape"]) {
+      await page
+        .getByLabel("Allow up to five model calls for this revision")
+        .check();
+      if (close === "button") {
+        await page.getByRole("button", { name: "Close copy feedback" }).click();
+      } else {
+        await page.keyboard.press("Escape");
+      }
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await page.getByRole("button", { name: "Chat", exact: true }).click();
+      await page
+        .getByRole("button", { name: "Request a copy revision" })
+        .click();
+      await expect(page.getByRole("dialog")).toBeVisible();
+      await expect(
+        page.getByLabel("Variant to revise", { exact: true }),
+      ).toHaveValue(target.id);
+      await expect(
+        page.getByLabel("Copy feedback", { exact: true }),
+      ).toHaveValue("Make the selected opening more direct.");
+      await expect(
+        page.getByLabel("Allow up to five model calls for this revision"),
+      ).not.toBeChecked();
+      await expect(
+        page.getByRole("button", { name: "Generate revision", exact: true }),
+      ).toBeDisabled();
+      expect(
+        (await backend(page, `/api/sessions/${sid}`)).body.copy_revisions,
+      ).toHaveLength(0);
+    }
     await page
       .getByLabel("Allow up to five model calls for this revision")
       .check();
