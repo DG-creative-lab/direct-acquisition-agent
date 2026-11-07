@@ -52,6 +52,20 @@ A single background executor advances saved preparation records outside HTTP req
 
 Progress reads can temporarily combine an older case mapping or preparation row with newer recovery state. The server reports pending checkpoint recovery from the exact saved stop receipt, which also drives the executor's retry. Chat keeps polling that pending mapping even after a transient blocker clears. An ordinary blocked preparation without a recovery receipt stops polling. These presentation hints grant no approval or inference permission.
 
+## Artifacts beside chat
+
+Conversation campaigns expose a left-side artifact pane with creative copy and
+audience views. Select a variant to read its exact copy and evidence. The selected
+campaign, view and variant survive reload. On smaller screens use **Chat** and
+**Artifacts** to switch surfaces.
+
+**Comment in chat** attaches the displayed subject and variant to your feedback.
+Saving a comment records a scoped note without changing the brief or copy.
+For model copy, **Request a copy revision** opens the existing confirmation with
+that feedback and target. Explicit model-call permission is required before
+generation. A new subject needs its own review. Older comments retain their
+original subject and variant.
+
 ## Start a verified fixture workspace
 
 Initialize a new empty root and start the regular workspace server on it.

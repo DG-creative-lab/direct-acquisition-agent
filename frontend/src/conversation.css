@@ -589,3 +589,138 @@
     flex-wrap: wrap;
   }
 }
+
+.conversation-surfaces {
+  min-width: 0;
+}
+.conversation-surfaces.has-artifacts {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+  align-items: start;
+}
+.conversation-artifacts {
+  min-width: 0;
+  background: var(--brand-panel);
+  border-right: 1px solid var(--brand-rule);
+  position: sticky;
+  top: 76px;
+  max-height: calc(100dvh - 76px);
+  overflow: auto;
+  padding: 24px;
+}
+.artifact-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--brand-rule);
+}
+.artifact-heading h2 {
+  font-size: 16px;
+}
+.conversation-artifacts select {
+  max-width: 100%;
+  min-height: 44px;
+  padding: 8px;
+  background: var(--brand-paper);
+  border: 1px solid var(--brand-rule);
+}
+.conversation-artifacts .conversation-campaign-review {
+  margin: 0;
+  padding: 20px 0;
+  border: 0;
+}
+.conversation-artifacts .copy-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+.conversation-artifacts .chat-campaign-facts {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.conversation-artifacts .tab-content {
+  padding: 20px 0;
+}
+.conversation-artifacts .segment-summary {
+  flex-wrap: wrap;
+}
+.artifact-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--brand-rule);
+  margin-block: 16px;
+}
+.artifact-tabs button,
+.artifact-mobile-toggle button {
+  min-height: 44px;
+  padding: 10px 16px;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--brand-muted);
+}
+.artifact-tabs button[aria-selected="true"],
+.artifact-mobile-toggle button[aria-pressed="true"] {
+  border-bottom-color: var(--brand-ink);
+  color: var(--brand-ink);
+  font-weight: 700;
+}
+.artifact-mobile-toggle {
+  display: none;
+}
+.has-artifacts .conversation-thread,
+.has-artifacts .conversation-compose {
+  padding-inline: 24px;
+}
+.artifact-comment {
+  margin-block: 24px;
+  overflow-wrap: anywhere;
+}
+.artifact-comment > p {
+  font-size: 12px;
+  color: var(--brand-muted);
+  margin-top: 12px;
+}
+.conversation-compose .artifact-comment-target {
+  align-items: center;
+  background: var(--brand-surface);
+  border-bottom: 0;
+  font-size: 12px;
+}
+@media (max-width: 1100px) {
+  .conversation-surfaces.has-artifacts {
+    display: block;
+  }
+  .artifact-mobile-toggle {
+    display: flex;
+    justify-content: center;
+    border-bottom: 1px solid var(--brand-rule);
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--brand-paper);
+  }
+  .conversation-artifacts {
+    position: static;
+    max-height: none;
+    border-right: 0;
+    padding: 20px;
+  }
+  .mobile-chat .conversation-artifacts,
+  .has-artifacts.mobile-artifacts .conversation-main {
+    display: none;
+  }
+}
+@media (max-width: 480px) {
+  .artifact-heading {
+    flex-wrap: wrap;
+  }
+  .conversation-artifacts {
+    padding: 16px;
+  }
+}
+
+.conversation-artifacts:has(#artifact-copy-tab[aria-selected="true"])
+  .chat-campaign-facts,
+.conversation-artifacts:has(#artifact-copy-tab[aria-selected="true"])
+  .chat-campaign-detail:first-of-type {
+  display: none;
+}

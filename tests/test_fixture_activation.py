@@ -339,6 +339,69 @@ with patch.object(SqliteTasks, 'settle', exit_after_draft):
                 db.execute('INSERT INTO model_calls VALUES(?,?,?,?,?,?,?,?,?)',
                            (OWNER, fixture_run, 'paid', claim.task_id, claim.token, 'hash', 'reserved', None, None))
 
+    def test_artifact_comments_bind_exact_copy_and_replay_after_restart_without_inference(self):
+        cid, session = self.start_campaign()
+        for _ in range(3):
+            self.w.advance_preparations()
+        review = self.w.view(session['id'])['review']
+        creative = review['manifest']['creatives'][1]
+        inputs = dict(session_id=session['id'], expected_subject=review['subject']['id'],
+                      target_id=creative['id'], expected_revision=1, feedback='Make this opening more direct.',
+                      request_id='copy-comment')
+        saved = self.w.comment_artifact(cid, **inputs)
+        comment, = saved['artifact_comments']
+        self.assertEqual((comment['target_id'], comment['subject_id'], comment['feedback']),
+                         (creative['id'], review['subject']['id'], inputs['feedback']))
+        self.assertEqual(comment['copy_mode'], 'fixture')
+        reopened = self.workspace()
+        self.assertEqual(reopened.comment_artifact(cid, **inputs)['artifact_comments'], [comment])
+        observed = self.process('-c', """
+import sys
+from acquisition.workspace import Workspace
+comments = Workspace(sys.argv[1]).conversation(sys.argv[2])['artifact_comments']
+assert len(comments) == 1 and comments[0]['request_id'] == 'copy-comment'
+""", self.root, cid)
+        self.assertEqual(observed.returncode, 0, observed.stderr)
+        app = reopened._app(session)
+        self.assertEqual(app.reviews.store.view(session['organization'], review['case_id'])['subject'], review['subject'])
+        with app.tasks.database.connect() as db:
+            for table in ('model_calls', 'review_decisions', 'simulated_agency_jobs'):
+                self.assertEqual(db.execute(f'SELECT count(*) FROM {table}').fetchone()[0], 0)
+        with self.assertRaises(Conflict):
+            reopened.comment_artifact(cid, **(inputs | {'feedback': 'Changed comment'}))
+        with self.assertRaises(Conflict):
+            reopened.comment_artifact(cid, **(inputs | {'request_id': 'forged', 'target_id': 'other-creative'}))
+        other = self.conversation('other')
+        with self.assertRaises(Conflict):
+            reopened.comment_artifact(other, **(inputs | {'request_id': 'foreign'}))
+        app.reviews.refresh(session['organization'], review['case_id'], review['subject']['id'], 'local-operator', 'refresh-comment')
+        with self.assertRaises(Conflict):
+            reopened.comment_artifact(cid, **(inputs | {'request_id': 'stale'}))
+        self.assertEqual(reopened.comment_artifact(cid, **inputs)['artifact_comments'], [comment])
+
+    def test_artifact_comment_audit_failure_rolls_back_receipt_and_disabled_actor_cannot_comment(self):
+        cid, session = self.start_campaign()
+        for _ in range(3):
+            self.w.advance_preparations()
+        review = self.w.view(session['id'])['review']
+        app = self.w._app(session)
+        inputs = dict(session_id=session['id'], expected_subject=review['subject']['id'],
+                      target_id=review['manifest']['creatives'][0]['id'], expected_revision=1,
+                      feedback='Review this opening.', request_id='atomic-comment')
+        with app.tasks.database.connect() as db:
+            db.execute("""CREATE TRIGGER reject_comment BEFORE INSERT ON review_events
+                WHEN NEW.kind='artifact_commented' BEGIN SELECT RAISE(ABORT,'comment interrupted'); END""")
+        with self.assertRaisesRegex(sqlite3.IntegrityError, 'comment interrupted'):
+            self.w.comment_artifact(cid, **inputs)
+        self.assertEqual(self.w.conversation(cid)['artifact_comments'], [])
+        with app.tasks.database.connect() as db:
+            db.execute('DROP TRIGGER reject_comment')
+        app.reviews.store.register_actor(session['organization'], 'local-operator', ('operator',), False)
+        with self.assertRaises(ValueError):
+            self.w.comment_artifact(cid, **inputs)
+        app.reviews.store.register_actor(session['organization'], 'local-operator', ('operator',), True)
+        self.assertEqual(len(self.w.comment_artifact(cid, **inputs)['artifact_comments']), 1)
+
     def test_failed_grant_insert_rolls_back_admission_and_retry_keeps_original_request(self):
         cid = self.conversation()
         app = self.w._conversation_app()

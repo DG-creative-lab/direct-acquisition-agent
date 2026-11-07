@@ -172,6 +172,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, self.server.workspace.create_conversation(data["request_id"], data["title"]))
             parts = path.strip("/").split("/")
             if len(parts) == 4 and parts[:2] == ["api", "conversations"]:
+                if parts[3] == 'artifact-comments' and set(data) == {'request_id','session_id','expected_subject','target_id','expected_revision','feedback'}:
+                    return self._send(200,self.server.workspace.comment_artifact(parts[2],**data))
                 if parts[3] == 'stop' and set(data)=={'request_id','expected_revision'}:
                     return self._send(200,self.server.workspace.stop_execution(parts[2],**data))
                 if parts[3] == 'actions' and set(data)=={'request_id','expected_revision','content','allow_model_copy'}:

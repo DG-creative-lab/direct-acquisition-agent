@@ -412,6 +412,48 @@ class SqliteReviews:
     def refresh(self, organization, case_id, expected_subject, actor, request_id):
         return self._propose(organization, case_id, expected_subject, actor, request_id, "refresh")
 
+    def comment(self, organization, case_id, expected_subject, target_id, conversation_id,
+                expected_revision, feedback, actor, request_id):
+        text(feedback, 500)
+        with self.database.transaction() as db:
+            now = self._now()
+            self._actor(db, organization, actor, "operator")
+            payload = dict(case_id=case_id, expected_subject=expected_subject, target_id=target_id,
+                           conversation_id=conversation_id, expected_revision=expected_revision, feedback=feedback)
+            fingerprint, cached = self._cached(db, organization, actor, request_id, "artifact_comment", payload)
+            if cached:
+                return cached
+            case = self._case(db, organization, case_id)
+            if case["current_subject"] != expected_subject:
+                raise Conflict("The displayed copy has a newer review subject")
+            self._run_ready(db, organization, case)
+            proposal = self._subject(db, organization, expected_subject)
+            draft = self._bundle(db, organization, proposal["draft_id"])[0]
+            brief = draft.manifest["brief"]
+            if (brief.get("conversation_id") != conversation_id or type(expected_revision) is not int
+                    or brief.get("conversation_revision") != expected_revision):
+                raise Conflict("Comment differs from the original conversation")
+            self._conversation_source(db, organization, case, draft)
+            creative = next((c for c in draft.manifest["creatives"] if c["id"] == target_id), None)
+            if creative is None:
+                raise Conflict("Select an exact creative in the displayed subject")
+            receipt = {"kind": "artifact_comment", "request_id": request_id, "case_id": case_id,
+                       "conversation_id": conversation_id, "conversation_revision": expected_revision,
+                       "subject_id": expected_subject, "subject_revision": proposal["revision"],
+                       "draft_id": draft.id, "target_id": target_id, "segment": creative["segment"],
+                       "arm": creative["arm"], "feedback": feedback, "actor": actor, "at": now}
+            receipt["copy_mode"] = "model" if creative["status"] == "generated_unreviewed" else "fixture"
+            self._event(db, organization, case_id, "artifact_commented", receipt, now)
+            return self._record(db, organization, request_id, fingerprint, receipt)
+
+    def comments(self, organization, case_id):
+        with self.database.connect() as db:
+            self._case(db, organization, case_id)
+            return [json.loads(row[0]) for row in db.execute(
+                """SELECT receipt FROM review_commands WHERE organization=?
+                   AND json_extract(receipt,'$.kind')='artifact_comment'
+                   AND json_extract(receipt,'$.case_id')=? ORDER BY rowid""", (organization, case_id))]
+
     def propose(self, organization, case_id, expected_subject, draft_id, actor, request_id, audience_epoch, evidence_epoch, *, claim=None):
         return self._propose(organization, case_id, expected_subject, actor, request_id, "replace",
                              draft_id=draft_id, epochs=(audience_epoch, evidence_epoch), claim=claim)
