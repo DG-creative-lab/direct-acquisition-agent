@@ -363,6 +363,26 @@ PRAGMA user_version=14;
 """
 
 
+WRITING_PREFERENCE_INSERT_GUARD = """
+CREATE TRIGGER IF NOT EXISTS writing_preference_no_replace BEFORE INSERT ON writing_preference_versions
+ WHEN EXISTS(SELECT 1 FROM writing_preference_versions WHERE organization=NEW.organization
+   AND ((id=NEW.id AND revision=NEW.revision) OR request_id=NEW.request_id))
+ BEGIN SELECT RAISE(ABORT,'Writing preference history is immutable'); END;
+"""
+
+
+WRITING_PREFERENCES = """
+CREATE TABLE IF NOT EXISTS writing_preference_versions (
+ organization TEXT NOT NULL,id TEXT NOT NULL,revision INTEGER NOT NULL,
+ request_id TEXT NOT NULL,fingerprint TEXT NOT NULL,payload TEXT NOT NULL,
+ PRIMARY KEY(organization,id,revision),UNIQUE(organization,request_id));
+CREATE TRIGGER IF NOT EXISTS writing_preference_no_update BEFORE UPDATE ON writing_preference_versions
+ BEGIN SELECT RAISE(ABORT,'Writing preference history is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS writing_preference_no_delete BEFORE DELETE ON writing_preference_versions
+ BEGIN SELECT RAISE(ABORT,'Writing preference history is immutable'); END;
+""" + WRITING_PREFERENCE_INSERT_GUARD + "PRAGMA user_version=15;"
+
+
 class Database:
     def __init__(self, path: str | Path, *, verified_admissions=False, clock=time.time, fixture_execution=False):
         if type(verified_admissions) is not bool:
@@ -374,7 +394,7 @@ class Database:
             if verified_admissions:
                 require_live_root(self.path)
             with self.connect() as connection:
-                if connection.execute('PRAGMA user_version').fetchone()[0] != 14:
+                if connection.execute('PRAGMA user_version').fetchone()[0] not in {14, 15}:
                     raise ValueError('Unsupported application schema for checkpoint inspection')
                 self._validate_workspace_schema(connection)
             return
@@ -384,7 +404,7 @@ class Database:
             version = connection.execute("PRAGMA user_version").fetchone()[0]
             if fixture_execution and (version != 0 or connection.execute('SELECT 1 FROM sqlite_schema LIMIT 1').fetchone()):
                 raise Conflict('Fixture execution requires a fresh application store')
-            if version not in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}:
+            if version not in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}:
                 raise ValueError(f"Unsupported database schema {version}")
             if (verified_admissions and version < 10
                     and connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='runs'").fetchone()
@@ -440,6 +460,11 @@ class Database:
             if version < 14:
                 self._initialize_workspace_schema(connection)
             else:self._validate_workspace_schema(connection)
+            if version < 15:
+                self._apply_migration(connection, WRITING_PREFERENCES)
+            else:
+                self._apply_migration(connection, WRITING_PREFERENCE_INSERT_GUARD)
+            self._validate_writing_preference_schema(connection)
             if verified_admissions:
                 # Seal under the same write lock that skipped legacy recovery.
                 from .admission_guard import seal_legacy_writes
@@ -448,6 +473,10 @@ class Database:
                 from .fixture_execution import install_fixture_execution
                 install_fixture_execution(connection, clock())
         self._enable_wal()
+
+    @staticmethod
+    def _validate_writing_preference_schema(connection):
+        connection.execute('SELECT organization,id,revision,request_id,fingerprint,payload FROM writing_preference_versions LIMIT 0')
 
     @classmethod
     def _initialize_workspace_schema(cls,connection):
@@ -467,7 +496,7 @@ class Database:
         database=cls.__new__(cls);database.path=Path(path)
         if not database.path.is_file():raise ValueError('Authoritative application store is unavailable')
         with database.connect() as db:
-            if db.execute('PRAGMA user_version').fetchone()[0]!=14:
+            if db.execute('PRAGMA user_version').fetchone()[0] not in {14, 15}:
                 raise ValueError('Migrate the authoritative application store before workspace access')
         return database
 

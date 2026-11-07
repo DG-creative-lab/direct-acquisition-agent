@@ -10,7 +10,7 @@ from acquisition.contracts import canonical, digest
 from acquisition.reasoning import CallScope, Inference, ModelError, tool_contract, validate_assets
 
 from .application import READ, tool
-from .domain import Creative
+from .domain import Creative, model_editorial_memory
 from .ports import CreativeMemory
 
 
@@ -249,7 +249,8 @@ def validate_grounded_catalogue(variants: tuple[Creative, ...], context: dict, t
 
 
 def model_copy_context(context):
-    """Keep source content, but omit duplicated installed schemas from prompts."""
+    """Project confirmed guidance and omit source prose and duplicated schemas."""
+    context = context | {'memory': model_editorial_memory(context['memory'])}
     if context.get("agent_assets", {}).get("model_projection") != "copy-context/v1":
         return context
     bundle = context["agent_assets"]
@@ -330,7 +331,7 @@ class GroundedCopyAgent:
         else:
             # Retain the original request bytes for old recorded call replay.
             messages += [response["message"], {"role": "tool", "tool_call_id": response["message"]["tool_calls"][0]["id"],
-                                              "content": canonical(context | {"fact_pack_id": pack_id})}]
+                                              "content": canonical(model_copy_context(context) | {"fact_pack_id": pack_id})}]
         for attempt in range(2):
             response = self.inference.call(scope, context_id + f":grounded:proposal:{attempt}", messages, [submit])
             args = arguments_of(response, "submit_grounded_copy")

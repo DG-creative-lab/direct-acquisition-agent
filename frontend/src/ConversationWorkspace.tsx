@@ -27,6 +27,10 @@ import ConversationCampaignReview, {
 } from "./ConversationCampaignReview";
 import { segmentName } from "./ui";
 import ConversationExecution, { type Execution } from "./ConversationExecution";
+import WritingPreferences, {
+  type SavedCopyComment,
+  type WritingPreference,
+} from "./WritingPreferences";
 
 type Brief = {
   id: string;
@@ -135,13 +139,8 @@ const activePreparation = (status: string) =>
   ["admitting", "planning", "selecting_audience", "preparing"].includes(status);
 
 type Conversation = {
-  artifact_comments?: (ArtifactComment & {
-    request_id: string;
-    conversation_revision: number;
-    feedback: string;
-    copy_mode: string;
-    at: number;
-  })[];
+  artifact_comments?: SavedCopyComment[];
+  writing_preferences?: WritingPreference[];
   execution?: Execution;
   actions?: ConversationAction[];
   preparations?: Preparation[];
@@ -1087,6 +1086,13 @@ export default function ConversationWorkspace({
                     <p>{comment.feedback}</p>
                   </div>
                   <p>Comment saved for this copy variant.</p>
+                  <WritingPreferences<Conversation>
+                    conversationId={conversation!.id}
+                    comment={comment}
+                    preferences={conversation?.writing_preferences ?? []}
+                    disabled={!!busy || !!pendingMessage}
+                    onSaved={accept}
+                  />
                   {comment.copy_mode === "model" && (
                     <button
                       className="text-button"

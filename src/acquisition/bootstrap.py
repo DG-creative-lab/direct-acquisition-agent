@@ -350,13 +350,10 @@ class Application:
             validate_fact_pack(product_facts, datetime.fromtimestamp(self.clock(), timezone.utc).date())
             contexts = {}
             learning_memory = self.learning.store.memory_snapshot(organization, segments)
+            editorial_memory = self.memory.examples_snapshot(organization, segments, guidance['reviewer_examples'])
             for segment in segments:
-                example = guidance["reviewer_examples"][segment]
-                # Seed examples are explicitly reviewer preferences, never outcome evidence.
-                if not self.memory.examples(organization, segment):
-                    self.memory.remember(organization, segment, **example)
                 context = {"segment": segment, "guidance": guidance, "product_facts": product_facts,
-                           "memory": self.memory.examples(organization, segment),
+                           "memory": editorial_memory[segment],
                            "audience_summary": {"input_records": sum(row.segment == segment for row in snapshot.records),
                                "model_version": snapshot.model_version, "snapshot_id": snapshot.id,
                                "situation_hypothesis": guidance["situations"][segment],
@@ -393,12 +390,10 @@ class Application:
         guidance = json.loads((root / "editorial-v3.json").read_text())
         facts = self.reviews.store.evidence(organization)["pack"]
         contexts = {}
+        editorial_memory = self.memory.examples_snapshot(organization, segments, guidance['reviewer_examples'])
         for segment in segments:
-            example = guidance["reviewer_examples"][segment]
-            if not self.memory.examples(organization, segment):
-                self.memory.remember(organization, segment, **example)
             context = {"segment":segment, "guidance":guidance, "product_facts":facts,
-                "memory":self.memory.examples(organization,segment), "audience_summary":{
+                "memory":editorial_memory[segment], "audience_summary":{
                     "input_records":sum(r.segment == segment for r in snapshot.records),
                     "model_version":snapshot.model_version, "snapshot_id":snapshot.id,
                     "situation_hypothesis":guidance["situations"][segment], "outcome_evidence":learning_memory[segment],
@@ -466,7 +461,8 @@ class Application:
 def build(path: str | Path, clock: Callable[[], float] = time.time,
           gateway: ModelGateway | None = None, model_config: ModelConfig | None = None,
           workspace_organization: str | None = None, *, verified_admissions=False,
-          execution_clock: Callable[[], float] | None = None) -> Application:
+          execution_clock: Callable[[], float] | None = None,
+          preference_organization: str | None = None) -> Application:
     if type(verified_admissions) is not bool:raise ValueError('Choose an explicit admission mode')
     database = Database(path,verified_admissions=verified_admissions,clock=clock)
     admission_store=build_admissions(path,clock,_database=database)
@@ -478,7 +474,7 @@ def build(path: str | Path, clock: Callable[[], float] = time.time,
     tasks = SqliteTasks(database, retired_capabilities=ModelMonthlyMail.legacy_capabilities(), execution_clock=execution_clock)
     campaigns = CampaignService(audiences, drafts, fixture_catalog())
     workflow = MonthlyMail(audiences, campaigns)
-    memory, calls = SqliteCreative(database), SqliteCalls(database, clock)
+    memory, calls = SqliteCreative(database, preference_organization), SqliteCalls(database, clock)
     inference = Inference(gateway, calls, model_config, clock) if gateway is not None and model_config is not None else None
     model_workflow = ModelMonthlyMail(audiences, campaigns, memory, inference)
     conversation_model = ConversationModelMail(audiences, campaigns, memory, inference)

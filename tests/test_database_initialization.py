@@ -12,7 +12,7 @@ from pathlib import Path
 from threading import Event, current_thread
 from unittest.mock import patch
 
-from acquisition.adapters.sqlite.database import Database, SCHEMA, DAY_TWO
+from acquisition.adapters.sqlite.database import Database, SCHEMA, DAY_TWO, WRITING_PREFERENCES
 from acquisition.contracts import canonical, digest
 
 
@@ -31,7 +31,7 @@ class DatabaseInitializationTests(unittest.TestCase):
         for _ in range(3):
             db = Database(path)
             with db.connect() as connection:
-                self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 14)
+                self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 15)
                 self.assertEqual(connection.execute("PRAGMA integrity_check").fetchone()[0], "ok")
                 self.assertIsNotNone(connection.execute("SELECT name FROM sqlite_master WHERE name='legacy_task_admissions'").fetchone())
 
@@ -86,7 +86,7 @@ class DatabaseInitializationTests(unittest.TestCase):
                         second = pool.submit(initialize, "second")
                         first.result(timeout=15)
                         second.result(timeout=15)
-                self.assertCountEqual(observations, [("first", True, version), ("second", True, 14)])
+                self.assertCountEqual(observations, [("first", True, version), ("second", True, 15)])
                 self.assert_reopenable(path)
 
     def test_two_processes_can_initialize_versions_zero_and_one(self):
@@ -173,7 +173,7 @@ class DatabaseInitializationTests(unittest.TestCase):
             Database(path)
         self.assertEqual(len(attempts), 2)
         self.assertEqual(sleep.call_count, 1)
-        self.assertEqual(versions, ["PRAGMA USER_VERSION=1", "PRAGMA USER_VERSION=2", "PRAGMA USER_VERSION=3", "PRAGMA USER_VERSION=4", "PRAGMA USER_VERSION=5", "PRAGMA USER_VERSION=6", "PRAGMA USER_VERSION=7", "PRAGMA USER_VERSION=8", "PRAGMA USER_VERSION=9", "PRAGMA USER_VERSION=10", "PRAGMA USER_VERSION=11", "PRAGMA USER_VERSION=12", "PRAGMA USER_VERSION=13", "PRAGMA USER_VERSION=14"])
+        self.assertEqual(versions, ["PRAGMA USER_VERSION=1", "PRAGMA USER_VERSION=2", "PRAGMA USER_VERSION=3", "PRAGMA USER_VERSION=4", "PRAGMA USER_VERSION=5", "PRAGMA USER_VERSION=6", "PRAGMA USER_VERSION=7", "PRAGMA USER_VERSION=8", "PRAGMA USER_VERSION=9", "PRAGMA USER_VERSION=10", "PRAGMA USER_VERSION=11", "PRAGMA USER_VERSION=12", "PRAGMA USER_VERSION=13", "PRAGMA USER_VERSION=14", "PRAGMA USER_VERSION=15"])
         self.assert_reopenable(path)
 
     def test_wal_retry_is_bounded_and_does_not_hide_other_sqlite_errors(self):
@@ -228,3 +228,26 @@ class DatabaseInitializationTests(unittest.TestCase):
             db.execute('DROP TRIGGER application_identity_no_delete')
             db.execute('DELETE FROM application_store_identity')
         with self.assertRaisesRegex(ValueError,'identity is unavailable'):Database(path)
+
+    def test_writing_preference_migration_is_atomic_and_preserves_identity_and_legacy_cutoff(self):
+        path = self.root / 'preferences-migration.sqlite'
+        database = Database(path)
+        with database.transaction() as db:
+            identity = db.execute('SELECT * FROM application_store_identity').fetchall()
+            cutoff = db.execute('SELECT * FROM legacy_task_admissions').fetchall()
+            db.execute('DROP TABLE writing_preference_versions')
+            db.execute('PRAGMA user_version=14')
+        apply = Database._apply_migration
+        def interrupted(db, script):
+            apply(db, script)
+            if script == WRITING_PREFERENCES:
+                raise OSError('preference migration interrupted')
+        with patch.object(Database, '_apply_migration', side_effect=interrupted):
+            with self.assertRaises(OSError): Database(path)
+        with database.connect() as db:
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 14)
+            self.assertIsNone(db.execute("SELECT 1 FROM sqlite_schema WHERE name='writing_preference_versions'").fetchone())
+        self.assert_reopenable(path)
+        with database.connect() as db:
+            self.assertEqual(db.execute('SELECT * FROM application_store_identity').fetchall(), identity)
+            self.assertEqual(db.execute('SELECT * FROM legacy_task_admissions').fetchall(), cutoff)

@@ -134,8 +134,13 @@ def validate_stores(connections):
                 raise Conflict('Unsupported workspace journal schema')
             metadata[key] = {'role': 'workspace-journal', 'identity': journal_id, 'schema': version}
             continue
-        if version != 14:
-            raise Conflict('Checkpoint application stores require schema 14')
+        if version not in {14, 15}:
+            raise Conflict('Checkpoint application stores require schema 14 or 15')
+        if version == 15:
+            try:
+                db.execute('SELECT organization,id,revision,request_id,fingerprint,payload FROM writing_preference_versions LIMIT 0')
+            except sqlite3.DatabaseError as error:
+                raise Conflict('Writing preference history is unavailable') from error
         ids = db.execute('SELECT singleton,id FROM application_store_identity').fetchall()
         if (len(ids) != 1 or ids[0][0] != 1 or not isinstance(ids[0][1], str)
                 or not re.fullmatch(r'store_[0-9a-f]{32}', ids[0][1])):

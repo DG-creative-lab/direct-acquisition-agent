@@ -66,6 +66,13 @@ that feedback and target. Explicit model-call permission is required before
 generation. A new subject needs its own review. Older comments retain their
 original subject and variant.
 
+Use **Remember as a writing preference** on a saved copy comment to confirm
+guidance for one or both audiences. Review its wording and scope and supply a
+reason before saving. The saved preference exposes its original source and
+version history. **Correct writing preference** adds a version; **Retire writing
+preference** stops future use. Existing copy and frozen contexts keep their
+original guidance. See [writing preferences](writing-preferences.md).
+
 ## Start a verified fixture workspace
 
 Initialize a new empty root and start the regular workspace server on it.

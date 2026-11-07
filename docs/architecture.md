@@ -35,7 +35,7 @@ The [local checkpoint adapter](workspace-checkpoints.md) uses the same root lock
 | `runtime` | Run/task lifecycle, leases, attempts, waiting and result commits | Campaign policy, copy quality, approval or outcomes |
 | `audiences` | Business records, immutable snapshots, versioned source discovery and exact dataset validation | Model-generated eligibility or inferred source completeness |
 | `campaigns` | Selection, exclusions, A/B/no-mail assignment, integer money and exact drafts | Reviewer decisions or external dispatch |
-| `creative` | Creative identities, frozen editorial context, bounded generation and grounding validation | Approval, targeting policy or outcome counts |
+| `creative` | Creative identities, confirmed writing preference lifecycle, frozen editorial context, bounded generation and grounding validation | Approval, targeting policy or outcome counts |
 | `reasoning` | Provider-independent limits, gateway contracts, inference journal and pure versioned reasoning-asset serialization/integrity contracts | Business approval or automatic uncertain-call retries |
 | `reviews` | Proposals, subjects, decisions, targeted copy-feedback admission, invalidation and simulated acceptance | Hosted authentication or real agency effects |
 | `learning` | Cohort membership, immutable observations, counted posteriors and recommendations | Automatic campaign mutation or new product facts |
