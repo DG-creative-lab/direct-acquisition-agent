@@ -127,11 +127,14 @@ fields retain their original presentation and contexts. No schema migration or
 new inference is needed to propose a hypothesis. Verified paid execution and
 restored-workspace execution remain paused.
 
-Hypothesis source reads reconcile the persisted membership index and complete
-outcome rows with the cohort, each assignment and observation window, the outcome
-digest, derived posterior groups and finalization receipt. The save transaction
-repeats this check. Changed, missing or substituted rows block new hypotheses
-without replacing historical receipts. Each model context must also name the
+Hypothesis source reads first reload the organization's accepted simulated job,
+check its indexed identities against the acceptance receipt, verify its draft
+bytes and identity, and rebuild the exact cohort from that acceptance. They then
+reconcile the persisted membership index and complete outcome rows with the
+cohort, each assignment and observation window, the outcome digest, derived
+posterior groups and finalization receipt. The save transaction repeats these
+checks. Missing or mismatched acceptance evidence and changed or substituted rows
+block new hypotheses without replacing historical receipts. Each model context must also name the
 proposal's exact stored audience snapshot and match its model version and
 per-audience input record count.
 

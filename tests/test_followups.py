@@ -273,6 +273,101 @@ print(json.dumps(s['session']))
         self.assertEqual(repaired['hypotheses'], p['hypotheses'])
         self.assertEqual(app.followups.get(self.scope, p['id']), p)
 
+    def test_finalized_source_requires_its_exact_accepted_job_and_draft_at_read_and_commit(self):
+        import os, subprocess, sys
+        from acquisition.campaigns import Draft
+        p = self.finalized()
+        app = self.w._app(self.w._session(self.sid))
+        database = app.tasks.database
+        case_id = p['learning']['cohort']['case_id']
+        draft_id = p['learning']['cohort']['draft_id']
+        with database.connect() as db:
+            job = tuple(db.execute('SELECT * FROM simulated_agency_jobs WHERE organization=? AND case_id=?',
+                                   (self.scope, case_id)).fetchone())
+            draft = db.execute('SELECT manifest,mailing FROM drafts WHERE organization=? AND id=?',
+                               (self.scope, draft_id)).fetchone()
+            commands = db.execute('SELECT count(*) FROM review_commands').fetchone()[0]
+            contexts = db.execute('SELECT count(*) FROM creative_contexts').fetchone()[0]
+        receipt = json.loads(job[-1])
+        other = Draft(json.loads(draft['manifest']) | {'campaign_id': 'another-campaign'},
+                      draft['mailing'], app.drafts.get(self.scope, draft_id).assignments_csv)
+        with database.transaction() as db:
+            db.execute('INSERT INTO drafts VALUES(?,?,?,?,?)',
+                       (self.scope, other.id, canonical(other.manifest), other.mailing_csv, other.assignments_csv))
+        variants = {
+            'mode': receipt | {'mode': 'NOT_ACCEPTED'},
+            'kind': receipt | {'kind': 'proposal_only'},
+            'case': receipt | {'case_id': 'another-case'},
+            'job': receipt | {'id': 'another-job'},
+            'approval': receipt | {'approval_id': 'another-approval'},
+            'subject': receipt | {'subject_id': 'another-subject'},
+            'time': receipt | {'accepted_at': receipt['accepted_at'] + 1},
+            'recipients': receipt | {'recipients': receipt['recipients'] - 1},
+            'assignments': receipt | {'assignments_sha256': 'changed'},
+            'mailing': receipt | {'mailing_sha256': 'changed'},
+            'draft': receipt | {'draft_id': 'unavailable-draft'},
+            'substituted-draft': receipt | {'draft_id': other.id},
+        }
+        for name in ('missing', 'foreign-scope', 'job-index', 'subject-index', 'draft-bytes', *variants):
+            with self.subTest(name=name):
+                try:
+                    with database.connect() as db:
+                        # Corruption can predate this process. A foreign-scope
+                        # decoy must never substitute for the scoped acceptance.
+                        db.execute('PRAGMA foreign_keys=OFF')
+                        db.execute('BEGIN IMMEDIATE')
+                        if name == 'missing':
+                            db.execute('DELETE FROM simulated_agency_jobs WHERE organization=? AND case_id=?', (self.scope, case_id))
+                            self.assertEqual(db.execute('PRAGMA foreign_key_check').fetchall(), [])
+                        elif name == 'foreign-scope':
+                            db.execute('UPDATE simulated_agency_jobs SET organization=? WHERE organization=? AND case_id=?',
+                                       ('foreign-organization', self.scope, case_id))
+                        elif name in {'job-index', 'subject-index'}:
+                            column = 'id' if name == 'job-index' else 'subject_id'
+                            db.execute('UPDATE simulated_agency_jobs SET ' + column + '=? WHERE organization=? AND case_id=?',
+                                       ('substituted-index', self.scope, case_id))
+                        elif name == 'draft-bytes':
+                            db.execute('UPDATE drafts SET mailing=? WHERE organization=? AND id=?',
+                                       (draft['mailing'] + 'changed', self.scope, draft_id))
+                        else:
+                            db.execute('UPDATE simulated_agency_jobs SET payload=? WHERE organization=? AND case_id=?',
+                                       (canonical(variants[name]), self.scope, case_id))
+                        db.commit()
+                    with self.assertRaises(Conflict):
+                        self.w.propose_followup(self.sid, 'unaccepted-source-' + name, self.cohort)
+                    with self.assertRaises(Conflict):
+                        app.followups.put(self.scope, 'acceptance-commit-race-' + name, p)
+                    if name == 'missing':
+                        code = """import sys
+from acquisition.contracts import Conflict
+from acquisition.workspace import Workspace
+w=Workspace(sys.argv[1],real_clock=lambda:1792972800.)
+try:w.propose_followup(sys.argv[2],'restart-missing-acceptance',sys.argv[3])
+except Conflict:print('blocked')
+else:raise AssertionError('Missing acceptance supported a new proposal after restart')
+"""
+                        result = subprocess.run([sys.executable, '-c', code, str(self.root), self.sid, self.cohort],
+                            env=dict(os.environ, PYTHONPATH=str(Path('src').resolve())), text=True, capture_output=True, timeout=10)
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        self.assertEqual(result.stdout.strip(), 'blocked')
+                    with database.connect() as db:
+                        self.assertEqual(db.execute('SELECT count(*) FROM review_commands').fetchone()[0], commands)
+                        self.assertEqual(db.execute('SELECT count(*) FROM creative_contexts').fetchone()[0], contexts)
+                        self.assertEqual(db.execute('SELECT count(*) FROM model_calls').fetchone()[0], 0)
+                    # A saved receipt remains a historical observation, even
+                    # when its source can no longer support a new proposal.
+                    self.assertEqual(self.w.propose_followup(self.sid, 'proposal', self.cohort), p)
+                finally:
+                    with database.transaction() as db:
+                        db.execute('DELETE FROM simulated_agency_jobs WHERE organization IN (?,?) AND case_id=?',
+                                   (self.scope, 'foreign-organization', case_id))
+                        db.execute('INSERT INTO simulated_agency_jobs VALUES(?,?,?,?,?,?)', job)
+                        db.execute('UPDATE drafts SET manifest=?,mailing=? WHERE organization=? AND id=?',
+                                   (draft['manifest'], draft['mailing'], self.scope, draft_id))
+        reopened = Workspace(self.root, real_clock=lambda: 1792972800.)
+        self.assertEqual(reopened.propose_followup(self.sid, 'reconciled-acceptance', self.cohort)['hypotheses'], p['hypotheses'])
+        self.assertEqual(app.followups.get(self.scope, p['id']), p)
+
     def test_context_snapshot_identity_version_and_population_counts_bind_the_proposal(self):
         import copy
         from dataclasses import replace

@@ -10,6 +10,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ('followup-accepted-cohort', 'adapters/sqlite/learning.py',
+     'if cohort_proposal(organization, receipt, draft) != cohort:', 'if False:',
+     'test_followups.FollowupTests.test_finalized_source_requires_its_exact_accepted_job_and_draft_at_read_and_commit'),
+    ('followup-accepted-job-identity', 'adapters/sqlite/learning.py',
+     "any(job[key] != receipt[key] for key in ('id', 'case_id', 'approval_id', 'subject_id'))", 'False',
+     'test_followups.FollowupTests.test_finalized_source_requires_its_exact_accepted_job_and_draft_at_read_and_commit'),
     ('followup-original-source-hook', 'learning/hypotheses.py',
      "'hook': creative['hook'], ", '',
      'test_followups.FollowupTests.test_model_uses_frozen_context_and_explicit_consent'),

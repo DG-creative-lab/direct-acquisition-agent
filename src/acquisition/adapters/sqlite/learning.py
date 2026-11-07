@@ -7,7 +7,7 @@ from acquisition.campaigns import Draft
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.learning import cohort_proposal, counts_for, finite, identifier, posterior, recommend, validate_outcome
 from .actors import require_actor
-from .drafts import verify
+from .drafts import read_draft, verify
 
 
 def reconcile_finalized_outcomes(db, organization, cohort, finalization, now):
@@ -16,6 +16,18 @@ def reconcile_finalized_outcomes(db, organization, cohort, finalization, now):
         if (cohort['organization'] != organization or cohort['id'] != 'cohort_' + digest(
                 {k: v for k, v in cohort.items() if k != 'id'}) or not finalization):
             raise Conflict('Finalized source cohort integrity failure')
+        job = db.execute('SELECT * FROM simulated_agency_jobs WHERE organization=? AND case_id=?',
+                         (organization, cohort['case_id'])).fetchone()
+        if job is None:
+            raise Conflict('Finalized source lacks its accepted simulated job')
+        receipt = json.loads(job['payload'])
+        if (receipt['kind'] != 'simulated_agency_acceptance'
+                or any(job[key] != receipt[key] for key in ('id', 'case_id', 'approval_id', 'subject_id'))
+                or receipt['id'] != 'fake_job_' + digest({'case': receipt['case_id'], 'approval': receipt['approval_id']})):
+            raise Conflict('Finalized source acceptance identity is inconsistent')
+        draft = read_draft(db, organization, receipt['draft_id'])
+        if cohort_proposal(organization, receipt, draft) != cohort:
+            raise Conflict('Finalized source cohort differs from its accepted experiment')
         members = {m['business_id']: m for m in cohort['members']}
         indexed = {r[0] for r in db.execute(
             'SELECT business_id FROM learning_members WHERE organization=? AND cohort_id=?', (organization, cohort['id']))}
@@ -37,8 +49,8 @@ def reconcile_finalized_outcomes(db, organization, cohort, finalization, now):
                 or finalization['successes'] != sum(r['response'] for r in outcomes.values())):
             raise Conflict('Finalized source outcomes differ from their receipt or beliefs')
         return groups
-    except (ValueError, TypeError, KeyError) as error:
-        raise Conflict('Finalized source outcome evidence is invalid') from error
+    except (NotFound, ValueError, TypeError, KeyError) as error:
+        raise Conflict('Finalized source acceptance or outcome evidence is invalid') from error
 
 
 class SqliteLearning:
