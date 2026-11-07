@@ -212,14 +212,15 @@ class Workspace:
 
     def conversation(self, conversation_id):
         self._ensure_descendant_links()
-        view = self._conversation_app().conversations.view("local-conversations", conversation_id)
+        application = self._conversation_app()
+        view = application.conversations.view("local-conversations", conversation_id)
         sessions=self._sessions(reverse=True)
         comments = []
         for session in sessions:
             if session.get('conversation_plan', {}).get('conversation_id') == conversation_id and session['case_id']:
                 comments.extend(comment | {'session_id': session['id']} for comment in
-                                self._app(session).reviews.store.comments(session['organization'], session['case_id']))
-        return view | {"artifact_comments": comments, "execution":self._conversation_app().execution.view('local-conversations',conversation_id), "actions":self.action_progress(conversation_id), "preparations": self.preparation_progress(conversation_id), "campaigns": [{"session_id": s["id"], "plan_id": s["conversation_plan"]["id"],
+                                application.reviews.store.comments(session['organization'], session['case_id']))
+        return view | {"artifact_comments": comments, "execution":application.execution.view('local-conversations',conversation_id), "actions":self.action_progress(conversation_id), "preparations": self.preparation_progress(conversation_id), "campaigns": [{"session_id": s["id"], "plan_id": s["conversation_plan"]["id"],
                                       "revision": s["conversation_plan"]["revision"], "case_id": s["case_id"],
                                       "generation": self._generation(s)}
                                      for s in sessions if s.get("conversation_plan", {}).get("conversation_id") == conversation_id]}
