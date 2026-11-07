@@ -24,43 +24,43 @@
       "id": "unsupported-email",
       "messages": ["Prepare an email-only response campaign for UK contractors about iwoca Flexi-Loan. Budget £437. Do not substitute postal mail."],
       "scripted_brief": {"budget_pence": 43700, "segments": ["contractors"], "copy_mode": "fixture"},
-      "expected": {"review_ready": false, "reason": "Email execution is outside the supported postal channel."}
+      "expected": {"review_ready": false, "reason": "Email execution is outside the supported postal channel.", "planning_outcome": "unsupported", "response_contains": ["email"]}
     },
     {
       "id": "unsupported-france",
       "messages": ["Prepare a postal contractor response campaign in France, with a total budget of £437. Do not replace France with the UK."],
       "scripted_brief": {"budget_pence": 43700, "segments": ["contractors"], "copy_mode": "fixture"},
-      "expected": {"review_ready": false, "reason": "France is outside the supported UK scope."}
+      "expected": {"review_ready": false, "reason": "France is outside the supported UK scope.", "planning_outcome": "unsupported", "response_contains": ["France"]}
     },
     {
       "id": "unsupported-personal-mortgage",
       "messages": ["Use £437 for a UK postal campaign promoting a personal residential mortgage to contractors. Do not substitute a business loan."],
       "scripted_brief": {"budget_pence": 43700, "segments": ["contractors"], "copy_mode": "fixture"},
-      "expected": {"review_ready": false, "reason": "A personal mortgage is not the supported iwoca Flexi-Loan product."}
+      "expected": {"review_ready": false, "reason": "A personal mortgage is not the supported iwoca Flexi-Loan product.", "planning_outcome": "unsupported", "response_contains": ["mortgage"]}
     },
     {
       "id": "unsupported-lending-decision",
       "messages": ["Use £437 to approve credit applications and guarantee a loan for each UK contractor through this postal campaign."],
       "scripted_brief": {"budget_pence": 43700, "segments": ["contractors"], "copy_mode": "fixture"},
-      "expected": {"review_ready": false, "reason": "Credit decisions and guaranteed lending are unsupported objectives."}
+      "expected": {"review_ready": false, "reason": "Credit decisions and guaranteed lending are unsupported objectives.", "planning_outcome": "unsupported", "response_contains": ["credit"]}
     },
     {
       "id": "missing-budget",
       "messages": ["Prepare a UK postal response experiment for inventory businesses. I have not chosen a budget."],
       "scripted_brief": {"outcome": "clarification", "budget_pence": null, "segments": ["inventory"], "copy_mode": "fixture", "question": "What total GBP budget should I use?"},
-      "expected": {"review_ready": false, "reason": "The budget is missing."}
+      "expected": {"review_ready": false, "reason": "The budget is missing.", "planning_outcome": "clarification", "response_contains": ["budget"]}
     },
     {
       "id": "ambiguous-budget",
       "messages": ["Prepare a UK contractor postal experiment. Use either £437 or £683, whichever you think is best."],
       "scripted_brief": {"budget_pence": 43700, "segments": ["contractors"], "copy_mode": "fixture"},
-      "expected": {"review_ready": false, "reason": "The planner cannot choose between two unconfirmed budgets."}
+      "expected": {"review_ready": false, "reason": "The planner cannot choose between two unconfirmed budgets.", "planning_outcome": "clarification", "response_contains": ["budget"]}
     },
     {
       "id": "relative-budget-correction",
       "messages": ["Prepare a UK postal inventory response experiment with £437.", "Reduce that budget by £37."],
       "scripted_brief": {"budget_pence": 40000, "segments": ["inventory"], "copy_mode": "fixture"},
-      "expected": {"review_ready": false, "reason": "A relative correction requires a confirmed absolute total."}
+      "expected": {"review_ready": false, "reason": "A relative correction requires a confirmed absolute total.", "planning_outcome": "clarification", "response_contains": ["budget"]}
     }
   ]
 }

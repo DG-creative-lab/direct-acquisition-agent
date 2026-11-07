@@ -52,3 +52,4 @@ dist/
 /docs/evaluations/*
 !/docs/evaluations/issue-25-offline.md
 !/docs/evaluations/issue-25-offline-results.json
+!/docs/evaluations/issue-25-offline-results-v2.json

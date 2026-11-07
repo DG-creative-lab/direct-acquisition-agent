@@ -23,6 +23,43 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / 'src'), str(ROOT / 'tests')]
 
+
+def source_state(root=ROOT):
+    """Record actual import/configuration inputs, including uncommitted files."""
+    def git(*args):
+        return subprocess.check_output(['git', *args], cwd=root, stderr=subprocess.PIPE).decode()
+
+    prefixes = ('src', 'tests', 'config', 'scripts')
+    head = git('rev-parse', 'HEAD').strip()
+    tracked = set(filter(None, git('ls-tree', '-r', '--name-only', '-z', 'HEAD', '--', *prefixes).split('\0')))
+    paths = set(tracked)
+    for prefix in prefixes:
+        paths.update(p.relative_to(root).as_posix() for p in (root / prefix).rglob('*')
+                     if (p.is_file() or p.is_symlink()) and '__pycache__' not in p.parts
+                     and p.suffix not in {'.pyc', '.pyo'})
+    files = {}
+    for relative in sorted(paths):
+        path = root / relative
+        record = {'sha256': hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None}
+        if path.is_symlink():
+            record['symlink_target'] = str(path.readlink())
+        files[relative] = record
+    status = list(filter(None, git('status', '--porcelain=v1', '-z', '--untracked-files=all', '--', *prefixes).split('\0')))
+    digest = hashlib.sha256(json.dumps(files, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    return {'head_commit': head, 'worktree_dirty': bool(status or paths - tracked),
+            'git_status': status, 'files_sha256': digest, 'files': files}
+
+
+# Capture before importing production modules or test providers. A later
+# snapshot detects edits during import or execution instead of attributing a
+# mixture of code to an unchanged commit.
+try:
+    IMPORTED_SOURCE_STATE = source_state()
+except subprocess.CalledProcessError:
+    # Pure grading helpers can be imported in isolated test copies. A real
+    # evaluation still requires attributable Git metadata below.
+    IMPORTED_SOURCE_STATE = None
+
 from acquisition.contracts import Conflict, canonical
 from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.reasoning import ModelError
@@ -83,6 +120,42 @@ def select_and_finish(w, conversation_id, state):
             **{key: entry[key] for key in ('dataset_id', 'version', 'checksum')}, manifest_id=entry['id'])
         return advance(w, conversation_id)
     return state
+
+
+def assess_outcome(expected, state):
+    """A non-ready result is not itself evidence of the expected rejection."""
+    status = state['preparations'][-1]['status']
+    plan = state.get('current_plan') or {}
+    planned = plan.get('result') or {}
+    outcome = planned.get('outcome')
+    result = {'passed': False, 'observed_status': status, 'observed_planning_outcome': outcome,
+              'false_acceptance': False, 'false_rejection': False,
+              'planner_error': plan.get('error')}
+    if status == 'review_ready':
+        result['passed'] = expected['review_ready']
+        result['false_acceptance'] = not expected['review_ready']
+        category = 'accepted' if result['passed'] else 'false_acceptance'
+    elif status == 'uncertain':
+        category = 'provider_uncertainty'
+    elif status == 'failed' and plan.get('status') == 'failed':
+        error = plan.get('error') or {}
+        category = ('planner_failure' if error.get('error_code') == 'ModelError' and not error.get('provider_error')
+                    else 'infrastructure_failure')
+    elif status in {'failed', 'blocked', 'cancelled', 'stale'}:
+        category = 'infrastructure_failure'
+    elif status == 'needs_input' and outcome in {'clarification', 'unsupported'}:
+        field = 'question' if outcome == 'clarification' else 'unsupported_reason'
+        response = planned.get(field, '')
+        matches = (not expected['review_ready'] and outcome == expected.get('planning_outcome')
+                   and bool(response.strip()) and not state.get('campaigns')
+                   and all(term.casefold() in response.casefold() for term in expected.get('response_contains', [])))
+        result['passed'] = matches
+        result['observed_response'] = response
+        result['false_rejection'] = expected['review_ready']
+        category = 'expected_' + outcome if matches else 'false_rejection' if result['false_rejection'] else 'unexpected_outcome'
+    else:
+        category = 'unexpected_outcome'
+    return result | {'outcome_category': category}
 
 
 def preference_journey(w, cid, sid, review, segment):
@@ -221,11 +294,8 @@ def run_case(case):
             revision = len(case['messages'])
             w.start_preparation(cid, 'prepare', revision, False, case['scripted_brief']['copy_mode'] == 'model', True)
             state = select_and_finish(w, cid, advance(w, cid))
-            ready = state['preparations'][-1]['status'] == 'review_ready'
-            result['observed_status'] = state['preparations'][-1]['status']
-            result['false_acceptance'] = ready and not case['expected']['review_ready']
-            result['false_rejection'] = not ready and case['expected']['review_ready']
-            result['passed'] = ready == case['expected']['review_ready']
+            result.update(assess_outcome(case['expected'], state))
+            ready = result['observed_status'] == 'review_ready'
             if ready:
                 view = w.view(state['campaigns'][-1]['session_id'])
                 require(view['review']['validation_report']['review_ready'], 'Progress contradicted validation')
@@ -237,7 +307,8 @@ def run_case(case):
                     require(sorted(brief['segments']) == case['expected']['segments'], 'Audience differs from independent expectation')
                     result['journey'] = complete_journey(w, cid, state, model)
     except Exception as error:
-        result.update(passed=False, error=type(error).__name__ + ': ' + str(error))
+        result.update(passed=False, outcome_category='journey_failure' if isinstance(error, AssertionError) else 'infrastructure_failure',
+                      error=type(error).__name__ + ': ' + str(error))
     result.update(elapsed_seconds=round(time.perf_counter() - started, 3),
                   fake_provider_calls=len(model.trace), request_bytes=sum(t['request_bytes'] for t in model.trace),
                   trace=model.trace, live_provider_calls=0)
@@ -281,7 +352,7 @@ def verified_boundary():
         else:
             raise AssertionError('Restored workspace accepted a write')
         require(tree(restored) == before, 'Inspection changed restored bytes')
-        return {'id': 'verified-fixture-and-restore', 'passed': True, 'live_provider_calls': 0,
+        return {'id': 'verified-fixture-and-restore', 'passed': True, 'outcome_category': 'boundary_pass', 'live_provider_calls': 0,
                 'fake_provider_calls': len(model.trace), 'restored_bytes_unchanged': True,
                 'elapsed_seconds': round(time.perf_counter() - started, 3)}
 
@@ -309,7 +380,7 @@ def uncertain_restart():
         require(len(model.trace) == 1 and current['execution']['used'] == used, 'Restart repeated uncertain inference')
         require(current['execution']['counts']['uncertain'] == 1, 'Stopping lost unresolved accounting')
         require(not current['campaigns'], 'A cancelled uncertain attempt created a campaign')
-        return {'id': 'uncertain-stop-restart', 'passed': True, 'live_provider_calls': 0,
+        return {'id': 'uncertain-stop-restart', 'passed': True, 'outcome_category': 'boundary_pass', 'live_provider_calls': 0,
                 'fake_provider_calls': 1, 'replay_added_calls': 0, 'used': used,
                 'elapsed_seconds': round(time.perf_counter() - started, 3)}
 
@@ -318,9 +389,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
+    if IMPORTED_SOURCE_STATE is None:
+        parser.error('Run the evaluation from an attributable Git checkout')
     corpus_path = ROOT / 'config/conversation-offline-evaluation-v1.json'
-    corpus = json.loads(corpus_path.read_text())
-    sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
+    corpus_bytes = corpus_path.read_bytes()
+    corpus = json.loads(corpus_bytes)
+    before = IMPORTED_SOURCE_STATE
     results = []
     for case in corpus['cases']:
         row = run_case(case)
@@ -330,13 +404,21 @@ def main():
         try:
             boundary = run()
         except Exception as error:
-            boundary = {'id': identity, 'passed': False, 'error': type(error).__name__ + ': ' + str(error)}
+            boundary = {'id': identity, 'passed': False, 'outcome_category': 'journey_failure' if isinstance(error, AssertionError) else 'infrastructure_failure',
+                        'error': type(error).__name__ + ': ' + str(error)}
         results.append(boundary)
         print(boundary['id'] + ': ' + ('PASS' if boundary['passed'] else 'FAIL') + (' ' + boundary['error'] if boundary.get('error') else ''), flush=True)
-    report = {'schema': 'conversation-offline-evaluation-result/v1', 'evaluated_commit': sha,
+    after = source_state()
+    stable = before['files_sha256'] == after['files_sha256'] and before['head_commit'] == after['head_commit']
+    changed = {p: {'before': before['files'].get(p), 'after': after['files'].get(p)}
+               for p in before['files'].keys() | after['files'].keys() if before['files'].get(p) != after['files'].get(p)}
+    report = {'schema': 'conversation-offline-evaluation-result/v2', 'base_commit': before['head_commit'],
+              'evaluated_commit': before['head_commit'] if not before['worktree_dirty'] and stable else None,
+              'source_state': before, 'source_state_after': {k: v for k, v in after.items() if k != 'files'},
+              'changed_source_files': changed, 'source_state_stable': stable,
               'evaluated_at': datetime.now(timezone.utc).isoformat(),
-              'corpus_sha256': hashlib.sha256(corpus_path.read_bytes()).hexdigest(),
-              'runner_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+              'corpus_sha256': hashlib.sha256(corpus_bytes).hexdigest(),
+              'runner_sha256': before['files']['scripts/evaluate_conversational_agent.py']['sha256'],
               'limits': ['Scripted responses do not measure model intent recognition or editorial quality.',
                          'Latency is local harness wall time, not provider or production latency.',
                          'No real provider price or customer-performance measurement.',
@@ -344,11 +426,16 @@ def main():
               'results': results, 'passed': sum(r['passed'] for r in results), 'total': len(results),
               'false_acceptances': sum(r.get('false_acceptance', False) for r in results),
               'false_rejections': sum(r.get('false_rejection', False) for r in results),
+              'planner_failures': sum(r.get('outcome_category') == 'planner_failure' for r in results),
+              'infrastructure_failures': sum(r.get('outcome_category') == 'infrastructure_failure' for r in results),
               'live_provider_calls': 0}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2) + '\n')
     print(f"{report['passed']}/{report['total']} passed; {report['false_acceptances']} false acceptances; 0 live calls", flush=True)
-    return int(report['passed'] != report['total'])
+    print(f"{report['planner_failures']} planner failures; {report['infrastructure_failures']} infrastructure failures; source stable: {stable}", flush=True)
+    if not stable:
+        print('Source inputs changed during import or evaluation; this evidence is invalid.', flush=True)
+    return int(not stable or report['passed'] != report['total'])
 
 
 if __name__ == '__main__':
