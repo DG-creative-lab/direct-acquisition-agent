@@ -350,12 +350,7 @@ class Application:
             validate_fact_pack(product_facts, datetime.fromtimestamp(self.clock(), timezone.utc).date())
             contexts = {}
             learning_memory = self.learning.store.memory_snapshot(organization, segments)
-            for segment in segments:
-                example = guidance["reviewer_examples"][segment]
-                # Seed examples are explicitly reviewer preferences, never outcome evidence.
-                if not self.memory.examples(organization, segment):
-                    self.memory.remember(organization, segment, **example)
-            editorial_memory = self.memory.examples_snapshot(organization, segments)
+            editorial_memory = self.memory.examples_snapshot(organization, segments, guidance['reviewer_examples'])
             for segment in segments:
                 context = {"segment": segment, "guidance": guidance, "product_facts": product_facts,
                            "memory": editorial_memory[segment],
@@ -395,11 +390,7 @@ class Application:
         guidance = json.loads((root / "editorial-v3.json").read_text())
         facts = self.reviews.store.evidence(organization)["pack"]
         contexts = {}
-        for segment in segments:
-            example = guidance["reviewer_examples"][segment]
-            if not self.memory.examples(organization, segment):
-                self.memory.remember(organization, segment, **example)
-        editorial_memory = self.memory.examples_snapshot(organization, segments)
+        editorial_memory = self.memory.examples_snapshot(organization, segments, guidance['reviewer_examples'])
         for segment in segments:
             context = {"segment":segment, "guidance":guidance, "product_facts":facts,
                 "memory":editorial_memory[segment], "audience_summary":{

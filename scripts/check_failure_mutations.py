@@ -10,6 +10,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ('writing-preference-model-projection', 'creative/grounding.py',
+     "context = context | {'memory': model_editorial_memory(context['memory'])}", 'context = context',
+     'test_fixture_activation.FixtureActivationTests.test_preference_source_prose_is_audit_only_in_the_actual_model_exchange'),
+    ('writing-preference-replace-guard', 'adapters/sqlite/database.py',
+     'AND ((id=NEW.id AND revision=NEW.revision) OR request_id=NEW.request_id))', 'AND 0)',
+     'test_fixture_activation.FixtureActivationTests.test_preference_versions_reject_replace_for_both_keys_and_replay_the_original_receipt'),
+    ('writing-preference-snapshot-fallback', 'adapters/sqlite/creative.py',
+     'if not result[segment] and fallbacks is not None:', 'if False:',
+     'test_fixture_activation.FixtureActivationTests.test_retirement_during_context_selection_uses_authored_fallback_for_every_audience'),
     ('writing-preference-confirmation', 'creative/domain.py',
      'if confirmed is not True:', 'if False:',
      'test_fixture_activation.FixtureActivationTests.test_preference_confirmation_rejects_missing_evidence_cross_scope_and_stale_edits'),

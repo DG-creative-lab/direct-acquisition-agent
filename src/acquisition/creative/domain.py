@@ -3,6 +3,16 @@ from dataclasses import asdict, dataclass
 from acquisition.contracts import digest
 
 
+def model_editorial_memory(memory):
+    """Expose confirmed guidance, keeping source prose in the frozen audit only."""
+    fields = ('id', 'kind', 'segment', 'preferred', 'avoid', 'reason', 'revision', 'source_organization')
+    references = ('request_id', 'conversation_id', 'conversation_revision', 'subject_id',
+                  'subject_revision', 'draft_id', 'target_id')
+    return [{**{key: item[key] for key in fields if key in item},
+             'source': {key: item['source'][key] for key in references if key in item['source']}}
+            if 'source' in item else item for item in memory]
+
+
 def writing_preference(action, expected_revision, segments, preferred, avoid, reason, confirmed):
     """Explicit editorial intent, independent of approval and observed outcomes."""
     if confirmed is not True:

@@ -363,6 +363,14 @@ PRAGMA user_version=14;
 """
 
 
+WRITING_PREFERENCE_INSERT_GUARD = """
+CREATE TRIGGER IF NOT EXISTS writing_preference_no_replace BEFORE INSERT ON writing_preference_versions
+ WHEN EXISTS(SELECT 1 FROM writing_preference_versions WHERE organization=NEW.organization
+   AND ((id=NEW.id AND revision=NEW.revision) OR request_id=NEW.request_id))
+ BEGIN SELECT RAISE(ABORT,'Writing preference history is immutable'); END;
+"""
+
+
 WRITING_PREFERENCES = """
 CREATE TABLE IF NOT EXISTS writing_preference_versions (
  organization TEXT NOT NULL,id TEXT NOT NULL,revision INTEGER NOT NULL,
@@ -372,8 +380,7 @@ CREATE TRIGGER IF NOT EXISTS writing_preference_no_update BEFORE UPDATE ON writi
  BEGIN SELECT RAISE(ABORT,'Writing preference history is immutable'); END;
 CREATE TRIGGER IF NOT EXISTS writing_preference_no_delete BEFORE DELETE ON writing_preference_versions
  BEGIN SELECT RAISE(ABORT,'Writing preference history is immutable'); END;
-PRAGMA user_version=15;
-"""
+""" + WRITING_PREFERENCE_INSERT_GUARD + "PRAGMA user_version=15;"
 
 
 class Database:
@@ -455,6 +462,8 @@ class Database:
             else:self._validate_workspace_schema(connection)
             if version < 15:
                 self._apply_migration(connection, WRITING_PREFERENCES)
+            else:
+                self._apply_migration(connection, WRITING_PREFERENCE_INSERT_GUARD)
             self._validate_writing_preference_schema(connection)
             if verified_admissions:
                 # Seal under the same write lock that skipped legacy recovery.

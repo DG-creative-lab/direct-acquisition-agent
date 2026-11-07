@@ -26,6 +26,15 @@ snapshot, so a concurrent correction or retirement cannot split their versions.
 Each frozen source retains the preference version and original comment provenance.
 Already admitted copy and follow-up work uses its original contexts.
 
+The model projection includes the confirmed preferred/avoided wording, confirmed
+reason and source identifiers. Original source feedback remains in the immutable
+preference journal and full frozen audit context, and is omitted from model
+requests. Historical frozen context bytes are never rewritten for this projection.
+If an audience has no active preference or existing CLI example, the same read
+snapshot selects an authored example from the current frozen guidance. Campaign
+and follow-up contexts cannot acquire an empty required memory enum when a
+preference is concurrently retired.
+
 ## Ownership and effects
 
 `creative` owns preference validation and its narrow persistence port. The SQLite
@@ -42,6 +51,10 @@ request ID bind exact inputs. Competing corrections use the expected revision
 under the SQLite write lock. An uncertain response keeps the exact browser
 decision and request identity through reload; retry retrieves the original
 receipt. A post-commit projection failure cannot report a definitive rejection.
+Update/delete guards and a before-insert conflict guard protect both the version
+key and scoped request ID, including `INSERT OR REPLACE` on normal SQLite
+connections. Opening an existing live schema-15 store installs the insert guard
+without altering its recorded versions. Checkpoint inspection performs no repair.
 
 The context source is `reviewer_preference`, with style-guidance use only. A
 preference supplies no product facts, outcomes, approval, budget or execution

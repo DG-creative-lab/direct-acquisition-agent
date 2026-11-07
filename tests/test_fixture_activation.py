@@ -402,14 +402,14 @@ assert len(comments) == 1 and comments[0]['request_id'] == 'copy-comment'
         app.reviews.store.register_actor(session['organization'], 'local-operator', ('operator',), True)
         self.assertEqual(len(self.w.comment_artifact(cid, **inputs)['artifact_comments']), 1)
 
-    def preference_source(self):
+    def preference_source(self, feedback='Use a concrete opening.'):
         cid, session = self.start_campaign()
         for _ in range(3):
             self.w.advance_preparations()
         review = self.w.view(session['id'])['review']
         creative = review['manifest']['creatives'][0]
         self.w.comment_artifact(cid, session['id'], review['subject']['id'], creative['id'], 1,
-                                'Use a concrete opening.', 'preference-comment')
+                                feedback, 'preference-comment')
         inputs = dict(session_id=session['id'], comment_id='preference-comment', preference_id='', action='confirm',
                       expected_revision=0, segments=[creative['segment']], preferred='Use a concrete situation.',
                       avoid='Vague promises.', reason='Explicit editorial guidance.', confirmed=True, request_id='remember')
@@ -548,8 +548,8 @@ assert p['status'] == 'retired' and len(p['history']) == 3
                                   preferred='Keep the revised preference.', request_id='concurrent-edit')
         original = app.memory.examples_snapshot
         snapshots = []
-        def corrected_after_snapshot(organization, segments):
-            result = original(organization, segments)
+        def corrected_after_snapshot(organization, segments, fallbacks=None):
+            result = original(organization, segments, fallbacks)
             if len(segments) == 2 and not snapshots:
                 snapshots.append(result)
                 self.w.change_writing_preference(cid, **correction)
@@ -606,6 +606,106 @@ assert p['status'] == 'retired' and len(p['history']) == 3
             memory.preferences(OWNER)
         with self.assertRaisesRegex(Conflict, 'history is unavailable'):
             build_workspace_checkpoint().create(self.root, self.parent / 'missing-history-checkpoint')
+
+    def test_preference_source_prose_is_audit_only_in_the_actual_model_exchange(self):
+        from test_model_copy import FakeModel
+        original_feedback = 'SOURCE_DIRECTION_REMOVED_FROM_CONFIRMED_GUIDANCE'
+        cid, session, review, inputs = self.preference_source(original_feedback)
+        first = self.w.change_writing_preference(cid, **inputs)['preference_receipt']
+        correction = inputs | dict(preference_id=first['id'], action='correct', expected_revision=1,
+            preferred='Ask one concrete question.', reason='Use only this confirmed direction.', request_id='edit-projection')
+        current = self.w.change_writing_preference(cid, **correction)['preference_receipt']
+        app = self.w._app(session)
+        _, contexts = app._model_inputs(session['organization'], 'freeze-wire', size=20)
+        frozen = {segment: app.memory.get_context(session['organization'], context_id) for segment, context_id in contexts.items()}
+        source_context = frozen[inputs['segments'][0]]
+        self.assertEqual(source_context['memory'][0]['source']['feedback'], original_feedback)
+        self.assertEqual(app.memory.preferences(OWNER)[0]['source'], current['source'])
+        # Exercise preflight and dispatch through the normal copy worker with a
+        # fake provider in a separate unsealed test database. The verified root
+        # retains its paid pause and records no inference calls.
+        model = FakeModel()
+        fake = build(self.parent / 'fake-wire.sqlite', clock=lambda: self.now, gateway=model,
+                     model_config=ModelConfig('test/model', max_calls=10))
+        for segment, context in frozen.items():
+            self.assertEqual(fake.memory.put_context(session['organization'], context), contexts[segment])
+        run = fake.start_model(session['organization'], 'wire', size=20, contexts_override=contexts)
+        fake.worker.drain(session['organization'])
+        self.assertEqual(fake.tasks.inspect(session['organization'], run)['run']['status'], 'waiting')
+        self.assertEqual(len(model.requests), 6)
+        wire = canonical(model.requests)
+        self.assertIn(correction['preferred'], wire)
+        self.assertNotIn(original_feedback, wire)
+        self.assertNotIn(inputs['preferred'], wire)
+        self.assertIn(current['source']['subject_id'], wire)
+        for segment, context_id in contexts.items():
+            self.assertEqual(app.memory.get_context(session['organization'], context_id), frozen[segment])
+        with app.memory.database.connect() as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM model_calls').fetchone()[0], 0)
+
+    def test_preference_versions_reject_replace_for_both_keys_and_replay_the_original_receipt(self):
+        cid, session, review, inputs = self.preference_source()
+        first = self.w.change_writing_preference(cid, **inputs)['preference_receipt']
+        memory = self.w._app(session).memory
+        before = memory.preferences(OWNER)
+        # Also repair a live schema-15 store created by the earlier feature
+        # commit, without rewriting any recorded preference version.
+        with memory.database.transaction() as db:
+            db.execute('DROP TRIGGER writing_preference_no_replace')
+        memory = build(memory.database.path, clock=lambda: self.now).memory
+        with memory.database.connect() as db:
+            self.assertEqual(db.execute('PRAGMA recursive_triggers').fetchone()[0], 0)
+            original = dict(db.execute('SELECT * FROM writing_preference_versions').fetchone())
+        for changes in ({'request_id': 'replacement-version'}, {'id': 'replacement-id', 'revision': 99}):
+            substituted = original | changes | {'payload': canonical(first | {'preferred': 'Substituted history.'})}
+            with self.subTest(changes=changes), memory.database.transaction() as db:
+                with self.assertRaisesRegex(sqlite3.IntegrityError, 'history is immutable'):
+                    db.execute('INSERT OR REPLACE INTO writing_preference_versions VALUES(?,?,?,?,?,?)', tuple(substituted.values()))
+            self.assertEqual(memory.preferences(OWNER), before)
+            self.assertEqual(self.w.change_writing_preference(cid, **inputs)['preference_receipt'], first)
+        correction = inputs | dict(preference_id=first['id'], action='correct', expected_revision=1, request_id='legitimate-edit')
+        self.assertEqual(self.w.change_writing_preference(cid, **correction)['preference_receipt']['revision'], 2)
+
+    def test_retirement_during_context_selection_uses_authored_fallback_for_every_audience(self):
+        from acquisition.creative import GroundedCopyAgent
+        cid, session, review, inputs = self.preference_source()
+        app = self.w._app(session)
+        segments = ('inventory', 'contractors')
+        for name in ('campaign', 'followup'):
+            if name == 'followup':
+                creative = review['manifest']['creatives'][0]
+                self.w.comment_artifact(cid, session['id'], review['subject']['id'], creative['id'], 1,
+                                        'Another source comment.', 'second-preference-comment')
+                inputs |= {'comment_id': 'second-preference-comment', 'request_id': 'second-preference'}
+            inputs |= {'segments': list(segments)}
+            first = self.w.change_writing_preference(cid, **inputs)['preference_receipt']
+            retire = inputs | dict(preference_id=first['id'], action='retire', expected_revision=1,
+                                   request_id='retire-' + name)
+            selected = []
+            original = app.memory.examples_snapshot
+            def retire_before_snapshot(organization, required_segments, fallbacks=None):
+                # In the old sequence each audience saw the active preference
+                # and skipped seeding, then retirement preceded the final read.
+                if len(required_segments) == 2 and not selected:
+                    selected.append(True)
+                    with app.memory.database.connect() as db:
+                        self.assertEqual(db.execute('SELECT count(*) FROM editorial_memories').fetchone()[0], 0)
+                    self.w.change_writing_preference(cid, **retire)
+                return original(organization, required_segments, fallbacks)
+            with patch.object(app.memory, 'examples_snapshot', side_effect=retire_before_snapshot):
+                if name == 'campaign':
+                    _, contexts = app._model_inputs(session['organization'], 'retirement-race', size=20)
+                else:
+                    snapshot = app.audiences.get(session['organization'], review['subject']['snapshot_id'])
+                    learning = app.learning.store.memory_snapshot(session['organization'], segments)
+                    contexts = app.followup_contexts(session['organization'], snapshot, segments, learning, 'Advisory test only.')
+            self.assertTrue(selected)
+            for segment, context_id in contexts.items():
+                context = app.memory.get_context(session['organization'], context_id)
+                self.assertTrue(context['memory'])
+                self.assertEqual(context['memory'][0]['preferred'], context['guidance']['reviewer_examples'][segment]['preferred'])
+                _, _, _, submit = GroundedCopyAgent.request(context)
+                self.assertTrue(submit['function']['parameters']['properties']['memory_id']['enum'])
 
     def test_failed_grant_insert_rolls_back_admission_and_retry_keeps_original_request(self):
         cid = self.conversation()

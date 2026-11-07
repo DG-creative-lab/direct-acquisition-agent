@@ -4,7 +4,7 @@ import re
 from acquisition.contracts import canonical
 from acquisition.reasoning import CallScope, Inference, ModelError
 
-from .domain import Creative
+from .domain import Creative, model_editorial_memory
 from .ports import CreativeMemory
 
 
@@ -109,7 +109,8 @@ class CopyAgent:
                 if function.get("name") != "read_editorial_context" or arguments != {}:
                     raise ModelError("editorial_context_must_be_read_first")
                 messages.append(message)
-                messages.append({"role": "tool", "tool_call_id": call["id"], "content": canonical(context)})
+                messages.append({"role": "tool", "tool_call_id": call["id"],
+                                 "content": canonical(context | {'memory': model_editorial_memory(context['memory'])})})
                 read = True
             else:
                 if function.get("name") != "submit_copy_variants":
