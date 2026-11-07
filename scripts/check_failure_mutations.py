@@ -10,6 +10,21 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ('followup-hypothesis-strength', 'learning/hypotheses.py',
+     "comparison['action'] == 'propose_next_experiment'", 'True',
+     'test_followup_hypotheses.FollowupHypothesisTests.test_weak_evidence_cannot_promote_a_variant_despite_small_extreme_or_large_negative_results'),
+    ('followup-hypothesis-absence', 'learning/hypotheses.py',
+     "status = 'absent' if not complete else", "status = 'weak' if not complete else",
+     'test_followup_hypotheses.FollowupHypothesisTests.test_absent_comparison_preserves_unknown_strata_and_never_counts_priors_as_observations'),
+    ('followup-hypothesis-future-evidence', 'learning/hypotheses.py',
+     "not cohort['window_end'] <= finalization['finalized_at'] <= source['as_of']", 'False',
+     'test_followup_hypotheses.FollowupHypothesisTests.test_conflicting_missing_future_or_foreign_source_evidence_blocks_interpretation'),
+    ('followup-hypothesis-commit-binding', 'adapters/sqlite/followups.py',
+     "p.get('hypotheses') != expected", 'False',
+     'test_followups.FollowupTests.test_hypotheses_and_model_contexts_must_bind_the_native_source_before_commit'),
+    ('followup-hypothesis-context-binding', 'adapters/sqlite/followups.py',
+     "context.get('audience_summary', {}).get('followup_hypothesis') != hypothesis", 'False',
+     'test_followups.FollowupTests.test_hypotheses_and_model_contexts_must_bind_the_native_source_before_commit'),
     ('writing-preference-model-projection', 'creative/grounding.py',
      "context = context | {'memory': model_editorial_memory(context['memory'])}", 'context = context',
      'test_fixture_activation.FixtureActivationTests.test_preference_source_prose_is_audit_only_in_the_actual_model_exchange'),

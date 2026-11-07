@@ -86,6 +86,47 @@ Pooled memory uses finalized disjoint cohorts only and applies the prior once pe
 
 A copy rewrite gets its own content identity and does not inherit the old creative's support. The model can use historical evidence to propose a new hook; it cannot convert a synthetic result into verified product claims or an approval. Product grounding and exact-subject review still apply to the new draft. No self-modifying code, prompt deployment or autonomous targeting change is introduced.
 
+## Evidence-bound follow-up hypotheses
+
+After complete mature learning, **Propose follow-up experiment** records a
+deterministic hypothesis for each selected audience. Each hypothesis binds the
+source cohort and accepted draft, exact creative identities, observed successes
+and trials, finalization digests, comparison policy and uncertainty. Its evidence
+identifier hashes those recorded values. The source counts and posterior
+parameters must reconcile with finalization; missing, conflicting, future or
+foreign evidence blocks a new proposal.
+
+A **strong** source comparison meets the existing illustrative sample-size and
+posterior thresholds. It proposes testing a new expression of that source
+variant's framing against a contrasting hook and a no-mail control. A **weak**
+comparison has observed A/B/control groups but insufficient comparative support;
+it proposes exploration without selecting a preferred framing. **Absent** means
+no complete relevant comparison is available. Missing strata remain unknown and
+prior parameters add no observations. It does not bypass the finalized-cohort
+gate or invent a source advantage.
+
+Comparisons use one randomized source cohort. Pooled history stays separately
+frozen as descriptive advisory memory and cannot establish comparative lift.
+Source framing notes are historical interpretations, not product facts or an
+explanation of why responses occurred. Synthetic observations do not establish
+customer performance. New copy retains current product grounding and its own
+review; historical outcomes or approval cannot transfer to rewritten copy.
+
+The proposal and each model context retain the same audience-specific hypothesis.
+Persistence rechecks the native cohort, counted beliefs and context binding under
+the SQLite write lock. Request replay and process restart read the original
+proposal without recomputing its hypothesis. Historical proposals without these
+fields retain their original presentation and contexts. No schema migration or
+new inference is needed to propose a hypothesis. Verified paid execution and
+restored-workspace execution remain paused.
+
+Offline checks use held-out strong, weak and absent count patterns for both
+audiences, plus real SQLite zero-response, forgery, replay and restart checks. A
+fresh verified fixture root creates and restores a proposal with zero model calls.
+Fake-provider checks verify the frozen hypothesis reaches the copy request; they
+do not establish live model quality. The browser exposes source counts and
+uncertainty on desktop and mobile while retaining separate preparation consent.
+
 ## Architecture and migration
 
 `learning/outcomes.py` owns membership, outcome and counted posterior rules. `learning/recommendations.py` owns reproducible advisory sampling. `LearningService` uses a `CohortSource` port, implemented in workflows through public review and campaign APIs. `SqliteLearning` implements the persistence port. The adapter rechecks the accepted receipt and stored bytes before admitting the cohort. A shared SQLite role helper keeps review and learning mutations consistent.

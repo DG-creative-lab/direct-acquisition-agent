@@ -168,12 +168,33 @@ export type CopyRevision = {
     failed_tasks: { capability: string; error_code: string }[];
   };
 };
+export type FollowupHypothesis = {
+  schema: "followup-hypothesis/v1";
+  segment: string;
+  evidence_status: "strong" | "weak" | "absent";
+  hypothesis: string;
+  evidence_id: string;
+  candidate: null | { arm: string; creative_id: string };
+  limitations: string;
+  evidence: {
+    source_cohort: string;
+    source_draft: string;
+    groups: {
+      arm: string;
+      creative_id: string;
+      trials: number;
+      successes: number;
+    }[];
+    comparison: Recommendation | null;
+  };
+};
 export type Followup = {
   id: string;
   source_cohort: string;
   eligible: boolean;
   source_label: string;
   hypothesis: string;
+  hypotheses?: FollowupHypothesis[];
   brief: { budget_pence: number; segments: string[] };
   counts: Record<string, number>;
   cost_pence: number;

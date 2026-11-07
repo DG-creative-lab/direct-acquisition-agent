@@ -294,6 +294,15 @@ class GroundedCopyAgent:
             "Do not use em dashes. Use full stops, commas or colons. Do not approve or send anything."},
             {"role": "user", "content": canonical({"segment": context["segment"], **identifiers,
                 "goal": "A: planning ahead; B: payment timing. Ask about the hypothetical business situation, without promising an outcome."})}]
+        hypothesis = context['audience_summary'].get('followup_hypothesis')
+        if (isinstance(hypothesis, dict) and hypothesis.get('schema') == 'followup-hypothesis/v1'
+                and not context.get('copy_revision')):
+            goal = ('A: explore a new expression of the historical framing referenced by the frozen hypothesis; '
+                    'B: a contrasting new situational hook.' if hypothesis['evidence_status'] == 'strong' else
+                    'Explore two contrasting new situational hooks without assuming a preferred source framing.')
+            messages[1]['content'] = canonical({'segment': context['segment'], **identifiers,
+                'goal': goal + ' Use current supplied product evidence only. Historical framing is not a product fact. '
+                               'New wording has zero observed outcomes; no approval or performance transfers.'})
         if context.get("copy_revision"):
             messages[0]["content"] += (
                 " This is a targeted copy revision. The frozen copy_revision object identifies the only arm to rewrite. "

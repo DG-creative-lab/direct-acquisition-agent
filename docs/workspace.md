@@ -73,6 +73,16 @@ version history. **Correct writing preference** adds a version; **Retire writing
 preference** stops future use. Existing copy and frozen contexts keep their
 original guidance. See [writing preferences](writing-preferences.md).
 
+## Evidence for a follow-up experiment
+
+After complete mature synthetic learning, propose a follow-up to inspect a saved
+hypothesis for each audience. The proposal shows its source outcome counts and
+whether the comparison is strong, inconclusive or absent. Expand **Evidence and
+uncertainty** for exact source references, estimated lift and comparison limits.
+Weak or absent comparisons do not select a preferred framing. Preparing the
+experiment and permitting model copy remain separate actions. See
+[learning](learning.md#evidence-bound-follow-up-hypotheses).
+
 ## Start a verified fixture workspace
 
 Initialize a new empty root and start the regular workspace server on it.

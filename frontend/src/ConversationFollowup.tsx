@@ -1,7 +1,11 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
-import { command, money } from "./api";
+import { command, money, percent } from "./api";
 import type { State, Followup } from "./api";
+import { segmentName } from "./ui";
+
+const probability = (value: number) =>
+  value > 0.999 ? ">99.9%" : value < 0.001 ? "<0.1%" : percent(value);
 export default function ConversationFollowup({
   state,
   onRefresh,
@@ -71,7 +75,96 @@ export default function ConversationFollowup({
       {state.followups?.map((p) => (
         <article key={p.id}>
           <h4>Follow-up proposal</h4>
-          <p>{p.hypothesis}</p>
+          {p.hypotheses ? (
+            p.hypotheses.map((hypothesis) => (
+              <section
+                key={hypothesis.segment}
+                aria-label={
+                  segmentName(hypothesis.segment) + " experiment hypothesis"
+                }
+              >
+                <strong>{segmentName(hypothesis.segment)}</strong>
+                <p>
+                  {
+                    {
+                      strong:
+                        "Strong source comparison under the illustrative policy",
+                      weak: "Inconclusive source comparison",
+                      absent: "No complete source comparison",
+                    }[hypothesis.evidence_status]
+                  }
+                </p>
+                <p>{hypothesis.hypothesis}</p>
+                <p>
+                  Synthetic source outcomes:{" "}
+                  {(["A", "B", "no_mail"] as const)
+                    .map((arm) => {
+                      const group = hypothesis.evidence.groups.find(
+                        (g) => g.arm === arm,
+                      );
+                      return `${arm === "no_mail" ? "No-mail control" : "Variant " + arm}: ${group ? group.successes + "/" + group.trials : "not observed"}`;
+                    })
+                    .join(" · ")}
+                </p>
+                <details className="chat-campaign-detail">
+                  <summary>
+                    Evidence and uncertainty for{" "}
+                    {segmentName(hypothesis.segment)}
+                  </summary>
+                  <p>
+                    Source cohort:{" "}
+                    <code>{hypothesis.evidence.source_cohort}</code>
+                  </p>
+                  <p>
+                    Source draft:{" "}
+                    <code>{hypothesis.evidence.source_draft}</code>
+                  </p>
+                  {hypothesis.evidence.groups
+                    .filter((g) => g.arm !== "no_mail")
+                    .map((group) => (
+                      <p key={group.arm}>
+                        Source variant {group.arm}:{" "}
+                        <code>{group.creative_id}</code>
+                      </p>
+                    ))}
+                  {hypothesis.evidence.comparison && (
+                    <>
+                      <p>
+                        Source comparison variant{" "}
+                        {hypothesis.evidence.comparison.candidate_arm}.
+                        Estimated probability of beating the other variant:{" "}
+                        {probability(
+                          hypothesis.evidence.comparison
+                            .probability_beats_other!,
+                        )}
+                        ; beating control:{" "}
+                        {probability(
+                          hypothesis.evidence.comparison
+                            .probability_beats_control!,
+                        )}
+                        .
+                      </p>
+                      <p>
+                        Estimated response lift over this cohort's control, 90%
+                        interval:{" "}
+                        {hypothesis.evidence.comparison
+                          .lift_interval_90!.map((n) => (n * 100).toFixed(1))
+                          .join(" to ")}{" "}
+                        percentage points.
+                      </p>
+                    </>
+                  )}
+                  <p>{hypothesis.limitations}</p>
+                  <p>
+                    Pooled history is advisory context. This comparison uses
+                    only the source cohort.
+                  </p>
+                </details>
+              </section>
+            ))
+          ) : (
+            <p>{p.hypothesis}</p>
+          )}
           <p>{p.source_label}</p>
           <p>
             Budget cap {money(p.brief.budget_pence)}. {p.counts.mailed} proposed

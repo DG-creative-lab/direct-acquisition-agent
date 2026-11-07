@@ -3,6 +3,7 @@ import json
 import csv
 import io
 from acquisition.contracts import Conflict, NotFound, canonical, digest
+from acquisition.learning import followup_hypotheses
 from .actors import require_actor
 
 
@@ -59,14 +60,40 @@ class SqliteFollowups:
         return p
 
     def put(self, organization, request, p):
+        # Draft publication also calls require_followup in this adapter.
+        from .drafts import read_draft
         key='followup-request:'+request
         with self.database.transaction() as db:
             require_actor(db, organization, 'local-operator', 'operator')
             old=db.execute('SELECT receipt FROM review_commands WHERE organization=? AND request_id=?',(organization,key)).fetchone()
             if old: return json.loads(old[0])
-            row=db.execute('SELECT finalization FROM learning_cohorts WHERE organization=? AND id=?',(organization,p['source_cohort'])).fetchone()
+            row=db.execute('SELECT finalization,payload FROM learning_cohorts WHERE organization=? AND id=?',(organization,p['source_cohort'])).fetchone()
             if row is None or json.loads(row[0] or 'null') != p['learning']['finalization']:
                 raise Conflict('Finalized source learning changed')
+            cohort = json.loads(row['payload'])
+            groups = [json.loads(r[0]) for r in db.execute(
+                'SELECT payload FROM learning_beliefs WHERE organization=? AND cohort_id=? ORDER BY segment,arm',
+                (organization, p['source_cohort']))]
+            if (p['learning']['cohort'] != {k: v for k, v in cohort.items() if k != 'members'}
+                    or groups != p['learning']['beliefs']):
+                raise Conflict('Source hypothesis evidence changed while proposing')
+            draft = read_draft(db, organization, cohort['draft_id'])
+            expected = followup_hypotheses(organization, p['learning'], draft.manifest['creatives'], tuple(p['brief']['segments']))
+            if (p.get('hypotheses') != expected
+                    or p['hypothesis'] != ' '.join(h['segment'] + ': ' + h['hypothesis'] for h in expected)
+                    or set(p['contexts']) != {h['segment'] for h in expected}):
+                raise Conflict('Follow-up hypotheses differ from their source evidence')
+            for hypothesis in expected:
+                segment = hypothesis['segment']
+                context_id = p['contexts'][segment]
+                context_row = db.execute('SELECT payload FROM creative_contexts WHERE organization=? AND id=?',
+                                         (organization, context_id)).fetchone()
+                context = json.loads(context_row[0]) if context_row else {}
+                if (context_id != 'context_' + digest({'organization': organization, **context})
+                        or context.get('segment') != segment
+                        or context.get('audience_summary', {}).get('followup_hypothesis') != hypothesis
+                        or context['audience_summary'].get('outcome_evidence') != p['memory'][segment]):
+                    raise Conflict('Follow-up context differs from its frozen audience hypothesis')
             if set(p['population']) & excluded_businesses(db, organization):
                 raise Conflict('Population changed while proposing; retry')
             p=p|{'kind':'followup_proposal'}
