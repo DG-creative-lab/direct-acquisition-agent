@@ -864,6 +864,10 @@ class Workspace:
     def message_conversation(self, conversation_id, request_id, expected_revision, content):
         return self._conversation_app().conversations.message("local-conversations", conversation_id, request_id, expected_revision, content)
 
+    def reply_budget_conversation(self, conversation_id, request_id, expected_revision, plan_id, content):
+        return self._conversation_app().conversations.reply_budget('local-conversations', conversation_id, request_id,
+                                                                  expected_revision, plan_id, content)
+
     def plan_conversation(self, conversation_id, request_id, expected_revision):
         with self.lock:
             app = self._conversation_app(with_model=True)

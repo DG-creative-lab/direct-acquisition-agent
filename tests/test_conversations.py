@@ -362,7 +362,7 @@ class ConversationTests(unittest.TestCase):
         self.assertEqual(explicit_budget([{"id": "first", "content": "Budget £600."},
                                           {"id": "next", "content": "Set the budget to £300."}])["budget_pence"], 30000)
 
-    def test_planner_repairs_stale_budget_proposal_into_clarification(self):
+    def test_unparseable_budget_asks_without_a_provider_call(self):
         self.message()
         self.message("Use £600k instead.", "correction", 1)
         self.model.results = [proposal(), proposal(outcome="clarification", budget_pence=None,
@@ -372,7 +372,7 @@ class ConversationTests(unittest.TestCase):
         self.assertEqual(result["outcome"], "clarification")
         self.assertIsNone(result["budget_pence"])
         self.assertIsNone(result["budget_evidence"])
-        self.assertEqual(len(self.model.requests), 2)
+        self.assertEqual(len(self.model.requests), 0)
 
     def test_relative_budget_amount_is_not_accepted_as_a_new_total(self):
         initial = {"id": "first", "content": "Prepare a contractor experiment with £600."}
@@ -394,7 +394,7 @@ class ConversationTests(unittest.TestCase):
                 self.assertEqual(evidence["budget_pence"], 80000)
                 self.assertEqual(evidence["message_id"], "correction")
 
-    def test_planner_repairs_relative_amount_into_clarification(self):
+    def test_relative_budget_asks_without_a_provider_call(self):
         self.message()
         self.message("Increase the budget by £200", "correction", 1)
         self.model.results = [proposal(budget_pence=20000), proposal(outcome="clarification", budget_pence=None,
@@ -404,7 +404,7 @@ class ConversationTests(unittest.TestCase):
         self.assertEqual(result["outcome"], "clarification")
         self.assertIsNone(result["budget_pence"])
         self.assertIsNone(result["budget_evidence"])
-        self.assertEqual(len(self.model.requests), 2)
+        self.assertEqual(len(self.model.requests), 0)
 
 
 class ConversationMigrationAndCliTests(unittest.TestCase):

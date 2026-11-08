@@ -10,6 +10,7 @@ import re
 from acquisition.campaigns import CampaignScope, requested_scope_values
 from acquisition.contracts import digest
 from .domain import validate_result as legacy_validate_result
+from .budgets import result_budget_clarification, budget_response
 
 
 ALIASES = {
@@ -121,15 +122,20 @@ def scope_projection(scope):
 def validate_result(candidate, frozen, organization):
     result = legacy_validate_result(candidate, frozen, organization)
     scope = bind_requested_scope(frozen, organization)
-    if scope is None:
+    if scope is None and 'budget_policy' not in frozen:
         return result
-    required = scope_response(scope)
+    required = scope_response(scope) or budget_response(frozen)
     if required is not None and candidate != required:
-        raise ValueError('Planning cannot substitute a different task for requested scope')
+        raise ValueError('Planning cannot substitute a different task or budget for the frozen request')
     if candidate['outcome'] == 'brief_proposal':
         described = requested_scope(organization, frozen['conversation_id'], frozen['revision'],
                                     [{'id': 'proposed-objective', 'revision': frozen['revision'], 'content': candidate['objective']}])
         if described['status'] != 'supported':
             raise ValueError('Proposed objective contradicts the supported requested scope')
-    payload = {k:v for k,v in result.items() if k != 'id'} | {'requested_scope': scope}
+    payload = {k:v for k,v in result.items() if k != 'id'}
+    if scope is not None:
+        payload['requested_scope'] = scope
+    clarification = result_budget_clarification(candidate, frozen)
+    if clarification is not None and scope_response(scope) is None:
+        payload['budget_clarification'] = clarification
     return payload | {'id': 'brief_' + digest({'organization': organization, 'request_id': frozen['request_id'], 'result': payload})}

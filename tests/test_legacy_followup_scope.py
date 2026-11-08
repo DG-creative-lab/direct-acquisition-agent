@@ -24,7 +24,7 @@ class LegacyFollowupScopeTests(unittest.TestCase):
             # Emulate the old producer before its task or draft is created.
             # Assertions below run with all current guards installed.
             frozen = original(store, *args, **kwargs)
-            frozen = {k: v for k, v in frozen.items() if k != 'requested_scope'}
+            frozen = {k: v for k, v in frozen.items() if k not in {'requested_scope', 'budget_policy'}}
             with store.database.transaction() as db:
                 db.execute('UPDATE conversation_plans SET payload=? WHERE organization=? AND conversation_id=? AND request_id=?',
                            (canonical(frozen), 'local-conversations', frozen['conversation_id'], frozen['request_id']))

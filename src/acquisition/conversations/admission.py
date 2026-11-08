@@ -14,6 +14,7 @@ from acquisition.runtime import TaskSpec
 
 from .domain import identity, text, CAPABILITY, FIXTURE_CAPABILITY
 from .scope import requested_scope
+from .budgets import BUDGET_POLICY
 
 
 ADMISSION_SCHEMA = 'execution-admission/v1'
@@ -212,7 +213,7 @@ def planning_intent(organization, request_id, source, context, history, *, fixtu
     """Build from independently loaded source facts, never model-owned identity."""
     planning_permission(fixture,allow_model,config)
     if source['organization']!=organization:raise Conflict('Planning source belongs to another organization')
-    allowed={'knowledge','knowledge_id','model_config','previous_results','fixture','messages','confirmed_action_exchanges','requested_scope'}
+    allowed={'knowledge','knowledge_id','model_config','previous_results','fixture','messages','confirmed_action_exchanges','requested_scope','budget_policy'}
     if type(context) is not dict or set(context)-allowed:raise ValueError('Unsupported planning context fields')
     if context.get('model_config')!=(asdict(config) if config else None):
         raise Conflict('Planning context and permitted model settings differ')
@@ -234,6 +235,9 @@ def planning_intent(organization, request_id, source, context, history, *, fixtu
     scope = requested_scope(organization, conversation_id, revision, source['messages'])
     if 'requested_scope' in context and context['requested_scope'] != scope:
         raise Conflict('Requested scope changed before planning admission')
+    if context.get('budget_policy', BUDGET_POLICY) != BUDGET_POLICY:
+        raise Conflict('Budget policy differs from the installed planning contract')
+    frozen['budget_policy'] = BUDGET_POLICY
     frozen['requested_scope'] = scope
     if source['confirmed_action_exchanges']:frozen['confirmed_action_exchanges']=source['confirmed_action_exchanges']
     context_hash=digest(frozen)

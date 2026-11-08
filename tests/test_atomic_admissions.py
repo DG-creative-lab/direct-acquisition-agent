@@ -53,7 +53,10 @@ class AtomicAdmissionTests(unittest.TestCase):
                      'execution_runs','conversation_execution','model_calls','review_decisions','simulated_agency_jobs')}
 
     def test_request_is_non_executable_and_admission_commits_exact_linked_records(self):
-        intent=self.request(fixture=False)
+        context=self.context(fixture=False)
+        context.pop('budget_policy')
+        intent=self.request(fixture=False,context=context)
+        self.assertEqual(intent.tasks[0].inputs['budget_policy'],'absolute-gbp/v1')
         self.assertEqual(self.counts()['admission_requests'],1)
         self.assertEqual(self.counts()['runs'],0)
         self.assertIsNone(self.store.find_request(self.org,'prepare'))

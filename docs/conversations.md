@@ -219,3 +219,10 @@ New follow-ups also support `revise_copy` through routing v2. This resolves an e
 Fresh planning admissions freeze versioned product, channel, country and objective requirements alongside the exact native messages. The installed capability is iwoca Flexi-Loan, UK postal direct mail and a response experiment. Recognized unsupported requests finish with an explicit unsupported response before planner dispatch. Conflicting mentions or unrecognized explicit scope labels ask for clarification. Omitted facets use declared capability defaults, which the brief displays separately from explicit requests.
 
 The literal resolver is bounded vocabulary matching, not a general semantic intent classifier. New model responses cannot replace a recognized unsupported task with a supported brief. The scope follows the exact proposal into campaign inputs, copy context, draft manifest, targeted revisions and follow-ups. Readiness and new review/acceptance decisions reconcile it with native planning tasks and message history. Historical IDs, receipts and unscoped formats remain unchanged. See [requested campaign scope](requested-campaign-scope.md) for ownership, evidence boundaries and regression coverage.
+
+
+## Confirming a budget
+
+For new planning requests, recognized ambiguous or relative totals produce a saved budget question before inference. Reply with one absolute amount using £ or GBP. The reply binds the displayed completed question and current revision, then the existing preparation flow freezes the new revision and explicit copy permission. A bare number or another relative change asks again. Earlier questions and proposals remain historical and unchanged.
+
+A reload or a dropped reply/preparation response resumes the original saved keys. Once preparation is admitted, a server restart resumes that request. Replying alone grants no approval or simulated acceptance. Older admitted planner frames retain their original behavior. See [budget clarification](budget-clarification.md) for the native bindings, compatibility and verification boundary.

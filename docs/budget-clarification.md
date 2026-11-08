@@ -1,0 +1,31 @@
+# Budget clarification and replies
+
+Fresh planning admissions freeze `budget_policy: absolute-gbp/v1` from the installed conversation contract. The native legacy and verified admission paths set the policy independently of caller context. An explicit unsupported product, channel, country or objective keeps its existing unsupported/clarification outcome before budget handling. No migration or historical task rewrite is introduced. Future semantic changes must retain the v1 resolver for admitted frames rather than replacing its meaning.
+
+## Budget authority
+
+The existing pure `explicit_budget` validator remains the source of accepted money and user-message evidence. The new resolver diagnoses a total that cannot be accepted: conflicting amounts, relative changes, an unrecognized literal or a total outside £0.01 to £10,000. It asks for one absolute GBP total before planner dispatch. The question does not choose between alternatives or perform arithmetic on the user's behalf. A reply such as "Use 400 instead" remains unconfirmed; "The total budget is GBP 400" supplies literal evidence for a new revision.
+
+The resolver is a bounded literal policy, not general semantic interpretation. Missing budgets retain the existing model clarification contract. A successful model budget question can carry typed reply metadata when there is no literal total and its question explicitly concerns budget. An exhausted or failed planner is never converted to a clarification. A valid total still goes through ordinary bounded planning; invalid model output retains its two-call repair limit.
+
+A diagnosed ambiguity produces a completed, non-authoritative `clarification` result with null budget, no campaign and zero provider calls. It consumes one of the conversation's six planning requests, not a model-call reservation. A reply creates a new user-message revision. Its subsequent planning request shares the original conversation's call allowance and does not reactivate the historical question.
+
+## Exact reply and continuation
+
+The React client uses server-provided clarification metadata to offer the ordinary chat reply flow. It does not parse money or select an amount. `POST /api/conversations/{id}/budget-replies` takes an exact plan ID, revision, message and request ID, behind the existing Host, token and same-origin checks.
+
+Before saving a fresh reply, SQLite verifies the native successful planner task, exact frozen inputs and result, original knowledge hash, conversation/revision identity and original message history. The displayed question must be a verified budget clarification under the frozen policy. Another valid conversation's question cannot substitute, including a coordinated replacement of the indexed planning payload.
+
+The append and its namespaced command receipt commit together. The receipt binds exact inputs by organization, conversation and request key. Reusing that key with different content or another target is rejected. After writes, the transaction rechecks the original question, exact saved reply and resulting revision. Mutating the question or reply through an interleaved SQLite trigger rolls back the message, revision and command receipt together. Exact replay remains an observation after the question becomes historical.
+
+Saving a message grants no campaign, copy, approval or delivery authority. Preparation continues through the existing explicit coordinator admission and separately saved copy permission. Browser pending-message and preparation-intent records bridge a dropped response using the original keys. Once preparation is admitted, server restart resumes its original task and consent. Losing all browser intent before preparation admission does not authorize the server to infer consent and start work automatically.
+
+## Compatibility and verification
+
+Old admitted frames without the policy retain their original planner behavior, result format and hashes. A real SQLite compatibility fixture admits the older frame before task creation and preserves its original two-call invalid-output repair and restart replay. Legacy scope fixtures also omit the new policy so they continue to exercise the actual older format.
+
+Real SQLite tests cover literal bounds, ambiguity and relative corrections, a repeated unconfirmed reply, a missing-budget model question, one confirmed campaign, exact replay, another target, simultaneous replies, post-write source/reply corruption and a fresh process resuming the admitted request. The observable oracles are the saved user revision, original question bytes, exact confirmed budget evidence, one campaign, native call reservations and absence of approval or handoff. Positive source baselines and injected invalid planner output distinguish actual clarification from generic failure.
+
+Browser tests exercise mobile reload before answering, a lost committed reply response and a lost preparation response. They require the same request keys, one new revision, one campaign at the user-confirmed total, no routing call for the budget reply, truthful shared usage and no horizontal overflow. Eight harmful mutation probes challenge pre-dispatch clarification, both native policy writers, exact targets, replay inputs and the final question/reply checks.
+
+Paid inference remains paused. Evaluation uses fake providers and disposable roots; restored workspaces remain inspection-only. Typed prepare/next-experiment routing and broader semantic model evaluation are separate remaining issue-25 work.
