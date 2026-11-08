@@ -272,7 +272,10 @@ class SqliteAdmissions:
                 if (context.get('budget_policy'), frozen_context.get('budget_policy')) in {
                         ('absolute-gbp/v2', 'absolute-gbp/v1'),
                         ('absolute-gbp/v3', 'absolute-gbp/v1'),
-                        ('absolute-gbp/v3', 'absolute-gbp/v2')}:
+                        ('absolute-gbp/v3', 'absolute-gbp/v2'),
+                        ('absolute-gbp/v4', 'absolute-gbp/v1'),
+                        ('absolute-gbp/v4', 'absolute-gbp/v2'),
+                        ('absolute-gbp/v4', 'absolute-gbp/v3')}:
                     context['budget_policy'] = frozen_context['budget_policy']
                 if canonical(frozen_context)!=canonical(context):
                     raise Conflict('Legacy planning continuation differs from its frozen context')

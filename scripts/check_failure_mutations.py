@@ -10,11 +10,17 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ('budget-financial-link-words', 'conversations/budgets.py',
+     "_LINK = r'\\s*(?:(?:is|was|would be|represents|covers|as|of)\\s+)?(?:(?:only|just|a|an|the|total|whole|full|campaign|budget|amount|cost|price|rate)\\s+)*(?:(?:for|of)\\s+)?'", '_LINK = _V3_LINK',
+     'test_budget_clarification.BudgetReplyTests.test_financial_links_in_saved_replies_require_a_whole_campaign_total'),
+    ('budget-preserve-v3-proposal', 'conversations/budgets.py',
+     "if policy == 'absolute-gbp/v3':", 'if False:',
+     'test_budget_clarification.HistoricalBudgetTests.test_pre_policy_non_total_proposal_is_historical_not_fresh_authority'),
     ('budget-grouped-rate-quantity', 'conversations/budgets.py',
      "_QUANTITY = r'(?:\\d{1,3}(?:,\\d{3})+|\\d+|one|two|three|both)'", "_QUANTITY = r'(?:\\d+|one|two|three|both)'",
      'test_budget_clarification.BudgetRuleTests.test_grouped_recipient_quantities_still_require_a_total'),
     ('budget-rate-subject-binding', 'conversations/budgets.py',
-     'if not negated and _bound_budget_qualifier(content, match):', 'if not negated:',
+     'if not negated and _bound_budget_qualifier(content, match, link):', 'if not negated:',
      'test_budget_clarification.BudgetRuleTests.test_delivery_and_reporting_rates_do_not_qualify_the_budget'),
     ('budget-projection-after-preparation', 'workspace.py',
      '        preparations = self.preparation_progress(conversation_id)\n        view = application.conversations.view("local-conversations", conversation_id)',
