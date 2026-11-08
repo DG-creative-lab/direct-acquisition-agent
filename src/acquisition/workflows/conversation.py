@@ -4,7 +4,7 @@ import json
 from dataclasses import asdict
 
 from acquisition.contracts import canonical, digest
-from acquisition.conversations import CAPABILITY, FIXTURE_MESSAGE, validate_result
+from acquisition.conversations import CAPABILITY, FIXTURE_MESSAGE, validate_result, bind_requested_scope, scope_projection, scope_response
 from acquisition.reasoning import CallScope, Inference, ModelError, tool_contract, validate_assets
 from acquisition.runtime import Outcome
 
@@ -76,10 +76,17 @@ class ConversationPlanner:
             payload=json.loads(messages[1]['content'])
             payload['confirmed_action_exchanges']=frozen['confirmed_action_exchanges']
             messages[1]['content']=canonical(payload)
+        if 'requested_scope' in frozen:
+            payload = json.loads(messages[1]['content'])
+            payload['requested_scope'] = scope_projection(frozen['requested_scope'])
+            messages[1]['content'] = canonical(payload)
+            messages[0]['content'] += ' The server-bound requested scope is a constraint, not a model-selected replacement task.'
         return messages
 
     def preflight(self, frozen):
         validate_planning_assets(frozen)
+        if 'requested_scope' in frozen:
+            bind_requested_scope(frozen, frozen['requested_scope']['organization'])
         if self.inference is None:
             raise ModelError("configure_the_original_planner_before_resuming")
         self.inference.prepare_request(self.messages(frozen), [SUBMIT])
@@ -87,6 +94,7 @@ class ConversationPlanner:
     @staticmethod
     def preflight_fixture(frozen, organization):
         validate_planning_assets(frozen, organization)
+        bind_requested_scope(frozen, organization)
         if (frozen.get("fixture") != "offline-example/v1" or len(frozen.get("messages", [])) != 1
                 or frozen["messages"][0]["content"] != FIXTURE_MESSAGE
                 or frozen.get("knowledge_id") != "knowledge_" + digest(frozen["knowledge"])):
@@ -108,6 +116,9 @@ class ConversationPlanner:
         validate_planning_assets(frozen, claim.organization)
         if frozen.get("knowledge_id") != "knowledge_" + digest(frozen["knowledge"]):
             raise ModelError("planning_knowledge_integrity_failure")
+        response = scope_response(bind_requested_scope(frozen, claim.organization))
+        if response is not None:
+            return Outcome('succeeded', validate_result(response, frozen, claim.organization))
         messages = self.messages(frozen)
         scope = CallScope(claim.organization, claim.run_id, claim.task_id, claim.token)
         for turn in range(2):

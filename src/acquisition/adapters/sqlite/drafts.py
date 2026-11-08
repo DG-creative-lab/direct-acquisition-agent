@@ -41,7 +41,7 @@ def write_draft(db, organization: str, operation_id: str, draft: Draft, now: flo
     verify(organization, draft)
     brief = draft.manifest["brief"]
     require_brief_active(db, organization, brief)
-    require_current_conversation(db, brief)
+    require_current_conversation(db, brief, draft.manifest.get('campaign_scope'))
     require_selected_audience(db, organization, brief, draft.manifest["snapshot_id"], now)
     draft_id = draft.id
     require_followup(db, organization, draft.manifest, draft_id)
@@ -55,6 +55,9 @@ def write_draft(db, organization: str, operation_id: str, draft: Draft, now: flo
     # Check the exact bytes of an existing artifact before committing an operation that refers to it.
     if read_draft(db, organization, draft_id) != draft:
         raise Conflict("Artifact identity conflict")
+    if 'requested_scope' in brief:
+        require_current_conversation(db, brief, draft.manifest.get('campaign_scope'))
+        require_followup(db, organization, draft.manifest, draft_id)
     return draft_id
 
 

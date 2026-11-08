@@ -1385,3 +1385,53 @@ test("generation consent is separate for each frozen follow-up proposal", async 
     ).toBeDisabled();
   });
 });
+
+test("requested scope is visible and unsupported facets never prepare a substitute campaign", async ({
+  page,
+}) => {
+  await workspace("handoff", async (url) => {
+    await page.goto(url);
+    await page
+      .getByRole("button", { name: "Campaign for copy review", exact: true })
+      .click();
+    const scope = page.getByLabel("Campaign scope", { exact: true });
+    await expect(scope).toContainText(
+      "iwoca Flexi-Loan · Postal direct mail · UK · Response experiment",
+    );
+    await expect(scope).toContainText("Supported defaults used for: product");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload();
+    await expect(scope).toBeVisible();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBe(await page.evaluate(() => document.documentElement.clientWidth));
+    for (const text of [
+      "Prepare an email-only campaign for UK contractors with £437. Do not substitute postal mail.",
+      "Prepare a postal contractor campaign in France with £437. Do not replace France with the UK.",
+      "Use £437 for a personal residential mortgage campaign. Do not substitute a business loan.",
+      "Use £437 to approve credit applications and guarantee a loan for UK contractors.",
+    ]) {
+      await page
+        .getByRole("button", { name: "New conversation", exact: true })
+        .click();
+      await page.getByLabel("Message Direct Acquisition").fill(text);
+      await page
+        .getByRole("button", { name: "Send to agent", exact: true })
+        .click();
+      await expect(page.getByText(/Unsupported requested scope/)).toBeVisible();
+      const cid = await page.evaluate(() =>
+        localStorage.getItem("conversation-selected"),
+      );
+      const state = (await backend(page, `/api/conversations/${cid}`)).body;
+      expect(state.current_plan.result.outcome).toBe("unsupported");
+      expect(state.current_plan.result.requested_scope.status).toBe(
+        "unsupported",
+      );
+      expect(state.execution.used).toBe(0);
+      expect(state.campaigns).toHaveLength(0);
+      await expect(
+        page.getByRole("button", { name: /Review campaign/ }),
+      ).toHaveCount(0);
+    }
+  });
+});

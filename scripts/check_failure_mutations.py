@@ -10,6 +10,21 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ('requested-scope-planner-substitution', 'conversations/scope.py',
+     'if required is not None and candidate != required:', 'if False:',
+     'test_requested_scope.RequestedScopeDomainTests.test_planner_cannot_override_or_rehash_the_source_scope'),
+    ('requested-scope-legacy-downgrade', 'adapters/sqlite/conversation_provenance.py',
+     "scope = frozen.get('requested_scope')", "scope = brief.get('requested_scope')",
+     'test_requested_scope.RequestedScopeStorageTests.test_draft_commit_rejects_scope_removal_substitution_and_delivered_scope_changes'),
+    ('requested-scope-at-publication-commit', 'adapters/sqlite/drafts.py',
+     "if 'requested_scope' in brief:", 'if False:',
+     'test_requested_scope.RequestedScopeStorageTests.test_scope_change_during_draft_write_rolls_back_publication'),
+    ('requested-scope-at-approval-commit', 'adapters/sqlite/reviews.py',
+     "if decision == 'approve' and 'requested_scope' in draft.manifest['brief']:", 'if False:',
+     'test_requested_scope.RequestedScopeStorageTests.test_source_mutation_during_review_and_acceptance_writes_rolls_back_every_effect'),
+    ('requested-scope-original-messages', 'adapters/sqlite/conversation_provenance.py',
+     "if requested_scope(owner, brief['conversation_id'], brief['conversation_revision'], current) != scope:", 'if False:',
+     'test_requested_scope.RequestedScopeStorageTests.test_cached_validation_and_approval_cannot_authorize_changed_source_messages'),
     ('followup-accepted-cohort', 'adapters/sqlite/learning.py',
      'if cohort_proposal(organization, receipt, draft) != cohort:', 'if False:',
      'test_followups.FollowupTests.test_finalized_source_requires_its_exact_accepted_job_and_draft_at_read_and_commit'),

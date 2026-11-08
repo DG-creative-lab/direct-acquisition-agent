@@ -23,6 +23,7 @@ from .tasks import scoped_run
 from .revision_provenance import require_revision_current, require_revision_lease
 from .execution import require_brief_active
 from .conversation_copy import check_copy_confirmation, record_copy_confirmation
+from .conversation_provenance import require_requested_scope
 
 
 class SqliteReviews:
@@ -88,6 +89,7 @@ class SqliteReviews:
         inputs = json.loads(original[0]) if original else {}
         source = inputs.get("brief", {})
         brief = draft.manifest["brief"]
+        require_requested_scope(db, brief, draft.manifest.get('campaign_scope'))
         version = inputs.get("workflow_version")
         if version not in {"conversation-mail/v1", "conversation-model-mail/v3"}:
             if "conversation_id" in brief:
@@ -361,7 +363,7 @@ class SqliteReviews:
             if decision == "approve":
                 if current_reasons(proposal, authority):
                     raise Conflict("Current evidence changed; publish a refreshed subject before approving")
-                self._validate(db, organization, case, proposal["draft_id"], authority, now)
+                draft = self._validate(db, organization, case, proposal["draft_id"], authority, now)
             receipt = {"kind": "review_decision", "id": "decision_" + uuid4().hex, "case_id": case_id,
                 "subject_id": expected_subject, "actor": actor, "actor_generation": reviewer["generation"],
                 "decision": decision, "reason": reason, "at": now, "expires_at": now + ttl_seconds,
@@ -373,7 +375,11 @@ class SqliteReviews:
             db.execute("INSERT INTO review_decisions(organization,id,case_id,subject_id,payload) VALUES(?,?,?,?,?)",
                        (organization, receipt["id"], case_id, expected_subject, canonical(receipt)))
             self._event(db, organization, case_id, "review_" + decision, receipt, now)
-            return self._record(db, organization, request_id, fingerprint, receipt)
+            saved = self._record(db, organization, request_id, fingerprint, receipt)
+            if decision == 'approve' and 'requested_scope' in draft.manifest['brief']:
+                require_requested_scope(db, draft.manifest['brief'], draft.manifest.get('campaign_scope'))
+                require_followup(db, organization, draft.manifest, draft.id)
+            return saved
 
     def revoke(self, organization, case_id, approval_id, actor, request_id, reason):
         text(reason)
@@ -545,7 +551,11 @@ class SqliteReviews:
                 "recipients": draft.manifest["counts"]["mailed"], "accepted_at": now, "destination": "local_simulated_agency"}
             db.execute("INSERT INTO simulated_agency_jobs VALUES(?,?,?,?,?,?)", (organization, case_id, receipt["id"], approval_id, proposal["id"], canonical(receipt)))
             self._event(db, organization, case_id, "simulated_handoff_accepted", receipt, now)
-            return self._record(db, organization, request_id, fingerprint, receipt)
+            saved = self._record(db, organization, request_id, fingerprint, receipt)
+            if 'requested_scope' in draft.manifest['brief']:
+                require_requested_scope(db, draft.manifest['brief'], draft.manifest.get('campaign_scope'))
+                require_followup(db, organization, draft.manifest, draft.id)
+            return saved
 
     def revision_requests(self, organization, case_id):
         with self.database.connect() as db:

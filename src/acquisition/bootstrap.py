@@ -23,7 +23,7 @@ from acquisition.workflows.audience_discovery import audience_tool_contracts
 from acquisition.adapters.sqlite.creative import SqliteCreative
 from acquisition.adapters.sqlite.inference import SqliteCalls
 from acquisition.contracts import Conflict, canonical, digest
-from acquisition.campaigns import Brief, ConversationBrief, SourcedConversationBrief, FollowupBrief, CampaignService, brief_from
+from acquisition.campaigns import Brief, ConversationBrief, SourcedConversationBrief, FollowupBrief, CampaignService, brief_from, conversation_brief_from_plan, conversation_copy_brief
 from acquisition.creative import fixture_catalog, validate_fact_pack, grounded_tool_contracts, copy_source_payloads
 from acquisition.runtime import TaskSpec, TaskStore, Worker
 from acquisition.reasoning import Inference, ModelConfig, ModelGateway, freeze_assets, source_manifest
@@ -246,8 +246,7 @@ class Application:
                 context=self.memory.get_context(organization,context_id)
                 if context['segment']!=segment or context['audience_summary']['snapshot_id']!=snapshot_id:
                     raise Conflict('Legacy context differs from its original audience')
-                if conversation and context.get('campaign_brief')!={
-                    'objective':objective,'budget_pence':brief.budget_pence,'segments':list(brief.segments),'plan_id':brief.plan_id}:
+                if conversation and context.get('campaign_brief') != conversation_copy_brief(brief, objective):
                     raise Conflict('Legacy replay differs from its original objective')
             factory=conversation_model_task_plan if conversation else model_task_plan
             specs=factory(snapshot_id,brief,contexts,Inference(None,None,self.model_config,self.clock))
@@ -359,8 +358,7 @@ class Application:
                                "situation_hypothesis": guidance["situations"][segment],
                                "outcome_evidence": learning_memory[segment]}}
                 if conversation_brief:
-                    context["campaign_brief"] = {"objective": objective, "budget_pence": conversation_brief.budget_pence,
-                                                 "segments": list(segments), "plan_id": conversation_brief.plan_id}
+                    context["campaign_brief"] = conversation_copy_brief(conversation_brief, objective)
                 if conversation_brief and isinstance(conversation_brief, SourcedConversationBrief):
                     selection = conversation_brief.audience_source
                     context['audience_summary']['dataset_source'] = {
@@ -410,10 +408,7 @@ class Application:
                 selection=getattr(original,'audience_source',None)
                 if bool(selection)!=selected_audience:
                     raise Conflict('Legacy replay differs from its original audience source mode')
-                kind=SourcedConversationBrief if selection else ConversationBrief
-                brief=kind(campaign_id=request_id,budget_pence=plan['budget_pence'],segments=tuple(plan['segments']),
-                    conversation_id=plan['conversation_id'],conversation_revision=plan['revision'],plan_id=plan['id'],
-                    **({'audience_source':selection} if selection else {}))
+                brief = conversation_brief_from_plan(plan, request_id, selection)
                 snapshot_id=frozen['snapshot_id'] if selection else generate(organization,1000,42,as_of).id
                 return self._legacy_campaign(organization,request_id,snapshot_id,brief,
                     model=plan['copy_mode']=='model',objective=plan['objective'])
@@ -427,10 +422,7 @@ class Application:
                 {'method':'start-conversation','plan':plan,'as_of':as_of,'selected_audience':selected_audience},
                 references,allow_model=False,config=None)
         snapshot, selection = self.conversation_audiences.materialize("local-conversations", plan["conversation_id"], plan["revision"], plan["id"], organization) if selected_audience else (None, None)
-        kind = SourcedConversationBrief if selection else ConversationBrief
-        brief = kind(campaign_id=request_id, budget_pence=plan["budget_pence"],
-                                  segments=tuple(plan["segments"]), conversation_id=plan["conversation_id"],
-                                  conversation_revision=plan["revision"], plan_id=plan["id"], **({"audience_source":selection} if selection else {}))
+        brief = conversation_brief_from_plan(plan, request_id, selection)
         if plan["copy_mode"] == "model":
             return self.start_model(organization, request_id, as_of=as_of, conversation_brief=brief, objective=plan["objective"], snapshot_override=snapshot)
         snapshot_id = self.audiences.put(snapshot if snapshot is not None else generate(organization, 1000, 42, as_of))

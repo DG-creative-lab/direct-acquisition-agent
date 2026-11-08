@@ -1,7 +1,7 @@
 import json
 
 from acquisition.contracts import Conflict, NotFound, canonical, digest
-from acquisition.conversations import identity, revision_number, text
+from acquisition.conversations import identity, revision_number, text, requested_scope
 
 from .database import Database
 from .tasks import finite_time
@@ -94,6 +94,10 @@ class SqliteConversations:
             frozen = {**context, "conversation_id": conversation_id, "request_id": request_id, "revision": expected_revision,
                       "messages": messages(db, organization, conversation_id),
                       "run_request_id": "conversation-plan:" + digest({"conversation": conversation_id, "request": request_id})}
+            scope = requested_scope(organization, conversation_id, expected_revision, frozen['messages'])
+            if 'requested_scope' in context and context['requested_scope'] != scope:
+                raise Conflict('Requested scope changed before planning admission')
+            frozen['requested_scope'] = scope
             # Check the actual encoded provider envelope before recording the
             # one permitted admission for this revision or reserving a call.
             preflight(frozen)

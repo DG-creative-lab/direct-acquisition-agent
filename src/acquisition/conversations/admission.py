@@ -13,6 +13,7 @@ from acquisition.reasoning import ModelConfig
 from acquisition.runtime import TaskSpec
 
 from .domain import identity, text, CAPABILITY, FIXTURE_CAPABILITY
+from .scope import requested_scope
 
 
 ADMISSION_SCHEMA = 'execution-admission/v1'
@@ -211,7 +212,7 @@ def planning_intent(organization, request_id, source, context, history, *, fixtu
     """Build from independently loaded source facts, never model-owned identity."""
     planning_permission(fixture,allow_model,config)
     if source['organization']!=organization:raise Conflict('Planning source belongs to another organization')
-    allowed={'knowledge','knowledge_id','model_config','previous_results','fixture','messages','confirmed_action_exchanges'}
+    allowed={'knowledge','knowledge_id','model_config','previous_results','fixture','messages','confirmed_action_exchanges','requested_scope'}
     if type(context) is not dict or set(context)-allowed:raise ValueError('Unsupported planning context fields')
     if context.get('model_config')!=(asdict(config) if config else None):
         raise Conflict('Planning context and permitted model settings differ')
@@ -230,6 +231,10 @@ def planning_intent(organization, request_id, source, context, history, *, fixtu
     frozen=context|{'conversation_id':conversation_id,'revision':revision,'request_id':native_request,
         'messages':source['messages'],'run_request_id':'conversation-plan:'+digest({'conversation':conversation_id,'request':native_request}),
         'execution_admission_id':admission_id}
+    scope = requested_scope(organization, conversation_id, revision, source['messages'])
+    if 'requested_scope' in context and context['requested_scope'] != scope:
+        raise Conflict('Requested scope changed before planning admission')
+    frozen['requested_scope'] = scope
     if source['confirmed_action_exchanges']:frozen['confirmed_action_exchanges']=source['confirmed_action_exchanges']
     context_hash=digest(frozen)
     consent_id=None if fixture else 'consent_'+digest({'organization':organization,'request':request_id,'context':context_hash})

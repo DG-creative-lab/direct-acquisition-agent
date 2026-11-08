@@ -8,6 +8,7 @@ from acquisition.runtime import TaskSpec, TaskStore
 
 from .domain import CAPABILITY, FIXTURE_CAPABILITY, FIXTURE_MESSAGE, KNOWLEDGE
 from .ports import ConversationStore
+from .scope import requested_scope
 
 
 class MessageRejectedConflict(Conflict):
@@ -64,6 +65,7 @@ class ConversationService:
         context = {"knowledge": knowledge, "knowledge_id": "knowledge_" + digest(knowledge),
                    "messages": source["messages"], "previous_results": [] if fixture else [p["result"] for p in source["plans"] if p["result"]],
                    "model_config": None if fixture else asdict(self.config) if self.config else None}
+        context['requested_scope'] = requested_scope(organization, conversation_id, expected_revision, source['messages'])
         if fixture:
             context["fixture"] = "offline-example/v1"
             self._fixture_preflight(context)

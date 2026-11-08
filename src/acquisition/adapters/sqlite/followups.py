@@ -1,5 +1,6 @@
 """Scoped frozen follow-up proposals in the existing command journal."""
 import json
+from dataclasses import asdict
 import csv
 import io
 from acquisition.contracts import Conflict, NotFound, canonical, digest
@@ -7,6 +8,7 @@ from acquisition.learning import followup_hypotheses
 from acquisition.creative import historical_hook
 from .actors import require_actor
 from .audiences import read_snapshot
+from acquisition.campaigns import CampaignScope
 
 
 def excluded_businesses(db, organization, own_draft=None):
@@ -40,6 +42,11 @@ def require_followup(db, organization, inputs, own_draft=None):
     expected = p['brief'] | {'campaign_id':brief['campaign_id'], 'followup_id':p['id']}
     if canonical(brief) != canonical(expected) or inputs.get('snapshot_id',p['snapshot_id']) != p['snapshot_id']:
         raise Conflict('Follow-up inputs differ from the frozen proposal')
+    if 'requested_scope' in p['brief']:
+        from .conversation_provenance import require_inherited_scope
+        require_inherited_scope(db, p['brief']['requested_scope'])
+        if inputs.get('schema') == 'draft/v1' and inputs.get('campaign_scope') != asdict(CampaignScope()):
+            raise Conflict('Follow-up delivery scope differs from its requested scope')
     if 'context_ids' in inputs and inputs['context_ids'] != p['contexts']:
         raise Conflict('Follow-up model context differs from the frozen proposal')
     authority = db.execute('SELECT evidence_epoch,audience_epoch FROM review_authorities WHERE organization=?', (organization,)).fetchone()
@@ -83,6 +90,11 @@ class SqliteFollowups:
                     or groups != p['learning']['beliefs']):
                 raise Conflict('Source hypothesis evidence changed while proposing')
             draft = read_draft(db, organization, cohort['draft_id'])
+            if p['brief'].get('requested_scope') != draft.manifest['brief'].get('requested_scope'):
+                raise Conflict('Follow-up dropped or substituted the source requested scope')
+            if 'requested_scope' in p['brief']:
+                from .conversation_provenance import require_inherited_scope
+                require_inherited_scope(db, p['brief']['requested_scope'])
             source_creatives = [c | {'hook': historical_hook(c, read_context(db, organization, c['context_id'])
                                 if c.get('fact_pack_id') else None)} for c in draft.manifest['creatives']]
             expected = followup_hypotheses(organization, p['learning'], source_creatives, tuple(p['brief']['segments']))
@@ -113,6 +125,8 @@ class SqliteFollowups:
             p=p|{'id':'followup_'+digest(p)}
             for identity in (key,p['id']):
                 db.execute('INSERT OR IGNORE INTO review_commands VALUES(?,?,?,?)',(organization,identity,digest(p),canonical(p)))
+            if 'requested_scope' in p['brief']:
+                require_inherited_scope(db, p['brief']['requested_scope'])
             return p
 
     def excluded(self, organization):

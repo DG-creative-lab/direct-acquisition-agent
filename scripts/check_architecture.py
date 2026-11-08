@@ -6,7 +6,7 @@ from pathlib import Path
 
 MODULES = {"runtime", "audiences", "campaigns", "creative", "learning", "reasoning", "reviews", "conversations"}
 DEPENDENCIES = {"campaigns": {"audiences", "creative"}, "creative": {"reasoning"},
-                "reviews": {"audiences", "campaigns", "creative", "runtime"}, "conversations": {"reasoning", "runtime", "audiences"}}
+                "reviews": {"audiences", "campaigns", "creative", "runtime"}, "conversations": {"reasoning", "runtime", "audiences", "campaigns"}}
 
 
 def imports(source: str, module: str) -> list[str]:

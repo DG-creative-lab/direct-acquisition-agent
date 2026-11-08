@@ -41,6 +41,9 @@ type Brief = {
   copy_mode: "fixture" | "model";
   question: string;
   unsupported_reason: string;
+  requested_scope?: {
+    requirements: Record<string, { value: string | null; basis: string }>;
+  };
 };
 type Plan = {
   request_id: string;
@@ -446,7 +449,7 @@ export default function ConversationWorkspace({
         );
       if (!current)
         current = await newConversation(
-          message.trim().replace(/\s+/g, " ").slice(0, 80),
+          message.trim().replace(/\s+/g, " ").slice(0, 80).trim(),
         );
       const pending = pendingMessage ?? {
         conversationId: current.id,
@@ -949,6 +952,32 @@ export default function ConversationWorkspace({
                               </dd>
                             </div>
                           </dl>
+                          {plan.result.requested_scope && (
+                            <div aria-label="Campaign scope">
+                              <p>
+                                iwoca Flexi-Loan · Postal direct mail · UK ·
+                                Response experiment
+                              </p>
+                              {Object.values(
+                                plan.result.requested_scope.requirements,
+                              ).some((facet) =>
+                                facet.basis.includes("default"),
+                              ) && (
+                                <p>
+                                  Supported defaults used for:{" "}
+                                  {Object.entries(
+                                    plan.result.requested_scope.requirements,
+                                  )
+                                    .filter(([, facet]) =>
+                                      facet.basis.includes("default"),
+                                    )
+                                    .map(([name]) => name)
+                                    .join(", ")}
+                                  .
+                                </p>
+                              )}
+                            </div>
+                          )}
                           {campaign?.case_id ? (
                             <button
                               className="button primary"
