@@ -10,6 +10,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ('budget-possessive-recipient-rates', 'conversations/budgets.py',
+     "_RECIPIENT_DETERMINER = r'(?:the|my|our|your|his|her|its|their|these|those)'", "_RECIPIENT_DETERMINER = r'(?:the)'",
+     'test_budget_clarification.BudgetReplyTests.test_financial_links_in_saved_replies_require_a_whole_campaign_total'),
+    ('budget-delivery-purpose-total', 'conversations/budgets.py',
+     'if delivery and _delivery_purpose(content, match):', 'if False:',
+     'test_budget_clarification.BudgetReplyTests.test_explicit_total_for_recipient_delivery_reaches_one_unapproved_draft'),
+    ('budget-preserve-v4-question', 'conversations/budgets.py',
+     "elif policy == 'absolute-gbp/v4':", 'elif False:',
+     'test_budget_clarification.HistoricalBudgetTests.test_saved_policy_questions_keep_their_identity_and_accept_replies_after_restart'),
     ('budget-financial-link-words', 'conversations/budgets.py',
      "_LINK = r'\\s*(?:(?:is|was|would be|represents|covers|as|of)\\s+)?(?:(?:only|just|a|an|the|total|whole|full|campaign|budget|amount|cost|price|rate)\\s+)*(?:(?:for|of)\\s+)?'", '_LINK = _V3_LINK',
      'test_budget_clarification.BudgetReplyTests.test_financial_links_in_saved_replies_require_a_whole_campaign_total'),

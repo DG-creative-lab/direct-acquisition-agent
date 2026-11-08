@@ -55,7 +55,12 @@ class BudgetRuleTests(unittest.TestCase):
                       'Use £400. That is not the total budget.', 'Use £400. It is per month.',
                       'Use £400 for each recipient.', '£400 is the cost per recipient.',
                       '£400 covers the price per 1,000 recipients.',
-                      '£400 is the cost for each recipient.', '£400 is the price of each recipient.')
+                      '£400 is the cost for each recipient.', '£400 is the price of each recipient.',
+                      'Use £400 for each of our recipients.', 'Use £400 for each of your recipients.',
+                      'Use £400 for every one of their recipients.', 'Use £400 per 1,000 of our recipients.',
+                      'Use £400 total per recipient to receive a letter.',
+                      '£400 is the cost for each of our recipients to receive a letter.',
+                      'Use £400 total for each recipient to receive a letter. That budget is per month.')
         for reference in references:
             with self.subTest(reference=reference):
                 frozen = self.frozen(reference)
@@ -98,7 +103,10 @@ class BudgetRuleTests(unittest.TestCase):
                         'Budget £400; provide one report per week.',
                         'Use £400 for the whole campaign, with one mailing per business.',
                         'Use £400 total. The response target is one per 1,000 recipients.',
-                        'Use £400 total. The reporting rate is per week.'):
+                        'Use £400 total. The reporting rate is per week.',
+                        'Use £400 total for each recipient to receive a letter.',
+                        'Use £400 in total for each of our recipients to receive one letter.',
+                        'Use a total budget of £400 for every one of our recipients to be sent a letter.'):
             with self.subTest(request=request):
                 frozen = self.frozen(request)
                 self.assertIsNone(budget_response(frozen))
@@ -280,7 +288,8 @@ with patch('acquisition.workspace.openrouter_key',return_value='offline-fake'),p
         self.assertEqual(final['plans'][1]['result'], second)
 
     def test_financial_links_in_saved_replies_require_a_whole_campaign_total(self):
-        for i, wording in enumerate(('Use £400 for each recipient.', '£400 is the cost per recipient.')):
+        for i, wording in enumerate(('Use £400 for each recipient.', '£400 is the cost per recipient.',
+                                     'Use £400 for each of our recipients.')):
             with self.subTest(wording=wording):
                 cid = self.w.create_conversation('linked-' + str(i), 'Linked financial rate')['id']
                 self.model.planner.results = [conversations.proposal(budget_pence=40000)]
@@ -313,6 +322,34 @@ with patch('acquisition.workspace.openrouter_key',return_value='offline-fake'),p
                 self.assertEqual(len(final['campaigns']), 1)
                 self.assertEqual(final['current_plan']['result']['budget_evidence']['message_id'], reply['message_receipt']['id'])
                 self.assertEqual([p['result'] for p in final['plans'][:2]], [original, question])
+
+    def test_explicit_total_for_recipient_delivery_reaches_one_unapproved_draft(self):
+        original = self.question()['result']
+        self.model.planner.results = [conversations.proposal(budget_pence=40000)]
+        wording = 'Use £400 total for each recipient to receive a letter.'
+        reply = self.w.reply_budget_conversation(self.c, 'delivery-total', 1, original['id'], wording)
+        preparation = self.w.start_preparation(self.c, 'delivery-prepare', 2, False, False)['preparations'][-1]
+        for _ in range(8):
+            self.w.advance_preparations()
+        view = self.w.conversation(self.c)
+        self.assertEqual(view['preparations'][-1]['status'], 'review_ready')
+        self.assertEqual(view['execution']['used'], 1)
+        self.assertEqual(len(view['campaigns']), 1)
+        self.assertEqual(len(self.model.planner.requests), 1)
+        self.assertEqual(view['current_plan']['result']['budget_evidence']['message_id'], reply['message_receipt']['id'])
+        review = self.w.view(view['campaigns'][0]['session_id'])['review']
+        self.assertFalse(review['approval_valid'])
+        self.assertIsNone(review['handoff'])
+        self.w = self.open()
+        replay = self.w.reply_budget_conversation(self.c, 'delivery-total', 1, original['id'], wording)
+        self.assertTrue(replay['message_receipt']['replayed'])
+        same = self.w.start_preparation(self.c, 'delivery-prepare', 2, False, False)['preparations'][-1]
+        self.assertEqual(same['id'], preparation['id'])
+        final = self.w.conversation(self.c)
+        self.assertEqual(len(final['messages']), 2)
+        self.assertEqual(len(final['campaigns']), 1)
+        self.assertEqual(final['plans'][0]['result'], original)
+        self.assertEqual(len(self.model.planner.requests), 1)
 
     def test_a_question_completed_during_projection_is_visible_with_terminal_preparation(self):
         self.w.message_conversation(self.c, 'rate', 0, 'Prepare a UK postal contractor response experiment with £400 per month.')
@@ -394,7 +431,8 @@ class HistoricalBudgetTests(unittest.TestCase):
 
     def test_saved_policy_questions_keep_their_identity_and_accept_replies_after_restart(self):
         cases = [('absolute-gbp/v1', 'Prepare a UK contractor postal experiment with £400 per month or £500.', 'unconfirmed_total'),
-                 ('absolute-gbp/v2', 'Prepare a UK contractor postal experiment with £400 total. Send one letter per recipient.', 'non_total')]
+                 ('absolute-gbp/v2', 'Prepare a UK contractor postal experiment with £400 total. Send one letter per recipient.', 'non_total'),
+                 ('absolute-gbp/v4', 'Prepare a UK contractor postal experiment. Use £400 total for each recipient to receive a letter.', 'non_total')]
         for policy, content, reason in cases:
             with self.subTest(policy=policy):
                 self.id = self.service.create('one', 'history-' + policy.rsplit('/', 1)[-1])['id']
@@ -435,10 +473,11 @@ class HistoricalBudgetTests(unittest.TestCase):
         from acquisition.adapters.sqlite.conversation_provenance import require_requested_scope
         from acquisition.campaigns import CampaignScope, conversation_brief_from_plan
         owner = 'local-conversations'
-        for policy in (None, 'absolute-gbp/v3'):
+        for policy in (None, 'absolute-gbp/v3', 'absolute-gbp/v4'):
             with self.subTest(policy=policy):
                 cid = self.service.create(owner, 'old-non-total-' + str(policy).replace('/', '-'))['id']
-                self.service.message(owner, cid, 'rate', 0, 'Prepare a UK postal contractor experiment with £400 for each recipient.')
+                self.service.message(owner, cid, 'rate', 0,
+                    'Prepare a UK postal contractor experiment with £400 for each ' + ('of our recipients.' if policy == 'absolute-gbp/v4' else 'recipient.'))
                 original = SqliteConversations.admit
                 def old_admission(store, *args, **kwargs):
                     frozen = original(store, *args, **kwargs)
@@ -469,6 +508,40 @@ class HistoricalBudgetTests(unittest.TestCase):
                 with self.app.tasks.database.connect() as db:
                     require_requested_scope(db, asdict(current_brief), asdict(CampaignScope()))
                 self.assertEqual(self.service.view(owner, cid)['plans'][0]['result'], historical)
+
+    def test_historical_total_funding_recipient_delivery_keeps_fresh_source_validation(self):
+        from acquisition.adapters.sqlite.conversation_provenance import require_requested_scope
+        from acquisition.campaigns import CampaignScope, conversation_brief_from_plan
+        owner = 'local-conversations'
+        for policy in (None, 'absolute-gbp/v3'):
+            with self.subTest(policy=policy):
+                cid = self.service.create(owner, 'delivery-' + str(policy).replace('/', '-'))['id']
+                self.service.message(owner, cid, 'total', 0,
+                    'Prepare a UK postal contractor experiment. Use £400 total for each recipient to receive a letter.')
+                original = SqliteConversations.admit
+                def historical_admission(store, *args, **kwargs):
+                    frozen = original(store, *args, **kwargs)
+                    if policy is None:
+                        frozen.pop('budget_policy')
+                    else:
+                        frozen['budget_policy'] = policy
+                    with store.database.transaction() as db:
+                        db.execute('UPDATE conversation_plans SET payload=? WHERE organization=? AND conversation_id=?',
+                                   (canonical(frozen), owner, cid))
+                    return frozen
+                self.model.results = [conversations.proposal(budget_pence=40000)]
+                with patch.object(SqliteConversations, 'admit', historical_admission):
+                    run = self.service.plan(owner, cid, 'historical-total', 1)
+                self.app.worker.drain(owner, run_id=run)
+                historical = self.service.view(owner, cid)['current_plan']['result']
+                self.assertEqual(historical['budget_pence'], 40000)
+                brief = conversation_brief_from_plan(historical, 'historical-delivery')
+                with self.app.tasks.database.connect() as db:
+                    require_requested_scope(db, asdict(brief), asdict(CampaignScope()))
+                reopened = self.open()
+                with reopened.tasks.database.connect() as db:
+                    require_requested_scope(db, asdict(brief), asdict(CampaignScope()))
+                self.assertEqual(reopened.conversations.view(owner, cid)['current_plan']['result'], historical)
 
     def test_pre_policy_admission_replays_its_original_two_call_repair_contract(self):
         self.message('Use £437 or £683 for a UK contractor postal experiment.')
