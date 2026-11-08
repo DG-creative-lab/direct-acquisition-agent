@@ -51,7 +51,8 @@ class BudgetRuleTests(unittest.TestCase):
                       '£400 is not my campaign budget.', '£400 is not an absolute total.',
                       '£400 is not the final budget.', '£400 is a non-total amount.', '£400 is only the deposit.',
                       '£400 is half of the total budget.', 'The unit cost is £400.',
-                      '£400 is the unit price.', 'Do not treat £400 as the total budget.')
+                      '£400 is the unit price.', 'Do not treat £400 as the total budget.',
+                      'Use £400. That is not the total budget.', 'Use £400. It is per month.')
         for reference in references:
             with self.subTest(reference=reference):
                 frozen = self.frozen(reference)

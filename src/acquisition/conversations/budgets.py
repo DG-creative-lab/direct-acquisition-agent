@@ -39,6 +39,8 @@ def _bound_budget_qualifier(content, match):
     prefix, suffix = content[:match.start()], content[match.end():]
     if re.search(r'(?:' + _MONEY + r'|\b' + _FINANCIAL_NOUN + r')' + _LINK + r'$', prefix, re.I):
         return True
+    if re.search(_MONEY + _LINK + r'[.!?;]\s*(?:that|this|it)' + _LINK + r'$', prefix, re.I):
+        return True
     if re.match(r'\s*(?:(?:rate|cost|price|budget|amount)\s+)?(?:(?:of|is|was|at)\s+)?' + _MONEY, suffix, re.I):
         return True
     # An isolated qualification can correct a preceding message's amount.
