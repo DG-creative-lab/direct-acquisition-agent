@@ -48,3 +48,8 @@ dist/
 !/docs/legacy-migration.md
 !/docs/workspace-checkpoints.md
 !/docs/writing-preferences.md
+!/docs/evaluations/
+/docs/evaluations/*
+!/docs/evaluations/issue-25-offline.md
+!/docs/evaluations/issue-25-offline-results.json
+!/docs/evaluations/issue-25-offline-results-v2.json
