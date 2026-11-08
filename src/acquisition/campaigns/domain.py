@@ -11,6 +11,28 @@ from acquisition.creative import Creative, creative_record
 
 
 @dataclass(frozen=True)
+class CampaignScope:
+    product: str = 'iwoca_flexi_loan'
+    channel: str = 'direct_mail'
+    country: str = 'UK'
+    objective: str = 'response_experiment'
+
+
+def requested_scope_values(scope):
+    return {key: scope['requirements'][key]['value'] for key in asdict(CampaignScope())}
+
+
+def validate_requested_scope(scope):
+    if (type(scope) is not dict or scope.get('schema') != 'requested-campaign-scope/v1'
+            or scope.get('id') != 'request_scope_' + digest({k:v for k,v in scope.items() if k != 'id'})
+            or scope.get('authority') != 'none' or scope.get('status') != 'supported'
+            or type(scope.get('requirements')) is not dict or set(scope['requirements']) != set(asdict(CampaignScope()))
+            or any(type(v) is not dict or 'value' not in v for v in scope['requirements'].values())
+            or requested_scope_values(scope) != asdict(CampaignScope())):
+        raise ValueError('Campaign does not satisfy its frozen requested scope')
+
+
+@dataclass(frozen=True)
 class Brief:
     campaign_id: str
     budget_pence: int = 85000
@@ -69,10 +91,57 @@ class FollowupBrief(Brief):
             raise ValueError("Follow-up requires a frozen proposal and supported segments")
 
 
+@dataclass(frozen=True)
+class ScopedConversationBrief(ConversationBrief):
+    requested_scope: dict | None = None
+
+    def __post_init__(self):
+        super().__post_init__()
+        validate_requested_scope(self.requested_scope)
+
+
+@dataclass(frozen=True)
+class ScopedSourcedConversationBrief(SourcedConversationBrief):
+    requested_scope: dict | None = None
+
+    def __post_init__(self):
+        super().__post_init__()
+        validate_requested_scope(self.requested_scope)
+
+
+@dataclass(frozen=True)
+class ScopedFollowupBrief(FollowupBrief):
+    requested_scope: dict | None = None
+
+    def __post_init__(self):
+        super().__post_init__()
+        validate_requested_scope(self.requested_scope)
+
+
+def conversation_brief_from_plan(plan, campaign_id, selection=None):
+    cls = SourcedConversationBrief if selection else ConversationBrief
+    extra = {'audience_source': selection} if selection else {}
+    if 'requested_scope' in plan:
+        cls = ScopedSourcedConversationBrief if selection else ScopedConversationBrief
+        extra['requested_scope'] = plan['requested_scope']
+    return cls(campaign_id=campaign_id, budget_pence=plan['budget_pence'], segments=tuple(plan['segments']),
+               conversation_id=plan['conversation_id'], conversation_revision=plan['revision'], plan_id=plan['id'], **extra)
+
+
+def conversation_copy_brief(brief, objective):
+    result = {'objective': objective, 'budget_pence': brief.budget_pence, 'segments': list(brief.segments), 'plan_id': brief.plan_id}
+    scope = getattr(brief, 'requested_scope', None)
+    if scope is not None:
+        result['requested_scope'] = {'id': scope['id'], 'values': requested_scope_values(scope)}
+    return result
+
+
 def brief_from(payload: dict) -> Brief:
     if "segments" not in payload:
         return Brief(**payload)
     kind = FollowupBrief if "followup_id" in payload else SourcedConversationBrief if "audience_source" in payload else ConversationBrief
+    if 'requested_scope' in payload:
+        kind = ScopedFollowupBrief if 'followup_id' in payload else ScopedSourcedConversationBrief if 'audience_source' in payload else ScopedConversationBrief
     return kind(**(payload | {"segments": tuple(payload["segments"])}))
 
 
@@ -183,6 +252,8 @@ def build_draft(snapshot: Snapshot, brief: Brief, creatives: tuple[Creative, ...
                         "Budget conservatively includes potential holdouts", "Small strata may have no holdout",
                         "Rows with missing scores are explicitly excluded; no complete scoring claim"],
     }
+    if getattr(brief, 'requested_scope', None) is not None:
+        manifest['campaign_scope'] = asdict(CampaignScope())
     canonical(manifest)  # Reject non-serializable/non-finite content before persistence.
     return Draft(manifest, mailing, assignments)
 
@@ -193,6 +264,8 @@ def validate_copy_revision(base: Draft, candidate: Draft, target_id: str) -> Non
     for field in ("brief", "snapshot_id", "counts", "arm_counts", "variable_cost_pence", "exclusion_reasons"):
         if base.manifest[field] != candidate.manifest[field]:
             raise Conflict("Copy revision changed the campaign population, budget or assignments")
+    if base.manifest.get('campaign_scope') != candidate.manifest.get('campaign_scope'):
+        raise Conflict('Copy revision changed the delivered campaign scope')
     old = {(c["segment"], c["arm"]): c for c in base.manifest["creatives"]}
     new = {(c["segment"], c["arm"]): c for c in candidate.manifest["creatives"]}
     target = next((key for key, c in old.items() if c["id"] == target_id), None)

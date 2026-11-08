@@ -10,11 +10,11 @@ from .actors import require_actor
 from .drafts import read_draft, verify
 
 
-def reconcile_finalized_outcomes(db, organization, cohort, finalization, now):
-    """Recount native evidence inside the caller's read or write transaction."""
+def accepted_cohort_draft(db, organization, cohort):
+    """Rebuild an accepted experiment without treating its receipt as authority."""
     try:
         if (cohort['organization'] != organization or cohort['id'] != 'cohort_' + digest(
-                {k: v for k, v in cohort.items() if k != 'id'}) or not finalization):
+                {k: v for k, v in cohort.items() if k != 'id'})):
             raise Conflict('Finalized source cohort integrity failure')
         job = db.execute('SELECT * FROM simulated_agency_jobs WHERE organization=? AND case_id=?',
                          (organization, cohort['case_id'])).fetchone()
@@ -28,6 +28,52 @@ def reconcile_finalized_outcomes(db, organization, cohort, finalization, now):
         draft = read_draft(db, organization, receipt['draft_id'])
         if cohort_proposal(organization, receipt, draft) != cohort:
             raise Conflict('Finalized source cohort differs from its accepted experiment')
+        return draft
+    except (NotFound, ValueError, TypeError, KeyError) as error:
+        raise Conflict('Source accepted experiment is invalid') from error
+
+
+def require_source_request(db, organization, cohort_id):
+    """Validate native requests through scoped legacy and current ancestry."""
+    from .conversation_provenance import require_requested_scope
+    seen = set()
+    try:
+        while True:
+            if cohort_id in seen:
+                raise Conflict('Follow-up request ancestry contains a cycle')
+            seen.add(cohort_id)
+            row = db.execute('SELECT payload FROM learning_cohorts WHERE organization=? AND id=?',
+                             (organization, cohort_id)).fetchone()
+            if row is None:
+                raise Conflict('Follow-up source cohort is unavailable')
+            cohort = json.loads(row[0])
+            if cohort['id'] != cohort_id:
+                raise Conflict('Follow-up source cohort identity changed')
+            draft = accepted_cohort_draft(db, organization, cohort)
+            brief = draft.manifest['brief']
+            require_requested_scope(db, brief, draft.manifest.get('campaign_scope'))
+            if 'followup_id' not in brief:
+                return
+            row = db.execute('SELECT receipt FROM review_commands WHERE organization=? AND request_id=?',
+                             (organization, brief['followup_id'])).fetchone()
+            proposal = json.loads(row[0]) if row else {}
+            if (proposal.get('kind') != 'followup_proposal'
+                    or proposal.get('id') != brief['followup_id']
+                    or proposal['id'] != 'followup_' + digest({k:v for k,v in proposal.items() if k != 'id'})
+                    or brief != proposal['brief'] | {'campaign_id': brief['campaign_id'], 'followup_id': proposal['id']}
+                    or draft.manifest['snapshot_id'] != proposal['snapshot_id']):
+                raise Conflict('Follow-up request ancestry differs from its saved proposal')
+            cohort_id = proposal['source_cohort']
+    except (NotFound, ValueError, TypeError, KeyError) as error:
+        raise Conflict('Follow-up source request evidence is invalid') from error
+
+
+def reconcile_finalized_outcomes(db, organization, cohort, finalization, now):
+    """Recount native evidence inside the caller's read or write transaction."""
+    try:
+        accepted_cohort_draft(db, organization, cohort)
+        if not finalization:
+            raise Conflict('Finalized source lacks its finalization receipt')
         members = {m['business_id']: m for m in cohort['members']}
         indexed = {r[0] for r in db.execute(
             'SELECT business_id FROM learning_members WHERE organization=? AND cohort_id=?', (organization, cohort['id']))}
@@ -220,6 +266,7 @@ class SqliteLearning:
                 if not finalization or row['finalized_at'] != finalization['finalized_at']:
                     raise Conflict('Finalized source timestamp differs from its receipt')
                 groups = reconcile_finalized_outcomes(db, organization, cohort, finalization, now)
+                require_source_request(db, organization, cohort_id)
             status = "finalized" if finalized else "awaiting_complete_outcomes" if now >= cohort["window_end"] else "observing"
             return {"cohort": {k: v for k, v in cohort.items() if k != "members"}, "status": status,
                 "enrolled": len(cohort["members"]), "received": received, "missing": len(cohort["members"]) - received,

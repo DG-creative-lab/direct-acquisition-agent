@@ -212,3 +212,10 @@ A completed amendment proposal requires `POST /api/conversations/{id}/confirm-ac
 See [conversational follow-ups](conversational-actions.md) for limits, observation semantics and restart behavior. Existing direct message and planning endpoints retain their original explicit amendment behavior for older clients.
 
 New follow-ups also support `revise_copy` through routing v2. This resolves an explicit current-campaign variant or asks for target clarification. `POST /api/conversations/{id}/confirm-copy-action` accepts exactly `request_id`, `action_id`, `result_id`, `expected_revision` and `allow_model_copy: true`. Confirmation atomically admits the existing native copy revision and records its conversation receipt without appending a brief message or restarting planning. Its separate five-call permission cannot be inferred from a general copy checkbox or free-form approval. See [conversational copy revision](conversational-copy-revision.md) for preview attestation, feedback bounds and recovery.
+
+
+## Requested campaign scope
+
+Fresh planning admissions freeze versioned product, channel, country and objective requirements alongside the exact native messages. The installed capability is iwoca Flexi-Loan, UK postal direct mail and a response experiment. Recognized unsupported requests finish with an explicit unsupported response before planner dispatch. Conflicting mentions or unrecognized explicit scope labels ask for clarification. Omitted facets use declared capability defaults, which the brief displays separately from explicit requests.
+
+The literal resolver is bounded vocabulary matching, not a general semantic intent classifier. New model responses cannot replace a recognized unsupported task with a supported brief. The scope follows the exact proposal into campaign inputs, copy context, draft manifest, targeted revisions and follow-ups. Readiness and new review/acceptance decisions reconcile it with native planning tasks and message history. Historical IDs, receipts and unscoped formats remain unchanged. See [requested campaign scope](requested-campaign-scope.md) for ownership, evidence boundaries and regression coverage.

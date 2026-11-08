@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 from acquisition.contracts import Conflict, digest
 from acquisition.conversations import CAMPAIGN_ADMISSION_KINDS, AdmissionIntent, ExecutionOwnership, ACTION_CAPABILITY, COPY_ACTION_CAPABILITY, validate_result, workflow_permission
-from acquisition.campaigns import Brief, ConversationBrief, SourcedConversationBrief, brief_from
+from acquisition.campaigns import Brief, ConversationBrief, SourcedConversationBrief, brief_from, conversation_brief_from_plan, conversation_copy_brief
 from acquisition.creative import fixture_catalog, GroundedCopyAgent, validate_copy_assets, validate_fact_pack
 from acquisition.reasoning import Inference
 from acquisition.runtime import TaskSpec
@@ -27,10 +27,7 @@ def campaign_brief(kind, references, source):
             raise Conflict('Campaign requires its exact successful saved brief proposal')
         campaign_id = 'workspace_' + digest({'conversation_id': result['conversation_id'], 'plan_id': result['id']})[:24]
         selection = source['selection']
-        cls = SourcedConversationBrief if selection else ConversationBrief
-        return cls(campaign_id=campaign_id, budget_pence=result['budget_pence'], segments=tuple(result['segments']),
-            conversation_id=result['conversation_id'], conversation_revision=result['revision'], plan_id=result['id'],
-            **({'audience_source': selection} if selection else {}))
+        return conversation_brief_from_plan(result, campaign_id, selection)
     if kind == 'learning-followup':
         p = source['proposal']
         return brief_from(p['brief'] | {'campaign_id': 'workspace_' + digest({'followup': p['id']})[:24], 'followup_id': p['id']})
@@ -76,9 +73,7 @@ def coverage_plan(kind, references, source, config, organization, now):
                     summary['model_version'] != source['audience_facts']['model_version'] or
                     summary['input_records'] != source['audience_facts']['segment_counts'][segment]):
                 raise Conflict('Copy context differs from its segment or audience snapshot')
-            if kind == 'conversation-campaign' and context.get('campaign_brief') != {
-                'objective': source['plan']['objective'], 'budget_pence': brief.budget_pence,
-                'segments': list(brief.segments), 'plan_id': brief.plan_id}:
+            if kind == 'conversation-campaign' and context.get('campaign_brief') != conversation_copy_brief(brief, source['plan']['objective']):
                 raise Conflict('Copy context differs from the saved campaign objective')
             if kind == 'conversation-campaign' and source['selection']:
                 selection = source['selection']

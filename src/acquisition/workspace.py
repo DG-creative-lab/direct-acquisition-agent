@@ -1000,6 +1000,8 @@ class Workspace:
                 "counts":preview.manifest["counts"], "cost_pence":preview.manifest["variable_cost_pence"],
                 "eligible":preview.manifest["counts"]["mailed"] > 0 and preview.manifest["counts"]["holdout"] > 0,
                 "source_label":"SYNTHETIC_ONLY: bounded 2,000-record inventory, preserving original business identities"}
+            if 'requested_scope' in source_draft.manifest['brief']:
+                p['brief']['requested_scope'] = source_draft.manifest['brief']['requested_scope']
             return app.followups.put(scope, request_id, p)
 
     def prepare_followup(self, identity, request_id, proposal_id, mode, allow_model_copy):
