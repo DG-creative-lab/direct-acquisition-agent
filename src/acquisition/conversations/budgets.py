@@ -4,8 +4,8 @@ import re
 from .domain import KNOWLEDGE, explicit_budget
 
 
-BUDGET_POLICY = 'absolute-gbp/v1'
-
+BUDGET_POLICY = 'absolute-gbp/v2'
+SUPPORTED_BUDGET_POLICIES = frozenset({'absolute-gbp/v1', BUDGET_POLICY})
 
 
 _UNITS = r'(?:seconds?|minutes?|hours?|days?|weeks?|fortnights?|months?|quarters?|years?|recipients?|audiences?|variants?|segments?|business(?:es)?|locations?|regions?|countr(?:y|ies)|channels?|customers?|contacts?|leads?|letters?|mailpieces?|mailings?|impressions?|clicks?|conversions?|units?|people|persons?)'
@@ -26,7 +26,7 @@ def non_total_budget_reference(messages):
     """Locate an explicit exclusion/rate, without overriding a later clean total.
 
     This enforces the existing absolute-total contract. Numeric extraction and
-    historical policy-free result hashes retain their original behavior.
+    historical result hashes retain their original behavior.
     """
     for message in reversed(messages):
         content = message['content']
@@ -44,17 +44,25 @@ def non_total_budget_reference(messages):
             return None
     return None
 
+
 def budget_clarification(frozen):
-    policy = frozen.get('budget_policy')
     if 'budget_policy' not in frozen:
-        return None  # Preserve admitted historical planning behavior and IDs.
-    if policy != BUDGET_POLICY:
+        return None
+    policy = frozen['budget_policy']
+    if policy not in SUPPORTED_BUDGET_POLICIES:
         raise ValueError('Unknown frozen budget policy')
+    if policy == BUDGET_POLICY:
+        excluded = non_total_budget_reference(frozen['messages'])
+        if excluded is not None:
+            return {'schema': 'budget-clarification/v1', 'reason': 'non_total', 'message_id': excluded,
+                    'question': 'Which single total campaign budget in GBP should I use? Please state one absolute amount using £ or GBP.'}
+    return _v1_budget_clarification(frozen)
+
+
+def _v1_budget_clarification(frozen):
+    """Original resolver retained for exact validation of admitted v1 questions."""
     evidence = explicit_budget(frozen['messages'])
-    excluded = non_total_budget_reference(frozen['messages'])
-    if excluded is not None:
-        reason, message_id = 'non_total', excluded
-    elif evidence is not None:
+    if evidence is not None:
         if 1 <= evidence['budget_pence'] <= KNOWLEDGE['budget_limit_pence']:
             return None
         reason = 'out_of_range'
@@ -93,7 +101,7 @@ def result_budget_clarification(candidate, frozen):
     clarification = budget_clarification(frozen)
     if clarification is not None:
         return clarification
-    if (frozen.get('budget_policy') == BUDGET_POLICY and candidate['outcome'] == 'clarification'
+    if (frozen.get('budget_policy') in SUPPORTED_BUDGET_POLICIES and candidate['outcome'] == 'clarification'
             and candidate['budget_pence'] is None and explicit_budget(frozen['messages']) is None
             and re.search(r'\bbudget\b', candidate['question'], re.I)):
         return {'schema': 'budget-clarification/v1', 'reason': 'missing',

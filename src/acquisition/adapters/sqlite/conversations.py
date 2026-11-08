@@ -1,7 +1,7 @@
 import json
 
 from acquisition.contracts import Conflict, NotFound, canonical, digest
-from acquisition.conversations import identity, revision_number, text, requested_scope, BUDGET_POLICY, CAPABILITY, validate_result
+from acquisition.conversations import identity, revision_number, text, requested_scope, BUDGET_POLICY, SUPPORTED_BUDGET_POLICIES, CAPABILITY, validate_result
 
 from .database import Database
 from .tasks import finite_time
@@ -127,7 +127,7 @@ class SqliteConversations:
             scope = requested_scope(organization, conversation_id, expected_revision, frozen['messages'])
             if 'requested_scope' in context and context['requested_scope'] != scope:
                 raise Conflict('Requested scope changed before planning admission')
-            if context.get('budget_policy', BUDGET_POLICY) != BUDGET_POLICY:
+            if context.get('budget_policy', BUDGET_POLICY) not in SUPPORTED_BUDGET_POLICIES:
                 raise Conflict('Budget policy differs from the installed planning contract')
             frozen['budget_policy'] = BUDGET_POLICY
             frozen['requested_scope'] = scope
@@ -161,7 +161,7 @@ def require_budget_question(db, organization, conversation_id, revision, plan_id
         row = db.execute('SELECT payload FROM conversation_plans WHERE organization=? AND conversation_id=? AND revision=?',
                          (organization, conversation_id, revision)).fetchone()
         frozen = json.loads(row[0]) if row else {}
-        if (frozen.get('budget_policy') != BUDGET_POLICY or frozen.get('conversation_id') != conversation_id
+        if (frozen.get('budget_policy') not in SUPPORTED_BUDGET_POLICIES or frozen.get('conversation_id') != conversation_id
                 or frozen.get('revision') != revision
                 or frozen.get('knowledge_id') != 'knowledge_' + digest(frozen.get('knowledge'))):
             raise Conflict('This plan has no current budget clarification contract')

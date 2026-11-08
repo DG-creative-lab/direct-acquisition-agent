@@ -84,6 +84,9 @@ class BudgetRuleTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 budget_clarification(frozen | {'budget_policy': version})
         self.assertIsNone(budget_response(self.frozen('Prepare a contractor campaign.')))
+        previous = self.frozen('Use £400 per month or £500.') | {'budget_policy': 'absolute-gbp/v1'}
+        self.assertEqual(budget_clarification(previous)['reason'], 'unconfirmed_total')
+        self.assertEqual(budget_clarification(previous | {'budget_policy': BUDGET_POLICY})['reason'], 'non_total')
 
 
 class BudgetReplyTests(unittest.TestCase):
@@ -246,6 +249,22 @@ with patch('acquisition.workspace.openrouter_key',return_value='offline-fake'),p
         self.assertEqual(final['plans'][0]['result'], first)
         self.assertEqual(final['plans'][1]['result'], second)
 
+    def test_a_question_completed_during_projection_is_visible_with_terminal_preparation(self):
+        self.w.message_conversation(self.c, 'rate', 0, 'Prepare a UK postal contractor response experiment with £400 per month.')
+        self.w.start_preparation(self.c, 'question', 1, False, False)
+        original = self.w.preparation_progress
+        def completed(conversation_id):
+            for _ in range(4):
+                self.w.advance_preparations()
+            return original(conversation_id)
+        with patch.object(self.w, 'preparation_progress', completed):
+            view = self.w.conversation(self.c)
+        self.assertEqual(view['preparations'][-1]['status'], 'needs_input')
+        self.assertEqual(view['current_plan']['status'], 'succeeded')
+        self.assertEqual(view['current_plan']['result']['budget_clarification']['reason'], 'non_total')
+        self.assertEqual(view['execution']['used'], 0)
+        self.assertEqual(view['campaigns'], [])
+
     def test_a_model_budget_question_can_receive_an_exact_budget_reply(self):
         self.w.message_conversation(self.c, 'missing-budget', 0, 'Prepare a UK postal response experiment for contractors.')
         self.model.planner.results = [conversations.proposal(outcome='clarification', budget_pence=None,
@@ -307,6 +326,39 @@ class HistoricalBudgetTests(unittest.TestCase):
     plan = conversations.ConversationTests.plan
     finish = conversations.ConversationTests.finish
     open = conversations.ConversationTests.open
+
+    def test_v1_question_keeps_its_identity_and_accepts_a_reply_after_restart(self):
+        self.message('Prepare a UK contractor postal experiment with £400 per month or £500.')
+        original = SqliteConversations.admit
+        def v1_admission(store, *args, **kwargs):
+            frozen = original(store, *args, **kwargs)
+            frozen['budget_policy'] = 'absolute-gbp/v1'
+            with store.database.transaction() as db:
+                db.execute('UPDATE conversation_plans SET payload=? WHERE organization=? AND conversation_id=?',
+                           (canonical(frozen), 'one', self.id))
+            return frozen
+        with patch.object(SqliteConversations, 'admit', v1_admission):
+            run = self.plan()
+        question = self.finish()
+        self.assertEqual(question['budget_clarification']['reason'], 'unconfirmed_total')
+        self.assertEqual(self.model.requests, [])
+        self.app = self.open()
+        self.service = self.app.conversations
+        self.assertEqual(self.plan(), run)
+        self.assertEqual(self.service.view('one', self.id)['current_plan']['result'], question)
+        reply = self.service.reply_budget('one', self.id, 'confirmed', 1, question['id'], 'Use £400 as the total campaign budget.')
+        self.assertEqual(reply['revision'], 2)
+        self.assertTrue(self.service.reply_budget('one', self.id, 'confirmed', 1, question['id'],
+                                                'Use £400 as the total campaign budget.')['message_receipt']['replayed'])
+        self.model.results = [conversations.proposal(budget_pence=40000)]
+        current_run = self.service.plan('one', self.id, 'confirmed-plan', 2)
+        self.app.worker.drain('one', run_id=current_run)
+        view = self.service.view('one', self.id)
+        self.assertEqual(view['plans'][0]['result'], question)
+        self.assertEqual(view['current_plan']['result']['budget_pence'], 40000)
+        self.assertEqual(view['current_plan']['result']['budget_evidence']['message_id'], reply['message_receipt']['id'])
+        frozen = self.service.store.snapshot('one', self.id)['admissions'][-1]
+        self.assertEqual(frozen['budget_policy'], BUDGET_POLICY)
 
     def test_pre_policy_non_total_proposal_is_historical_not_fresh_authority(self):
         from acquisition.adapters.sqlite.conversation_provenance import require_requested_scope

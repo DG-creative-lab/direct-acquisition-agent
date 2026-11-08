@@ -14,7 +14,7 @@ from acquisition.runtime import TaskSpec
 
 from .domain import identity, text, CAPABILITY, FIXTURE_CAPABILITY
 from .scope import requested_scope
-from .budgets import BUDGET_POLICY
+from .budgets import BUDGET_POLICY, SUPPORTED_BUDGET_POLICIES
 
 
 ADMISSION_SCHEMA = 'execution-admission/v1'
@@ -235,7 +235,7 @@ def planning_intent(organization, request_id, source, context, history, *, fixtu
     scope = requested_scope(organization, conversation_id, revision, source['messages'])
     if 'requested_scope' in context and context['requested_scope'] != scope:
         raise Conflict('Requested scope changed before planning admission')
-    if context.get('budget_policy', BUDGET_POLICY) != BUDGET_POLICY:
+    if context.get('budget_policy', BUDGET_POLICY) not in SUPPORTED_BUDGET_POLICIES:
         raise Conflict('Budget policy differs from the installed planning contract')
     frozen['budget_policy'] = BUDGET_POLICY
     frozen['requested_scope'] = scope

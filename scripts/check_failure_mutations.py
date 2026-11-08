@@ -10,6 +10,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ('budget-projection-after-preparation', 'workspace.py',
+     '        preparations = self.preparation_progress(conversation_id)\n        view = application.conversations.view("local-conversations", conversation_id)',
+     '        view = application.conversations.view("local-conversations", conversation_id)\n        preparations = self.preparation_progress(conversation_id)',
+     'test_budget_clarification.BudgetReplyTests.test_a_question_completed_during_projection_is_visible_with_terminal_preparation'),
+    ('budget-preserve-v1-question', 'conversations/budgets.py',
+     'if policy == BUDGET_POLICY:', 'if True:',
+     'test_budget_clarification.HistoricalBudgetTests.test_v1_question_keeps_its_identity_and_accepts_a_reply_after_restart'),
     ('budget-non-total-before-fast-path', 'conversations/budgets.py',
      "excluded = non_total_budget_reference(frozen['messages'])", 'excluded = None',
      'test_budget_clarification.BudgetReplyTests.test_non_total_request_and_reply_wait_for_a_whole_campaign_total'),
