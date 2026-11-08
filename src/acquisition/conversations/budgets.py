@@ -7,6 +7,43 @@ from .domain import KNOWLEDGE, explicit_budget
 BUDGET_POLICY = 'absolute-gbp/v1'
 
 
+
+_UNITS = r'(?:seconds?|minutes?|hours?|days?|weeks?|fortnights?|months?|quarters?|years?|recipients?|audiences?|variants?|segments?|business(?:es)?|locations?|regions?|countr(?:y|ies)|channels?|customers?|contacts?|leads?|letters?|mailpieces?|mailings?|impressions?|clicks?|conversions?|units?|people|persons?)'
+_MONEY = r'(?:£\s*|\bGBP\s+)(?:\d{1,3}(?:,\d{3})+|\d{1,7})(?:\.\d{1,2})?(?!\w|[.,]\d)'
+_FREQUENCY = r'(?:daily|weekly|fortnightly|monthly|quarterly|annually|annual|yearly|hourly)'
+_RATES = (r'\b(?:per|each|every)[ -]+(?:of\s+)?(?:(?:the|both|two|three|\d+)\s+)*' + _UNITS + r'\b',
+          r'\b' + _FREQUENCY + r'\s+(?:(?:campaign|marketing)\s+)?(?:budget|amount|figure|estimate|spend|cap|limit|allocation|allowance|rate)\b',
+          r'\b' + _FREQUENCY + r'\s+' + _MONEY,
+          _MONEY + r'\s*(?:/\s*' + _UNITS + r'|(?:a|an)\s+' + _UNITS + r'|' + _FREQUENCY + r')\b',
+          r'\bunit[- ](?:cost|price|rate|budget)\s*(?:(?:of|is|was)\s*|[:=]\s*)?' + _MONEY,
+          r'\b(?:half|part|portion|share)\s+of\s+(?:the\s+)?(?:(?:total|overall|campaign)\s+)?budget\b',
+          r'\b(?:is|represents|covers)\s+(?:(?:only|just)\s+)?(?:(?:a|an|the)\s+)?(?:deposit|instalment|installment|down payment|unit[- ]cost|unit[- ]price)\b')
+_NON_TOTAL = (r'\bnon[- ]total\b', r"\b(?:not|isn['’]t|wasn['’]t|aren['’]t)\s+(?:(?:a|an|the|my|our|actual|confirmed|absolute|final|yet|as|campaign|whole|full)\s+)*(?:total|overall|budget)\b",
+              r"\b(?:do not|don['’]t|never)\s+(?:use|treat|take|consider|interpret|count)\s+(?:the\s+)?" + _MONEY)
+
+
+def non_total_budget_reference(messages):
+    """Locate an explicit exclusion/rate, without overriding a later clean total.
+
+    This enforces the existing absolute-total contract. Numeric extraction and
+    historical policy-free result hashes retain their original behavior.
+    """
+    for message in reversed(messages):
+        content = message['content']
+        related = (re.search(r'[£$€]|\b(?:GBP|USD|EUR|budget|amount|figure|that|this|it)\b', content, re.I)
+                   or re.fullmatch(_RATES[0] + r'[.!?\s]*', content, re.I))
+        if related:
+            if any(re.search(pattern, content, re.I) for pattern in _NON_TOTAL):
+                return message['id']
+            for pattern in _RATES:
+                for match in re.finditer(pattern, content, re.I):
+                    prefix = re.split(r'[.!?;\n]', content[:match.start()])[-1]
+                    if not re.search(r"\b(?:not|never|no|rather than|instead of)\s+(?:(?:a|an|the)\s+)?$", prefix, re.I):
+                        return message['id']
+        if explicit_budget([message]) is not None:
+            return None
+    return None
+
 def budget_clarification(frozen):
     policy = frozen.get('budget_policy')
     if 'budget_policy' not in frozen:
@@ -14,7 +51,10 @@ def budget_clarification(frozen):
     if policy != BUDGET_POLICY:
         raise ValueError('Unknown frozen budget policy')
     evidence = explicit_budget(frozen['messages'])
-    if evidence is not None:
+    excluded = non_total_budget_reference(frozen['messages'])
+    if excluded is not None:
+        reason, message_id = 'non_total', excluded
+    elif evidence is not None:
         if 1 <= evidence['budget_pence'] <= KNOWLEDGE['budget_limit_pence']:
             return None
         reason = 'out_of_range'

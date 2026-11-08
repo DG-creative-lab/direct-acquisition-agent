@@ -10,6 +10,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ('budget-non-total-before-fast-path', 'conversations/budgets.py',
+     "excluded = non_total_budget_reference(frozen['messages'])", 'excluded = None',
+     'test_budget_clarification.BudgetReplyTests.test_non_total_request_and_reply_wait_for_a_whole_campaign_total'),
+    ('budget-non-total-current-authority', 'adapters/sqlite/conversation_provenance.py',
+     'if non_total_budget_reference(source) is not None:', 'if False:',
+     'test_budget_clarification.HistoricalBudgetTests.test_pre_policy_non_total_proposal_is_historical_not_fresh_authority'),
     ('budget-before-planner-dispatch', 'workflows/conversation.py',
      ' or budget_response(frozen)', '',
      'test_budget_clarification.BudgetReplyTests.test_a_reply_without_an_absolute_gbp_total_asks_again_without_inference'),

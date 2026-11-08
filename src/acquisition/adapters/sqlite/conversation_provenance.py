@@ -5,7 +5,7 @@ from dataclasses import asdict
 
 from acquisition.contracts import Conflict
 from acquisition.campaigns import CampaignScope, validate_requested_scope
-from acquisition.conversations import requested_scope, bind_requested_scope, validate_result
+from acquisition.conversations import requested_scope, bind_requested_scope, validate_result, non_total_budget_reference
 from .execution import require_active
 
 
@@ -45,11 +45,14 @@ def require_requested_scope(connection, brief, campaign_scope=_UNSET):
                                            (owner, brief['conversation_id'])).fetchone()
     if current_revision is None or current_revision[0] != brief['conversation_revision']:
         raise Conflict('Conversation changed after its requested scope was frozen')
+    current = [m for m in messages(connection, owner, brief['conversation_id'])
+               if m['revision'] <= brief['conversation_revision']]
+    for source in (frozen['messages'], current):
+        if non_total_budget_reference(source) is not None:
+            raise Conflict('Non-total amount cannot authorize new campaign work')
     if scope is None:
         # Preserve old bytes and IDs, but never grant fresh authority for a
         # historically substituted unsupported request. Receipt replay is earlier.
-        current = [m for m in messages(connection, owner, brief['conversation_id'])
-                   if m['revision'] <= brief['conversation_revision']]
         for source in (frozen['messages'], current):
             if requested_scope(owner, brief['conversation_id'], brief['conversation_revision'], source)['status'] != 'supported':
                 raise Conflict('Historical request requires a supported scope before new campaign effects')
