@@ -4,14 +4,14 @@ import re
 from .domain import KNOWLEDGE, explicit_budget
 
 
-BUDGET_POLICY = 'absolute-gbp/v2'
-SUPPORTED_BUDGET_POLICIES = frozenset({'absolute-gbp/v1', BUDGET_POLICY})
+BUDGET_POLICY = 'absolute-gbp/v3'
+SUPPORTED_BUDGET_POLICIES = frozenset({'absolute-gbp/v1', 'absolute-gbp/v2', BUDGET_POLICY})
 
 
 _UNITS = r'(?:seconds?|minutes?|hours?|days?|weeks?|fortnights?|months?|quarters?|years?|recipients?|audiences?|variants?|segments?|business(?:es)?|locations?|regions?|countr(?:y|ies)|channels?|customers?|contacts?|leads?|letters?|mailpieces?|mailings?|impressions?|clicks?|conversions?|units?|people|persons?)'
 _MONEY = r'(?:£\s*|\bGBP\s+)(?:\d{1,3}(?:,\d{3})+|\d{1,7})(?:\.\d{1,2})?(?!\w|[.,]\d)'
 _FREQUENCY = r'(?:daily|weekly|fortnightly|monthly|quarterly|annually|annual|yearly|hourly)'
-_RATES = (r'\b(?:per|each|every)[ -]+(?:of\s+)?(?:(?:the|both|two|three|\d+)\s+)*' + _UNITS + r'\b',
+_V2_RATES = (r'\b(?:per|each|every)[ -]+(?:of\s+)?(?:(?:the|both|two|three|\d+)\s+)*' + _UNITS + r'\b',
           r'\b' + _FREQUENCY + r'\s+(?:(?:campaign|marketing)\s+)?(?:budget|amount|figure|estimate|spend|cap|limit|allocation|allowance|rate)\b',
           r'\b' + _FREQUENCY + r'\s+' + _MONEY,
           _MONEY + r'\s*(?:/\s*' + _UNITS + r'|(?:a|an)\s+' + _UNITS + r'|' + _FREQUENCY + r')\b',
@@ -22,7 +22,52 @@ _NON_TOTAL = (r'\bnon[- ]total\b', r"\b(?:not|isn['’]t|wasn['’]t|aren['’]t
               r"\b(?:do not|don['’]t|never)\s+(?:use|treat|take|consider|interpret|count)\s+(?:the\s+)?" + _MONEY)
 
 
+# Quantities follow the same comma grouping convention as literal GBP amounts.
+_QUANTITY = r'(?:\d{1,3}(?:,\d{3})+|\d+|one|two|three|both)'
+_RATES = (r'\b(?:per|each|every)[ -]+(?:of\s+)?(?:the\s+)?(?:' + _QUANTITY + r'\s+)?' + _UNITS + r'\b',
+          *_V2_RATES[1:3],
+          _MONEY + r'\s*(?:/\s*(?:' + _QUANTITY + r'\s+)?' + _UNITS + r'|(?:a|an)\s+' + _UNITS + r'|' + _FREQUENCY + r')\b',
+          *_V2_RATES[4:])
+_FINANCIAL_NOUN = r'(?:budget|amount|figure|spend|(?:budget|spending|campaign)\s+(?:cap|limit|allocation|allowance))'
+_LINK = r'\s*(?:(?:is|was|would be|represents|covers|as|of)\s+)?(?:(?:only|just|a|an|the|total|whole|full|campaign|budget|amount)\s+)*'
+
+
+def _bound_budget_qualifier(content, match):
+    """A rate must describe money or a financial subject, not delivery cadence."""
+    if re.search(_MONEY, match.group(), re.I):
+        return True
+    prefix, suffix = content[:match.start()], content[match.end():]
+    if re.search(r'(?:' + _MONEY + r'|\b' + _FINANCIAL_NOUN + r')' + _LINK + r'$', prefix, re.I):
+        return True
+    if re.match(r'\s*(?:(?:rate|cost|price|budget|amount)\s+)?(?:(?:of|is|was|at)\s+)?' + _MONEY, suffix, re.I):
+        return True
+    # An isolated qualification can correct a preceding message's amount.
+    # Restrict bare pronouns to the whole message so an unrelated object cannot
+    # borrow a budget mentioned elsewhere in the same request.
+    return bool(re.fullmatch(r'\s*(?:(?:that|this|it)(?:\s+' + _FINANCIAL_NOUN + r')?' + _LINK + r')?'
+                             + re.escape(match.group()) + r'(?:\s+' + _FINANCIAL_NOUN + r')?[.!?\s]*', content, re.I))
+
+
 def non_total_budget_reference(messages):
+    """Find a bound non-total amount without overriding a later clean total."""
+    for message in reversed(messages):
+        content = message['content']
+        for pattern in _NON_TOTAL:
+            for match in re.finditer(pattern, content, re.I):
+                if _bound_budget_qualifier(content, match):
+                    return message['id']
+        for pattern in _RATES:
+            for match in re.finditer(pattern, content, re.I):
+                prefix = content[:match.start()]
+                negated = re.search(r"\b(?:not|never|no|rather than|instead of)\s+(?:(?:a|an|the)\s+)?$", prefix, re.I)
+                if not negated and _bound_budget_qualifier(content, match):
+                    return message['id']
+        if explicit_budget([message]) is not None:
+            return None
+    return None
+
+
+def _v2_non_total_budget_reference(messages):
     """Locate an explicit exclusion/rate, without overriding a later clean total.
 
     This enforces the existing absolute-total contract. Numeric extraction and
@@ -31,11 +76,11 @@ def non_total_budget_reference(messages):
     for message in reversed(messages):
         content = message['content']
         related = (re.search(r'[£$€]|\b(?:GBP|USD|EUR|budget|amount|figure|that|this|it)\b', content, re.I)
-                   or re.fullmatch(_RATES[0] + r'[.!?\s]*', content, re.I))
+                   or re.fullmatch(_V2_RATES[0] + r'[.!?\s]*', content, re.I))
         if related:
             if any(re.search(pattern, content, re.I) for pattern in _NON_TOTAL):
                 return message['id']
-            for pattern in _RATES:
+            for pattern in _V2_RATES:
                 for match in re.finditer(pattern, content, re.I):
                     prefix = re.split(r'[.!?;\n]', content[:match.start()])[-1]
                     if not re.search(r"\b(?:not|never|no|rather than|instead of)\s+(?:(?:a|an|the)\s+)?$", prefix, re.I):
@@ -51,8 +96,9 @@ def budget_clarification(frozen):
     policy = frozen['budget_policy']
     if policy not in SUPPORTED_BUDGET_POLICIES:
         raise ValueError('Unknown frozen budget policy')
-    if policy == BUDGET_POLICY:
-        excluded = non_total_budget_reference(frozen['messages'])
+    if policy in {'absolute-gbp/v2', BUDGET_POLICY}:
+        resolver = _v2_non_total_budget_reference if policy == 'absolute-gbp/v2' else non_total_budget_reference
+        excluded = resolver(frozen['messages'])
         if excluded is not None:
             return {'schema': 'budget-clarification/v1', 'reason': 'non_total', 'message_id': excluded,
                     'question': 'Which single total campaign budget in GBP should I use? Please state one absolute amount using £ or GBP.'}

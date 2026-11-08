@@ -266,10 +266,13 @@ class SqliteAdmissions:
                 context={k:v for k,v in frozen.items() if k not in
                          {'conversation_id','request_id','revision','run_request_id'}}
                 if 'messages' not in frozen_context:context.pop('messages')
-                # A request context staged under v1 can have received the stricter
-                # v2 policy at its first native admission. Replay only the saved
-                # task, never a caller-selected downgrade of its execution policy.
-                if context.get('budget_policy') == 'absolute-gbp/v2' and frozen_context.get('budget_policy') == 'absolute-gbp/v1':
+                # An older staged context can receive a newer installed policy at
+                # first native admission. Replay only the saved task, never a
+                # caller-selected downgrade of its execution policy.
+                if (context.get('budget_policy'), frozen_context.get('budget_policy')) in {
+                        ('absolute-gbp/v2', 'absolute-gbp/v1'),
+                        ('absolute-gbp/v3', 'absolute-gbp/v1'),
+                        ('absolute-gbp/v3', 'absolute-gbp/v2')}:
                     context['budget_policy'] = frozen_context['budget_policy']
                 if canonical(frozen_context)!=canonical(context):
                     raise Conflict('Legacy planning continuation differs from its frozen context')
