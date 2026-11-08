@@ -4,8 +4,8 @@ import re
 from .domain import KNOWLEDGE, explicit_budget
 
 
-BUDGET_POLICY = 'absolute-gbp/v5'
-SUPPORTED_BUDGET_POLICIES = frozenset({'absolute-gbp/v1', 'absolute-gbp/v2', 'absolute-gbp/v3', 'absolute-gbp/v4', BUDGET_POLICY})
+BUDGET_POLICY = 'absolute-gbp/v6'
+SUPPORTED_BUDGET_POLICIES = frozenset({'absolute-gbp/v1', 'absolute-gbp/v2', 'absolute-gbp/v3', 'absolute-gbp/v4', 'absolute-gbp/v5', BUDGET_POLICY})
 
 
 _UNITS = r'(?:seconds?|minutes?|hours?|days?|weeks?|fortnights?|months?|quarters?|years?|recipients?|audiences?|variants?|segments?|business(?:es)?|locations?|regions?|countr(?:y|ies)|channels?|customers?|contacts?|leads?|letters?|mailpieces?|mailings?|impressions?|clicks?|conversions?|units?|people|persons?)'
@@ -74,17 +74,25 @@ def _delivery_purpose(content, match):
     return bool(re.search(after_amount, prefix, re.I) or re.search(before_amount, prefix, re.I))
 
 
+def _total_retraction(content, match):
+    """Bind a later explicit budget denial to the stated monetary amount."""
+    prefix = content[:match.start()]
+    return bool(re.search(_MONEY, prefix, re.I) and
+                re.search(r'(?:^|[.!?;\n])\s*(?:that|this|it)(?:\s+(?:amount|figure|budget))?'
+                          r'\s*(?:(?:is|was)\s+)?$', prefix, re.I))
+
+
 def non_total_budget_reference(messages):
     """Find a bound non-total amount without overriding a later clean total."""
-    return _non_total_budget_reference(messages, _LINK, rates=_RATES, delivery=True)
+    return _non_total_budget_reference(messages, _LINK, rates=_RATES, delivery=True, retractions=True)
 
 
-def _non_total_budget_reference(messages, link, *, rates=_V4_RATES, delivery=False):
+def _non_total_budget_reference(messages, link, *, rates=_V4_RATES, delivery=False, retractions=False):
     for message in reversed(messages):
         content = message['content']
         for pattern in _NON_TOTAL:
             for match in re.finditer(pattern, content, re.I):
-                if _bound_budget_qualifier(content, match, link):
+                if _bound_budget_qualifier(content, match, link) or (retractions and _total_retraction(content, match)):
                     return message['id']
         for pattern in rates:
             for match in re.finditer(pattern, content, re.I):
@@ -128,12 +136,14 @@ def budget_clarification(frozen):
     policy = frozen['budget_policy']
     if policy not in SUPPORTED_BUDGET_POLICIES:
         raise ValueError('Unknown frozen budget policy')
-    if policy in {'absolute-gbp/v2', 'absolute-gbp/v3', 'absolute-gbp/v4', BUDGET_POLICY}:
+    if policy in {'absolute-gbp/v2', 'absolute-gbp/v3', 'absolute-gbp/v4', 'absolute-gbp/v5', BUDGET_POLICY}:
         resolver = _v2_non_total_budget_reference if policy == 'absolute-gbp/v2' else non_total_budget_reference
         if policy == 'absolute-gbp/v3':
             resolver = lambda messages: _non_total_budget_reference(messages, _V3_LINK)
         elif policy == 'absolute-gbp/v4':
             resolver = lambda messages: _non_total_budget_reference(messages, _LINK)
+        elif policy == 'absolute-gbp/v5':
+            resolver = lambda messages: _non_total_budget_reference(messages, _LINK, rates=_RATES, delivery=True)
         excluded = resolver(frozen['messages'])
         if excluded is not None:
             return {'schema': 'budget-clarification/v1', 'reason': 'non_total', 'message_id': excluded,

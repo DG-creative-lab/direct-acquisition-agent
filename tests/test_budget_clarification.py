@@ -60,7 +60,11 @@ class BudgetRuleTests(unittest.TestCase):
                       'Use £400 for every one of their recipients.', 'Use £400 per 1,000 of our recipients.',
                       'Use £400 total per recipient to receive a letter.',
                       '£400 is the cost for each of our recipients to receive a letter.',
-                      'Use £400 total for each recipient to receive a letter. That budget is per month.')
+                      'Use £400 total for each recipient to receive a letter. That budget is per month.',
+                      'Use £400 total for each recipient to receive a letter. That is not the total budget.',
+                      "Use £400 total for each recipient to receive a letter. This isn't the overall budget.",
+                      'Use £400 total for each recipient to receive a letter. It is not the final budget.',
+                      'Use £400 for the whole campaign. That is not the total budget.')
         for reference in references:
             with self.subTest(reference=reference):
                 frozen = self.frozen(reference)
@@ -106,7 +110,8 @@ class BudgetRuleTests(unittest.TestCase):
                         'Use £400 total. The reporting rate is per week.',
                         'Use £400 total for each recipient to receive a letter.',
                         'Use £400 in total for each of our recipients to receive one letter.',
-                        'Use a total budget of £400 for every one of our recipients to be sent a letter.'):
+                        'Use a total budget of £400 for every one of our recipients to be sent a letter.',
+                        'Use £400 total for each recipient to receive a letter. The letter is not a budget.'):
             with self.subTest(request=request):
                 frozen = self.frozen(request)
                 self.assertIsNone(budget_response(frozen))
@@ -289,7 +294,8 @@ with patch('acquisition.workspace.openrouter_key',return_value='offline-fake'),p
 
     def test_financial_links_in_saved_replies_require_a_whole_campaign_total(self):
         for i, wording in enumerate(('Use £400 for each recipient.', '£400 is the cost per recipient.',
-                                     'Use £400 for each of our recipients.')):
+                                     'Use £400 for each of our recipients.',
+                                     'Use £400 total for each recipient to receive a letter. That is not the total budget.')):
             with self.subTest(wording=wording):
                 cid = self.w.create_conversation('linked-' + str(i), 'Linked financial rate')['id']
                 self.model.planner.results = [conversations.proposal(budget_pence=40000)]
@@ -473,11 +479,12 @@ class HistoricalBudgetTests(unittest.TestCase):
         from acquisition.adapters.sqlite.conversation_provenance import require_requested_scope
         from acquisition.campaigns import CampaignScope, conversation_brief_from_plan
         owner = 'local-conversations'
-        for policy in (None, 'absolute-gbp/v3', 'absolute-gbp/v4'):
+        for policy in (None, 'absolute-gbp/v3', 'absolute-gbp/v4', 'absolute-gbp/v5'):
             with self.subTest(policy=policy):
                 cid = self.service.create(owner, 'old-non-total-' + str(policy).replace('/', '-'))['id']
-                self.service.message(owner, cid, 'rate', 0,
-                    'Prepare a UK postal contractor experiment with £400 for each ' + ('of our recipients.' if policy == 'absolute-gbp/v4' else 'recipient.'))
+                wording = ('Use £400 total for each recipient to receive a letter. That is not the total budget.'
+                           if policy == 'absolute-gbp/v5' else 'Use £400 for each ' + ('of our recipients.' if policy == 'absolute-gbp/v4' else 'recipient.'))
+                self.service.message(owner, cid, 'rate', 0, 'Prepare a UK postal contractor experiment. ' + wording)
                 original = SqliteConversations.admit
                 def old_admission(store, *args, **kwargs):
                     frozen = original(store, *args, **kwargs)

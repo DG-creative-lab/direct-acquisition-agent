@@ -10,6 +10,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ('budget-later-total-retraction', 'conversations/budgets.py',
+     'retractions=True', 'retractions=False',
+     'test_budget_clarification.BudgetReplyTests.test_financial_links_in_saved_replies_require_a_whole_campaign_total'),
+    ('budget-preserve-v5-proposal', 'conversations/budgets.py',
+     "elif policy == 'absolute-gbp/v5':", 'elif False:',
+     'test_budget_clarification.HistoricalBudgetTests.test_pre_policy_non_total_proposal_is_historical_not_fresh_authority'),
     ('budget-possessive-recipient-rates', 'conversations/budgets.py',
      "_RECIPIENT_DETERMINER = r'(?:the|my|our|your|his|her|its|their|these|those)'", "_RECIPIENT_DETERMINER = r'(?:the)'",
      'test_budget_clarification.BudgetReplyTests.test_financial_links_in_saved_replies_require_a_whole_campaign_total'),
