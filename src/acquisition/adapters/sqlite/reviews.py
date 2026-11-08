@@ -376,7 +376,7 @@ class SqliteReviews:
                        (organization, receipt["id"], case_id, expected_subject, canonical(receipt)))
             self._event(db, organization, case_id, "review_" + decision, receipt, now)
             saved = self._record(db, organization, request_id, fingerprint, receipt)
-            if decision == 'approve' and 'requested_scope' in draft.manifest['brief']:
+            if decision == 'approve' and any(key in draft.manifest['brief'] for key in ('requested_scope', 'conversation_id', 'followup_id')):
                 require_requested_scope(db, draft.manifest['brief'], draft.manifest.get('campaign_scope'))
                 require_followup(db, organization, draft.manifest, draft.id)
             return saved
@@ -552,7 +552,7 @@ class SqliteReviews:
             db.execute("INSERT INTO simulated_agency_jobs VALUES(?,?,?,?,?,?)", (organization, case_id, receipt["id"], approval_id, proposal["id"], canonical(receipt)))
             self._event(db, organization, case_id, "simulated_handoff_accepted", receipt, now)
             saved = self._record(db, organization, request_id, fingerprint, receipt)
-            if 'requested_scope' in draft.manifest['brief']:
+            if any(key in draft.manifest['brief'] for key in ('requested_scope', 'conversation_id', 'followup_id')):
                 require_requested_scope(db, draft.manifest['brief'], draft.manifest.get('campaign_scope'))
                 require_followup(db, organization, draft.manifest, draft.id)
             return saved

@@ -42,6 +42,8 @@ def require_followup(db, organization, inputs, own_draft=None):
     expected = p['brief'] | {'campaign_id':brief['campaign_id'], 'followup_id':p['id']}
     if canonical(brief) != canonical(expected) or inputs.get('snapshot_id',p['snapshot_id']) != p['snapshot_id']:
         raise Conflict('Follow-up inputs differ from the frozen proposal')
+    from .learning import require_source_request
+    require_source_request(db, organization, p['source_cohort'])
     if 'requested_scope' in p['brief']:
         from .conversation_provenance import require_inherited_scope
         require_inherited_scope(db, p['brief']['requested_scope'])
@@ -72,7 +74,7 @@ class SqliteFollowups:
         # Draft publication also calls require_followup in this adapter.
         from .drafts import read_draft
         from .creative import read_context
-        from .learning import reconcile_finalized_outcomes
+        from .learning import reconcile_finalized_outcomes, require_source_request
         key='followup-request:'+request
         with self.database.transaction() as db:
             require_actor(db, organization, 'local-operator', 'operator')
@@ -89,6 +91,7 @@ class SqliteFollowups:
             if (p['learning']['cohort'] != {k: v for k, v in cohort.items() if k != 'members'}
                     or groups != p['learning']['beliefs']):
                 raise Conflict('Source hypothesis evidence changed while proposing')
+            require_source_request(db, organization, p['source_cohort'])
             draft = read_draft(db, organization, cohort['draft_id'])
             if p['brief'].get('requested_scope') != draft.manifest['brief'].get('requested_scope'):
                 raise Conflict('Follow-up dropped or substituted the source requested scope')
@@ -125,8 +128,7 @@ class SqliteFollowups:
             p=p|{'id':'followup_'+digest(p)}
             for identity in (key,p['id']):
                 db.execute('INSERT OR IGNORE INTO review_commands VALUES(?,?,?,?)',(organization,identity,digest(p),canonical(p)))
-            if 'requested_scope' in p['brief']:
-                require_inherited_scope(db, p['brief']['requested_scope'])
+            require_source_request(db, organization, p['source_cohort'])
             return p
 
     def excluded(self, organization):

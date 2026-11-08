@@ -41,6 +41,10 @@ def require_requested_scope(connection, brief, campaign_scope=_UNSET):
     scope = frozen.get('requested_scope')
     if scope != brief.get('requested_scope'):
         raise Conflict('Campaign dropped or substituted its requested scope')
+    current_revision = connection.execute('SELECT revision FROM conversations WHERE organization=? AND id=?',
+                                           (owner, brief['conversation_id'])).fetchone()
+    if current_revision is None or current_revision[0] != brief['conversation_revision']:
+        raise Conflict('Conversation changed after its requested scope was frozen')
     if scope is None:
         # Preserve old bytes and IDs, but never grant fresh authority for a
         # historically substituted unsupported request. Receipt replay is earlier.
@@ -50,10 +54,6 @@ def require_requested_scope(connection, brief, campaign_scope=_UNSET):
             if requested_scope(owner, brief['conversation_id'], brief['conversation_revision'], source)['status'] != 'supported':
                 raise Conflict('Historical request requires a supported scope before new campaign effects')
         return
-    current_revision = connection.execute('SELECT revision FROM conversations WHERE organization=? AND id=?',
-                                           (owner, brief['conversation_id'])).fetchone()
-    if current_revision is None or current_revision[0] != brief['conversation_revision']:
-        raise Conflict('Conversation changed after its requested scope was frozen')
     try:
         bind_requested_scope(frozen, owner)
         validate_requested_scope(scope)

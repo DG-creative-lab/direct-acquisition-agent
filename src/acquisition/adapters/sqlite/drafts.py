@@ -55,7 +55,7 @@ def write_draft(db, organization: str, operation_id: str, draft: Draft, now: flo
     # Check the exact bytes of an existing artifact before committing an operation that refers to it.
     if read_draft(db, organization, draft_id) != draft:
         raise Conflict("Artifact identity conflict")
-    if 'requested_scope' in brief:
+    if any(key in brief for key in ('requested_scope', 'conversation_id', 'followup_id')):
         require_current_conversation(db, brief, draft.manifest.get('campaign_scope'))
         require_followup(db, organization, draft.manifest, draft_id)
     return draft_id
