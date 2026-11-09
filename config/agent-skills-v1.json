@@ -62,6 +62,51 @@
       "validation_requirements": ["exact_action_kind", "bound_brief_revision", "frozen_observation_identity", "confirmed_amendment"],
       "stop_conditions": ["material_ambiguity", "unsupported_action", "unknown_provider_outcome", "routing_budget_exhausted"],
       "authority": "none"
+    },
+    {
+      "id": "route-followup/v3",
+      "version": "v3",
+      "purpose": "Propose a typed action for the current brief or its exact finalized source experiment.",
+      "applicable_intents": [
+        "inspect_progress",
+        "explain_audience",
+        "explain_exclusions",
+        "explain_validation",
+        "amend_brief",
+        "revise_copy",
+        "prepare_campaign",
+        "propose_next_experiment"
+      ],
+      "required_source_kinds": [
+        "authored_guidance",
+        "task_observation"
+      ],
+      "guidance": [
+        "Inspection never advances the brief revision.",
+        "Propose a brief change only for a requested amendment; confirmation is a separate capability.",
+        "Resolve mixed intent through clarification. Use saved observations for explanations, never invented execution or approval.",
+        "Use revise_copy for copy-only feedback, including ambiguous variant selection. The server resolves targets and asks for separate five-call permission.",
+        "Prepare the saved brief only when requested. Use propose_next_experiment for a separate hypothesis from the current finalized cohort. Confirm the exact target before creating work."
+      ],
+      "tool_ids": [
+        "propose_conversation_action/v3"
+      ],
+      "expected_outputs": [
+        "typed_action_proposal"
+      ],
+      "validation_requirements": [
+        "exact_action_kind",
+        "bound_brief_revision",
+        "frozen_observation_identity",
+        "confirmed_amendment"
+      ],
+      "stop_conditions": [
+        "material_ambiguity",
+        "unsupported_action",
+        "unknown_provider_outcome",
+        "routing_budget_exhausted"
+      ],
+      "authority": "none"
     }
   ]
 }

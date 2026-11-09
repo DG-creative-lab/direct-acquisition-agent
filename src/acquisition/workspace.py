@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from acquisition.bootstrap import build, build_admissions, build_preparations, build_workspace_state, verified_admission_mode, agent_catalogue
-from acquisition.conversations import ACTIVE_PREPARATION, AudienceSelectionRejected, ActionNotSaved, pending_copy_clarification, EnvironmentIntent
+from acquisition.conversations import ACTIVE_PREPARATION, AudienceSelectionRejected, ActionNotSaved, pending_copy_clarification, EnvironmentIntent, FIXTURE_MESSAGE, TYPED_ACTION_ALIASES
 from acquisition.conversations import MessageRejectedConflict, MessageRejectedInvalid, MessageRejectedNotFound
 from acquisition.adapters.environment import openrouter_key
 from acquisition.adapters.openrouter import OpenRouter
@@ -225,7 +225,7 @@ class Workspace:
         # between reads; a terminal preparation must include its saved question.
         preparations = self.preparation_progress(conversation_id)
         view = application.conversations.view("local-conversations", conversation_id)
-        return view | {"writing_preferences": application.memory.preferences('local-conversations'),
+        return view | {"typed_action_shortcuts": list(TYPED_ACTION_ALIASES), "writing_preferences": application.memory.preferences('local-conversations'),
                        "artifact_comments": comments, "execution":application.execution.view('local-conversations',conversation_id), "actions":self.action_progress(conversation_id), "preparations": preparations, "campaigns": [{"session_id": s["id"], "plan_id": s["conversation_plan"]["id"],
                                       "revision": s["conversation_plan"]["revision"], "case_id": s["case_id"],
                                       "generation": self._generation(s)}
@@ -313,7 +313,7 @@ class Workspace:
         answers['explain_validation']={'text':validation,'evidence':refs|{'report':report}}
         target={'organization':'local-conversations','conversation_id':conversation_id,'revision':expected_revision}
         target['id']='brief_target_'+digest(target)[:32]
-        context={'schema':'routing-context/v2','target':target,'observed_at':self.real_clock(),'answers':answers,
+        context={'schema':'routing-context/v3','target':target,'observed_at':self.real_clock(),'answers':answers,
                  'brief':{k:plan[k] for k in ('objective','segments','budget_pence','copy_mode')} if plan else None}
         copy_targets={'available':False,'reason':'Prepare a grounded model campaign before requesting copy revisions.', 'creatives':[]}
         if review and session['mode']=='model':
@@ -360,7 +360,62 @@ class Workspace:
                 **{k:latest_response['result'][k] for k in ('id','revision','outcome','question','unsupported_reason')}}
                 if latest_response else None),
         }
+        prepare_target = self._prepare_target(conversation_id, source, sessions)
+        experiment = self._experiment_target(source, sessions)
+        context['action_targets'] = {
+            'prepare_campaign': {'target': prepare_target,
+                'text': 'Confirm preparation of the saved brief.' if prepare_target else
+                        'This brief already has preparation or needs more information. Inspect its saved progress.'},
+            'propose_next_experiment': {'target': experiment,
+                'text': 'Confirm a separate experiment proposal for ' + experiment['label'] + '.' if experiment else
+                        'A next experiment needs one current campaign with finalized synthetic learning. Open its review to check the source.'},
+        }
         return context|{'id':'action_context_'+digest(context)}
+
+    def _prepare_target(self, conversation_id, source, sessions):
+        revision = source['revision']
+        if self.preparations.store.for_revision('local-conversations', conversation_id, revision):
+            return None
+        if any(s.get('conversation_plan', {}).get('conversation_id') == conversation_id
+               and s['conversation_plan']['revision'] == revision for s in sessions):
+            return None
+        message_hash = digest(source['messages'])
+        current_plan = source['current_plan']
+        if not current_plan:
+            fixture = [m['content'] for m in source['messages']] == [FIXTURE_MESSAGE]
+            return {'messages_hash': message_hash, 'mode': 'fixture' if fixture else 'planning'}
+        plan = current_plan['result']
+        if current_plan['status'] == 'succeeded' and plan and plan['outcome'] == 'brief_proposal':
+            return {'messages_hash': message_hash, 'mode': plan['copy_mode'], 'plan_id': plan['id']}
+        return None
+
+    def _experiment_target(self, source, sessions):
+        plan = (source['current_plan'] or {}).get('result')
+        if not plan or plan['outcome'] != 'brief_proposal':
+            return None
+        candidates = [s for s in sessions if s.get('conversation_plan', {}).get('id') == plan['id']
+                      and s['conversation_plan']['conversation_id'] == plan['conversation_id']
+                      and s['conversation_plan']['revision'] == source['revision']]
+        if len(candidates) != 1:
+            return None
+        session = candidates[0]
+        if not session['cohort_id'] or not session['case_id']:
+            return None
+        app, organization = self._app(session), session['organization']
+        try:
+            learning = app.learning.store.view(organization, session['cohort_id'])
+        except (NotFound, Conflict):
+            return None
+        cohort = learning['cohort']
+        if (learning['status'] != 'finalized' or cohort['case_id'] != session['case_id']
+                or cohort['id'] != session['cohort_id']):
+            return None
+        return {
+            'messages_hash': digest(source['messages']), 'session_id': session['id'], 'organization': organization,
+            'label': session['name'], 'cohort_id': cohort['id'], 'case_id': cohort['case_id'],
+            'draft_id': cohort['draft_id'], 'job_id': cohort['job_id'],
+            'finalization_hash': digest(learning['finalization']),
+        }
 
     def route_followup(self, conversation_id, request_id, expected_revision, content, allow_model_copy):
         app=self._conversation_app();old=app.actions.store.request('local-conversations',conversation_id,request_id)
@@ -379,6 +434,87 @@ class Workspace:
         receipt=app.actions.store.confirm('local-conversations',action_id,request_id,target_id,expected_revision,self.real_clock())
         self._continue_confirmed_action(receipt)
         return self.conversation(conversation_id)|{'action_confirmation':receipt}
+
+    def confirm_typed_action(self, conversation_id, action_id, request_id, result_id, expected_revision):
+        with self.lock:
+            app = self._conversation_app()
+            row = app.actions.store.get('local-conversations', action_id)
+            if row['inputs']['conversation_id'] != conversation_id:
+                raise NotFound('Action belongs to another conversation')
+            if not row['confirmed']:
+                result = app.actions.view('local-conversations', row)['result']
+                if not result or result['id'] != result_id or not result['requires_confirmation']:
+                    raise Conflict('Confirm the exact displayed action proposal')
+                source = app.conversations.view('local-conversations', conversation_id)
+                sessions = self._sessions()
+                if result['kind'] == 'propose_next_experiment':
+                    if self._experiment_target(source, sessions) != result['evidence']:
+                        raise Conflict('The confirmed source experiment is no longer current')
+                elif result['kind'] == 'prepare_campaign':
+                    if self._prepare_target(conversation_id, source, sessions) != result['evidence']:
+                        raise Conflict('The confirmed preparation target is no longer current')
+            receipt = app.actions.store.confirm_typed(
+                'local-conversations', conversation_id, action_id, request_id, result_id, expected_revision)
+            self._continue_typed_action(app, receipt)
+        return self.conversation(conversation_id) | {'action_confirmation': receipt}
+
+    def _typed_effect(self, app, receipt):
+        request, target = receipt['effect_request_id'], receipt['target']
+        if receipt['action'] == 'prepare_campaign':
+            if 'plan_id' not in target:
+                row = self.preparations.store.request('local-conversations', request)
+                if row and row['inputs'] != self._typed_preparation_inputs(receipt):
+                    raise Conflict('Saved preparation differs from the confirmed brief or consent')
+                return {'preparation_id': row['id']} if row else None
+            sid = self._draft_session_id(receipt['conversation_id'], request)
+            if sid:
+                session = self._session(sid)
+                plan = session.get('conversation_plan', {})
+                if (plan.get('id'), plan.get('conversation_id'), plan.get('revision')) != (
+                        target['plan_id'], receipt['conversation_id'], receipt['revision']):
+                    raise Conflict('Saved draft differs from the confirmed brief')
+                if session['case_id']:
+                    return {'session_id': sid}
+                generation = self._generation(session)
+                if generation['outcome_uncertain'] or generation['status'] in {'failed', 'cancelled'}:
+                    return {'session_id': sid, 'stopped': True}
+            return None
+        try:
+            proposal = app.followups.get(target['organization'], 'followup-request:' + request)
+        except NotFound:
+            return None
+        if (proposal['parent_id'], proposal['source_cohort']) != (target['session_id'], target['cohort_id']):
+            raise Conflict('Saved proposal differs from the confirmed experiment')
+        return {'session_id': target['session_id'], 'proposal_id': proposal['id']}
+
+    @staticmethod
+    def _typed_preparation_inputs(receipt):
+        fixture = receipt['target']['mode'] == 'fixture'
+        inputs = {'conversation_id': receipt['conversation_id'], 'revision': receipt['revision'],
+                  'fixture': fixture, 'allow_model_copy': not fixture and receipt['allow_model_copy']}
+        if not fixture:
+            inputs['use_audience_catalogue'] = True
+        return inputs
+
+    def _continue_typed_action(self, app, receipt):
+        if self._typed_effect(app, receipt):
+            return
+        organization, conversation_id = 'local-conversations', receipt['conversation_id']
+        revision, target = receipt['revision'], receipt['target']
+        request = receipt['effect_request_id']
+        app.actions.store.validate_typed_confirmation(organization, receipt)
+        if receipt['action'] == 'prepare_campaign':
+            if 'plan_id' in target:
+                self.draft_conversation(conversation_id, request, revision, target['plan_id'])
+            else:
+                inputs = self._typed_preparation_inputs(receipt)
+                self.preparations.admit(organization, conversation_id, request, revision,
+                                        inputs['fixture'], inputs['allow_model_copy'], inputs.get('use_audience_catalogue', False))
+        else:
+            source = app.conversations.view(organization, conversation_id)
+            if self._experiment_target(source, self._sessions()) != target:
+                raise Conflict('The confirmed source experiment is no longer current')
+            self.propose_followup(target['session_id'], request, target['cohort_id'], conversation_action=receipt)
 
     def confirm_copy_followup(self, conversation_id, action_id, request_id, result_id, expected_revision, allow_model_copy):
         if allow_model_copy is not True:raise ValueError('Allow up to five model calls for this exact revision before confirming')
@@ -445,6 +581,22 @@ class Workspace:
                         value['status']='blocked'
                         value['detail']='Routing is waiting for the server-side OpenRouter key. Restore it to resume this saved request.'
             if value['confirmed']:
+                if value['confirmed'].get('kind') == 'typed_action_confirmation':
+                    receipt = value['confirmed']
+                    value['typed_effect'] = self._typed_effect(app, receipt)
+                    value['continuation_pending'] = value['typed_effect'] is None and value['current']
+                    if value['continuation_pending']:
+                        try:
+                            app.actions.store.validate_typed_confirmation('local-conversations', receipt)
+                            if receipt['action'] == 'propose_next_experiment' and self._experiment_target(source, self._sessions()) != receipt['target']:
+                                raise Conflict('Source experiment changed')
+                            if receipt['action'] == 'prepare_campaign' and 'plan_id' not in receipt['target']:
+                                if self._prepare_target(conversation_id, source, self._sessions()) != receipt['target']:
+                                    raise Conflict('Another preparation owns the current brief')
+                        except (Conflict, NotFound):
+                            value['continuation_pending'] = False
+                    values.append(value)
+                    continue
                 if value['confirmed'].get('kind')=='copy_revision_confirmation':
                     session=self._session(value['confirmed']['session_id'])
                     progress=self._copy_revision_progress(self._app(session),session['organization'],session['case_id'])
@@ -474,7 +626,11 @@ class Workspace:
         for row in app.actions.store.listing('local-conversations'):
             try:
                 if row['confirmed']:
-                    if row['confirmed'].get('kind')!='copy_revision_confirmation':self._continue_confirmed_action(row['confirmed'])
+                    if row['confirmed'].get('kind') == 'typed_action_confirmation':
+                        with self.lock:
+                            self._continue_typed_action(app, row['confirmed'])
+                    elif row['confirmed'].get('kind') != 'copy_revision_confirmation':
+                        self._continue_confirmed_action(row['confirmed'])
                     continue
                 if row['alias']:continue
                 source=app.conversations.view('local-conversations',row['inputs']['conversation_id'])
@@ -962,7 +1118,7 @@ class Workspace:
             rows.append(p)
         return rows
 
-    def propose_followup(self, identity, request_id, cohort_id):
+    def propose_followup(self, identity, request_id, cohort_id, *, conversation_action=None):
         identifier(request_id), identifier(cohort_id)
         with self.lock:
             parent = self._session(identity)
@@ -1009,7 +1165,7 @@ class Workspace:
                 "source_label":"SYNTHETIC_ONLY: bounded 2,000-record inventory, preserving original business identities"}
             if 'requested_scope' in source_draft.manifest['brief']:
                 p['brief']['requested_scope'] = source_draft.manifest['brief']['requested_scope']
-            return app.followups.put(scope, request_id, p)
+            return app.followups.put(scope, request_id, p, conversation_action=conversation_action)
 
     def prepare_followup(self, identity, request_id, proposal_id, mode, allow_model_copy):
         identifier(request_id), identifier(proposal_id)

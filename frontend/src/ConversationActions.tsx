@@ -16,6 +16,12 @@ export type ConversationAction = {
   run_id: string | null;
   allow_model_copy: boolean;
   continuation_pending?: boolean;
+  typed_effect?: {
+    preparation_id?: string;
+    session_id?: string;
+    proposal_id?: string;
+    stopped?: boolean;
+  };
   continuation_reason?: string;
   confirmed: null | {
     kind?: string;
@@ -56,16 +62,107 @@ export type ConversationAction = {
   };
 };
 
+function isTypedAction(action: ConversationAction) {
+  return (
+    action.result?.kind === "prepare_campaign" ||
+    action.result?.kind === "propose_next_experiment"
+  );
+}
+
+function TypedActionView({
+  action,
+  disabled,
+  inferenceExhausted,
+  busy,
+  onConfirm,
+  onReview,
+}: {
+  action: ConversationAction;
+  disabled: boolean;
+  inferenceExhausted: boolean;
+  busy: boolean;
+  onConfirm: () => void;
+  onReview?: (sessionId: string) => void;
+}) {
+  const result = action.result;
+  if (!result) return null;
+  const effect = action.typed_effect;
+  const sessionId = effect?.session_id;
+  const prepare = result.kind === "prepare_campaign";
+  const mode = (result.evidence as { mode?: string }).mode;
+  let status = "";
+  if (action.confirmed) {
+    if (effect?.proposal_id) status = "Next experiment proposed.";
+    else if (effect?.stopped)
+      status = "Preparation stopped. Inspect the saved run.";
+    else if (effect) status = "Preparation saved. Follow its progress in chat.";
+    else if (action.continuation_pending)
+      status =
+        "Confirmation saved. Waiting for the original request to continue.";
+    else status = "Confirmation saved. Its source changed or work was stopped.";
+  }
+  return (
+    <>
+      <p>{result.text}</p>
+      <small>
+        Saved brief {action.revision}
+        {!action.current && " · Earlier brief"}
+      </small>
+      {status && <p role="status">{status}</p>}
+      {sessionId && onReview && (
+        <button
+          className="button secondary"
+          onClick={() => onReview(sessionId)}
+        >
+          {effect?.proposal_id ? "Open source campaign" : "Inspect campaign"}
+        </button>
+      )}
+      {!action.confirmed && result.requires_confirmation && (
+        <>
+          {prepare && (
+            <p>
+              {mode === "planning" &&
+                "Planning can use up to two model calls. "}
+              {mode === "fixture"
+                ? "Preparation uses offline fixture copy."
+                : action.allow_model_copy
+                  ? "The saved permission allows up to ten model copy calls."
+                  : "Preparation uses fixture copy."}
+            </p>
+          )}
+          <button
+            className="button primary"
+            disabled={
+              disabled ||
+              !action.current ||
+              (inferenceExhausted && prepare && mode !== "fixture")
+            }
+            onClick={onConfirm}
+          >
+            {busy
+              ? "Saving confirmation…"
+              : prepare
+                ? "Confirm campaign preparation"
+                : "Confirm next experiment proposal"}
+          </button>
+        </>
+      )}
+    </>
+  );
+}
+
 export default function ConversationActions<T>({
   actions,
   conversationId,
   disabled,
+  inferenceExhausted,
   onChanged,
   onReview,
 }: {
   actions: ConversationAction[];
   conversationId: string;
   disabled: boolean;
+  inferenceExhausted: boolean;
   onChanged: (value: T) => void;
   onReview?: (sessionId: string) => void;
 }) {
@@ -83,14 +180,17 @@ export default function ConversationActions<T>({
     const stamp = epoch.current;
     setBusy(action.id);
     setError("");
+    const typed = isTypedAction(action);
     const payload = {
       action_id: action.id,
-      target_id: action.result.target.id,
       expected_revision: action.revision,
+      ...(typed
+        ? { result_id: action.result.id }
+        : { target_id: action.result.target.id }),
     };
     try {
       const value = await command<T>(
-        `/api/conversations/${conversationId}/confirm-action`,
+        `/api/conversations/${conversationId}/${typed ? "confirm-typed-action" : "confirm-action"}`,
         payload,
       );
       if (stamp === epoch.current) onChanged(value);
@@ -116,7 +216,8 @@ export default function ConversationActions<T>({
           aria-label="Saved follow-up"
         >
           {(!action.confirmed ||
-            action.confirmed.kind === "copy_revision_confirmation") && (
+            action.confirmed.kind === "copy_revision_confirmation" ||
+            action.confirmed.kind === "typed_action_confirmation") && (
             <div className="conversation-user">
               <span>You</span>
               <p>{action.content}</p>
@@ -127,8 +228,17 @@ export default function ConversationActions<T>({
               <ConversationCopyRevision<T>
                 action={action}
                 conversationId={conversationId}
-                disabled={disabled}
+                disabled={disabled || inferenceExhausted}
                 onChanged={onChanged}
+                onReview={onReview}
+              />
+            ) : isTypedAction(action) ? (
+              <TypedActionView
+                action={action}
+                disabled={disabled || !!busy}
+                inferenceExhausted={inferenceExhausted}
+                busy={busy === action.id}
+                onConfirm={() => confirm(action)}
                 onReview={onReview}
               />
             ) : action.confirmed ? (
@@ -184,7 +294,12 @@ export default function ConversationActions<T>({
                     </p>
                     <button
                       className="button primary"
-                      disabled={disabled || !!busy || !action.current}
+                      disabled={
+                        disabled ||
+                        inferenceExhausted ||
+                        !!busy ||
+                        !action.current
+                      }
                       onClick={() => confirm(action)}
                     >
                       {busy === action.id

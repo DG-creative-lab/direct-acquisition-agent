@@ -1,10 +1,65 @@
 """Immutable routing admissions and atomic, exact-input brief confirmations."""
 import json
 from acquisition.contracts import Conflict, NotFound, canonical, digest
-from acquisition.conversations import ACTION_CAPABILITY, identity, revision_number, text, validate_action
-from .conversations import scoped_conversation, append_message
+from acquisition.conversations import ACTION_CAPABILITY, TYPED_ACTION_KINDS, action_alias, identity, revision_number, validate_action
+from .conversations import scoped_conversation, append_message, messages
 from .tasks import finite_time
 from .execution import require_active
+
+
+def typed_receipt(db, organization, frozen, request_id, result_id):
+    if frozen['organization'] != organization:
+        raise Conflict('Routing admission belongs to another organization')
+    if frozen.get('alias'):
+        if action_alias(frozen['inputs']['content'], typed=True) != frozen['alias']:
+            raise Conflict('Saved action differs from its authored shortcut')
+        result = validate_action({'action': frozen['alias']}, frozen)
+    else:
+        task = db.execute("""SELECT t.output,t.inputs FROM runs r JOIN tasks t ON t.run_id=r.id
+            WHERE r.organization=? AND r.request_id=? AND r.status='succeeded'
+            AND t.status='succeeded' AND t.capability=?""",
+            (organization, frozen['run_request_id'], frozen.get('capability', ACTION_CAPABILITY))).fetchone()
+        if task is None or json.loads(task['inputs']) != frozen:
+            raise Conflict('Confirm a completed action from its original routing task')
+        result = json.loads(task['output'])
+        if validate_action({'action': result['kind']}, frozen) != result:
+            raise Conflict('Saved action differs from the routing result')
+    kind = result['kind']
+    if kind not in TYPED_ACTION_KINDS or result['id'] != result_id or not result['requires_confirmation']:
+        raise Conflict('Confirm the exact displayed preparation or experiment proposal')
+    return {
+        'kind': 'typed_action_confirmation', 'action': kind, 'action_id': frozen['id'],
+        'request_id': request_id, 'result_id': result_id,
+        'conversation_id': frozen['inputs']['conversation_id'], 'revision': frozen['inputs']['revision'],
+        'target': result['evidence'], 'allow_model_copy': frozen['inputs']['allow_model_copy'],
+        'effect_request_id': 'typed_effect_' + digest({'action': frozen['id'], 'result': result_id, 'confirmation': request_id}),
+    }
+
+
+def typed_command(conversation_id, action_id, result_id, revision):
+    return {'kind': 'typed_action_confirmation', 'conversation_id': conversation_id,
+            'action_id': action_id, 'result_id': result_id, 'revision': revision}
+
+
+def require_typed_source(db, organization, receipt):
+    conversation_id, revision = receipt['conversation_id'], receipt['revision']
+    if scoped_conversation(db, organization, conversation_id)['revision'] != revision:
+        raise Conflict('This action belongs to an earlier brief')
+    require_active(db, organization, conversation_id, revision)
+    if digest(messages(db, organization, conversation_id)) != receipt['target']['messages_hash']:
+        raise Conflict('The saved brief differs from the confirmed action')
+
+
+def require_typed_confirmation(db, organization, receipt):
+    command = typed_command(receipt['conversation_id'], receipt['action_id'], receipt['result_id'], receipt['revision'])
+    row = db.execute('SELECT payload,confirmed FROM conversation_actions WHERE organization=? AND conversation_id=? AND id=?',
+                     (organization, receipt['conversation_id'], receipt['action_id'])).fetchone()
+    saved = db.execute('SELECT inputs,receipt FROM conversation_action_commands WHERE organization=? AND request_id=?',
+                       (organization, receipt['request_id'])).fetchone()
+    if (row is None or saved is None or json.loads(row['confirmed'] or 'null') != receipt
+            or json.loads(saved['inputs']) != command or json.loads(saved['receipt']) != receipt
+            or typed_receipt(db, organization, json.loads(row['payload']), receipt['request_id'], receipt['result_id']) != receipt):
+        raise Conflict('Continuation requires the original confirmed routing action')
 
 
 class SqliteConversationActions:
@@ -83,6 +138,8 @@ class SqliteConversationActions:
                 raise Conflict('Confirmation differs from the displayed brief-change proposal')
             if row['confirmed']:
                 receipt=json.loads(row['confirmed'])
+                if receipt.get('kind') in {'typed_action_confirmation', 'copy_revision_confirmation'}:
+                    raise Conflict('Use the confirmation for the exact displayed action')
             else:
                 conversation=scoped_conversation(db,organization,row['conversation_id'])
                 if conversation['revision']!=expected_revision:raise Conflict('The proposed change belongs to an older brief')
@@ -113,6 +170,52 @@ class SqliteConversationActions:
                            (canonical(receipt),organization,action_id))
             db.execute('INSERT INTO conversation_action_commands VALUES(?,?,?,?)',(organization,request_id,canonical(inputs),canonical(receipt)))
         return receipt
+
+    def confirm_typed(self, organization, conversation_id, action_id, request_id, result_id, revision):
+        for value in (organization, conversation_id, action_id, request_id, result_id):
+            identity(value)
+        revision_number(revision)
+        inputs = typed_command(conversation_id, action_id, result_id, revision)
+        with self.database.transaction() as db:
+            prior = db.execute('SELECT inputs,receipt FROM conversation_action_commands WHERE organization=? AND request_id=?',
+                               (organization, request_id)).fetchone()
+            if prior:
+                if json.loads(prior['inputs']) != inputs:
+                    raise Conflict('Confirmation request already binds different inputs')
+                receipt = json.loads(prior['receipt'])
+                require_typed_confirmation(db, organization, receipt)
+                return receipt
+            row = db.execute('SELECT payload,confirmed,revision FROM conversation_actions WHERE organization=? AND conversation_id=? AND id=?',
+                             (organization, conversation_id, action_id)).fetchone()
+            if row is None:
+                raise NotFound('Action not found in this conversation')
+            if row['revision'] != revision:
+                raise Conflict('Confirmation differs from the displayed brief revision')
+            fresh = row['confirmed'] is None
+            if not fresh:
+                receipt = json.loads(row['confirmed'])
+                if receipt.get('kind') != 'typed_action_confirmation' or receipt.get('result_id') != result_id:
+                    raise Conflict('Action already binds another confirmation')
+                require_typed_confirmation(db, organization, receipt)
+            else:
+                receipt = typed_receipt(db, organization, json.loads(row['payload']), request_id, result_id)
+                if typed_command(receipt['conversation_id'], receipt['action_id'], receipt['result_id'], receipt['revision']) != inputs:
+                    raise Conflict('Routing admission differs from its scoped command')
+                require_typed_source(db, organization, receipt)
+                db.execute('UPDATE conversation_actions SET confirmed=? WHERE organization=? AND id=?',
+                           (canonical(receipt), organization, action_id))
+            db.execute('INSERT INTO conversation_action_commands VALUES(?,?,?,?)',
+                       (organization, request_id, canonical(inputs), canonical(receipt)))
+            require_typed_confirmation(db, organization, receipt)
+            if fresh:
+                require_typed_source(db, organization, receipt)
+            return receipt
+
+    def validate_typed_confirmation(self, organization, receipt):
+        with self.database.connect() as db:
+            db.execute('BEGIN')
+            require_typed_confirmation(db, organization, receipt)
+            require_typed_source(db, organization, receipt)
 
     @staticmethod
     def _verify_exchange(db,organization,current,exchange):

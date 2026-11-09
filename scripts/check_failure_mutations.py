@@ -10,6 +10,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ('typed-route-qualified-intent', 'conversations/domain.py',
+     "if not _current_action_reference(kind, frozen['inputs']['content']):", 'if False:',
+     'test_typed_chat_routing.TypedPrepareTests.test_model_cannot_bind_a_qualified_request_to_the_current_brief'),
+    ('typed-experiment-stop-at-commit', 'adapters/sqlite/followups.py',
+     "    require_typed_source(db, 'local-conversations', receipt)", '    pass',
+     'test_typed_chat_routing.TypedExperimentTests.test_stop_between_confirmation_and_proposal_commit_blocks_new_work'),
+    ('typed-prepare-exact-result', 'adapters/sqlite/conversation_actions.py',
+     " or result['id'] != result_id or not result['requires_confirmation']", " or not result['requires_confirmation']",
+     'test_typed_chat_routing.TypedPrepareTests.test_saved_confirmation_resumes_original_fixture_preparation_in_fresh_process'),
     ('budget-later-total-retraction', 'conversations/budgets.py',
      'retractions=True', 'retractions=False',
      'test_budget_clarification.BudgetReplyTests.test_financial_links_in_saved_replies_require_a_whole_campaign_total'),
@@ -93,7 +102,7 @@ CASES = [
      '                require_source_request(db, organization, cohort_id)', '                pass',
      'test_legacy_followup_scope.LegacyFollowupScopeTests.test_legacy_source_is_checked_before_contexts_save_and_new_admission_but_replay_survives'),
     ('legacy-followup-at-save-commit', 'adapters/sqlite/followups.py',
-     "            require_source_request(db, organization, p['source_cohort'])\n            return p", '            return p',
+     "            require_source_request(db, organization, p['source_cohort'])\n            if conversation_action is not None:", '            if conversation_action is not None:',
      'test_legacy_followup_scope.LegacyFollowupScopeTests.test_legacy_source_change_during_proposal_writes_rolls_back_the_receipt'),
     ('legacy-followup-original-ancestor', 'adapters/sqlite/learning.py',
      "            cohort_id = proposal['source_cohort']", '            return',

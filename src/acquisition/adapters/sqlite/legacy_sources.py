@@ -3,7 +3,7 @@ import json
 from dataclasses import asdict
 
 from acquisition.contracts import Conflict, digest
-from acquisition.conversations import CAPABILITY, FIXTURE_CAPABILITY, ACTION_CAPABILITY, COPY_ACTION_CAPABILITY
+from acquisition.conversations import CAPABILITY, FIXTURE_CAPABILITY, ACTION_CAPABILITY, ROUTING_CAPABILITIES
 from acquisition.reasoning import ModelConfig
 from .admission_guard import binding
 from .execution import DEFINITIVE_REJECTIONS, descendant_parent, campaign_parent
@@ -120,7 +120,7 @@ class LegacyFacts:
             self.owner(result, org, row['conversation_id'], row['revision'])
             self.evidence(result, 'conversation_plans', row['request_id'], row)
             return
-        if caps and caps[0] in {ACTION_CAPABILITY, COPY_ACTION_CAPABILITY}:
+        if caps and caps[0] in {ACTION_CAPABILITY, ROUTING_CAPABILITIES}:
             matches = [r for r in self.rows('conversation_actions', org) if json.loads(r['payload']).get('run_request_id') == key]
             if len(matches) != 1:
                 result['missing'].append('original_routing_admission_is_missing'); return

@@ -7,7 +7,7 @@ from dataclasses import asdict, replace
 from datetime import datetime, timezone
 
 from acquisition.contracts import Conflict, digest
-from acquisition.conversations import CAMPAIGN_ADMISSION_KINDS, AdmissionIntent, ExecutionOwnership, ACTION_CAPABILITY, COPY_ACTION_CAPABILITY, validate_result, workflow_permission
+from acquisition.conversations import CAMPAIGN_ADMISSION_KINDS, AdmissionIntent, ExecutionOwnership, ACTION_CAPABILITY, ROUTING_CAPABILITIES, validate_result, workflow_permission
 from acquisition.campaigns import Brief, ConversationBrief, SourcedConversationBrief, brief_from, conversation_brief_from_plan, conversation_copy_brief
 from acquisition.creative import fixture_catalog, GroundedCopyAgent, validate_copy_assets, validate_fact_pack
 from acquisition.reasoning import Inference
@@ -45,7 +45,7 @@ def coverage_plan(kind, references, source, config, organization, now):
         frozen = source['action']
         if frozen.get('alias') or frozen['model_config'] != asdict(config):
             raise Conflict('Routing requires its original model admission; aliases need no task')
-        if frozen.get('capability',ACTION_CAPABILITY) not in {ACTION_CAPABILITY,COPY_ACTION_CAPABILITY}:
+        if frozen.get('capability',ACTION_CAPABILITY) not in ROUTING_CAPABILITIES:
             raise Conflict('Routing source has an unsupported capability')
         ConversationRouter(inference).preflight(frozen)
         return [TaskSpec(frozen.get('capability', ACTION_CAPABILITY), frozen)], frozen['run_request_id'], frozen['id']

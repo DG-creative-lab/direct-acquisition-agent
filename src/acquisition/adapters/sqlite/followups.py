@@ -58,6 +58,20 @@ def require_followup(db, organization, inputs, own_draft=None):
         raise Conflict('Follow-up population is no longer independent; propose again')
 
 
+def require_routed_experiment(db, organization, request, proposal, receipt):
+    from .conversation_actions import require_typed_confirmation, require_typed_source
+    require_typed_confirmation(db, 'local-conversations', receipt)
+    require_typed_source(db, 'local-conversations', receipt)
+    target = receipt['target']
+    cohort = proposal['learning']['cohort']
+    if (receipt['action'] != 'propose_next_experiment' or request != receipt['effect_request_id']
+            or target['organization'] != organization or target['session_id'] != proposal['parent_id']
+            or target['cohort_id'] != proposal['source_cohort'] or target['case_id'] != cohort['case_id']
+            or target['draft_id'] != cohort['draft_id'] or target['job_id'] != cohort['job_id']
+            or target['finalization_hash'] != digest(proposal['learning']['finalization'])):
+        raise Conflict('Experiment proposal differs from its confirmed source')
+
+
 class SqliteFollowups:
     def __init__(self, database): self.database=database
 
@@ -70,7 +84,7 @@ class SqliteFollowups:
             raise Conflict('Follow-up proposal integrity failure')
         return p
 
-    def put(self, organization, request, p):
+    def put(self, organization, request, p, *, conversation_action=None):
         # Draft publication also calls require_followup in this adapter.
         from .drafts import read_draft
         from .creative import read_context
@@ -79,7 +93,13 @@ class SqliteFollowups:
         with self.database.transaction() as db:
             require_actor(db, organization, 'local-operator', 'operator')
             old=db.execute('SELECT receipt FROM review_commands WHERE organization=? AND request_id=?',(organization,key)).fetchone()
-            if old: return json.loads(old[0])
+            if old:
+                saved = json.loads(old[0])
+                if (saved['parent_id'], saved['source_cohort']) != (p['parent_id'], p['source_cohort']):
+                    raise Conflict('Follow-up request already binds different source inputs')
+                return saved
+            if conversation_action is not None:
+                require_routed_experiment(db, organization, request, p, conversation_action)
             row=db.execute('SELECT finalization,finalized_at,payload FROM learning_cohorts WHERE organization=? AND id=?',(organization,p['source_cohort'])).fetchone()
             if row is None or json.loads(row[0] or 'null') != p['learning']['finalization']:
                 raise Conflict('Finalized source learning changed')
@@ -129,6 +149,8 @@ class SqliteFollowups:
             for identity in (key,p['id']):
                 db.execute('INSERT OR IGNORE INTO review_commands VALUES(?,?,?,?)',(organization,identity,digest(p),canonical(p)))
             require_source_request(db, organization, p['source_cohort'])
+            if conversation_action is not None:
+                require_routed_experiment(db, organization, request, p, conversation_action)
             return p
 
     def excluded(self, organization):

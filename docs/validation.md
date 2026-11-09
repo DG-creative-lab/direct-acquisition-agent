@@ -1186,3 +1186,12 @@ the original count. The descendant regression also removes the links from
 the campaign organization. The direct reader reports an unknown allowance
 until workspace recovery restores the links from the saved ancestry. The
 companion mutation removes the existing-account receipt fence.
+
+
+## Typed chat preparation and next experiments
+
+| Invariant | Offline evidence | Boundary |
+| --- | --- | --- |
+| Routing proposes the exact current target | A fixture brief and a fake-provider inventory brief bind the saved revision. A qualified request routed as prepare asks for clarification. Missing finalized learning produces no confirmation. | The server resolves the brief or cohort. Chat text and router output grant no effect authority. |
+| Confirmation recovery preserves one effect | Real SQLite tests interrupt after confirmation and after proposal commit, then resume in a fresh process. Browser tests lose a response before or after commit, reload, and verify one preparation or proposal with the original request identity. | Preparing a brief reaches a fresh unapproved draft. A next-experiment action saves a separate proposal. |
+| Stale and stopped sources fence continuation | Tests edit or stop a brief after confirmation and interpose both changes before saving a proposal. Exact-result and cross-conversation substitutions are rejected. | The proposal transaction checks the native confirmation and current source. Fixtures and fake providers establish control behavior. |

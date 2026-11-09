@@ -143,6 +143,7 @@ const activePreparation = (status: string) =>
   ["admitting", "planning", "selecting_audience", "preparing"].includes(status);
 
 type Conversation = {
+  typed_action_shortcuts?: string[];
   artifact_comments?: SavedCopyComment[];
   writing_preferences?: WritingPreference[];
   execution?: Execution;
@@ -460,6 +461,13 @@ export default function ConversationWorkspace({
           "budget-clarification/v1"
           ? current.current_plan.result.id
           : undefined;
+      const typedShortcut = current.typed_action_shortcuts?.includes(
+        message
+          .trim()
+          .toLowerCase()
+          .replace(/[.!?]+$/, "")
+          .replace(/\s+/g, " "),
+      );
       const pending = pendingMessage ?? {
         conversationId: current.id,
         expected_revision: current.revision,
@@ -467,9 +475,8 @@ export default function ConversationWorkspace({
         allow_model_copy: allowModelCopy,
         route:
           current.revision > 0 &&
-          !current.execution?.stopped &&
-          !budgetQuestion,
-        ...(budgetQuestion && !commentTarget
+          (typedShortcut || (!current.execution?.stopped && !budgetQuestion)),
+        ...(budgetQuestion && !commentTarget && !typedShortcut
           ? { budget_reply_to: budgetQuestion }
           : {}),
         ...(commentTarget ? { artifact: commentTarget } : {}),
@@ -1099,9 +1106,9 @@ export default function ConversationWorkspace({
                     disabled={
                       !!busy ||
                       !!pendingMessage ||
-                      !!conversation.execution?.stopped ||
-                      conversation.execution?.remaining === 0
+                      !!conversation.execution?.stopped
                     }
+                    inferenceExhausted={conversation.execution?.remaining === 0}
                     onChanged={accept}
                     onReview={(sessionId) => {
                       setReviewing(sessionId);

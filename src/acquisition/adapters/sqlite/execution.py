@@ -126,7 +126,7 @@ def native_execution_exists(db, organization, conversation_id, new_run_id):
         (organization=:org AND (
             (capability IN ('conversations.plan.v1','conversations.fixture_plan.v1')
                 AND json_extract(inputs,'$.conversation_id')=:conversation)
-            OR (capability IN ('conversations.route.v1','conversations.route.v2')
+            OR (capability IN ('conversations.route.v1','conversations.route.v2','conversations.route.v3')
                 AND json_extract(inputs,'$.inputs.conversation_id')=:conversation)))
         OR (:org='local-conversations' AND json_extract(inputs,'$.brief.conversation_id')=:conversation)
     LIMIT 1""", {'org': organization, 'conversation': conversation_id, 'new_run': new_run_id}).fetchone() is not None
@@ -262,7 +262,7 @@ def run_origin(db, organization, run_id, ancestors=(), memo=None):
         inputs = json.loads(row['inputs'])
         if row['capability'] in {'conversations.plan.v1', 'conversations.fixture_plan.v1'}:
             origin = (organization, inputs['conversation_id'], inputs['revision'])
-        elif row['capability'] in {'conversations.route.v1', 'conversations.route.v2'}:
+        elif row['capability'] in {'conversations.route.v1', 'conversations.route.v2', 'conversations.route.v3'}:
             origin = (organization, inputs['inputs']['conversation_id'], inputs['inputs']['revision'])
         elif inputs.get('brief', {}).get('conversation_id'):
             brief = inputs['brief']

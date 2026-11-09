@@ -39,7 +39,7 @@ from acquisition.adapters.sqlite.conversations import SqliteConversations
 from acquisition.conversations import ConversationService, CAPABILITY as PLANNER_CAPABILITY, FIXTURE_CAPABILITY
 from acquisition.workflows.conversation import ConversationPlanner, planner_tool_contracts
 from acquisition.adapters.sqlite.preparations import SqlitePreparations
-from acquisition.conversations import PreparationCoordinator, ConversationAudiences, ConversationActions, ACTION_CAPABILITY, COPY_ACTION_CAPABILITY, ACTION_ALIASES
+from acquisition.conversations import PreparationCoordinator, ConversationAudiences, ConversationActions, ACTION_CAPABILITY, COPY_ACTION_CAPABILITY, TYPED_ACTION_CAPABILITY, ACTION_ALIASES, TYPED_ACTION_ALIASES
 from acquisition.adapters.sqlite.conversation_actions import SqliteConversationActions
 from acquisition.workflows.conversational_actions import ConversationRouter, action_tool_contracts
 from acquisition.adapters.sqlite.audience_selections import SqliteAudienceSelections
@@ -53,7 +53,7 @@ from acquisition.workflows.conversation import validate_planning_assets
 
 def agent_catalogue():
     skills = json.loads((Path(__file__).resolve().parents[2] / "config/agent-skills-v1.json").read_text())
-    return skills | {"tools": planner_tool_contracts() + grounded_tool_contracts() + audience_tool_contracts() + action_tool_contracts() + action_tool_contracts(True),
+    return skills | {"tools": planner_tool_contracts() + grounded_tool_contracts() + audience_tool_contracts() + action_tool_contracts() + action_tool_contracts(True) + action_tool_contracts(typed=True),
                      "authority": "none", "status": "installed_contracts_not_dynamic_dispatch"}
 
 
@@ -86,13 +86,14 @@ def copy_assets(organization, context, *, revision=False):
 def routing_assets(organization, context):
     catalogue=agent_catalogue()
     modern=context['schema']=='routing-context/v2'
-    skill_id='route-followup/v2' if modern else 'route-followup/v1'
+    typed = context['schema'] == 'routing-context/v3'
+    skill_id = 'route-followup/v3' if typed else 'route-followup/v2' if modern else 'route-followup/v1'
     skill=next(s for s in catalogue['skills'] if s['id']==skill_id)
-    guidance={'version':'routing-guidance/v1','skill':skill,'aliases':ACTION_ALIASES}
+    guidance={'version':'routing-guidance/v1','skill':skill,'aliases':ACTION_ALIASES | TYPED_ACTION_ALIASES if typed else ACTION_ALIASES}
     state={k:v for k,v in context.items() if k not in {'id','agent_assets','routing_guidance'}}
     sources=[source_manifest(organization,'routing','authored_guidance',guidance,'v1','project-authored routing skill and aliases',{'basis':'frozen_at_admission'}),
              source_manifest(organization,'task_state','task_observation',state,'v1','saved local task and campaign observations',{'basis':'observed_at','at':context['observed_at']})]
-    value=state|{'routing_guidance':guidance,'agent_assets':freeze_assets(organization,catalogue,action_tool_contracts(modern),[skill_id],sources)}
+    value=state|{'routing_guidance':guidance,'agent_assets':freeze_assets(organization,catalogue,action_tool_contracts(modern, typed=typed),[skill_id],sources)}
     return value|{'id':'action_context_'+digest(value)}
 
 
@@ -504,7 +505,7 @@ def build(path: str | Path, clock: Callable[[], float] = time.time,
             allow_model=True,config=config)
     revision_service = CopyRevisionService(reviews, drafts, memory, tasks, clock, revision_config, copy_assets,revision_admission)
     discovery = AudienceDiscovery(LocalAudienceSource(Path(__file__).resolve().parents[2] / "config/audience-catalogue"), clock)
-    capabilities = revision_workflow.capabilities() | workflow.capabilities() | ConversationMail(audiences, campaigns).capabilities() | model_workflow.capabilities() | conversation_model.capabilities() | {PLANNER_CAPABILITY: planner.plan, FIXTURE_CAPABILITY: planner.fixture_plan, ACTION_CAPABILITY:router.route, COPY_ACTION_CAPABILITY:router.route}
+    capabilities = revision_workflow.capabilities() | workflow.capabilities() | ConversationMail(audiences, campaigns).capabilities() | model_workflow.capabilities() | conversation_model.capabilities() | {PLANNER_CAPABILITY: planner.plan, FIXTURE_CAPABILITY: planner.fixture_plan, ACTION_CAPABILITY:router.route, COPY_ACTION_CAPABILITY:router.route, TYPED_ACTION_CAPABILITY:router.route}
     return Application(tasks, audiences, drafts, Worker(tasks, capabilities, execution_clock, lease_seconds=180 if inference else 60,
                        eligible=lambda capability, inputs: model_workflow.eligible(capability, inputs) and conversation_model.eligible(capability, inputs) and planner.eligible(capability, inputs) and revision_workflow.eligible(capability, inputs) and router.eligible(capability, inputs)), clock,
                        campaigns.catalogue_hash, memory, calls, inference,
