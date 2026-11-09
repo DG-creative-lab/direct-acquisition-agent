@@ -181,6 +181,10 @@ else:raise AssertionError('An unsupported legacy source admitted a new follow-up
                                                           'reason': 'Reviewed this exact child.'})
                         else:
                             self.w.action(sid, 'handoff', {'request_id': 'racing-child-handoff', 'approval_id': approval})
+                    if approval:
+                        prepared = self.app.reviews.store.delivery(self.owner, child['review']['case_id'], approval)
+                        self.assertEqual(prepared['status'], 'prepared')
+                        before['review_commands'] += 1
                     self.assertEqual(self.counts(), before)
                     with self.database.connect() as db:
                         self.assertEqual(db.execute('SELECT content FROM conversation_messages WHERE organization=? AND conversation_id=?',

@@ -183,6 +183,11 @@ def review_observation(db, organization, kind, row):
         raise Conflict('simulated_acceptance_identity_mismatch')
     at = recorded_time(accepted['accepted_at'])
     require_review_commit(db, organization, case, 'simulated_handoff_accepted', accepted, at)
+    delivery = accepted.get('delivery')
+    if delivery:
+        from .simulated_delivery import SqliteSimulatedDelivery, require_provider_result
+        require_provider_result(SqliteSimulatedDelivery(db), organization, accepted)
+        record = record | {'delivery_status': delivery['status']}
     return record | {'job_id': identity(row[1]), 'mode': 'SYNTHETIC_NO_PRINT_NO_SEND', 'recorded_at': at}
 
 

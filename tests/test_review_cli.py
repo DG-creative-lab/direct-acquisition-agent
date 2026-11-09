@@ -38,6 +38,10 @@ class ReviewCliTests(unittest.TestCase):
             view = cli("--organization", first["organization"], "review-show", "--case", first["case_id"])
             self.assertTrue(view["approval_valid"])
             self.assertEqual(len(view["revisions"]), 2)
+            delivery = cli("--organization", first["organization"], "review-delivery", "--case", first["case_id"],
+                           "--approval", first["receipt"]["approval_id"])
+            self.assertEqual(delivery["id"], first["receipt"]["delivery"]["id"])
+            self.assertEqual(delivery["status"], "accepted")
             with Database(path).connect() as db:
                 self.assertEqual(db.execute("SELECT COUNT(*) FROM simulated_agency_jobs").fetchone()[0], 1)
 
@@ -82,7 +86,7 @@ class ReviewCliTests(unittest.TestCase):
                 db.close()
             migrated = Database(path)
             with migrated.connect() as db:
-                self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 15)
+                self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 16)
                 self.assertEqual([tuple(r) for r in db.execute("SELECT * FROM legacy_task_admissions")], old)
                 self.assertEqual(db.execute("SELECT status FROM runs WHERE id='later'").fetchone()[0], "queued")
 

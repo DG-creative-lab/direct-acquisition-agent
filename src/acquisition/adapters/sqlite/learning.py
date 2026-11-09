@@ -8,6 +8,7 @@ from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.learning import cohort_proposal, counts_for, finite, identifier, posterior, recommend, validate_outcome
 from .actors import require_actor
 from .drafts import read_draft, verify
+from .simulated_delivery import SqliteSimulatedDelivery, require_provider_result
 
 
 def accepted_cohort_draft(db, organization, cohort):
@@ -25,6 +26,7 @@ def accepted_cohort_draft(db, organization, cohort):
                 or any(job[key] != receipt[key] for key in ('id', 'case_id', 'approval_id', 'subject_id'))
                 or receipt['id'] != 'fake_job_' + digest({'case': receipt['case_id'], 'approval': receipt['approval_id']})):
             raise Conflict('Finalized source acceptance identity is inconsistent')
+        require_provider_result(SqliteSimulatedDelivery(db), organization, receipt)
         draft = read_draft(db, organization, receipt['draft_id'])
         if cohort_proposal(organization, receipt, draft) != cohort:
             raise Conflict('Finalized source cohort differs from its accepted experiment')

@@ -158,6 +158,13 @@ class RequestedScopeStorageTests(unittest.TestCase):
                         else:
                             app.reviews.store.decide(owner, case, self.subject, 'local-reviewer', 'approve', 'atomic-scope-review', 'Exact scope reviewed', 86400)
                     with app.tasks.database.connect() as db:
+                        if approval:
+                            prepared = app.reviews.store.delivery(owner, case, approval)
+                            self.assertEqual(prepared['status'], 'prepared')
+                            command = db.execute('SELECT receipt FROM review_commands WHERE organization=? AND request_id=?',
+                                                 (owner, 'atomic-scope-handoff')).fetchone()
+                            self.assertEqual(json.loads(command[0]), {'kind': 'simulated_delivery_pending', 'dispatch_id': prepared['id']})
+                            before['review_commands'] += 1
                         for table, count in before.items():
                             self.assertEqual(db.execute('SELECT count(*) FROM ' + table).fetchone()[0], count)
                         self.assertEqual(db.execute('SELECT content FROM conversation_messages WHERE organization=? AND conversation_id=?', ('local-conversations', self.c)).fetchone()[0], message)

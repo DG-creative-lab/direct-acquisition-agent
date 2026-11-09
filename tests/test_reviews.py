@@ -1,7 +1,10 @@
 import csv
 import io
 import json
+import os
 import sqlite3
+import subprocess
+import sys
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -12,7 +15,7 @@ from unittest.mock import patch
 
 from acquisition.bootstrap import build
 from acquisition.campaigns import Brief, build_draft
-from acquisition.contracts import Conflict, NotFound
+from acquisition.contracts import Conflict, NotFound, canonical
 from acquisition.creative import fixture_catalog
 from acquisition.reviews import ReviewPolicy, creatives_from
 from acquisition.adapters.review_report import render_review
@@ -224,6 +227,120 @@ class ReviewTests(unittest.TestCase):
             self.handoff(approval)
         self.assertEqual(self.count("simulated_agency_jobs"), 0)
 
+    def test_provider_draft_drift_blocks_dispatch_after_approval(self):
+        approval = self.approve()
+        dispatch = self.store._dispatch_delivery
+        for field in ("creatives", "recipient_ids"):
+            with self.subTest(field=field):
+                original = None
+
+                def drift(*args):
+                    nonlocal original
+                    with self.store.database.transaction() as db:
+                        original = db.execute("SELECT provider_draft FROM simulated_deliveries WHERE organization='one'").fetchone()[0]
+                        payload = json.loads(original)
+                        if field == "creatives":
+                            payload['creatives'][0]['opening'] = 'Substituted provider copy.'
+                        else:
+                            payload['recipient_ids'][0] = 'unapproved-recipient'
+                        db.execute("UPDATE simulated_deliveries SET provider_draft=? WHERE organization='one'", (canonical(payload),))
+                    return dispatch(*args)
+
+                with patch.object(self.store, '_dispatch_delivery', side_effect=drift):
+                    with self.assertRaisesRegex(Conflict, 'Provider draft differs'):
+                        self.handoff(approval)
+                self.assertIsNotNone(original)
+                self.assertEqual(self.count("simulated_agency_jobs"), 0)
+                self.assertEqual(self.store.delivery("one", self.case, approval['id'])["status"], "prepared")
+                with self.store.database.transaction() as db:
+                    db.execute("UPDATE simulated_deliveries SET provider_draft=? WHERE organization='one'", (original,))
+        self.assertEqual(self.handoff(approval)["delivery"]["status"], "accepted")
+
+    def test_revocation_between_provider_preparation_and_dispatch_blocks_effect(self):
+        approval = self.approve()
+        dispatch = self.store._dispatch_delivery
+
+        def revoke(*args):
+            self.store.revoke("one", self.case, approval['id'], "human", "revoke", "Withdraw this approval.")
+            return dispatch(*args)
+
+        with patch.object(self.store, '_dispatch_delivery', side_effect=revoke):
+            with self.assertRaisesRegex(Conflict, 'revoked'):
+                self.handoff(approval)
+        self.assertEqual(self.count("simulated_agency_jobs"), 0)
+        self.assertEqual(self.store.delivery("one", self.case, approval['id'])["status"], "prepared")
+
+    def test_delivery_rolls_back_if_approval_changes_during_settlement(self):
+        approval = self.approve()
+        with self.store.database.transaction() as db:
+            db.execute('''CREATE TRIGGER fixture_approval_drift AFTER INSERT ON simulated_agency_jobs
+                BEGIN UPDATE review_authorities SET audience_epoch=audience_epoch+1 WHERE organization=NEW.organization; END''')
+        with self.assertRaises(Conflict):
+            self.handoff(approval)
+        self.assertEqual(self.count("simulated_agency_jobs"), 0)
+        self.assertEqual(self.store.delivery("one", self.case, approval['id'])["status"], "prepared")
+        self.assertTrue(self.store.view("one", self.case)["approval_valid"])
+
+    def test_partial_delivery_preserves_all_intended_recipients_and_controls(self):
+        approval = self.approve()
+        review = self.store.view("one", self.case)
+        draft = self.app.drafts.get("one", review['subject']['draft_id'])
+        intended = {row['business_id'] for row in csv.DictReader(io.StringIO(draft.mailing_csv))}
+        control = {row['business_id'] for row in csv.DictReader(io.StringIO(draft.assignments_csv)) if row['arm'] == 'no_mail'}
+        receipt = self.store.handoff("one", self.case, approval['id'], "operator", "partial", simulation="partial")
+        result = self.store.delivery("one", self.case, approval['id'])
+        accepted, rejected = set(result['accepted_recipient_ids']), set(result['rejected_recipient_ids'])
+        self.assertTrue(accepted and rejected)
+        self.assertFalse(accepted & rejected)
+        self.assertEqual(accepted | rejected, intended)
+        self.assertFalse((accepted | rejected) & control)
+        self.assertEqual(receipt['recipients'], len(intended))
+        self.assertEqual(result['control_count'], len(control))
+        self.assertTrue(all(result[field] is None for field in ('sent', 'delivered', 'responded')))
+        review = self.store.view("one", self.case)
+        self.assertEqual(review['delivery']['status'], 'partially_accepted')
+        self.assertIsNone(review['handoff'])
+        self.assertIn('Partially accepted by the local simulator', render_review(review, str(self.path)))
+        with self.assertRaises(Conflict):
+            self.app.learning.open("one", self.case, "operator", "partial-learning")
+        with self.assertRaises(Conflict):
+            self.approve(key="try-to-reapprove")
+        self.assertEqual(self.count("learning_cohorts"), 0)
+
+    def test_timeout_reconciles_native_result_after_restart_and_approval_expiry(self):
+        approval = self.approve(ttl=10)
+        with self.assertRaisesRegex(Conflict, 'acknowledgement timed out'):
+            self.store.handoff("one", self.case, approval['id'], "operator", "timeout", simulation="timeout-after-acceptance")
+        result = self.store.delivery("one", self.case, approval['id'])
+        self.assertEqual(result['status'], 'accepted')
+        first = self.store.view("one", self.case)['handoff']
+        self.assertEqual(first['delivery']['id'], result['id'])
+        script = '''import json, sys
+from acquisition.bootstrap import build
+path, now, case, approval = sys.argv[1:]
+store = build(path, lambda: float(now)).reviews.store
+print(json.dumps(store.handoff('one', case, approval, 'operator', 'timeout', simulation='timeout-after-acceptance')))
+'''
+        child = subprocess.run([sys.executable, '-c', script, str(self.path), str(self.now + 20), self.case, approval['id']],
+                               capture_output=True, text=True, timeout=20,
+                               env=dict(os.environ, PYTHONPATH=str(Path('src').resolve())))
+        self.assertEqual(child.returncode, 0, child.stderr)
+        self.assertEqual(json.loads(child.stdout), first)
+        self.assertEqual(self.count("simulated_deliveries"), 1)
+        self.assertEqual(self.count("simulated_agency_jobs"), 1)
+        self.assertEqual(sum(e['kind'] == 'simulated_handoff_accepted' for e in self.store.view("one", self.case)['events']), 1)
+        self.assertEqual(self.store.delivery("one", self.case, approval['id']), result)
+
+    def test_provider_rejection_replays_without_creating_an_accepted_job(self):
+        approval = self.approve()
+        rejected = self.store.handoff("one", self.case, approval['id'], "operator", "reject", simulation="reject")
+        self.assertEqual(rejected['delivery']['status'], 'rejected')
+        self.assertEqual(rejected['delivery']['accepted_recipients'], 0)
+        self.assertEqual(self.count("simulated_agency_jobs"), 0)
+        self.assertIsNone(self.store.view("one", self.case)['handoff'])
+        self.handoff(self.approve(key="new-approval"), key="new-handoff")
+        self.assertEqual(self.store.handoff("one", self.case, approval['id'], "operator", "reject", simulation="reject"), rejected)
+
     def test_decision_and_event_are_atomic(self):
         with self.store.database.connect() as db:
             db.execute("CREATE TRIGGER fail_review BEFORE INSERT ON review_events WHEN NEW.kind='review_approve' BEGIN SELECT RAISE(ABORT,'fixture'); END")
@@ -242,6 +359,7 @@ class ReviewTests(unittest.TestCase):
         with self.assertRaises(sqlite3.IntegrityError):
             self.handoff(approval)
         self.assertEqual(self.count("simulated_agency_jobs"), 0)
+        self.assertEqual(self.store.delivery("one", self.case, approval['id'])["status"], "prepared")
         with self.store.database.connect() as db:
             db.execute("DROP TRIGGER fail_accept")
         self.handoff(approval)

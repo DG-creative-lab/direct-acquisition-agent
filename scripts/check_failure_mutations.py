@@ -10,6 +10,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ('delivery-provider-draft-drift', 'adapters/sqlite/simulated_delivery.py',
+     ' or row["provider_draft"] != canonical(plan)', '',
+     'test_reviews.ReviewTests.test_provider_draft_drift_blocks_dispatch_after_approval'),
+    ('delivery-approval-at-commit', 'adapters/sqlite/reviews.py',
+     'if self._authorize_delivery(db, organization, case_id, approval_id, actor, self._now()) != (generation, plan):',
+     'if False:',
+     'test_reviews.ReviewTests.test_delivery_rolls_back_if_approval_changes_during_settlement'),
     ('typed-route-qualified-intent', 'conversations/domain.py',
      "if not _current_action_reference(kind, frozen['inputs']['content']):", 'if False:',
      'test_typed_chat_routing.TypedPrepareTests.test_model_cannot_bind_a_qualified_request_to_the_current_brief'),
@@ -100,8 +107,9 @@ CASES = [
      "if decision == 'approve' and 'requested_scope' in draft.manifest['brief']:",
      'test_legacy_followup_scope.LegacyFollowupScopeTests.test_legacy_child_source_mutations_roll_back_publication_review_and_acceptance'),
     ('legacy-followup-acceptance-classification', 'adapters/sqlite/reviews.py',
-     "            if any(key in draft.manifest['brief'] for key in ('requested_scope', 'conversation_id', 'followup_id')):",
-     "            if 'requested_scope' in draft.manifest['brief']:",
+     'if self._authorize_delivery(db, organization, case_id, approval_id, actor, self._now()) != (generation, plan):',
+     "if ('requested_scope' in read_draft(db, organization, plan['draft_id']).manifest['brief']\n"
+     '                    and self._authorize_delivery(db, organization, case_id, approval_id, actor, self._now()) != (generation, plan)):',
      'test_legacy_followup_scope.LegacyFollowupScopeTests.test_legacy_child_source_mutations_roll_back_publication_review_and_acceptance'),
     ('legacy-followup-native-request', 'adapters/sqlite/learning.py',
      "            require_requested_scope(db, brief, draft.manifest.get('campaign_scope'))", '            pass',

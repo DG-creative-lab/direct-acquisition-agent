@@ -30,6 +30,7 @@ from acquisition.reasoning import Inference, ModelConfig, ModelGateway, freeze_a
 from acquisition.workflows.monthly_mail import MonthlyMail, ConversationMail, conversation_task_plan, task_plan
 from acquisition.workflows.model_mail import ModelMonthlyMail, ConversationModelMail, model_task_plan, conversation_model_task_plan
 from acquisition.adapters.sqlite.reviews import SqliteReviews
+from acquisition.adapters.sqlite.simulated_delivery import SqliteSimulatedDelivery
 from acquisition.reviews import ReviewService, CopyRevisionService
 from acquisition.workflows.copy_revision import CopyRevisionWorkflow
 from acquisition.learning import LearningService
@@ -482,7 +483,7 @@ def build(path: str | Path, clock: Callable[[], float] = time.time,
         return json.loads((Path(__file__).resolve().parents[2] / "config/campaign-playbooks-v1.json").read_text())
     conversations = ConversationService(SqliteConversations(database), tasks, calls, clock,
                                         planner_config if (planner_inference or admissions.required()) else None, planner.preflight, planning_guidance, planning_assets,admissions)
-    reviews = SqliteReviews(database, clock)
+    reviews = SqliteReviews(database, clock, SqliteSimulatedDelivery)
     revision_config = replace(model_config, max_calls=5, force_tool_choice=True) if model_config else None
     revision_inference = Inference(gateway, calls, revision_config, clock) if inference else None
     revision_workflow = CopyRevisionWorkflow(campaigns, drafts, memory, revision_inference, reviews)
