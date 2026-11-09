@@ -118,7 +118,9 @@ const activePreparation = (status: string) =>
 
 type Conversation = {
   typed_action_shortcuts?: string[];
-  artifact_comments?: SavedCopyComment[];
+  artifact_comments?: (SavedCopyComment & {
+    copy_revision_blocked?: boolean;
+  })[];
   writing_preferences?: WritingPreference[];
   execution?: Execution;
   actions?: ConversationAction[];
@@ -1150,6 +1152,7 @@ export default function ConversationWorkspace({
                         !!pendingMessage ||
                         conversation?.revision !==
                           comment.conversation_revision ||
+                        !!comment.copy_revision_blocked ||
                         !!conversation?.execution?.stopped
                       }
                       onClick={() => {

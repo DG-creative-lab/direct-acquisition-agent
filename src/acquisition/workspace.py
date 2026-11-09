@@ -29,6 +29,11 @@ from dataclasses import replace, asdict
 from acquisition.reviews import ReviewPolicy, text, ActorUnavailable
 
 
+def _partial_delivery(review):
+    delivery = review.get('delivery') if review else None
+    return delivery if delivery and delivery['status'] == 'partially_accepted' else None
+
+
 REVISION_BLOCKS = {
     "ancestry_unavailable": "Historical campaign ancestry needs recovery. Restore its original workspace relationship before model calls can resume. Usage remains incomplete until that relationship is verified.",
     "evidence_unavailable": "Product evidence is unavailable or outside its review window. Review verified evidence and prepare a current campaign before requesting another revision. This request keeps its frozen inputs.",
@@ -272,19 +277,24 @@ class Workspace:
                       and s['conversation_plan']['revision']==expected_revision),None)
         review=self._app(session).reviews.store.view(session['organization'],session['case_id']) if session and session['case_id'] else None
         preparation=self.preparations.store.for_revision('local-conversations',conversation_id,expected_revision)
+        partial = _partial_delivery(review)
         phase=preparation['status'] if preparation else 'not_started'
         if review and not review['validation_report']['review_ready']:phase='blocked'
         if review and review['handoff']:phase='simulated_accepted'
+        if partial:phase='simulated_partially_accepted'
         labels={'selecting_audience':'awaiting audience confirmation','planning':'interpreting the brief',
                 'preparing':'preparing the campaign','review_ready':'ready for human review','not_started':'not started',
                 'admitting':'saving the preparation request','needs_input':'waiting for clarification',
                 'needs_consent':'waiting for generation permission','blocked':'blocked pending inspection',
                 'failed':'stopped after a failure','uncertain':'awaiting provider reconciliation',
-                'stale':'stopped after a brief change','simulated_accepted':'accepted by the local handoff simulator'}
+                'stale':'stopped after a brief change','simulated_accepted':'accepted by the local handoff simulator',
+                'simulated_partially_accepted':'partially accepted by the local handoff simulator'}
         refs={'plan_id':plan['id'] if plan else None,'session_id':session['id'] if session else None,
               'subject_id':review['subject']['id'] if review else None,'draft_id':review['subject']['draft_id'] if review else None}
         answers={'inspect_progress':{'text':'Preparation was '+labels.get(phase,phase.replace('_',' '))+' when this snapshot was recorded.',
                     'evidence':refs|{'status':phase,'preparation_id':preparation['id'] if preparation else None}}}
+        if partial:
+            answers['inspect_progress']['evidence']['delivery'] = partial
         selected=(review['manifest']['brief'].get('audience_source') if review else
                   app.conversation_audiences.store.get('local-conversations',conversation_id,expected_revision))
         counts=review['manifest']['counts'] if review else None
@@ -310,6 +320,8 @@ class Workspace:
             blocked=[c['label'] for c in report['checks'] if c['required'] and c['status']!='passed']
             validation=('At the recorded check, required machine checks passed and the draft was ready for human review. Approval remains a separate decision.'
                         if report['review_ready'] else 'At the recorded check, review was blocked by: '+', '.join(blocked)+'.')
+            if partial and report['review_ready']:
+                validation = 'Required machine checks passed for the draft that received partial simulated acceptance.'
         answers['explain_validation']={'text':validation,'evidence':refs|{'report':report}}
         target={'organization':'local-conversations','conversation_id':conversation_id,'revision':expected_revision}
         target['id']='brief_target_'+digest(target)[:32]
@@ -318,7 +330,7 @@ class Workspace:
         copy_targets={'available':False,'reason':'Prepare a grounded model campaign before requesting copy revisions.', 'creatives':[]}
         if review and session['mode']=='model':
             revisions=self._app(session).revisions.view(session['organization'],session['case_id'])
-            reason=('Accepted simulated campaigns cannot be revised.' if review['handoff'] else
+            reason=('Accepted simulated campaigns cannot be revised.' if review['handoff'] or partial else
                     'Restore current evidence and a valid campaign before requesting a revision.' if not review['candidate_valid'] else
                     'A saved revision already owns this subject, or the three-revision limit was reached. Inspect the original request.'
                     if len(revisions)>=3 or any(r['base_subject_id']==review['subject']['id'] for r in revisions) else '')
@@ -573,8 +585,12 @@ class Workspace:
             if value['result'] and value['result']['kind']=='revise_copy' and value['result']['copy_revision']['target']:
                 target=value['result']['copy_revision']['target']
                 current_review=self.view(target['session_id'])['review']
+                partial = _partial_delivery(current_review)
                 value['target_current']=(value['current'] and current_review['subject']['id']==target['subject_id']
-                                         and current_review['candidate_valid'] and not current_review['handoff'])
+                                         and current_review['candidate_valid'] and not current_review['handoff']
+                                         and not partial)
+                if partial:
+                    value['target_blocked_reason'] = 'Partial simulated delivery closes this campaign to copy revisions.'
             if value['status'] in {'admitted','queued'} and not row['alias']:
                 if app.admissions.required():
                     value |= {'status':'blocked','detail':'Execution remains paused pending cutover activation. Inspect the original request and run.'}

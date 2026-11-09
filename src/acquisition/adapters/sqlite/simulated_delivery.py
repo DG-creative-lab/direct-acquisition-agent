@@ -1,9 +1,16 @@
 """A transaction-bound local provider with a durable draft and result."""
 
+import hashlib
 import json
 
 from acquisition.contracts import Conflict, canonical, digest
 from acquisition.reviews import DELIVERY_MODE, delivery_summary
+
+
+def _draft_metadata(plan):
+    # The binding already covers the hash of the exact mailing bytes. Keep
+    # the original binding format so historical receipts can still reconcile.
+    return {key: value for key, value in plan.items() if key != "mailing_csv"}
 
 
 class SqliteSimulatedDelivery:
@@ -21,23 +28,35 @@ class SqliteSimulatedDelivery:
         if simulation == "partial" and len(plan["recipient_ids"]) < 2:
             raise ValueError("Partial simulation requires at least two approved recipients")
         keys = (plan["organization"], plan["case_id"], plan["approval_id"])
-        binding = digest({"plan": plan, "simulation": simulation})
+        metadata = _draft_metadata(plan)
+        binding = digest({"plan": metadata, "simulation": simulation})
         identity = "local_dispatch_" + digest(keys)
+        payload = canonical(plan)
         row = self._row(*keys)
         if row is None:
             self.db.execute(
                 """INSERT INTO simulated_deliveries
                 (organization,case_id,approval_id,id,simulation,binding,provider_draft) VALUES(?,?,?,?,?,?,?)""",
-                (*keys, identity, simulation, binding, canonical(plan)),
+                (*keys, identity, simulation, binding, payload),
             )
         elif (row["id"], row["simulation"], row["binding"]) != (identity, simulation, binding):
             raise Conflict("Delivery already binds a different approved draft or simulation")
+        elif row["result"] is None and row["provider_draft"] == canonical(metadata):
+            # An interrupted older preparation can add the verified mailing
+            # bytes under its existing dispatch identity and approval.
+            self.db.execute(
+                """UPDATE simulated_deliveries SET provider_draft=?
+                WHERE organization=? AND case_id=? AND approval_id=? AND result IS NULL""",
+                (payload, *keys),
+            )
+        elif row["provider_draft"] != payload:
+            raise Conflict("Provider draft differs from the approved recipients or content")
         return identity
 
     def dispatch(self, plan, simulation, now):
         keys = (plan["organization"], plan["case_id"], plan["approval_id"])
         row = self._row(*keys)
-        binding = digest({"plan": plan, "simulation": simulation})
+        binding = digest({"plan": _draft_metadata(plan), "simulation": simulation})
         if row is None or row["binding"] != binding or row["provider_draft"] != canonical(plan):
             raise Conflict("Provider draft differs from the approved recipients or content")
         if row["result"] is not None:
@@ -71,6 +90,11 @@ class SqliteSimulatedDelivery:
             raise Conflict("Delivery already binds a different simulation")
         if row["result"] is None:
             return None
+        plan = json.loads(row["provider_draft"])
+        if (digest({"plan": _draft_metadata(plan), "simulation": row["simulation"]}) != row["binding"]
+                or ("mailing_csv" in plan
+                    and hashlib.sha256(plan["mailing_csv"].encode()).hexdigest() != plan["mailing_sha256"])):
+            raise Conflict("Saved provider draft failed integrity checks")
         result = json.loads(row["result"])
         keys = (organization, case_id, approval_id)
         if (digest(result) != row["result_hash"]

@@ -229,8 +229,9 @@ class ReviewTests(unittest.TestCase):
 
     def test_provider_draft_drift_blocks_dispatch_after_approval(self):
         approval = self.approve()
+        draft = self.app.drafts.get("one", self.store.view("one", self.case)['subject']['draft_id'])
         dispatch = self.store._dispatch_delivery
-        for field in ("creatives", "recipient_ids"):
+        for field in ("creatives", "recipient_ids", "demo_address", "arm", "creative_id"):
             with self.subTest(field=field):
                 original = None
 
@@ -239,10 +240,21 @@ class ReviewTests(unittest.TestCase):
                     with self.store.database.transaction() as db:
                         original = db.execute("SELECT provider_draft FROM simulated_deliveries WHERE organization='one'").fetchone()[0]
                         payload = json.loads(original)
+                        self.assertEqual(payload['mailing_csv'], draft.mailing_csv)
                         if field == "creatives":
                             payload['creatives'][0]['opening'] = 'Substituted provider copy.'
-                        else:
+                        elif field == "recipient_ids":
                             payload['recipient_ids'][0] = 'unapproved-recipient'
+                        else:
+                            reader = csv.DictReader(io.StringIO(payload['mailing_csv']))
+                            rows = list(reader)
+                            substitute = next(row[field] for row in rows if row[field] != rows[0][field])
+                            rows[0][field] = substitute
+                            mailing = io.StringIO(newline='')
+                            writer = csv.DictWriter(mailing, fieldnames=reader.fieldnames, lineterminator='\n')
+                            writer.writeheader()
+                            writer.writerows(rows)
+                            payload['mailing_csv'] = mailing.getvalue()
                         db.execute("UPDATE simulated_deliveries SET provider_draft=? WHERE organization='one'", (canonical(payload),))
                     return dispatch(*args)
 
@@ -255,6 +267,36 @@ class ReviewTests(unittest.TestCase):
                 with self.store.database.transaction() as db:
                     db.execute("UPDATE simulated_deliveries SET provider_draft=? WHERE organization='one'", (original,))
         self.assertEqual(self.handoff(approval)["delivery"]["status"], "accepted")
+
+    def test_pending_provider_draft_with_only_recipient_ids_recovers_after_restart(self):
+        approval = self.approve()
+        with patch.object(self.store, '_dispatch_delivery', side_effect=Conflict('Interrupted after preparation')):
+            with self.assertRaisesRegex(Conflict, 'Interrupted after preparation'):
+                self.handoff(approval)
+        with self.store.database.transaction() as db:
+            old = db.execute("SELECT id,binding,provider_draft FROM simulated_deliveries WHERE organization='one'").fetchone()
+            legacy = json.loads(old['provider_draft'])
+            mailing = legacy.pop('mailing_csv')
+            db.execute("UPDATE simulated_deliveries SET provider_draft=? WHERE organization='one'", (canonical(legacy),))
+
+        script = '''import json, sys
+from acquisition.bootstrap import build
+path, now, case, approval = sys.argv[1:]
+store = build(path, lambda: float(now)).reviews.store
+print(json.dumps(store.handoff('one', case, approval, 'operator', 'handoff')))
+'''
+        child = subprocess.run([sys.executable, '-c', script, str(self.path), str(self.now), self.case, approval['id']],
+                               capture_output=True, text=True, timeout=20,
+                               env=dict(os.environ, PYTHONPATH=str(Path('src').resolve())))
+        self.assertEqual(child.returncode, 0, child.stderr)
+        receipt = json.loads(child.stdout)
+        self.assertEqual(receipt['delivery']['id'], old['id'])
+        self.assertEqual(receipt['delivery']['status'], 'accepted')
+        with self.store.database.connect() as db:
+            saved = db.execute("SELECT binding,provider_draft FROM simulated_deliveries WHERE organization='one'").fetchone()
+        self.assertEqual(saved['binding'], old['binding'])
+        self.assertEqual(json.loads(saved['provider_draft']), legacy | {'mailing_csv': mailing})
+        self.assertEqual(self.count('simulated_agency_jobs'), 1)
 
     def test_revocation_between_provider_preparation_and_dispatch_blocks_effect(self):
         approval = self.approve()

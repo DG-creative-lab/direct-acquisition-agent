@@ -118,8 +118,8 @@ export default function ConversationCopyRevision<T>({
           </p>
           {(!action.current || action.target_current === false) && (
             <p>
-              This proposal belongs to an earlier draft or brief. Request a new
-              edit for the current campaign.
+              {action.target_blocked_reason ??
+                "This proposal belongs to an earlier draft or brief. Request a new edit for the current campaign."}
             </p>
           )}
           <label className="copy-revision-consent">

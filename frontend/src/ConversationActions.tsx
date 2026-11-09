@@ -43,6 +43,7 @@ export type ConversationAction = {
   status: string;
   current: boolean;
   target_current?: boolean;
+  target_blocked_reason?: string;
   copy_revision_progress?: CopyRevision;
   detail?: string;
   run_id: string | null;
