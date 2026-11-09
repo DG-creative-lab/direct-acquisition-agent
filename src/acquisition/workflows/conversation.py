@@ -4,7 +4,7 @@ import json
 from dataclasses import asdict
 
 from acquisition.contracts import canonical, digest
-from acquisition.conversations import CAPABILITY, FIXTURE_MESSAGE, validate_result, bind_requested_scope, scope_projection, scope_response
+from acquisition.conversations import CAPABILITY, FIXTURE_MESSAGE, validate_result, bind_requested_scope, scope_projection, scope_response, budget_response
 from acquisition.reasoning import CallScope, Inference, ModelError, tool_contract, validate_assets
 from acquisition.runtime import Outcome
 
@@ -116,7 +116,7 @@ class ConversationPlanner:
         validate_planning_assets(frozen, claim.organization)
         if frozen.get("knowledge_id") != "knowledge_" + digest(frozen["knowledge"]):
             raise ModelError("planning_knowledge_integrity_failure")
-        response = scope_response(bind_requested_scope(frozen, claim.organization))
+        response = scope_response(bind_requested_scope(frozen, claim.organization)) or budget_response(frozen)
         if response is not None:
             return Outcome('succeeded', validate_result(response, frozen, claim.organization))
         messages = self.messages(frozen)

@@ -24,7 +24,7 @@ class LegacyFollowupScopeTests(unittest.TestCase):
             # Emulate the old producer before its task or draft is created.
             # Assertions below run with all current guards installed.
             frozen = original(store, *args, **kwargs)
-            frozen = {k: v for k, v in frozen.items() if k != 'requested_scope'}
+            frozen = {k: v for k, v in frozen.items() if k not in {'requested_scope', 'budget_policy'}}
             with store.database.transaction() as db:
                 db.execute('UPDATE conversation_plans SET payload=? WHERE organization=? AND conversation_id=? AND request_id=?',
                            (canonical(frozen), 'local-conversations', frozen['conversation_id'], frozen['request_id']))
@@ -64,18 +64,19 @@ class LegacyFollowupScopeTests(unittest.TestCase):
             original = json.loads(row[0])
             current = db.execute('SELECT content FROM conversation_messages WHERE organization=? AND conversation_id=?',
                                  ('local-conversations', self.c)).fetchone()[0]
-        for source in ('frozen', 'current', 'missing-plan'):
+        for source in ('frozen', 'current', 'non-total-frozen', 'non-total-current', 'missing-plan'):
             with self.subTest(source=source):
                 try:
                     with self.database.transaction() as db:
-                        if source == 'frozen':
+                        if source in {'frozen', 'non-total-frozen'}:
                             frozen = copy.deepcopy(original)
-                            frozen['messages'][0]['content'] = 'Use £600 for an email campaign in France.'
+                            frozen['messages'][0]['content'] = ('Use £600 per month for a UK postal contractor experiment.' if source == 'non-total-frozen'
+                                                               else 'Use £600 for an email campaign in France.')
                             db.execute('UPDATE conversation_plans SET payload=? WHERE organization=? AND conversation_id=?',
                                        (canonical(frozen), 'local-conversations', self.c))
-                        elif source == 'current':
+                        elif source in {'current', 'non-total-current'}:
                             db.execute('UPDATE conversation_messages SET content=? WHERE organization=? AND conversation_id=?',
-                                       ('Use £600 for an email campaign in France.', 'local-conversations', self.c))
+                                       (('Use £600 per recipient for a UK postal contractor experiment.' if source == 'non-total-current' else 'Use £600 for an email campaign in France.'), 'local-conversations', self.c))
                         else:
                             db.execute('DELETE FROM conversation_plans WHERE organization=? AND conversation_id=?',
                                        ('local-conversations', self.c))

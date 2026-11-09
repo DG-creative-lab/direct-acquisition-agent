@@ -40,6 +40,7 @@ type Brief = {
   segments: string[];
   copy_mode: "fixture" | "model";
   question: string;
+  budget_clarification?: { schema: string; reason: string; question: string };
   unsupported_reason: string;
   requested_scope?: {
     requirements: Record<string, { value: string | null; basis: string }>;
@@ -172,6 +173,7 @@ type Conversation = {
 };
 type ConversationSummary = { id: string; title: string; revision: number };
 type PendingMessage = {
+  budget_reply_to?: string;
   artifact?: ArtifactComment;
   conversationId: string;
   expected_revision: number;
@@ -451,12 +453,25 @@ export default function ConversationWorkspace({
         current = await newConversation(
           message.trim().replace(/\s+/g, " ").slice(0, 80).trim(),
         );
+      const budgetQuestion =
+        current.current_plan?.current &&
+        current.current_plan.result?.outcome === "clarification" &&
+        current.current_plan.result.budget_clarification?.schema ===
+          "budget-clarification/v1"
+          ? current.current_plan.result.id
+          : undefined;
       const pending = pendingMessage ?? {
         conversationId: current.id,
         expected_revision: current.revision,
         content: message.trim(),
         allow_model_copy: allowModelCopy,
-        route: current.revision > 0 && !current.execution?.stopped,
+        route:
+          current.revision > 0 &&
+          !current.execution?.stopped &&
+          !budgetQuestion,
+        ...(budgetQuestion && !commentTarget
+          ? { budget_reply_to: budgetQuestion }
+          : {}),
         ...(commentTarget ? { artifact: commentTarget } : {}),
       };
       if (pending.conversationId !== current.id)
@@ -468,7 +483,7 @@ export default function ConversationWorkspace({
       let saved: Conversation;
       try {
         saved = await command<Conversation>(
-          `/api/conversations/${current.id}/${pending.artifact ? "artifact-comments" : pending.route ? "actions" : "messages"}`,
+          `/api/conversations/${current.id}/${pending.artifact ? "artifact-comments" : pending.budget_reply_to ? "budget-replies" : pending.route ? "actions" : "messages"}`,
           pending.artifact
             ? {
                 expected_revision: pending.expected_revision,
@@ -480,6 +495,9 @@ export default function ConversationWorkspace({
             : {
                 expected_revision: pending.expected_revision,
                 content: pending.content,
+                ...(pending.budget_reply_to
+                  ? { plan_id: pending.budget_reply_to }
+                  : {}),
                 ...(pending.route
                   ? { allow_model_copy: pending.allow_model_copy === true }
                   : {}),

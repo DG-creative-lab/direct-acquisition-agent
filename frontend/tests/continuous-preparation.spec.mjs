@@ -18,6 +18,7 @@ from test_preparations import CombinedModel
 from test_conversations import proposal
 scenario = sys.argv[2]
 result = proposal(outcome='clarification', question='What total GBP budget should I use?', budget_pence=None, segments=[]) if scenario == 'clarification' else proposal(copy_mode='model')
+if scenario == 'budget': result = proposal(budget_pence=40000)
 model = CombinedModel(result)
 original = model.complete
 class Gateway:
@@ -562,3 +563,131 @@ test("a definitively rejected stale audience choice releases the pending confirm
     ).toBeEnabled();
   });
 });
+
+async function budgetConversation(page) {
+  return page.evaluate(async () => {
+    const cid = localStorage.getItem("conversation-selected");
+    return (
+      await fetch(`/api/conversations/${cid}`, {
+        headers: {
+          "X-Workspace-Token": document.querySelector(
+            'meta[name="workspace-token"]',
+          ).content,
+        },
+      })
+    ).json();
+  });
+}
+
+for (const lost of ["none", "reply", "preparation"]) {
+  test(`budget clarification survives reload and a lost ${lost} response without duplicate work`, async ({
+    page,
+  }) => {
+    await fakeWorkspace("budget", async (url) => {
+      const attempts = [],
+        admissions = [];
+      let committed;
+      const saved = new Promise((resolve) => {
+        committed = resolve;
+      });
+      await page.route(
+        "**/api/conversations/*/budget-replies",
+        async (route) => {
+          attempts.push(route.request().postDataJSON());
+          if (lost === "reply" && attempts.length === 1) {
+            const response = await route.fetch();
+            expect(response.status()).toBe(200);
+            committed();
+            await route.abort("failed");
+          } else await route.continue();
+        },
+      );
+      await page.route("**/api/conversations/*/preparations", async (route) => {
+        const data = route.request().postDataJSON();
+        if (data.expected_revision === 2) {
+          admissions.push(data);
+          if (lost === "preparation" && admissions.length === 1) {
+            const response = await route.fetch();
+            expect(response.status()).toBe(202);
+            committed();
+            await route.abort("failed");
+            return;
+          }
+        }
+        await route.continue();
+      });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(url);
+      await page
+        .getByLabel("Message Direct Acquisition")
+        .fill(
+          lost === "reply"
+            ? "Prepare a UK postal contractor response experiment with £437. Reduce that budget by £37."
+            : "Prepare a UK postal response experiment for contractors with £437 or £683.",
+        );
+      await page
+        .getByRole("button", { name: "Send to agent", exact: true })
+        .click();
+      await expect(
+        page.getByText(/Please state one absolute amount using £ or GBP/),
+      ).toBeVisible();
+      const question = (await budgetConversation(page)).current_plan.result;
+      expect(question.outcome).toBe("clarification");
+      expect((await budgetConversation(page)).execution.used).toBe(0);
+      await page.reload();
+      await expect(
+        page.getByText(question.question, { exact: true }),
+      ).toBeVisible();
+      await page
+        .getByLabel("Message Direct Acquisition")
+        .fill("Use GBP 400 as the total budget.");
+      await page
+        .getByRole("button", { name: "Send to agent", exact: true })
+        .click();
+      if (lost !== "none") {
+        await saved;
+        if (lost === "reply")
+          await expect(
+            page.getByRole("button", {
+              name: "Retry saving message",
+              exact: true,
+            }),
+          ).toBeEnabled();
+        await page.reload();
+        if (lost === "reply")
+          await page
+            .getByRole("button", { name: "Retry saving message", exact: true })
+            .click();
+      }
+      await page
+        .getByRole("region", { name: "Choose campaign audience" })
+        .getByRole("button", { name: "Use v1", exact: true })
+        .click();
+      await expect(
+        page.getByRole("button", { name: /Review campaign/ }),
+      ).toBeVisible({ timeout: 10000 });
+      let state = await budgetConversation(page);
+      expect(state.messages).toHaveLength(2);
+      expect(state.campaigns).toHaveLength(1);
+      expect(state.preparations).toHaveLength(2);
+      expect(state.plans[0].result).toEqual(question);
+      expect(state.current_plan.result.budget_pence).toBe(40000);
+      expect(state.execution.used).toBe(1);
+      expect(state.actions).toHaveLength(0);
+      expect(attempts).toHaveLength(lost === "reply" ? 2 : 1);
+      if (lost === "reply") expect(attempts[1]).toEqual(attempts[0]);
+      expect(admissions.length).toBeGreaterThan(0);
+      for (const input of admissions) expect(input).toEqual(admissions[0]);
+      await page.reload();
+      await expect(
+        page.locator(".brief-summary").getByText("£400.00", { exact: true }),
+      ).toBeVisible();
+      state = await budgetConversation(page);
+      expect(state.execution.used).toBe(1);
+      expect(state.campaigns).toHaveLength(1);
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+      ).toBe(await page.evaluate(() => document.documentElement.clientWidth));
+    });
+  });
+}

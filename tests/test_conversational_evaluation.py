@@ -69,9 +69,18 @@ class ConversationalEvaluationTests(unittest.TestCase):
         ambiguous = evaluation.run_case(self.case('ambiguous-budget'))
         self.assertTrue(missing['passed'])
         self.assertEqual(missing['outcome_category'], 'expected_clarification')
-        self.assertFalse(ambiguous['passed'])
-        self.assertEqual(ambiguous['outcome_category'], 'planner_failure')
-        self.assertEqual(ambiguous['fake_provider_calls'], 2)
+        self.assertTrue(ambiguous['passed'])
+        self.assertEqual(ambiguous['outcome_category'], 'expected_clarification')
+        self.assertEqual(ambiguous['fake_provider_calls'], 0)
+        # Preserve the old failure oracle with an actually invalid planner,
+        # rather than treating every negative terminal status as success.
+        invalid = self.case('missing-budget')
+        invalid['id'] = 'injected-invalid-planner'
+        invalid['scripted_brief'] = {'budget_pence': 60000, 'segments': ['contractors'], 'copy_mode': 'fixture'}
+        failed = evaluation.run_case(invalid)
+        self.assertFalse(failed['passed'])
+        self.assertEqual(failed['outcome_category'], 'planner_failure')
+        self.assertEqual(failed['fake_provider_calls'], 2)
 
     def repository(self, root):
         for folder in ('src', 'tests', 'config', 'scripts'):

@@ -57,3 +57,7 @@ dist/
 !/docs/requested-campaign-scope.md
 !/docs/evaluations/issue-25-requested-scope.md
 !/docs/evaluations/issue-25-requested-scope-results.json
+
+!/docs/budget-clarification.md
+!/docs/evaluations/issue-25-budget-clarification.md
+!/docs/evaluations/issue-25-budget-clarification-results.json

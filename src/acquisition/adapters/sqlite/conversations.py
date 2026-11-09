@@ -1,7 +1,7 @@
 import json
 
 from acquisition.contracts import Conflict, NotFound, canonical, digest
-from acquisition.conversations import identity, revision_number, text, requested_scope
+from acquisition.conversations import identity, revision_number, text, requested_scope, BUDGET_POLICY, SUPPORTED_BUDGET_POLICIES, CAPABILITY, validate_result
 
 from .database import Database
 from .tasks import finite_time
@@ -65,6 +65,36 @@ class SqliteConversations:
         with self.database.transaction() as db:
             return append_message(db, organization, conversation_id, request_id, expected_revision, content, now)
 
+    def reply_budget(self, organization, conversation_id, request_id, expected_revision, plan_id, content, now):
+        for value in (organization, conversation_id, request_id, plan_id):
+            identity(value)
+        revision_number(expected_revision), text(content), finite_time(now)
+        inputs = {'kind': 'budget-reply/v1', 'conversation_id': conversation_id, 'revision': expected_revision,
+                  'plan_id': plan_id, 'content': content}
+        key = 'budget-reply:' + digest({'conversation_id': conversation_id, 'request_id': request_id})
+        with self.database.transaction() as db:
+            old = db.execute('SELECT inputs,receipt FROM conversation_action_commands WHERE organization=? AND request_id=?',
+                             (organization, key)).fetchone()
+            if old:
+                if json.loads(old['inputs']) != inputs:
+                    raise Conflict('Budget reply request already binds different inputs')
+                return json.loads(old['receipt']) | {'replayed': True}
+            conversation = scoped_conversation(db, organization, conversation_id)
+            if conversation['revision'] != expected_revision:
+                raise Conflict('The budget question is historical; reload the current conversation')
+            require_budget_question(db, organization, conversation_id, expected_revision, plan_id)
+            receipt = append_message(db, organization, conversation_id, key, expected_revision, content, now)
+            db.execute('INSERT INTO conversation_action_commands VALUES(?,?,?,?)',
+                       (organization, key, canonical(inputs), canonical(receipt)))
+            # Recheck the original question and exact saved reply after writes.
+            require_budget_question(db, organization, conversation_id, expected_revision, plan_id)
+            saved = db.execute('SELECT content,revision FROM conversation_messages WHERE organization=? AND conversation_id=? AND request_id=?',
+                               (organization, conversation_id, key)).fetchone()
+            if (saved is None or tuple(saved) != (content, expected_revision + 1)
+                    or scoped_conversation(db, organization, conversation_id)['revision'] != expected_revision + 1):
+                raise Conflict('Budget reply changed before commit')
+            return receipt
+
     def admit(self, organization, conversation_id, request_id, expected_revision, context, now, preflight):
         identity(organization), identity(conversation_id), identity(request_id), revision_number(expected_revision), finite_time(now)
         with self.database.transaction() as db:
@@ -97,6 +127,9 @@ class SqliteConversations:
             scope = requested_scope(organization, conversation_id, expected_revision, frozen['messages'])
             if 'requested_scope' in context and context['requested_scope'] != scope:
                 raise Conflict('Requested scope changed before planning admission')
+            if context.get('budget_policy', BUDGET_POLICY) not in SUPPORTED_BUDGET_POLICIES:
+                raise Conflict('Budget policy differs from the installed planning contract')
+            frozen['budget_policy'] = BUDGET_POLICY
             frozen['requested_scope'] = scope
             # Check the actual encoded provider envelope before recording the
             # one permitted admission for this revision or reserving a call.
@@ -121,3 +154,26 @@ def append_message(db, organization, conversation_id, request_id, expected_revis
     db.execute("INSERT INTO conversation_messages VALUES(?,?,?,?,?,?)", (organization, conversation_id, request_id, expected_revision + 1, content, now))
     db.execute("UPDATE conversations SET revision=revision+1 WHERE organization=? AND id=?", (organization, conversation_id))
     return {"id": request_id, "revision": expected_revision + 1, "replayed": False}
+
+
+def require_budget_question(db, organization, conversation_id, revision, plan_id):
+    try:
+        row = db.execute('SELECT payload FROM conversation_plans WHERE organization=? AND conversation_id=? AND revision=?',
+                         (organization, conversation_id, revision)).fetchone()
+        frozen = json.loads(row[0]) if row else {}
+        if (frozen.get('budget_policy') not in SUPPORTED_BUDGET_POLICIES or frozen.get('conversation_id') != conversation_id
+                or frozen.get('revision') != revision
+                or frozen.get('knowledge_id') != 'knowledge_' + digest(frozen.get('knowledge'))):
+            raise Conflict('This plan has no current budget clarification contract')
+        task = db.execute('SELECT t.inputs,t.output FROM tasks t JOIN runs r ON r.id=t.run_id WHERE r.organization=? '
+                          "AND r.request_id=? AND r.status='succeeded' AND t.status='succeeded' AND t.position=0 AND t.capability=?",
+                          (organization, frozen['run_request_id'], CAPABILITY)).fetchone()
+        result = json.loads(task['output']) if task else {}
+        fields = ('outcome', 'objective', 'budget_pence', 'segments', 'copy_mode', 'question', 'assumptions', 'unsupported_reason')
+        if (not task or json.loads(task['inputs']) != frozen or result.get('id') != plan_id
+                or result.get('outcome') != 'clarification' or not result.get('budget_clarification')
+                or validate_result({k: result[k] for k in fields}, frozen, organization) != result
+                or [m for m in messages(db, organization, conversation_id) if m['revision'] <= revision] != frozen['messages']):
+            raise Conflict('Budget reply does not match the completed native clarification')
+    except (KeyError, TypeError, ValueError) as error:
+        raise Conflict('Budget clarification evidence is invalid') from error

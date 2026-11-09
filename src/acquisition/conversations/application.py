@@ -9,6 +9,7 @@ from acquisition.runtime import TaskSpec, TaskStore
 from .domain import CAPABILITY, FIXTURE_CAPABILITY, FIXTURE_MESSAGE, KNOWLEDGE
 from .ports import ConversationStore
 from .scope import requested_scope
+from .budgets import BUDGET_POLICY
 
 
 class MessageRejectedConflict(Conflict):
@@ -51,6 +52,14 @@ class ConversationService:
             raise kind(str(error)) from error
         return self.view(organization, conversation_id) | {"message_receipt": receipt}
 
+    def reply_budget(self, organization, conversation_id, request_id, expected_revision, plan_id, content):
+        try:
+            receipt = self.store.reply_budget(organization, conversation_id, request_id, expected_revision, plan_id, content, self.clock())
+        except (Conflict, NotFound, ValueError) as error:
+            kind = MessageRejectedConflict if isinstance(error, Conflict) else MessageRejectedNotFound if isinstance(error, NotFound) else MessageRejectedInvalid
+            raise kind(str(error)) from error
+        return self.view(organization, conversation_id) | {'message_receipt': receipt}
+
     def planning_context(self, organization, conversation_id, request_id, expected_revision, fixture):
         """Freeze bounded planning inputs without admitting a task or inference."""
         source = self.view(organization, conversation_id)
@@ -65,6 +74,7 @@ class ConversationService:
         context = {"knowledge": knowledge, "knowledge_id": "knowledge_" + digest(knowledge),
                    "messages": source["messages"], "previous_results": [] if fixture else [p["result"] for p in source["plans"] if p["result"]],
                    "model_config": None if fixture else asdict(self.config) if self.config else None}
+        context['budget_policy'] = BUDGET_POLICY
         context['requested_scope'] = requested_scope(organization, conversation_id, expected_revision, source['messages'])
         if fixture:
             context["fixture"] = "offline-example/v1"

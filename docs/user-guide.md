@@ -160,3 +160,10 @@ resume it or create new authority records. Restore the original input values
 and model settings when inspecting it through the creation command. Historical
 planning requests can be inspected after later chat messages. New or changed
 requests still require verified admission, and execution remains paused.
+
+
+### Answering a budget question
+
+If you give alternative totals or a relative change, the agent asks you to state one absolute GBP total. For example, reply "Use GBP 400 as the total budget." The agent does not choose a budget for you. Your reply creates a new brief revision; earlier questions remain in the conversation history.
+
+Keep model-copy permission explicit for that request. Reloading after a lost response retains the saved reply or preparation, so retry the displayed pending command rather than sending a duplicate message. Review the resulting audience, copy and exact budget before any approval. Approval and simulated acceptance remain separate actions.

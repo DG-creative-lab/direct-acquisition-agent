@@ -53,7 +53,10 @@ class AtomicAdmissionTests(unittest.TestCase):
                      'execution_runs','conversation_execution','model_calls','review_decisions','simulated_agency_jobs')}
 
     def test_request_is_non_executable_and_admission_commits_exact_linked_records(self):
-        intent=self.request(fixture=False)
+        context=self.context(fixture=False)
+        context['budget_policy']='absolute-gbp/v1'
+        intent=self.request(fixture=False,context=context)
+        self.assertEqual(intent.tasks[0].inputs['budget_policy'],'absolute-gbp/v6')
         self.assertEqual(self.counts()['admission_requests'],1)
         self.assertEqual(self.counts()['runs'],0)
         self.assertIsNone(self.store.find_request(self.org,'prepare'))
@@ -229,11 +232,22 @@ class AtomicAdmissionTests(unittest.TestCase):
     def test_legacy_planning_cannot_duplicate_a_paused_request_and_legacy_first_is_preserved(self):
         self.request()
         with self.assertRaises(Conflict):self.app.conversations.plan_fixture(self.org,self.cid,'legacy',1)
-        self.open('legacy-first')
-        self.app.conversations.plan_fixture(self.org,self.cid,'legacy',1)
-        with self.assertRaises(Conflict):self.request()
-        self.assertEqual(self.counts()['admission_requests'],0)
-        self.assertEqual(self.app.worker.drain(self.org),1)
+        for policy in ('absolute-gbp/v1','absolute-gbp/v2','absolute-gbp/v3','absolute-gbp/v4','absolute-gbp/v5'):
+            self.open('legacy-first-'+policy.rsplit('/',1)[-1])
+            context=self.context('legacy')
+            context['budget_policy']=policy
+            run=self.app.conversations.plan_fixture(self.org,self.cid,'legacy',1,frozen_context=context)
+            frozen=self.app.conversations.store.snapshot(self.org,self.cid)['admissions'][0]
+            self.assertEqual(frozen['budget_policy'],'absolute-gbp/v6')
+            self.assertEqual(self.store.legacy_planning(self.org,self.cid,'legacy',1,fixture=True,
+                                                      config=None,frozen_context=context),run)
+            with self.assertRaises(Conflict):
+                self.store.legacy_planning(self.org,self.cid,'legacy',1,fixture=True,config=None,
+                                           frozen_context=context|{'knowledge_id':'changed'})
+            self.assertEqual(self.app.conversations.store.snapshot(self.org,self.cid)['admissions'][0],frozen)
+            with self.assertRaises(Conflict):self.request()
+            self.assertEqual(self.counts()['admission_requests'],0)
+            self.assertEqual(self.app.worker.drain(self.org),1)
 
     def test_legacy_request_key_collision_does_not_stage_or_consume_a_later_revision(self):
         for with_run in (False,True):
