@@ -14,6 +14,7 @@ from acquisition.contracts import Conflict, canonical, digest
 from acquisition.conversations import WORKSPACE_OWNER
 from acquisition.local_root import CHECKPOINT_FILE, workspace_root_lock, require_live_root
 from .admission_guard import verified_required
+from .database import Database
 from .legacy_inventory import legacy_session_metadata
 from .legacy_migration import file_identity
 from .workspace_ancestry import JOURNAL_BINDING_KEY, journal_identity
@@ -134,13 +135,18 @@ def validate_stores(connections):
                 raise Conflict('Unsupported workspace journal schema')
             metadata[key] = {'role': 'workspace-journal', 'identity': journal_id, 'schema': version}
             continue
-        if version not in {14, 15}:
-            raise Conflict('Checkpoint application stores require schema 14 or 15')
-        if version == 15:
+        if version not in {14, 15, 16}:
+            raise Conflict('Checkpoint application stores require schema 14 through 16')
+        if version >= 15:
             try:
                 db.execute('SELECT organization,id,revision,request_id,fingerprint,payload FROM writing_preference_versions LIMIT 0')
             except sqlite3.DatabaseError as error:
                 raise Conflict('Writing preference history is unavailable') from error
+        if version >= 16:
+            try:
+                Database._validate_simulated_delivery_schema(db)
+            except sqlite3.DatabaseError as error:
+                raise Conflict('Simulated delivery history is unavailable') from error
         ids = db.execute('SELECT singleton,id FROM application_store_identity').fetchall()
         if (len(ids) != 1 or ids[0][0] != 1 or not isinstance(ids[0][1], str)
                 or not re.fullmatch(r'store_[0-9a-f]{32}', ids[0][1])):

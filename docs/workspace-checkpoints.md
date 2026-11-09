@@ -20,8 +20,8 @@ catalogue files from the checkout, generated exports, logs, environment files
 and the server lock are outside the bundle. Historical evidence stays in the
 database in which it was recorded.
 
-The supported source has a schema-14 or schema-15 conversation store and journal, with
-schema-14 or schema-15 application stores. The conversation store and every registered
+The supported source has a schema-14 through schema-16 conversation store and journal, with
+schema-14 through schema-16 application stores. The conversation store and every registered
 campaign store must already select `verified-paused/v1`. Unregistered stores
 at canonical legacy paths can retain their unsealed policy. The command
 includes them as historical evidence and preserves their state verbatim.
@@ -131,7 +131,7 @@ unordered pair blocks the entire comparison.
 | Inference call | Scoped call journal and matching run and task. The recorded account must agree with the committed admission or the original legacy task plans and parent records. A finite nonnegative amount in the stored provider receipt is reported as provider-reported cost. Missing amounts stay null and unknown outcomes stay unknown |
 | Execution stop | Scoped stop command, original revision and durable stop fence |
 | Review revocation | Scoped revocation, its original decision and subject, and matching audit and command receipts |
-| Simulated acceptance | Scoped job bound to its exact approval and subject, with matching audit and command receipts. The observation retains the synthetic mode |
+| Simulated acceptance | Scoped job bound to its exact approval and subject, with matching audit and command receipts. Provider-backed jobs also require their original provider result and retain full or partial acceptance status. The observation retains the synthetic mode |
 
 The report describes records present in the later snapshot and absent from
 the earlier one. Retained review effects must still have matching audit and

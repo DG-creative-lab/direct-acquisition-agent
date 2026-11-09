@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from acquisition.adapters.review_report import write_review
-from acquisition.reviews import ReviewPolicy
+from acquisition.reviews import DELIVERY_SIMULATIONS, ReviewPolicy
 from acquisition.review_demo import run_review_demo
 
 
@@ -37,8 +37,13 @@ def add_review_commands(commands):
             command.add_argument("--reason", required=True)
         if name in {"review-revoke", "review-handoff"}:
             command.add_argument("--approval", required=True)
+        if name == "review-handoff":
+            command.add_argument("--simulate", choices=DELIVERY_SIMULATIONS, default="accept")
         if name == "review-replace":
             command.add_argument("--draft", required=True)
+    delivery = commands.add_parser("review-delivery", help="Inspect a simulated provider result for an exact approval")
+    delivery.add_argument("--case", required=True)
+    delivery.add_argument("--approval", required=True)
     suppression = commands.add_parser("review-suppress", help="Record an organization-wide synthetic suppression")
     for key in ("actor", "request-id", "business", "reason"):
         suppression.add_argument("--" + key, required=True)
@@ -71,7 +76,9 @@ def review_command(app, args):
     if args.command == "review-revoke":
         return store.revoke(scope, args.case, args.approval, args.actor, args.request_id, args.reason)
     if args.command == "review-handoff":
-        return store.handoff(scope, args.case, args.approval, args.actor, args.request_id)
+        return store.handoff(scope, args.case, args.approval, args.actor, args.request_id, simulation=args.simulate)
+    if args.command == "review-delivery":
+        return store.delivery(scope, args.case, args.approval)
     if args.command == "review-suppress":
         return store.suppress(scope, args.actor, args.request_id, args.business, args.reason)
     if args.command == "demo-review":

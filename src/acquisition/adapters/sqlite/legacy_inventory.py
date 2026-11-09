@@ -158,7 +158,7 @@ class SqliteLegacyInventory:
                     fingerprint, tables = self.fingerprint(db)
                     hashes[key] = fingerprint; info['schema_version'] = db.execute('PRAGMA user_version').fetchone()[0]
                     info['state'] = 'readable'; connections[key] = db
-                    if role != 'journal' and not 1 <= info['schema_version'] <= 15:
+                    if role != 'journal' and not 1 <= info['schema_version'] <= 16:
                         info['state'] = 'unsupported'; issues.append({'source': key, 'code': 'unsupported_source_schema'})
                         return None, key
                     if 'application_store_identity' in tables:

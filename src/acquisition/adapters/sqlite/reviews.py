@@ -3,18 +3,22 @@
 import json
 import csv
 import io
+from collections.abc import Callable
 from dataclasses import asdict, replace
 from datetime import datetime, timezone, timedelta
+from sqlite3 import Connection
 from uuid import uuid4
 
 from acquisition.campaigns import brief_from, build_draft, validate_copy_revision
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.conversations import validate_result
 from acquisition.creative import fact_pack_id, validate_fact_pack, validate_copy_assets
+from acquisition.reviews import DELIVERY_DESTINATION, DELIVERY_MODE, DELIVERY_SIMULATIONS, DeliveryProvider, delivery_plan, delivery_summary, validate_delivery_result
 from acquisition.reviews import ReviewPolicy, creatives_from, current_reasons, subject, text, timestamp, validate_candidate, validate_population, validate_copy, validation_report
 
 from .followups import require_followup
 from .selected_audience import require_selected_audience
+from .simulated_delivery import require_provider_result
 from .database import Database
 from .actors import require_actor
 from .audiences import read_snapshot, write_snapshot
@@ -27,8 +31,9 @@ from .conversation_provenance import require_requested_scope
 
 
 class SqliteReviews:
-    def __init__(self, database: Database, clock):
+    def __init__(self, database: Database, clock, delivery_provider: Callable[[Connection], DeliveryProvider]):
         self.database, self.clock = database, clock
+        self.delivery_provider = delivery_provider
 
     def _now(self):
         now = self.clock()
@@ -318,6 +323,17 @@ class SqliteReviews:
             candidate_reasons = [c["detail"] for c in report["checks"] if c["required"] and c["status"] != "passed"]
             reasons.extend(candidate_reasons)
             job = db.execute("SELECT payload FROM simulated_agency_jobs WHERE organization=? AND case_id=?", (organization, case_id)).fetchone()
+            handoff = json.loads(job[0]) if job else None
+            provider = self.delivery_provider(db)
+            if handoff:
+                require_provider_result(provider, organization, handoff)
+            delivery = handoff.get("delivery") if handoff else None
+            if delivery is None and approval:
+                result = provider.reconcile(organization, case_id, approval["id"])
+                delivery = delivery_summary(result) if result else None
+            if delivery and delivery["status"] != "accepted":
+                reasons.append("The simulated provider already recorded this delivery outcome")
+                handoff = None
             revisions = [json.loads(r[0]) for r in db.execute("SELECT payload FROM review_subjects WHERE organization=? AND case_id=? ORDER BY revision", (organization, case_id))]
             changes = None
             if len(revisions) > 1:
@@ -334,7 +350,7 @@ class SqliteReviews:
             return {"case_id": case_id, "run_id": case["run_id"], "subject": proposal, "authority": authority,
                 "manifest": draft.manifest, "approval": approval, "approval_valid": not reasons,
                 "candidate_valid": report["review_ready"], "validation_report": report, "changes": changes,
-                "blocked_reasons": list(dict.fromkeys(reasons)), "handoff": json.loads(job[0]) if job else None,
+                "blocked_reasons": list(dict.fromkeys(reasons)), "handoff": handoff, "delivery": delivery,
                 "suppressions": sorted(self._suppressed(db, organization)), "revisions": revisions,
                 "events": events, "as_of": now, "mode": "local_synthetic_review_not_lender_approval"}
 
@@ -519,43 +535,136 @@ class SqliteReviews:
             self._event(db, organization, case_id, "proposal_revised", receipt | {"previous_subject": expected_subject}, now)
             return self._record(db, organization, request_id, fingerprint, receipt)
 
-    def handoff(self, organization, case_id, approval_id, actor, request_id):
+    def delivery(self, organization, case_id, approval_id):
+        with self.database.connect() as db:
+            self._case(db, organization, case_id)
+            return self.delivery_provider(db).inspect(organization, case_id, approval_id)
+
+    def _authorize_delivery(self, db, organization, case_id, approval_id, actor, now):
+        operator = self._actor(db, organization, actor, "operator")
+        case = self._case(db, organization, case_id)
+        self._run_ready(db, organization, case)
+        proposal = self._subject(db, organization, case["current_subject"])
+        authority = self._authority(db, organization)
+        row = db.execute("SELECT payload FROM review_decisions WHERE organization=? AND case_id=? AND id=?",
+                         (organization, case_id, approval_id)).fetchone()
+        if row is None:
+            raise NotFound("Approval not found in this case")
+        approval = json.loads(row[0])
+        if (approval['id'], approval['case_id'], approval['purpose'], proposal['case_id']) != (
+                approval_id, case_id, 'simulated_agency_handoff', case_id):
+            raise Conflict("Approval does not authorize this simulated delivery")
+        reasons = self._approval_reasons(db, organization, case, proposal, authority, approval, now)
+        if reasons:
+            raise Conflict("Simulated handoff blocked: " + "; ".join(reasons))
+        draft = self._validate(db, organization, case, proposal["draft_id"], authority, now)
+        return operator["generation"], delivery_plan(organization, proposal, approval_id, draft)
+
+    def _delivery_command(self, db, organization, request_id, fingerprint, pending, receipt):
+        if pending is None:
+            return self._record(db, organization, request_id, fingerprint, receipt)
+        updated = db.execute("""UPDATE review_commands SET receipt=?
+            WHERE organization=? AND request_id=? AND request_hash=? AND receipt=?""",
+            (canonical(receipt), organization, request_id, fingerprint, canonical(pending)))
+        if updated.rowcount != 1:
+            raise Conflict("Dispatch lost its original saved command")
+        return receipt
+
+    @staticmethod
+    def _rejected_delivery(case_id, approval_id, result):
+        return {"kind": "simulated_delivery_rejected", "mode": DELIVERY_MODE, "case_id": case_id,
+                "approval_id": approval_id, "delivery": delivery_summary(result)}
+
+    def _observe_delivery(self, db, organization, case_id, approval_id, simulation, cached):
+        result = self.delivery_provider(db).reconcile(organization, case_id, approval_id, simulation)
+        row = db.execute("SELECT payload FROM simulated_agency_jobs WHERE organization=? AND case_id=?",
+                         (organization, case_id)).fetchone()
+        if result and result['status'] == 'rejected':
+            receipt = self._rejected_delivery(case_id, approval_id, result)
+        elif row:
+            receipt = json.loads(row[0])
+            if receipt["approval_id"] != approval_id:
+                raise Conflict("This case already has a different accepted job")
+            if 'delivery' in receipt:
+                if result is None or receipt['delivery'] != delivery_summary(result):
+                    raise Conflict("Acceptance differs from the original provider result")
+            elif simulation != 'accept' or result is not None:
+                raise Conflict("This case already has a historical simulated acceptance")
+        else:
+            if result:
+                raise Conflict("Provider acceptance lacks its committed review receipt")
+            receipt = None
+        if cached and cached["kind"] != "simulated_delivery_pending" and cached != receipt:
+            raise Conflict("Saved handoff differs from the original provider result")
+        return receipt
+
+    def handoff(self, organization, case_id, approval_id, actor, request_id, *, simulation="accept"):
+        if simulation not in DELIVERY_SIMULATIONS:
+            raise ValueError("Choose a supported local delivery simulation")
+        inputs = {"case_id": case_id, "approval_id": approval_id}
+        if simulation != "accept":
+            inputs["simulation"] = simulation
+        # Persist the approved provider draft and command identity before dispatch.
         with self.database.transaction() as db:
+            self._actor(db, organization, actor, "operator")
+            fingerprint, cached = self._cached(db, organization, actor, request_id, "handoff", inputs)
+            receipt = self._observe_delivery(db, organization, case_id, approval_id, simulation, cached)
+            if receipt:
+                return cached if cached == receipt else self._delivery_command(db, organization, request_id, fingerprint, cached, receipt)
+            _, plan = self._authorize_delivery(db, organization, case_id, approval_id, actor, self._now())
+            identity = self.delivery_provider(db).prepare(plan, simulation)
+            pending = {"kind": "simulated_delivery_pending", "dispatch_id": identity}
+            if cached is None:
+                self._record(db, organization, request_id, fingerprint, pending)
+            elif cached != pending:
+                raise Conflict("Request refers to a different provider draft")
+
+        receipt, dispatched = self._dispatch_delivery(organization, case_id, approval_id, actor, request_id, inputs, simulation, pending)
+        if dispatched and simulation == "timeout-after-acceptance":
+            raise Conflict("Simulated delivery acknowledgement timed out. Retry the same handoff request to reconcile.")
+        return receipt
+
+    def _dispatch_delivery(self, organization, case_id, approval_id, actor, request_id, inputs, simulation, pending):
+        with self.database.transaction() as db:
+            self._actor(db, organization, actor, "operator")
+            fingerprint, cached = self._cached(db, organization, actor, request_id, "handoff", inputs)
+            receipt = self._observe_delivery(db, organization, case_id, approval_id, simulation, cached)
+            if receipt:
+                saved = cached if cached == receipt else self._delivery_command(db, organization, request_id, fingerprint, cached, receipt)
+                return saved, False
+            if cached != pending:
+                raise Conflict("Dispatch requires its original saved command")
             now = self._now()
-            operator = self._actor(db, organization, actor, "operator")
-            fingerprint, cached = self._cached(db, organization, actor, request_id, "handoff", {"case_id": case_id, "approval_id": approval_id})
-            if cached:
-                return cached
-            case = self._case(db, organization, case_id)
-            existing = db.execute("SELECT payload FROM simulated_agency_jobs WHERE organization=? AND case_id=?", (organization, case_id)).fetchone()
-            if existing:
-                receipt = json.loads(existing[0])
-                if receipt["approval_id"] != approval_id:
-                    raise Conflict("This case already has a different accepted job")
-                return self._record(db, organization, request_id, fingerprint, receipt)
-            self._run_ready(db, organization, case)
-            proposal = self._subject(db, organization, case["current_subject"])
-            authority = self._authority(db, organization)
-            row = db.execute("SELECT payload FROM review_decisions WHERE organization=? AND case_id=? AND id=?", (organization, case_id, approval_id)).fetchone()
-            if row is None:
-                raise NotFound("Approval not found in this case")
-            approval = json.loads(row[0])
-            reasons = self._approval_reasons(db, organization, case, proposal, authority, approval, now)
-            if reasons:
-                raise Conflict("Simulated handoff blocked: " + "; ".join(reasons))
-            draft = self._validate(db, organization, case, proposal["draft_id"], authority, now)
-            receipt = {"kind": "simulated_agency_acceptance", "mode": "SYNTHETIC_NO_PRINT_NO_SEND", "id": "fake_job_" + digest({"case": case_id, "approval": approval_id}),
-                "actor": actor, "actor_generation": operator["generation"], "case_id": case_id,
-                "approval_id": approval_id, "subject_id": proposal["id"], "draft_id": draft.id,
-                "mailing_sha256": draft.manifest["mailing_sha256"], "assignments_sha256": draft.manifest["assignments_sha256"],
-                "recipients": draft.manifest["counts"]["mailed"], "accepted_at": now, "destination": "local_simulated_agency"}
-            db.execute("INSERT INTO simulated_agency_jobs VALUES(?,?,?,?,?,?)", (organization, case_id, receipt["id"], approval_id, proposal["id"], canonical(receipt)))
-            self._event(db, organization, case_id, "simulated_handoff_accepted", receipt, now)
-            saved = self._record(db, organization, request_id, fingerprint, receipt)
-            if any(key in draft.manifest['brief'] for key in ('requested_scope', 'conversation_id', 'followup_id')):
-                require_requested_scope(db, draft.manifest['brief'], draft.manifest.get('campaign_scope'))
-                require_followup(db, organization, draft.manifest, draft.id)
-            return saved
+            generation, plan = self._authorize_delivery(db, organization, case_id, approval_id, actor, now)
+            provider = self.delivery_provider(db)
+            result = provider.dispatch(plan, simulation, now)
+            validate_delivery_result(plan, result)
+            if result["id"] != pending["dispatch_id"]:
+                raise Conflict("Provider result belongs to a different dispatch")
+            if result["status"] == "rejected":
+                receipt = self._rejected_delivery(case_id, approval_id, result)
+                event = "simulated_handoff_rejected"
+            else:
+                receipt = {
+                    "kind": "simulated_agency_acceptance", "mode": DELIVERY_MODE,
+                    "id": "fake_job_" + digest({"case": case_id, "approval": approval_id}),
+                    "actor": actor, "actor_generation": generation, "case_id": case_id,
+                    "approval_id": approval_id, "subject_id": plan["subject_id"], "draft_id": plan["draft_id"],
+                    "mailing_sha256": plan["mailing_sha256"], "assignments_sha256": plan["assignments_sha256"],
+                    "recipients": len(plan["recipient_ids"]), "accepted_at": now,
+                    "destination": DELIVERY_DESTINATION, "delivery": delivery_summary(result),
+                }
+                db.execute("INSERT INTO simulated_agency_jobs VALUES(?,?,?,?,?,?)",
+                           (organization, case_id, receipt["id"], approval_id, plan["subject_id"], canonical(receipt)))
+                event = "simulated_handoff_accepted"
+            self._event(db, organization, case_id, event, receipt, now)
+            self._delivery_command(db, organization, request_id, fingerprint, pending, receipt)
+            if self._authorize_delivery(db, organization, case_id, approval_id, actor, self._now()) != (generation, plan):
+                raise Conflict("Delivery authority changed before commit")
+            _, settled = self._cached(db, organization, actor, request_id, "handoff", inputs)
+            if settled != receipt or self._observe_delivery(db, organization, case_id, approval_id, simulation, settled) != receipt:
+                raise Conflict("Delivery evidence changed before commit")
+            return receipt, True
 
     def revision_requests(self, organization, case_id):
         with self.database.connect() as db:

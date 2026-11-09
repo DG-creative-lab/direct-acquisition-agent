@@ -25,6 +25,8 @@ def identifier(value):
 
 
 def cohort_proposal(organization, receipt, draft):
+    if receipt.get("delivery", {}).get("status", "accepted") != "accepted":
+        raise Conflict("Learning requires full simulated acceptance and complete outcome evidence")
     if (receipt.get("mode") != "SYNTHETIC_NO_PRINT_NO_SEND" or receipt.get("draft_id") != draft.id
             or draft.manifest["organization"] != organization
             or receipt["mailing_sha256"] != draft.manifest["mailing_sha256"]
