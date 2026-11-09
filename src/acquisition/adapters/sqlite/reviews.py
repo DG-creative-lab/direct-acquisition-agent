@@ -471,10 +471,15 @@ class SqliteReviews:
     def comments(self, organization, case_id):
         with self.database.connect() as db:
             self._case(db, organization, case_id)
-            return [json.loads(row[0]) for row in db.execute(
-                """SELECT receipt FROM review_commands WHERE organization=?
+            rows = db.execute(
+                """SELECT receipt, EXISTS(SELECT 1 FROM simulated_agency_jobs j
+                       WHERE j.organization=c.organization AND j.case_id=?
+                       AND json_extract(j.payload,'$.delivery.status')='partially_accepted') AS revision_blocked
+                   FROM review_commands c WHERE organization=?
                    AND json_extract(receipt,'$.kind')='artifact_comment'
-                   AND json_extract(receipt,'$.case_id')=? ORDER BY rowid""", (organization, case_id))]
+                   AND json_extract(receipt,'$.case_id')=? ORDER BY c.rowid""", (case_id, organization, case_id))
+            return [json.loads(row['receipt']) | ({'copy_revision_blocked': True} if row['revision_blocked'] else {})
+                    for row in rows]
 
     def propose(self, organization, case_id, expected_subject, draft_id, actor, request_id, audience_epoch, evidence_epoch, *, claim=None):
         return self._propose(organization, case_id, expected_subject, actor, request_id, "replace",

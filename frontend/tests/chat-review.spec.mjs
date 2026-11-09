@@ -15,11 +15,14 @@ from acquisition.workspace import Workspace
 from acquisition.workspace_server import WorkspaceServer
 from acquisition.reasoning import ModelError
 from test_copy_revisions import RevisionModel
+from test_model_copy import reply
 from acquisition.conversations import FIXTURE_MESSAGE
 model=RevisionModel()
 original=model.complete
 class Gateway:
     def complete(self, request):
+        if sys.argv[2] == 'partial-delivery' and request['tools'][0]['function']['name'] == 'propose_conversation_action':
+            return reply('propose_conversation_action',{'action':'revise_copy'})
         if len(model.copy.requests) >= 3 and request['tools'][0]['function']['name'] != 'submit_campaign_brief':
             time.sleep(0.3)
             if sys.argv[2] == 'timeout': raise ModelError('provider_request_failed')
@@ -38,6 +41,18 @@ offline=sys.argv[2].startswith('handoff')
 w.message_conversation(c,'m',0,FIXTURE_MESSAGE if offline else 'Prepare a £600 contractor campaign with model copy.')
 w.start_preparation(c,'p',1,offline,not offline)
 [w.advance_preparations() for _ in range(6)]
+if sys.argv[2] == 'partial-delivery':
+    sid=w.conversation(c)['campaigns'][0]['session_id']
+    review=w.view(sid)['review']
+    subject=review['subject']['id']
+    target=review['manifest']['creatives'][0]['id']
+    w.comment_artifact(c,sid,subject,target,1,'Preserve this variant for inspection.','comment')
+    w.route_followup(c,'route-revision',1,'Make contractors variant A more direct.',False)
+    w.advance_actions()
+    assert w.conversation(c)['actions'][0]['result']['copy_revision']['status']=='ready'
+    approval=w.action(sid,'approve',{'request_id':'approve','subject_id':subject,'reason':'Reviewed the exact synthetic campaign.'})['review']['approval']['id']
+    session=w._session(sid)
+    w._app(session).reviews.store.handoff(session['organization'],session['case_id'],approval,'local-operator','partial',simulation='partial')
 if sys.argv[2] in {'missing-key','recover-key'}:
     original_revision=w.request_copy_revision
     def restored_key(path):
@@ -331,6 +346,110 @@ async function approve(
     .getByRole("button", { name: "Record approval", exact: true })
     .click();
 }
+
+test("review views and history show partial delivery and close unavailable actions", async ({
+  page,
+}) => {
+  await workspace("partial-delivery", async (url) => {
+    const chat = await openReview(page, url);
+    const sid = await selected(page);
+    const { review } = (await backend(page, `/api/sessions/${sid}`)).body;
+    expect(review.delivery.status).toBe("partially_accepted");
+    expect(review.candidate_valid).toBe(true);
+    expect(review.handoff).toBeNull();
+    const { delivery } = review;
+    const { conversations } = (await backend(page, "/api/conversations")).body;
+    const progress = await backend(
+      page,
+      `/api/conversations/${conversations[0].id}/actions`,
+      {
+        request_id: "inspect-partial",
+        expected_revision: 1,
+        content: "status?",
+        allow_model_copy: false,
+      },
+    );
+    expect(progress.status).toBe(202);
+    expect(progress.body.actions.at(-1).result.evidence).toMatchObject({
+      status: "simulated_partially_accepted",
+      delivery,
+    });
+    const assertPartial = async (surface) => {
+      const outcome = surface.getByRole("region", {
+        name: "Partial simulated delivery",
+      });
+      await expect(outcome).toBeVisible();
+      await expect(outcome.locator("dt")).toHaveText([
+        "Intended recipients",
+        "Accepted recipients",
+        "Rejected recipients",
+        "No-mail controls",
+      ]);
+      await expect(outcome.locator("dd")).toHaveText(
+        [
+          delivery.intended_recipients,
+          delivery.accepted_recipients,
+          delivery.rejected_recipients,
+          delivery.control_count,
+        ].map((count) => count.toLocaleString()),
+      );
+      await expect(
+        surface.getByRole("button", { name: "Approve this revision" }),
+      ).toHaveCount(0);
+      await expect(
+        surface.getByRole("button", { name: "Request changes" }),
+      ).toHaveCount(0);
+      await expect(
+        surface.getByRole("button", { name: "Revise copy" }),
+      ).toHaveCount(0);
+      await expect(
+        surface.getByRole("button", { name: "Simulate agency handoff" }),
+      ).toHaveCount(0);
+    };
+    await assertPartial(chat);
+    await expect(
+      page.getByRole("button", { name: "Request a copy revision" }),
+    ).toBeDisabled();
+    await expect(
+      page.getByRole("button", { name: "Generate copy revision", exact: true }),
+    ).toBeDisabled();
+    await expect(
+      page.getByText(
+        "Partial simulated delivery closes this campaign to copy revisions.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await chat.getByRole("button", { name: "Open campaign workspace" }).click();
+    await assertPartial(page);
+    await expect(
+      page.getByText("Partially accepted", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Awaiting review", { exact: true }),
+    ).toHaveCount(0);
+    const committed = review.events.find(
+      (event) => event.kind === "simulated_handoff_accepted",
+    ).payload.delivery;
+    expect(committed).toEqual(delivery);
+    await page
+      .getByRole("button", { name: "Activity log", exact: true })
+      .click();
+    const event = page.locator(".event").filter({
+      has: page.getByRole("heading", {
+        name: "Simulated handoff partially accepted",
+        exact: true,
+      }),
+    });
+    await expect(event).toBeVisible();
+    await expect(event.locator("details")).toHaveJSProperty("open", false);
+    await expect(
+      event.getByText(
+        `${committed.intended_recipients.toLocaleString()} intended · ${committed.accepted_recipients.toLocaleString()} accepted · ${committed.rejected_recipients.toLocaleString()} rejected · ${committed.control_count.toLocaleString()} no-mail controls`,
+        { exact: true },
+      ),
+    ).toBeVisible();
+  });
+});
 
 test("chat reviews, revises and approves the exact new subject on desktop and mobile", async ({
   page,

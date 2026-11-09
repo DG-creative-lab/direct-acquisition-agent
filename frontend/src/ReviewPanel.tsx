@@ -12,7 +12,7 @@ import {
   Send,
 } from "lucide-react";
 import type { Act, State } from "./api";
-import { date, money } from "./api";
+import { date, money, partialDelivery } from "./api";
 import { Badge, Modal } from "./ui";
 import ValidationPanel from "./ValidationPanel";
 
@@ -34,6 +34,7 @@ export default function ReviewPanel({
   readOnly?: boolean;
 }) {
   const review = state.review!;
+  const partial = partialDelivery(review);
   const [decision, setDecision] = useState<null | {
       kind: "approve" | "reject" | "revoke";
       subject: string;
@@ -51,7 +52,7 @@ export default function ReviewPanel({
     });
   };
   const submit = async () => {
-    if (!decision || !reason.trim() || readOnly) return;
+    if (!decision || !reason.trim() || readOnly || partial) return;
     const payload =
       decision.kind === "revoke"
         ? { approval_id: decision.approval, reason: reason.trim() }
@@ -80,7 +81,7 @@ export default function ReviewPanel({
     },
     {
       label: "Exact revision reviewed",
-      good: review.approval_valid || !!review.handoff,
+      good: review.approval_valid || !!review.handoff || !!partial,
     },
   ];
   return (
@@ -93,12 +94,16 @@ export default function ReviewPanel({
           <h3>Review & approval</h3>
           <p>Revision {review.subject.revision}</p>
         </div>
-        <Badge tone={review.approval_valid ? "green" : "neutral"}>
-          {review.handoff
-            ? "Accepted"
-            : review.approval_valid
-              ? "Approved"
-              : "Pending"}
+        <Badge
+          tone={partial ? "amber" : review.approval_valid ? "green" : "neutral"}
+        >
+          {partial
+            ? "Partial acceptance"
+            : review.handoff
+              ? "Accepted"
+              : review.approval_valid
+                ? "Approved"
+                : "Pending"}
         </Badge>
       </div>
       <div className="review-intro">
@@ -137,6 +142,7 @@ export default function ReviewPanel({
               </p>
             )}
             {!review.handoff &&
+              !partial &&
               !review.blocked_reasons.some((r) =>
                 r.includes(
                   "Conversation changed after this campaign was prepared",
@@ -196,14 +202,35 @@ export default function ReviewPanel({
           {review.approval.decision === "approve" && (
             <small>Expires {date(review.approval.expires_at)}</small>
           )}
-          {!review.approval_valid && !review.handoff && (
+          {!review.approval_valid && !review.handoff && !partial && (
             <p className="invalid-approval">
               This decision does not authorize a new handoff.
             </p>
           )}
         </div>
       )}
-      {review.handoff ? (
+      {partial ? (
+        <section
+          className="review-warning"
+          aria-label="Partial simulated delivery"
+        >
+          <AlertTriangle size={16} />
+          <div>
+            <strong>Partial simulated delivery</strong>
+            <dl className="review-facts">
+              <dt>Intended recipients</dt>
+              <dd>{partial.intended_recipients.toLocaleString()}</dd>
+              <dt>Accepted recipients</dt>
+              <dd>{partial.accepted_recipients.toLocaleString()}</dd>
+              <dt>Rejected recipients</dt>
+              <dd>{partial.rejected_recipients.toLocaleString()}</dd>
+              <dt>No-mail controls</dt>
+              <dd>{partial.control_count.toLocaleString()}</dd>
+            </dl>
+            <p>Outcome learning requires full acceptance.</p>
+          </div>
+        </section>
+      ) : review.handoff ? (
         <div className="accepted-note">
           <Check size={17} />
           <strong>Accepted by local simulator</strong>
@@ -279,7 +306,7 @@ export default function ReviewPanel({
         <small>Audience snapshot</small>
         <code>{review.subject.snapshot_id}</code>
       </details>
-      {decision && (
+      {decision && !partial && (
         <Modal
           label="decision-title"
           busy={busy}

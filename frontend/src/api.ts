@@ -44,7 +44,14 @@ export type Event = {
   sequence: number;
   kind: string;
   at: number;
-  payload: Record<string, unknown>;
+  payload: Record<string, unknown> & { delivery?: DeliverySummary | null };
+};
+export type DeliverySummary = {
+  status: "accepted" | "partially_accepted" | "rejected";
+  intended_recipients: number;
+  accepted_recipients: number;
+  rejected_recipients: number;
+  control_count: number;
 };
 export type Review = {
   case_id: string;
@@ -53,6 +60,7 @@ export type Review = {
   validation_report: ValidationReport;
   approval_valid: boolean;
   blocked_reasons: string[];
+  delivery?: DeliverySummary | null;
   approval: null | {
     id: string;
     decision: string;
@@ -98,6 +106,14 @@ export type Review = {
   events: Event[];
   revisions: Subject[];
 };
+
+export function partialDelivery(
+  source: Pick<Review, "delivery"> | null | undefined,
+) {
+  const delivery = source?.delivery;
+  return delivery?.status === "partially_accepted" ? delivery : null;
+}
+
 export type Recommendation = {
   segment: string;
   action: string;

@@ -22,7 +22,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { command, date, download, money, read } from "./api";
+import { command, date, download, money, partialDelivery, read } from "./api";
 import type { Act, Session, State } from "./api";
 import { Badge, Empty, Modal } from "./ui";
 import { AudienceView, CopyView } from "./CampaignViews";
@@ -177,15 +177,18 @@ export default function App() {
     }
   };
   const view = state?.review;
-  const status = view?.handoff
-    ? "Accepted by simulator"
-    : view?.approval_valid
-      ? "Approved"
-      : view?.approval?.decision === "reject"
-        ? "Changes requested"
-        : view && !view.candidate_valid
-          ? "Needs refresh"
-          : "Awaiting review";
+  const partial = partialDelivery(view);
+  const status = partial
+    ? "Partially accepted"
+    : view?.handoff
+      ? "Accepted by simulator"
+      : view?.approval_valid
+        ? "Approved"
+        : view?.approval?.decision === "reject"
+          ? "Changes requested"
+          : view && !view.candidate_valid
+            ? "Needs refresh"
+            : "Awaiting review";
   const nav: { id: Page; label: string; icon: LucideIcon }[] = [
     { id: "campaign", label: "Campaign", icon: Layers3 },
     { id: "knowledge", label: "Knowledge", icon: BookOpen },
@@ -482,11 +485,13 @@ export default function App() {
                         <span>Revision {view.subject.revision}</span>
                         <Badge
                           tone={
-                            view.handoff || view.approval_valid
-                              ? "green"
-                              : !view.candidate_valid
-                                ? "amber"
-                                : "neutral"
+                            partial
+                              ? "amber"
+                              : view.handoff || view.approval_valid
+                                ? "green"
+                                : !view.candidate_valid
+                                  ? "amber"
+                                  : "neutral"
                           }
                         >
                           {status}
@@ -511,9 +516,15 @@ export default function App() {
                       { label: "Copy prepared", done: true },
                       {
                         label: "Human review",
-                        done: view.approval_valid || !!view.handoff,
+                        done:
+                          view.approval_valid || !!view.handoff || !!partial,
                       },
-                      { label: "Simulated handoff", done: !!view.handoff },
+                      {
+                        label: partial
+                          ? "Partial acceptance"
+                          : "Simulated handoff",
+                        done: !!view.handoff || !!partial,
+                      },
                       {
                         label: "Outcome learning",
                         done: state.learning?.status === "finalized",
@@ -750,26 +761,53 @@ export default function App() {
                       </div>
                       {[...view.events, ...(state.learning?.events ?? [])]
                         .sort((a, b) => a.at - b.at)
-                        .map((ev, i) => (
-                          <div className="event" key={`${ev.kind}-${i}`}>
-                            <span className="event-line">
-                              <Check size={12} />
-                            </span>
-                            <div>
-                              <h4>{ev.kind.replaceAll("_", " ")}</h4>
-                              <p>
-                                {date(ev.at)}
-                                {ev.payload.actor
-                                  ? ` · ${String(ev.payload.actor)}`
-                                  : ""}
-                              </p>
-                              <details>
-                                <summary>View committed receipt</summary>
-                                <pre>{JSON.stringify(ev.payload, null, 2)}</pre>
-                              </details>
+                        .map((ev, i) => {
+                          const partialHandoff =
+                            ev.kind === "simulated_handoff_accepted" &&
+                            partialDelivery(ev.payload);
+                          return (
+                            <div className="event" key={`${ev.kind}-${i}`}>
+                              <span className="event-line">
+                                {partialHandoff ? (
+                                  <AlertTriangle size={12} />
+                                ) : (
+                                  <Check size={12} />
+                                )}
+                              </span>
+                              <div>
+                                <h4>
+                                  {partialHandoff
+                                    ? "Simulated handoff partially accepted"
+                                    : ev.kind.replaceAll("_", " ")}
+                                </h4>
+                                <p>
+                                  {date(ev.at)}
+                                  {ev.payload.actor
+                                    ? ` · ${String(ev.payload.actor)}`
+                                    : ""}
+                                </p>
+                                {partialHandoff && (
+                                  <p>
+                                    {partialHandoff.intended_recipients.toLocaleString()}{" "}
+                                    intended ·{" "}
+                                    {partialHandoff.accepted_recipients.toLocaleString()}{" "}
+                                    accepted ·{" "}
+                                    {partialHandoff.rejected_recipients.toLocaleString()}{" "}
+                                    rejected ·{" "}
+                                    {partialHandoff.control_count.toLocaleString()}{" "}
+                                    no-mail controls
+                                  </p>
+                                )}
+                                <details>
+                                  <summary>View committed receipt</summary>
+                                  <pre>
+                                    {JSON.stringify(ev.payload, null, 2)}
+                                  </pre>
+                                </details>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                     </section>
                   )}
                 </>

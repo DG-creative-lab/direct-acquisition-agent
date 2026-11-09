@@ -20,6 +20,7 @@ def delivery_plan(organization, proposal, approval_id, draft):
         "organization": organization, "case_id": proposal["case_id"],
         "subject_id": proposal["id"], "approval_id": approval_id, "draft_id": draft.id,
         "mode": DELIVERY_MODE, "channel": "direct_mail", "destination": DELIVERY_DESTINATION,
+        "mailing_csv": draft.mailing_csv,
         "mailing_sha256": draft.manifest["mailing_sha256"],
         "assignments_sha256": draft.manifest["assignments_sha256"],
         "creatives": draft.manifest["creatives"],

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowUpRight, Loader2, X } from "lucide-react";
-import { command, money, read } from "./api";
+import { command, money, partialDelivery, read } from "./api";
 import type { Act, Creative, State } from "./api";
 import { AudienceView, CopyLetters } from "./CampaignViews";
 import ReviewPanel from "./ReviewPanel";
@@ -76,6 +76,7 @@ export default function ConversationCampaignReview({
   const epoch = useRef(0);
   const handledFeedback = useRef<ArtifactComment | null>(null);
   const [choice, setChoice] = useState(() => savedChoice(sessionId));
+  const partiallyAccepted = !!partialDelivery(state?.review);
   const selectArtifact = (value: ArtifactChoice) => {
     localStorage.setItem("artifact-choice:" + sessionId, JSON.stringify(value));
     setChoice(value);
@@ -89,6 +90,10 @@ export default function ConversationCampaignReview({
     )
       return;
     handledFeedback.current = feedbackRequest;
+    if (partiallyAccepted) {
+      setError("This campaign already has a partial simulated delivery.");
+      return;
+    }
     if (feedbackRequest.subject_id !== state.review.subject.id) {
       setError(
         "This comment belongs to an earlier revision. Open the current copy to request another edit.",
@@ -102,7 +107,12 @@ export default function ConversationCampaignReview({
       text: feedbackRequest.feedback ?? "",
       consent: false,
     });
-  }, [feedbackRequest, sessionId, state?.review?.subject.id]);
+  }, [
+    feedbackRequest,
+    sessionId,
+    state?.review?.subject.id,
+    partiallyAccepted,
+  ]);
   const pending =
     state?.copy_revisions?.some((r) =>
       ["admitted", "queued", "running", "blocked"].includes(r.status),
@@ -190,7 +200,7 @@ export default function ConversationCampaignReview({
     }
   };
   const revise = async () => {
-    if (!feedback || busy || !interactive) return;
+    if (!feedback || busy || !interactive || partiallyAccepted) return;
     epoch.current += 1;
     setBusy(true);
     setError("");
@@ -239,6 +249,7 @@ export default function ConversationCampaignReview({
     state.session.mode === "model" &&
     review.candidate_valid &&
     !review.handoff &&
+    !partiallyAccepted &&
     !alreadyRequested &&
     (state.copy_revisions?.length ?? 0) < 3;
   return (
@@ -459,7 +470,8 @@ export default function ConversationCampaignReview({
             {revision.status === "complete"
               ? revision.published_subject_id === review.subject.id &&
                 interactive &&
-                review.candidate_valid
+                review.candidate_valid &&
+                !partiallyAccepted
                 ? "Revised copy is ready for review"
                 : "Earlier copy revision"
               : revision.status === "uncertain"
@@ -564,14 +576,16 @@ export default function ConversationCampaignReview({
         onEvidence={() => setShowEvidence(true)}
         allowHandoff={false}
       />
-      <ConversationHandoff
-        key={`handoff:${sessionId}`}
-        state={state}
-        interactive={interactive && (!artifactPane || !selectionChanged)}
-        busy={busy}
-        act={act}
-        error={error}
-      />
+      {!partiallyAccepted && (
+        <ConversationHandoff
+          key={`handoff:${sessionId}`}
+          state={state}
+          interactive={interactive && (!artifactPane || !selectionChanged)}
+          busy={busy}
+          act={act}
+          error={error}
+        />
+      )}
       {review.handoff && (
         <ConversationLearning
           key={`learning:${sessionId}`}
@@ -595,7 +609,7 @@ export default function ConversationCampaignReview({
           )}
         />
       )}
-      {feedback && (
+      {feedback && !partiallyAccepted && (
         <Modal
           label="copy-feedback-title"
           busy={busy}
