@@ -139,6 +139,15 @@ ACTION_CAPABILITY = 'conversations.route.v1'
 EXECUTION_POLICY = 'conversation-execution/v1'
 CONVERSATION_CALL_LIMIT = 48
 COPY_ACTION_CAPABILITY = 'conversations.route.v2'
+TYPED_ACTION_CAPABILITY = 'conversations.route.v3'
+ROUTING_CAPABILITIES = (ACTION_CAPABILITY, COPY_ACTION_CAPABILITY, TYPED_ACTION_CAPABILITY)
+TYPED_ACTION_KINDS = ('prepare_campaign', 'propose_next_experiment')
+TYPED_ACTION_ALIASES = {
+    'prepare this campaign': 'prepare_campaign',
+    'prepare the current brief': 'prepare_campaign',
+    'propose the next experiment': 'propose_next_experiment',
+    'propose a follow-up experiment': 'propose_next_experiment',
+}
 ACTION_KINDS = ('inspect_progress', 'explain_audience', 'explain_exclusions', 'explain_validation',
                 'amend_brief', 'approval_help', 'clarify', 'unsupported')
 ACTION_ALIASES = {
@@ -154,25 +163,57 @@ ACTION_ALIASES = {
 }
 
 
-def action_alias(content):
-    return ACTION_ALIASES.get(' '.join(content.casefold().replace('’', "'").strip(' .?!').split()))
+def action_alias(content, *, typed=False):
+    aliases = ACTION_ALIASES | TYPED_ACTION_ALIASES if typed else ACTION_ALIASES
+    return aliases.get(' '.join(content.casefold().replace('’', "'").strip(' .?!').split()))
+
+
+def _current_action_reference(kind, content):
+    # A model may classify intent, but a qualified request can name another
+    # campaign or change the brief. Only bind unqualified current-target forms.
+    words = ' '.join(content.casefold().strip(' .!?').split())
+    polite = r'(?:(?:could|can|would) you )?(?:please )?(?:go ahead and )?'
+    if kind == 'prepare_campaign':
+        phrase = r'prepare (?:(?:this|the current) (?:campaign|brief)|the campaign we discussed)'
+    else:
+        phrase = r'(?:propose|suggest) (?:(?:the )?next experiment|a follow-up experiment)(?: for this campaign)?'
+    return re.fullmatch(polite + phrase + r'(?: please)?', words) is not None
 
 
 def validate_action(candidate, frozen):
-    modern=frozen['context'].get('schema')=='routing-context/v2'
-    kinds=ACTION_KINDS+('revise_copy',) if modern else ACTION_KINDS
+    schema = frozen['context'].get('schema')
+    typed = schema == 'routing-context/v3'
+    modern = schema in {'routing-context/v2', 'routing-context/v3'}
+    kinds = ACTION_KINDS + (('revise_copy',) if modern else ()) + (TYPED_ACTION_KINDS if typed else ())
     if type(candidate) is not dict or set(candidate) != {'action'} or candidate['action'] not in kinds:
         raise ValueError('Choose one installed conversational action')
     kind=candidate['action'];context=frozen['context']
     target=context['target']
     expected={'organization':frozen['organization'],'conversation_id':frozen['inputs']['conversation_id'],'revision':frozen['inputs']['revision']}
     expected['id']='brief_target_'+digest(expected)[:32]
-    if context.get('schema') not in {'routing-context/v1','routing-context/v2'} or target!=expected:
+    if schema not in {'routing-context/v1','routing-context/v2','routing-context/v3'} or target!=expected:
         raise ValueError('Action context targets another brief')
     if context.get('id') != 'action_context_' + digest({k:v for k,v in context.items() if k!='id'}):
         raise ValueError('Frozen action context failed integrity checks')
-    if modern and (frozen.get('schema')!='conversation-action/v2' or frozen.get('capability')!=COPY_ACTION_CAPABILITY):
-        raise ValueError('Copy routing requires its versioned admission')
+    if modern:
+        version = 'v3' if typed else 'v2'
+        capability = TYPED_ACTION_CAPABILITY if typed else COPY_ACTION_CAPABILITY
+        if frozen.get('schema') != 'conversation-action/' + version or frozen.get('capability') != capability:
+            raise ValueError('Routing requires its versioned admission')
+    if kind in TYPED_ACTION_KINDS:
+        destination = context['action_targets'][kind]
+        if not _current_action_reference(kind, frozen['inputs']['content']):
+            destination = {'target': None, 'text': 'Which brief or experiment do you mean? For the saved brief, say “Prepare this campaign”. For its finalized learning, say “Propose the next experiment”.'}
+        if (kind == 'prepare_campaign' and destination['target']
+                and destination['target']['mode'] == 'model' and not frozen['inputs']['allow_model_copy']):
+            destination = {'target': None, 'text': 'Allow model copy and request preparation again for this brief.'}
+        proposal = {
+            'kind': kind, 'target': target, 'context_id': context['id'],
+            'observed_at': context['observed_at'], 'authority': 'none',
+            'requires_confirmation': destination['target'] is not None,
+            'text': destination['text'], 'evidence': destination['target'] or {},
+        }
+        return proposal | {'id': 'action_result_' + digest(proposal)}
     if kind=='revise_copy':
         proposal=copy_proposal(frozen)
         result={'kind':kind,'text':proposal['reason'],'copy_revision':proposal,'evidence':{},

@@ -99,8 +99,9 @@ class PreparationCoordinator:
                         return self.store.update(organization, row, "needs_input", "Answer the agent or revise the request to continue.")
                     if result["copy_mode"] == "model" and not inputs["allow_model_copy"]:
                         return self.store.update(organization, row, "needs_consent", "Enable model copy and send a new message to continue. No copy has been generated.")
-                    return self.store.update(organization, row, "selecting_audience" if inputs.get("use_audience_catalogue") else "preparing",
-                        "Confirm the audience dataset for this campaign." if inputs.get("use_audience_catalogue") else None)
+                    if self.host.preparation_uses_catalogue(organization, row):
+                        return self.store.update(organization, row, "selecting_audience", "Confirm the audience dataset for this campaign.")
+                    return self.store.update(organization, row, "preparing", None)
                 plan = source["current_plan"]
                 if not plan or plan["request_id"] != row["plan_request_id"] or not plan["result"]:
                     raise Conflict("The original proposal is unavailable")
@@ -108,6 +109,9 @@ class PreparationCoordinator:
                     if not self.host.preparation_audience_selected(organization, row, plan["result"]):
                         return row
                     return self.store.update(organization, row, "preparing", None)
+                if (not inputs.get('use_audience_catalogue') and self.host.preparation_uses_catalogue(organization, row)
+                        and not self.host.preparation_audience_selected(organization, row, plan['result'])):
+                    return self.store.update(organization, row, "selecting_audience", "Confirm the audience dataset for this campaign.")
                 campaign = self.host.step_preparation_campaign(organization, row, plan["result"])
                 source = self.host.preparation_source(organization, inputs["conversation_id"])
                 if inputs["revision"] <= source.get("execution",{}).get("stopped_through",0):

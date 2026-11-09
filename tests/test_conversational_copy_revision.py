@@ -184,6 +184,8 @@ class ConversationalCopyRevisionTests(unittest.TestCase):
         original=self.w.action_context
         def old_context(*args,**kwargs):
             value=original(*args,**kwargs)
+            value['schema']='routing-context/v2'
+            value.pop('action_targets')
             value['dialogue']['version']='routing-dialogue/v3'
             value['dialogue']['copy_exchange']=[{'action_id':first['id'],'content':first['content'],
                 'response':{k:first['result'][k] for k in ('id','kind','text')}}]
@@ -212,6 +214,8 @@ class ConversationalCopyRevisionTests(unittest.TestCase):
         original_context=self.w.action_context
         def legacy_context(*args,**kwargs):
             value=original_context(*args,**kwargs)
+            value['schema']='routing-context/v2'
+            value.pop('action_targets')
             value['dialogue']['version']='routing-dialogue/v3'
             return value|{'id':'action_context_'+digest({k:v for k,v in value.items() if k!='id'})}
         with patch.object(self.w,'action_context',side_effect=legacy_context):

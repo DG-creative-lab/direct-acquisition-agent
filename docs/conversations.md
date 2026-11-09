@@ -173,7 +173,7 @@ Accepted historical work can continue learning after a later chat message or app
 
 The view shows denominators, variant/control counts, posterior uncertainty, advisory recommendations and statistical limits. Finalized outcomes remain immutable and deduplicated. Learning does not generate a new campaign or grant approval. Preparing another experiment remains a separate workspace operation with its own review; repeated business membership within an organization remains prohibited.
 
-See [issue 19](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/19) and the [learning contract](learning.md). Real response feeds and conversational next-experiment preparation are deferred.
+See [issue 19](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/19) and the [learning contract](learning.md). Real response feeds are deferred. A confirmed chat action can propose a next experiment from the finalized synthetic cohort. The separate follow-up controls prepare that proposal.
 
 ## Conversational next experiment (issue 21)
 
@@ -226,3 +226,12 @@ The literal resolver is bounded vocabulary matching, not a general semantic inte
 For new planning requests, recognized ambiguous or relative totals produce a saved budget question before inference. Reply with one absolute amount using £ or GBP. The reply binds the displayed completed question and current revision, then the existing preparation flow freezes the new revision and explicit copy permission. A bare number or another relative change asks again. Earlier questions and proposals remain historical and unchanged.
 
 A reload or a dropped reply/preparation response resumes the original saved keys. Once preparation is admitted, a server restart resumes that request. Replying alone grants no approval or simulated acceptance. Older admitted planner frames retain their original behavior. See [budget clarification](budget-clarification.md) for the native bindings, compatibility and verification boundary.
+
+
+## Prepare and next experiment from chat
+
+“Prepare this campaign” proposes work for the current saved brief. “Propose the next experiment” targets the current campaign's single finalized synthetic cohort. The server binds both targets to the brief revision and exact saved messages. The experiment target also binds the campaign, accepted job, draft, cohort and finalization. Requests that name a different target or add brief changes ask for clarification. A campaign with pending preparation displays its saved progress.
+
+The v3 routing tool proposes an action. Its output carries no approval or execution authority. Authored shortcuts resolve the two phrases above without inference. The chat confirmation sends the exact result ID to `POST /api/conversations/{id}/confirm-typed-action` with `action_id`, `expected_revision` and `request_id`. Planning and model copy use the original generation limits and saved permission. An experiment confirmation saves the proposal. Preparing it uses the separate controls for the exact proposal.
+
+Both new and previously planned briefs wait for confirmation of an exact catalogue dataset version before a campaign is created. A saved plan keeps its original planning result. The confirmation and its request identity commit together in SQLite, so a restart or lost acknowledgement can resume the original action. Changed and stopped briefs fence pending continuation. Campaign creation checks the current brief and audience, and a saved plan also requires its original chat confirmation. The experiment store rechecks its confirmed source inside the proposal transaction. Earlier routing tasks retain their original tool and prompt versions.

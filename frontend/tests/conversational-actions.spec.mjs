@@ -37,11 +37,21 @@ patch('acquisition.workspace.openrouter_key',return_value='fixture').start()
 patch('acquisition.workspace.OpenRouter',return_value=Gateway()).start()
 w=Workspace(root,real_clock=lambda:1793404800.)
 c=w.create_conversation('c','Routing example')['id'];w.message_conversation(c,'m',0,FIXTURE_MESSAGE)
-w.start_preparation(c,'p',1,True,False,True)
-for _ in range(3):w.advance_preparations()
-v=w.conversation(c);e=v['preparations'][0]['audience_candidates']['entries'][0]
-w.select_conversation_audience(c,request_id='s',expected_revision=1,plan_id=v['current_plan']['result']['id'],dataset_id=e['dataset_id'],version=e['version'],checksum=e['checksum'],manifest_id=e['id'])
-for _ in range(6):w.advance_preparations()
+if scenario == 'typed-saved-prepare':
+    w.plan_conversation_fixture(c,'p',1)
+elif scenario != 'typed-prepare':
+    w.start_preparation(c,'p',1,True,False,True)
+    for _ in range(3):w.advance_preparations()
+    v=w.conversation(c);e=v['preparations'][0]['audience_candidates']['entries'][0]
+    w.select_conversation_audience(c,request_id='s',expected_revision=1,plan_id=v['current_plan']['result']['id'],dataset_id=e['dataset_id'],version=e['version'],checksum=e['checksum'],manifest_id=e['id'])
+    for _ in range(6):w.advance_preparations()
+if scenario == 'typed-next':
+    sid=w.conversation(c)['campaigns'][0]['session_id']
+    subject=w.view(sid)['review']['subject']['id']
+    approval=w.action(sid,'approve',{'request_id':'approve','subject_id':subject,'reason':'Reviewed the exact fixture campaign.'})['review']['approval']['id']
+    w.action(sid,'handoff',{'request_id':'handoff','approval_id':approval})
+    w.action(sid,'open-learning',{'request_id':'open'})
+    w.action(sid,'finalize',{'request_id':'finalize'})
 server=WorkspaceServer(0,w,Path('frontend/dist'))
 print('http://127.0.0.1:'+str(server.server_port),flush=True)
 server.serve_forever()
@@ -495,3 +505,84 @@ for (const committed of [false, true])
       expect(attempts[0].expected_revision).toBe(1);
     });
   });
+
+for (const scenario of ["typed-prepare", "typed-saved-prepare", "typed-next"]) {
+  test(`${scenario} recovers a lost confirmation response after reload`, async ({
+    page,
+  }) => {
+    await workspace(scenario, async (url) => {
+      await page.goto(url);
+      await page
+        .getByRole("button", { name: "Routing example", exact: true })
+        .click();
+      const prepare = scenario !== "typed-next";
+      await ask(
+        page,
+        prepare ? "Prepare this campaign" : "Propose the next experiment",
+      );
+      const confirm = page.getByRole("button", {
+        name: prepare
+          ? "Confirm campaign preparation"
+          : "Confirm next experiment proposal",
+      });
+      await expect(confirm).toBeVisible();
+      const before = await current(page);
+      expect(before.actions[0].confirmed).toBeNull();
+      const attempts = [];
+      let dropped = false;
+      await page.route("**/confirm-typed-action", async (route) => {
+        attempts.push(route.request().postDataJSON());
+        if (attempts.length === 1) {
+          if (!prepare) {
+            const response = await route.fetch();
+            expect(response.ok()).toBe(true);
+          }
+          await route.abort("failed");
+          dropped = true;
+          return;
+        }
+        await route.continue();
+      });
+      await confirm.click();
+      await expect.poll(() => dropped).toBe(true);
+      await page.reload();
+      if (prepare) {
+        await confirm.click();
+        const choice = page.getByRole("region", {
+          name: "Choose campaign audience",
+        });
+        await expect(choice).toBeVisible();
+        expect((await current(page)).campaigns).toHaveLength(0);
+        await choice
+          .getByRole("button", { name: "Use v1", exact: true })
+          .click();
+        await expect(
+          page.getByRole("button", { name: /Review campaign/ }),
+        ).toBeVisible({ timeout: 10000 });
+        expect(attempts).toHaveLength(2);
+        expect(attempts[0]).toEqual(attempts[1]);
+      } else {
+        await expect(page.getByText("Next experiment proposed.")).toBeVisible();
+        expect(attempts).toHaveLength(1);
+      }
+      const final = await current(page);
+      expect(final.messages).toEqual(before.messages);
+      expect(final.execution.used).toBe(0);
+      expect(final.campaigns).toHaveLength(1);
+      expect(final.preparations).toHaveLength(
+        scenario === "typed-saved-prepare" ? 0 : 1,
+      );
+      if (!prepare) {
+        const source = await backend(
+          page,
+          "/api/sessions/" + final.campaigns[0].session_id,
+        );
+        expect(source.followups).toHaveLength(1);
+        expect(source.followups[0].id).toBe(
+          final.actions[0].typed_effect.proposal_id,
+        );
+        expect(source.followups[0].session_id).toBeNull();
+      }
+    });
+  });
+}
