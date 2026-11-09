@@ -4,10 +4,12 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 
-from acquisition.contracts import Conflict, NotFound
+from acquisition.bootstrap import initialize_fixture_workspace
+from acquisition.contracts import Conflict, NotFound, digest
 from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.workspace import Workspace
 from test_conversation_actions import _set_up_workspace
@@ -39,6 +41,14 @@ print(json.dumps(w.conversation(cid)))
 class TypedPrepareTests(unittest.TestCase):
     setUp = _set_up_workspace
 
+    @staticmethod
+    def choose(w, cid, choice):
+        candidates = choice['audience_candidates']
+        entry = candidates['entries'][0]
+        return w.select_conversation_audience(cid, request_id='audience', expected_revision=1,
+            plan_id=candidates['plan_id'], dataset_id=entry['dataset_id'], version=entry['version'],
+            checksum=entry['checksum'], manifest_id=entry['id'])['audience_receipt']
+
     def test_saved_confirmation_resumes_original_fixture_preparation_in_fresh_process(self):
         cid = self.w.create_conversation('prepare-chat', 'Fixture brief')['id']
         self.w.message_conversation(cid, 'brief', 0, FIXTURE_MESSAGE)
@@ -60,7 +70,11 @@ class TypedPrepareTests(unittest.TestCase):
         saved = self.w.conversation(cid)
         self.assertTrue(saved['actions'][0]['continuation_pending'])
         self.assertEqual(saved['preparations'], [])
-        final = restart(self, cid, action['id'], confirmed=True)
+        waiting = restart(self, cid, action['id'], confirmed=True)
+        self.assertEqual(waiting['campaigns'], [])
+        self.assertEqual(waiting['preparations'][0]['status'], 'selecting_audience')
+        selection = self.choose(self.w, cid, waiting['preparations'][0])
+        final = restart(self, cid, action['id'])
         self.assertEqual(final['execution']['used'], 0)
         self.assertEqual(len(final['preparations']), 1)
         self.assertEqual(final['preparations'][0]['status'], 'review_ready')
@@ -69,6 +83,7 @@ class TypedPrepareTests(unittest.TestCase):
         self.assertEqual(len(final['campaigns']), 1)
         self.assertEqual(final['messages'], saved['messages'])
         review = self.w.view(final['campaigns'][0]['session_id'])['review']
+        self.assertEqual(review['manifest']['brief']['audience_source'], selection)
         self.assertFalse(review['approval_valid'])
         self.assertIsNone(review['handoff'])
 
@@ -133,11 +148,97 @@ class TypedPrepareTests(unittest.TestCase):
         plan = self.w.plan_conversation_fixture(cid, 'plan', 1)['current_plan']['result']
         action = self.w.route_followup(cid, 'route', 1, 'Prepare the current brief', False)['actions'][0]
         self.assertEqual(action['result']['evidence']['plan_id'], plan['id'])
-        final = self.w.confirm_typed_action(cid, action['id'], 'confirm', action['result']['id'], 1)
+        waiting = self.w.confirm_typed_action(cid, action['id'], 'confirm', action['result']['id'], 1)
+        self.assertEqual(waiting['campaigns'], [])
+        with self.assertRaises(Conflict):
+            self.w.draft_conversation(cid, 'skip-audience', 1, plan['id'])
+        reopened = restart(self, cid, action['id'])
+        self.assertEqual(reopened['campaigns'], [])
+        selection = self.choose(self.w, cid, reopened['actions'][0]['audience_choice'])
+        final = restart(self, cid, action['id'], confirmed=True)
         self.assertEqual(len(final['plans']), 1)
         self.assertEqual(final['plans'][0]['result'], plan)
         self.assertEqual(len(final['campaigns']), 1)
         self.assertEqual(final['execution']['used'], 0)
+        review = self.w.view(final['campaigns'][0]['session_id'])['review']
+        self.assertEqual(review['manifest']['brief']['audience_source'], selection)
+
+    def test_pending_fixture_preparation_without_catalogue_flag_waits_for_selection(self):
+        cid = self.w.create_conversation('early-chat', 'Fixture brief')['id']
+        self.w.message_conversation(cid, 'brief', 0, FIXTURE_MESSAGE)
+        action = self.w.route_followup(cid, 'route', 1, 'Prepare this campaign', False)['actions'][0]
+        with patch.object(self.w, '_continue_typed_action'):
+            confirmed = self.w.confirm_typed_action(cid, action['id'], 'confirm', action['result']['id'], 1)
+        request = confirmed['action_confirmation']['effect_request_id']
+        self.w.preparations.admit('local-conversations', cid, request, 1, True, False)
+        waiting = restart(self, cid, action['id'])
+        self.assertEqual(waiting['campaigns'], [])
+        self.assertEqual(waiting['preparations'][0]['status'], 'selecting_audience')
+        self.assertEqual(waiting['preparations'][0]['request_id'], request)
+        selection = self.choose(self.w, cid, waiting['preparations'][0])
+        final = restart(self, cid, action['id'])
+        review = self.w.view(final['campaigns'][0]['session_id'])['review']
+        self.assertEqual(review['manifest']['brief']['audience_source'], selection)
+
+    def test_stop_at_saved_plan_session_creation_leaves_no_campaign_or_request(self):
+        for verified in (False, True):
+            with self.subTest(verified=verified), tempfile.TemporaryDirectory() as root:
+                if verified:
+                    initialize_fixture_workspace(root, clock=lambda: self.now)
+                w = Workspace(root, real_clock=lambda: self.now)
+                cid = w.create_conversation('stopped-plan', 'Planned brief')['id']
+                w.message_conversation(cid, 'brief', 0, FIXTURE_MESSAGE)
+                plan = w.plan_conversation_fixture(cid, 'plan', 1)['current_plan']['result']
+                action = w.route_followup(cid, 'route', 1, 'Prepare the current brief', False)['actions'][0]
+                waiting = w.confirm_typed_action(cid, action['id'], 'confirm', action['result']['id'], 1)
+                self.choose(w, cid, waiting['actions'][0]['audience_choice'])
+                request = waiting['action_confirmation']['effect_request_id']
+                draft = w.draft_conversation
+
+                def stop_before_draft(*args, **kwargs):
+                    w.stop_execution(cid, 'stop', 1)
+                    return draft(*args, **kwargs)
+
+                with patch.object(w, 'draft_conversation', side_effect=stop_before_draft) as attempted, self.assertRaises(Conflict):
+                    w.confirm_typed_action(cid, action['id'], 'confirm', action['result']['id'], 1)
+                attempted.assert_called_once()
+                reopened = Workspace(root, real_clock=lambda: self.now)
+                reopened.advance_preparations()
+                view = reopened.conversation(cid)
+                self.assertEqual(view['current_plan']['result'], plan)
+                self.assertTrue(view['execution']['stopped'])
+                self.assertEqual(view['campaigns'], [])
+                self.assertIsNone(reopened._draft_session_id(cid, request))
+                self.assertEqual(reopened.listing()['sessions'], [])
+                self.assertFalse(view['actions'][0]['continuation_pending'])
+                if verified:
+                    sid = 'workspace_' + digest({'conversation_id': cid, 'plan_id': plan['id']})[:24]
+                    self.assertIsNone(reopened.authority.store.location(sid))
+
+    def test_verified_creation_rolls_back_if_confirmation_disappears_during_writes(self):
+        with tempfile.TemporaryDirectory() as root:
+            initialize_fixture_workspace(root, clock=lambda: self.now)
+            w = Workspace(root, real_clock=lambda: self.now)
+            cid = w.create_conversation('commit-chat', 'Planned brief')['id']
+            w.message_conversation(cid, 'brief', 0, FIXTURE_MESSAGE)
+            plan = w.plan_conversation_fixture(cid, 'plan', 1)['current_plan']['result']
+            action = w.route_followup(cid, 'route', 1, 'Prepare the current brief', False)['actions'][0]
+            waiting = w.confirm_typed_action(cid, action['id'], 'confirm', action['result']['id'], 1)
+            self.choose(w, cid, waiting['actions'][0]['audience_choice'])
+            db = w._conversation_app().tasks.database
+            with db.transaction() as connection:
+                connection.execute('''CREATE TRIGGER drop_confirmation_after_session_write AFTER INSERT ON workspace_requests
+                    WHEN NEW.kind='conversation' BEGIN
+                        UPDATE conversation_actions SET confirmed=NULL WHERE organization=NEW.organization AND conversation_id=NEW.scope;
+                    END''')
+            with self.assertRaisesRegex(Conflict, 'original confirmed routing action'):
+                w.confirm_typed_action(cid, action['id'], 'confirm', action['result']['id'], 1)
+            self.assertEqual(w.conversation(cid)['campaigns'], [])
+            request = waiting['action_confirmation']['effect_request_id']
+            self.assertIsNone(w.authority.request('conversation', cid, request))
+            sid = 'workspace_' + digest({'conversation_id': cid, 'plan_id': plan['id']})[:24]
+            self.assertIsNone(w.authority.store.location(sid))
+            self.assertEqual(w.conversation(cid)['actions'][0]['confirmed'], waiting['action_confirmation'])
 
 
 class TypedExperimentTests(unittest.TestCase):

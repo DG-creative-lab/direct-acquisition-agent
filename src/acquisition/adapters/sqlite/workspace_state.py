@@ -48,6 +48,15 @@ class SqliteWorkspaceState:
             raise Conflict('Sandbox location refers to a different application store')
         return database
 
+    @staticmethod
+    def record_location(db, session, key, store_identity):
+        location={'organization':WORKSPACE_OWNER,'id':session['id'],'run_organization':session['organization'],
+                  'store_scope':session['database_scope'],'store_key':key,'store_identity':store_identity}
+        db.execute('INSERT OR IGNORE INTO workspace_locations VALUES(?,?,?,?,?,?)',tuple(location.values()))
+        actual=dict(db.execute('SELECT * FROM workspace_locations WHERE organization=? AND id=?',(WORKSPACE_OWNER,session['id'])).fetchone())
+        if actual!=location:raise Conflict('Concurrent sandbox location differs from its original store')
+        return location
+
     def ensure_location(self,session):
         old=self.location(session['id'])
         if old:
@@ -69,13 +78,10 @@ class SqliteWorkspaceState:
         # Format selection precedes any environment or runtime work in a new store.
         from .admissions import SqliteAdmissions
         SqliteAdmissions(database,None,self.real_clock).seal_legacy_writes()
-        location={'organization':WORKSPACE_OWNER,'id':session['id'],'run_organization':session['organization'],
-                  'store_scope':session['database_scope'],'store_key':key,'store_identity':self.store_identity(database)}
+        store_identity=self.store_identity(database)
         with self.database.transaction() as db:
             if not verified_required(db):raise Conflict('Select verified admission before recording sandbox locations')
-            db.execute('INSERT OR IGNORE INTO workspace_locations VALUES(?,?,?,?,?,?)',tuple(location.values()))
-            actual=dict(db.execute('SELECT * FROM workspace_locations WHERE organization=? AND id=?',(WORKSPACE_OWNER,session['id'])).fetchone())
-            if actual!=location:raise Conflict('Concurrent sandbox location differs from its original store')
+            location=self.record_location(db,session,key,store_identity)
         return location,database
 
     @staticmethod
@@ -185,7 +191,10 @@ class SqliteWorkspaceState:
             return {'kind':row['kind'],'inputs':json.loads(row['inputs']),'session_id':row['environment_id']} if row else None
 
     def create(self,intent,kind,scope,request_id,inputs):
-        session=intent.session;location,database=self.ensure_location(session);org=intent.organization
+        session=intent.session;org=intent.organization
+        # Conversation environments and their location share the root database.
+        database=self.database if kind=='conversation' else self.ensure_location(session)[1]
+        if kind=='conversation':self.path(session['database_scope'],'conversations')
         owner='local-conversations' if kind=='conversation' else org
         with database.transaction() as db:
             if not verified_required(db):raise Conflict('Verified environment storage is not selected')
@@ -206,12 +215,21 @@ class SqliteWorkspaceState:
             else:
                 if db.execute('SELECT 1 FROM runs WHERE organization=? AND request_id=?',(org,session['id'])).fetchone():
                     raise Conflict('Legacy campaign environment requires explicit migration')
+                if kind == 'conversation':
+                    from .conversation_actions import require_campaign_creation
+                    require_campaign_creation(db, owner, session['conversation_plan'], session.get('audience_selection'), request_id)
                 intent=self.validate_source(db,session,kind,inputs,self.real_clock(),request_id)
                 session=intent.session
                 db.execute('INSERT INTO campaign_environments VALUES(?,?,?,?,0,?,?,NULL,NULL,NULL)',
                            (org,session['id'],intent.session_json,intent.fingerprint,session['clock'],session['clock_mode']))
             if request is None:
                 db.execute('INSERT INTO workspace_requests VALUES(?,?,?,?,?,?,?)',(owner,scope,request_id,kind,canonical(inputs),org,session['id']))
+            if kind == 'conversation':
+                store_identity=db.execute('SELECT id FROM application_store_identity WHERE singleton=1').fetchone()
+                if store_identity is None:raise Conflict('Application store identity is unavailable')
+                self.record_location(db,session,'conversations',store_identity[0])
+                if old is None:
+                    require_campaign_creation(db, owner, session['conversation_plan'], session.get('audience_selection'), request_id)
             return self.read(db,org,session['id'])
 
     def validate_links(self,db,org,identity,session):

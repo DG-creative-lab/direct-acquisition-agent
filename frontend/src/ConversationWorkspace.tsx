@@ -20,6 +20,8 @@ import {
 import type { State } from "./api";
 import "./conversation.css";
 import ConversationActions, {
+  type AudienceCandidate,
+  type AudienceChoiceState,
   type ConversationAction,
 } from "./ConversationActions";
 import ConversationCampaignReview, {
@@ -66,26 +68,7 @@ type Plan = {
     };
   };
 };
-type AudienceCandidate = {
-  id: string;
-  dataset_id: string;
-  version: string;
-  checksum: string;
-  title: string;
-  campaign_key: string;
-  segments: string[];
-  record_count: number;
-  generated_on: string;
-  review_by: string;
-  within_review_window: boolean;
-};
-type AudienceSelection = {
-  id: string;
-  manifest_id: string;
-  source_snapshot_id: string;
-  source: AudienceCandidate;
-};
-type Preparation = {
+type Preparation = AudienceChoiceState & {
   checkpoint_recovery?: { code: string; detail: string };
   id: string;
   request_id: string;
@@ -95,15 +78,6 @@ type Preparation = {
     allow_model_copy: boolean;
     use_audience_catalogue?: boolean;
   };
-  audience_candidates?: {
-    entries: AudienceCandidate[];
-    resolution: string;
-    plan_id: string;
-  };
-  audience_selection?: AudienceSelection | null;
-  audience_error?: string;
-  current: boolean;
-  status: string;
   detail: string | null;
   run_id: string;
   generation: {
@@ -857,8 +831,16 @@ export default function ConversationWorkspace({
               const preparation = conversation.preparations?.find(
                 (p) => p.inputs.revision === item.revision,
               );
+              const confirmedPreparation = conversation.actions?.find(
+                (action) =>
+                  action.revision === item.revision &&
+                  action.confirmed &&
+                  action.result?.kind === "prepare_campaign",
+              );
               const coordinated =
-                preparation && activePreparation(preparation.status);
+                (preparation && activePreparation(preparation.status)) ||
+                !!confirmedPreparation?.audience_choice ||
+                !!confirmedPreparation?.continuation_pending;
               const generation = campaign?.generation;
               const terminal =
                 generation &&
@@ -881,6 +863,18 @@ export default function ConversationWorkspace({
                         onChanged={accept}
                       />
                     </>
+                  )}
+                  {confirmedPreparation?.audience_choice && (
+                    <AudienceChoice
+                      preparation={confirmedPreparation.audience_choice}
+                      conversationId={conversation.id}
+                      disabled={
+                        !!busy ||
+                        !!pendingMessage ||
+                        !!conversation.execution?.stopped
+                      }
+                      onChanged={accept}
+                    />
                   )}
                   {plan && (
                     <div className="conversation-agent">
@@ -1062,7 +1056,8 @@ export default function ConversationWorkspace({
                           ) : (
                             plan.current &&
                             !coordinated &&
-                            !preparation && (
+                            !preparation &&
+                            !confirmedPreparation && (
                               <button
                                 className="button secondary"
                                 onClick={() => prepare(plan)}
@@ -1419,7 +1414,7 @@ function AudienceChoice({
   disabled,
   onChanged,
 }: {
-  preparation: Preparation;
+  preparation: AudienceChoiceState;
   conversationId: string;
   disabled: boolean;
   onChanged: (value: Conversation) => void;

@@ -3,6 +3,38 @@ import { command, read } from "./api";
 import type { CopyRevision } from "./api";
 import ConversationCopyRevision from "./ConversationCopyRevision";
 
+export type AudienceCandidate = {
+  id: string;
+  dataset_id: string;
+  version: string;
+  checksum: string;
+  title: string;
+  campaign_key: string;
+  segments: string[];
+  record_count: number;
+  generated_on: string;
+  review_by: string;
+  within_review_window: boolean;
+};
+type AudienceSelection = {
+  id: string;
+  manifest_id: string;
+  source_snapshot_id: string;
+  source: AudienceCandidate;
+};
+export type AudienceChoiceState = {
+  inputs: { revision: number };
+  audience_candidates?: {
+    entries: AudienceCandidate[];
+    resolution: string;
+    plan_id: string;
+  };
+  audience_selection?: AudienceSelection | null;
+  audience_error?: string;
+  current: boolean;
+  status: string;
+};
+
 export type ConversationAction = {
   id: string;
   revision: number;
@@ -16,6 +48,7 @@ export type ConversationAction = {
   run_id: string | null;
   allow_model_copy: boolean;
   continuation_pending?: boolean;
+  audience_choice?: AudienceChoiceState;
   typed_effect?: {
     preparation_id?: string;
     session_id?: string;
@@ -96,6 +129,8 @@ function TypedActionView({
     else if (effect?.stopped)
       status = "Preparation stopped. Inspect the saved run.";
     else if (effect) status = "Preparation saved. Follow its progress in chat.";
+    else if (action.audience_choice)
+      status = "Confirmation saved. Choose the audience dataset.";
     else if (action.continuation_pending)
       status =
         "Confirmation saved. Waiting for the original request to continue.";

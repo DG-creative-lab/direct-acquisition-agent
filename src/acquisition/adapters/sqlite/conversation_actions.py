@@ -1,5 +1,6 @@
 """Immutable routing admissions and atomic, exact-input brief confirmations."""
 import json
+from contextlib import contextmanager
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.conversations import ACTION_CAPABILITY, TYPED_ACTION_KINDS, action_alias, identity, revision_number, validate_action
 from .conversations import scoped_conversation, append_message, messages
@@ -60,6 +61,39 @@ def require_typed_confirmation(db, organization, receipt):
             or json.loads(saved['inputs']) != command or json.loads(saved['receipt']) != receipt
             or typed_receipt(db, organization, json.loads(row['payload']), receipt['request_id'], receipt['result_id']) != receipt):
         raise Conflict('Continuation requires the original confirmed routing action')
+
+
+def saved_plan_confirmation(db, organization, conversation_id, revision, plan_id):
+    rows = db.execute('''SELECT confirmed FROM conversation_actions
+        WHERE organization=? AND conversation_id=? AND revision=?
+        AND json_extract(confirmed,'$.kind')='typed_action_confirmation'
+        AND json_extract(confirmed,'$.action')='prepare_campaign'
+        AND json_extract(confirmed,'$.target.plan_id')=?''',
+        (organization, conversation_id, revision, plan_id)).fetchall()
+    if len(rows) > 1:
+        raise Conflict('The saved plan has conflicting preparation confirmations')
+    return json.loads(rows[0]['confirmed']) if rows else None
+
+
+def require_campaign_creation(db, organization, plan, selection, request_id):
+    conversation_id, revision = plan['conversation_id'], plan['revision']
+    if scoped_conversation(db, organization, conversation_id)['revision'] != revision:
+        raise Conflict('The brief changed before campaign creation')
+    require_active(db, organization, conversation_id, revision)
+    receipt = saved_plan_confirmation(db, organization, conversation_id, revision, plan['id'])
+    if receipt is None and request_id.startswith('typed_effect_'):
+        raise Conflict('Continuation requires the original confirmed routing action')
+    if receipt:
+        require_typed_confirmation(db, organization, receipt)
+        require_typed_source(db, organization, receipt)
+        if receipt['effect_request_id'] != request_id:
+            raise Conflict('Resume the original confirmed preparation in chat')
+        if not selection:
+            raise Conflict('Confirm an exact audience dataset before campaign preparation')
+    row = db.execute('SELECT payload FROM conversation_audiences WHERE organization=? AND conversation_id=? AND revision=?',
+                     (organization, conversation_id, revision)).fetchone()
+    if selection != (json.loads(row['payload']) if row else None) or (selection and selection['plan_id'] != plan['id']):
+        raise Conflict('The selected audience changed before campaign creation')
 
 
 class SqliteConversationActions:
@@ -202,6 +236,9 @@ class SqliteConversationActions:
                 if typed_command(receipt['conversation_id'], receipt['action_id'], receipt['result_id'], receipt['revision']) != inputs:
                     raise Conflict('Routing admission differs from its scoped command')
                 require_typed_source(db, organization, receipt)
+                plan_id = receipt['target'].get('plan_id') if receipt['action'] == 'prepare_campaign' else None
+                if plan_id and saved_plan_confirmation(db, organization, conversation_id, revision, plan_id):
+                    raise Conflict('Resume the original confirmed preparation in chat')
                 db.execute('UPDATE conversation_actions SET confirmed=? WHERE organization=? AND id=?',
                            (canonical(receipt), organization, action_id))
             db.execute('INSERT INTO conversation_action_commands VALUES(?,?,?,?)',
@@ -216,6 +253,30 @@ class SqliteConversationActions:
             db.execute('BEGIN')
             require_typed_confirmation(db, organization, receipt)
             require_typed_source(db, organization, receipt)
+
+    def is_typed_fixture_preparation(self, organization, conversation_id, revision, request_id):
+        with self.database.connect() as db:
+            db.execute('BEGIN')
+            row = db.execute('''SELECT confirmed FROM conversation_actions
+                WHERE organization=? AND conversation_id=? AND revision=?
+                AND json_extract(confirmed,'$.effect_request_id')=?''',
+                (organization, conversation_id, revision, request_id)).fetchone()
+            if row is None:
+                return False
+            receipt = json.loads(row['confirmed'])
+            if (receipt.get('kind') != 'typed_action_confirmation' or receipt['action'] != 'prepare_campaign'
+                    or receipt['target']['mode'] != 'fixture' or 'plan_id' in receipt['target']):
+                return False
+            require_typed_confirmation(db, organization, receipt)
+            return True
+
+    @contextmanager
+    def fence_campaign_creation(self, organization, plan, selection, request_id):
+        # Legacy session storage is separate. Hold the conversation writer lock
+        # through the control store commit to order it against stop and edits.
+        with self.database.transaction() as db:
+            require_campaign_creation(db, organization, plan, selection, request_id)
+            yield
 
     @staticmethod
     def _verify_exchange(db,organization,current,exchange):

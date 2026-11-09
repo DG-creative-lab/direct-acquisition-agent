@@ -37,7 +37,9 @@ patch('acquisition.workspace.openrouter_key',return_value='fixture').start()
 patch('acquisition.workspace.OpenRouter',return_value=Gateway()).start()
 w=Workspace(root,real_clock=lambda:1793404800.)
 c=w.create_conversation('c','Routing example')['id'];w.message_conversation(c,'m',0,FIXTURE_MESSAGE)
-if scenario != 'typed-prepare':
+if scenario == 'typed-saved-prepare':
+    w.plan_conversation_fixture(c,'p',1)
+elif scenario != 'typed-prepare':
     w.start_preparation(c,'p',1,True,False,True)
     for _ in range(3):w.advance_preparations()
     v=w.conversation(c);e=v['preparations'][0]['audience_candidates']['entries'][0]
@@ -504,7 +506,7 @@ for (const committed of [false, true])
     });
   });
 
-for (const scenario of ["typed-prepare", "typed-next"]) {
+for (const scenario of ["typed-prepare", "typed-saved-prepare", "typed-next"]) {
   test(`${scenario} recovers a lost confirmation response after reload`, async ({
     page,
   }) => {
@@ -513,7 +515,7 @@ for (const scenario of ["typed-prepare", "typed-next"]) {
       await page
         .getByRole("button", { name: "Routing example", exact: true })
         .click();
-      const prepare = scenario === "typed-prepare";
+      const prepare = scenario !== "typed-next";
       await ask(
         page,
         prepare ? "Prepare this campaign" : "Propose the next experiment",
@@ -546,6 +548,14 @@ for (const scenario of ["typed-prepare", "typed-next"]) {
       await page.reload();
       if (prepare) {
         await confirm.click();
+        const choice = page.getByRole("region", {
+          name: "Choose campaign audience",
+        });
+        await expect(choice).toBeVisible();
+        expect((await current(page)).campaigns).toHaveLength(0);
+        await choice
+          .getByRole("button", { name: "Use v1", exact: true })
+          .click();
         await expect(
           page.getByRole("button", { name: /Review campaign/ }),
         ).toBeVisible({ timeout: 10000 });
@@ -559,7 +569,9 @@ for (const scenario of ["typed-prepare", "typed-next"]) {
       expect(final.messages).toEqual(before.messages);
       expect(final.execution.used).toBe(0);
       expect(final.campaigns).toHaveLength(1);
-      expect(final.preparations).toHaveLength(1);
+      expect(final.preparations).toHaveLength(
+        scenario === "typed-saved-prepare" ? 0 : 1,
+      );
       if (!prepare) {
         const source = await backend(
           page,

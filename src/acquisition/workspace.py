@@ -463,8 +463,14 @@ class Workspace:
         if receipt['action'] == 'prepare_campaign':
             if 'plan_id' not in target:
                 row = self.preparations.store.request('local-conversations', request)
-                if row and row['inputs'] != self._typed_preparation_inputs(receipt):
-                    raise Conflict('Saved preparation differs from the confirmed brief or consent')
+                if row:
+                    expected = self._typed_preparation_inputs(receipt)
+                    # Early typed fixture receipts froze the same brief and consent
+                    # without recording the catalogue flag in the preparation intent.
+                    if expected['fixture'] and 'use_audience_catalogue' not in row['inputs']:
+                        del expected['use_audience_catalogue']
+                    if row['inputs'] != expected:
+                        raise Conflict('Saved preparation differs from the confirmed brief or consent')
                 return {'preparation_id': row['id']} if row else None
             sid = self._draft_session_id(receipt['conversation_id'], request)
             if sid:
@@ -490,11 +496,9 @@ class Workspace:
     @staticmethod
     def _typed_preparation_inputs(receipt):
         fixture = receipt['target']['mode'] == 'fixture'
-        inputs = {'conversation_id': receipt['conversation_id'], 'revision': receipt['revision'],
-                  'fixture': fixture, 'allow_model_copy': not fixture and receipt['allow_model_copy']}
-        if not fixture:
-            inputs['use_audience_catalogue'] = True
-        return inputs
+        return {'conversation_id': receipt['conversation_id'], 'revision': receipt['revision'],
+                'fixture': fixture, 'allow_model_copy': not fixture and receipt['allow_model_copy'],
+                'use_audience_catalogue': True}
 
     def _continue_typed_action(self, app, receipt):
         if self._typed_effect(app, receipt):
@@ -505,11 +509,13 @@ class Workspace:
         app.actions.store.validate_typed_confirmation(organization, receipt)
         if receipt['action'] == 'prepare_campaign':
             if 'plan_id' in target:
-                self.draft_conversation(conversation_id, request, revision, target['plan_id'])
+                selection = app.conversation_audiences.store.get(organization, conversation_id, revision)
+                if selection and selection['plan_id'] == target['plan_id']:
+                    self.draft_conversation(conversation_id, request, revision, target['plan_id'], partial=True)
             else:
                 inputs = self._typed_preparation_inputs(receipt)
                 self.preparations.admit(organization, conversation_id, request, revision,
-                                        inputs['fixture'], inputs['allow_model_copy'], inputs.get('use_audience_catalogue', False))
+                                        inputs['fixture'], inputs['allow_model_copy'], inputs['use_audience_catalogue'])
         else:
             source = app.conversations.view(organization, conversation_id)
             if self._experiment_target(source, self._sessions()) != target:
@@ -593,6 +599,12 @@ class Workspace:
                             if receipt['action'] == 'prepare_campaign' and 'plan_id' not in receipt['target']:
                                 if self._prepare_target(conversation_id, source, self._sessions()) != receipt['target']:
                                     raise Conflict('Another preparation owns the current brief')
+                            if receipt['action'] == 'prepare_campaign' and 'plan_id' in receipt['target']:
+                                choice = self._preparation_audience_choice(app, conversation_id, receipt['revision'], receipt['target']['plan_id'])
+                                if not choice['audience_selection']:
+                                    value['audience_choice'] = choice | {'status': 'selecting_audience', 'current': True,
+                                                                         'inputs': {'revision': receipt['revision']}}
+                                    value['continuation_pending'] = False
                         except (Conflict, NotFound):
                             value['continuation_pending'] = False
                     values.append(value)
@@ -843,6 +855,14 @@ class Workspace:
         selected = self._conversation_app().conversation_audiences.store.get(organization, row['inputs']['conversation_id'], row['inputs']['revision'])
         return selected is not None and selected['plan_id'] == plan['id']
 
+    def preparation_uses_catalogue(self, organization, row):
+        self._preparation_scope(organization)
+        inputs = row['inputs']
+        return bool(inputs.get('use_audience_catalogue') or (
+            inputs['fixture'] and row['request_id'].startswith('typed_effect_')
+            and self._conversation_app().actions.store.is_typed_fixture_preparation(
+                organization, inputs['conversation_id'], inputs['revision'], row['request_id'])))
+
     def select_conversation_audience(self, conversation_id, **inputs):
         try:
             receipt = self._conversation_app().conversation_audiences.select('local-conversations', conversation_id, **inputs)
@@ -877,6 +897,19 @@ class Workspace:
         self.preparations.admit("local-conversations", conversation_id, request_id, expected_revision, fixture, allow_model_copy, use_audience_catalogue)
         return self.conversation(conversation_id)
 
+    @staticmethod
+    def _preparation_audience_choice(app, conversation_id, revision, plan_id):
+        audiences = app.conversation_audiences
+        selection = audiences.store.get('local-conversations', conversation_id, revision)
+        if selection:
+            if selection['plan_id'] != plan_id:
+                raise Conflict('Selected audience belongs to another proposal')
+            return {'audience_selection': selection}
+        try:
+            return {'audience_selection': None, 'audience_candidates': audiences.candidates('local-conversations', conversation_id, revision, plan_id)}
+        except (ValueError, Conflict, NotFound, OSError):
+            return {'audience_selection': None, 'audience_error': 'The audience catalogue is unavailable. Restore the source and refresh this conversation.'}
+
     def preparation_progress(self, conversation_id):
         source = self.preparation_source("local-conversations", conversation_id)
         values = []
@@ -907,14 +940,11 @@ class Workspace:
                     public = public | {"status":"blocked", "detail":"Current campaign validation blocks review. Inspect the campaign validation report."}
             app = self._conversation_app()
             selection = app.conversation_audiences.store.get('local-conversations', conversation_id, row['inputs']['revision'])
-            public['audience_selection'] = selection if row['inputs'].get('use_audience_catalogue') else None
+            public['audience_selection'] = selection if row['status'] == 'selecting_audience' or self.preparation_uses_catalogue('local-conversations', row) else None
             if row['status'] == 'selecting_audience' and source['revision'] == row['inputs']['revision']:
                 plan = source['current_plan']
                 if plan and plan['result']:
-                    try:
-                        public['audience_candidates'] = app.conversation_audiences.candidates('local-conversations', conversation_id, source['revision'], plan['result']['id'])
-                    except (ValueError, Conflict, NotFound, OSError):
-                        public['audience_error'] = 'The audience catalogue is unavailable. Restore the source and refresh this conversation.'
+                    public |= self._preparation_audience_choice(app, conversation_id, source['revision'], plan['result']['id'])
             values.append(public | {"current": source["revision"] == row["inputs"]["revision"], "generation": generation})
         return values
 
@@ -1061,14 +1091,15 @@ class Workspace:
                     if prior_draft["request_hash"] != fingerprint:
                         raise Conflict("Draft request already binds different proposal inputs")
                     return self.prepare(prior_draft["session_id"], partial=partial)
-            view = self._conversation_app().conversations.view("local-conversations", conversation_id)
+            app = self._conversation_app()
+            view = app.conversations.view("local-conversations", conversation_id)
             current = view["current_plan"]
             plan = current["result"] if current and current["status"] == "succeeded" else None
             if view["revision"] != expected_revision or not plan or plan["id"] != plan_id or plan["outcome"] != "brief_proposal":
                 raise Conflict("Select the exact current completed brief proposal")
-            selection = self._conversation_app().conversation_audiences.store.get('local-conversations', conversation_id, expected_revision)
+            selection = app.conversation_audiences.store.get('local-conversations', conversation_id, expected_revision)
             preparation = self.preparations.store.for_revision('local-conversations', conversation_id, expected_revision)
-            requires_audience = selection is not None or bool(preparation and preparation['inputs'].get('use_audience_catalogue'))
+            requires_audience = selection is not None or bool(preparation and self.preparation_uses_catalogue('local-conversations', preparation))
             if requires_audience and selection is None:
                 raise Conflict('Confirm an exact audience dataset before campaign preparation')
             model_copy = plan["copy_mode"] == "model"
@@ -1087,7 +1118,7 @@ class Workspace:
                     {'conversation_id':conversation_id,'revision':expected_revision,'plan_id':plan_id})
                 self._project_session(current)
                 return self.prepare(session_id,partial=partial)
-            with self.control() as db:
+            with app.actions.store.fence_campaign_creation('local-conversations', plan, selection, request_id), self.control() as db:
                 db.execute("BEGIN IMMEDIATE")
                 try:
                     replay = db.execute("SELECT * FROM conversation_draft_requests WHERE conversation_id=? AND request_id=?", (conversation_id, request_id)).fetchone()
