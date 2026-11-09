@@ -3,7 +3,7 @@ import json
 from copy import deepcopy
 from dataclasses import asdict
 from acquisition.contracts import canonical
-from acquisition.conversations import ACTION_CAPABILITY, COPY_ACTION_CAPABILITY, TYPED_ACTION_CAPABILITY, ROUTING_CAPABILITIES, ACTION_KINDS, TYPED_ACTION_KINDS, validate_action
+from acquisition.conversations import COPY_ACTION_CAPABILITY, TYPED_ACTION_CAPABILITY, ROUTING_CAPABILITIES, ACTION_KINDS, TYPED_ACTION_KINDS, validate_action
 from acquisition.reasoning import CallScope, ModelError, tool_contract, validate_assets
 from acquisition.runtime import Outcome
 
