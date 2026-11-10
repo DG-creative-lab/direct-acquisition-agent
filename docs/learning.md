@@ -76,7 +76,7 @@ The report is a read-only projection with no approval controls. It shows pending
 PYTHONPATH=src python3 -m acquisition --db .local/manual.sqlite --organization demo-org learning-import-report --cohort COHORT_ID --actor operator --request-id report-1 --file provider-report.json
 ```
 
-The `synthetic-provider-report/v1` envelope has these fields.
+The `synthetic-provider-report/v1` envelope has these fields. JSON object keys must be unique at every level.
 
 | Fields | Required value |
 | --- | --- |
@@ -89,6 +89,14 @@ The `synthetic-provider-report/v1` envelope has these fields.
 Each event has `event_id` and `outcome`. The outcome uses the same exact assignment and observation fields as the manual batch above. For this synthetic source, the event ID is `synthetic_event_` followed by the SHA-256 of canonical JSON with `business_id` and `cohort_id` as its only keys. Use the repository's `acquisition.contracts.digest` for canonical encoding. These identities stay stable across snapshots. An exact event repeated across pages or cumulative reports adds no further observation. Changed content for an existing event, another report's page, missing pages or a reused report ID with different content rejects the snapshot atomically. The file limit is 4 MiB, with at most 100 pages and 10,000 events.
 
 The receipt records the report ID, digest, page count, watermark, duplicates and missing assignment count. `coverage_complete` requires a final snapshot with an explicit outcome for every enrolled business, including each no-mail control. A fully paginated report can still leave outcomes unknown. Import saves observations and audit evidence. The existing `learning-finalize` command separately checks maturity and complete coverage across stored observations before updating beliefs. This source reads recorded synthetic files and performs no scheduled polling or external requests.
+
+The normalized snapshot commits with the import receipt and outcomes. The saved pages retain each event's assignment and observation. Use the report ID from `learning-show` to inspect a single snapshot and check it against its original import digest, even when the source file is gone or the workspace is a read-only restore.
+
+```sh
+PYTHONPATH=src python3 -m acquisition --db .local/manual.sqlite --organization demo-org learning-show-report --cohort COHORT_ID --report REPORT_ID
+```
+
+An earlier import that saved only its digest has no inspectable snapshot. On the live store, use a fresh request ID to import the exact original report again and attach its pages after checking the saved digest and outcomes. This preserves the original receipt and adds no observations.
 
 ## Bayesian calculation and recommendation policy
 

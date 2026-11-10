@@ -1,4 +1,5 @@
 """The fresh verified fixture journey runs with durable stop and lease fences."""
+import json
 import os
 import sqlite3
 import subprocess
@@ -12,7 +13,7 @@ from unittest.mock import patch
 
 from acquisition.bootstrap import build, build_workspace_checkpoint, initialize_fixture_workspace
 from acquisition.campaigns import CampaignService, DraftLease, brief_from
-from acquisition.contracts import Conflict, NotFound, canonical
+from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.creative import fixture_catalog
 from acquisition.reasoning import CallScope, ModelConfig, ModelError
@@ -144,6 +145,23 @@ with patch.object(SqliteTasks, 'settle', exit_after_draft):
             self.assertEqual(audience['mode'], 'SYNTHETIC_ONLY')
             self.assertEqual(audience['authority'], 'ADVISORY_ONLY_NO_COPY_OR_APPROVAL_INHERITANCE')
         self.assertEqual(self.workspace().propose_followup(sid, 'offline-hypothesis', cohort_id), hypothesis)
+
+        cohort = complete['learning']['cohort']
+        with app.tasks.database.connect() as db:
+            outcome = json.loads(db.execute('''SELECT payload FROM learning_outcomes
+                WHERE organization=? AND cohort_id=? ORDER BY business_id LIMIT 1''', (scope, cohort_id)).fetchone()[0])
+        event_id = 'synthetic_event_' + digest({'cohort_id': cohort_id, 'business_id': outcome['business_id']})
+        report = {key: cohort[key] for key in ('organization', 'job_id', 'metric', 'window_start', 'window_end')}
+        report |= {'schema': 'synthetic-provider-report/v1', 'mode': 'SYNTHETIC_ONLY', 'cohort_id': cohort_id,
+                   'report_id': 'checkpoint-report', 'watermark': cohort['window_end'], 'final': True, 'page_count': 1,
+                   'pages': [{'report_id': 'checkpoint-report', 'number': 1,
+                              'events': [{'event_id': event_id, 'outcome': outcome}]}]}
+        path = self.parent / 'external-report.json'
+        path.write_text(canonical(report))
+        report_receipt = app.learning.ingest_report(scope, 'local-operator', 'checkpoint-import', cohort_id, path)
+        self.assertEqual((report_receipt['added'], report_receipt['duplicates']), (0, 1))
+        path.unlink()
+
         checkpoint = build_workspace_checkpoint()
         bundle, restored = self.parent / 'hypothesis-checkpoint', self.parent / 'hypothesis-restore'
         manifest = checkpoint.create(self.root, bundle)
@@ -153,6 +171,14 @@ with patch.object(SqliteTasks, 'settle', exit_after_draft):
         self.assertEqual(inspection.followups.get(scope, hypothesis['id']), hypothesis)
         with self.assertRaisesRegex(Conflict, 'inspection-only'):
             inspection.followups.put(scope, 'restore-hypothesis', hypothesis)
+        report_db = restored / app.tasks.database.path.relative_to(self.root)
+        inspected = self.process('-m', 'acquisition', '--db', report_db, '--organization', scope,
+                                 'learning-show-report', '--cohort', cohort_id, '--report', 'checkpoint-report')
+        self.assertEqual(inspected.returncode, 0, inspected.stderr)
+        self.assertEqual(json.loads(inspected.stdout), {'snapshot': report,
+                         'import_receipt': report_receipt | {'actor': 'local-operator'}})
+        with self.assertRaisesRegex(Conflict, 'inspection-only'):
+            build(report_db).learning.store.ingest_report(scope, 'local-operator', 'restore-import', cohort_id, report)
         self.assertEqual(tree(restored), before)
         with app.tasks.database.connect() as db:
             self.assertEqual(db.execute('SELECT count(*) FROM draft_operations WHERE organization=?', (scope,)).fetchone()[0], 1)

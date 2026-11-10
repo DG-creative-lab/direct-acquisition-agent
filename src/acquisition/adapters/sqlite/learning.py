@@ -12,6 +12,9 @@ from .drafts import read_draft, verify
 from .simulated_delivery import SqliteSimulatedDelivery, require_provider_result
 
 
+REPORT_SOURCE_EVENT = "provider_report_source_recorded"
+
+
 def accepted_cohort_draft(db, organization, cohort):
     """Rebuild an accepted experiment without treating its receipt as authority."""
     try:
@@ -130,9 +133,15 @@ class SqliteLearning:
             return fingerprint, json.loads(old["receipt"])
         return fingerprint, None
 
-    def _record(self, db, organization, request_id, fingerprint, receipt, actor, now):
-        db.execute("INSERT INTO learning_events(organization,cohort_id,kind,payload,at) VALUES(?,?,?,?,?)",
-            (organization, receipt["cohort_id"], receipt["kind"], canonical(receipt | {"actor": actor}), now))
+    def _event(self, db, organization, cohort_id, kind, payload, now):
+        return db.execute("INSERT INTO learning_events(organization,cohort_id,kind,payload,at) VALUES(?,?,?,?,?)",
+                          (organization, cohort_id, kind, canonical(payload), now)).lastrowid
+
+    def _record(self, db, organization, request_id, fingerprint, receipt, actor, now, *, snapshot=None):
+        cohort_id = receipt["cohort_id"]
+        sequence = self._event(db, organization, cohort_id, receipt["kind"], receipt | {"actor": actor}, now)
+        if snapshot is not None:
+            self._record_report_snapshot(db, organization, cohort_id, sequence, snapshot, actor, now)
         return self._command(db, organization, request_id, fingerprint, receipt)
 
     def _command(self, db, organization, request_id, fingerprint, receipt):
@@ -214,9 +223,7 @@ class SqliteLearning:
             cohort, record = self._cohort(db, organization, cohort_id)
             validate_report_binding(report, cohort, now)
             accepted_cohort_draft(db, organization, cohort)
-            previous = db.execute("""SELECT json_extract(payload, '$.report_sha256') FROM learning_events
-                WHERE organization=? AND cohort_id=? AND kind='provider_report_imported'
-                AND json_extract(payload, '$.report_id')=?""", (organization, cohort_id, report["report_id"])).fetchone()
+            previous = self._report_import(db, organization, cohort_id, report["report_id"])
             if previous and previous[0] != report_hash:
                 raise Conflict("Provider report ID already binds a different snapshot")
             added = self._write_outcomes(db, organization, cohort, record, outcomes.values(), report["watermark"])
@@ -228,8 +235,48 @@ class SqliteLearning:
             if previous:
                 if added:
                     raise Conflict("Previously imported report outcomes are missing")
+                if self._saved_report_snapshot(db, organization, cohort_id, previous) is None:
+                    self._record_report_snapshot(db, organization, cohort_id, previous["sequence"], report, actor, now)
                 return self._command(db, organization, request_id, fingerprint, receipt)
-            return self._record(db, organization, request_id, fingerprint, receipt, actor, now)
+            return self._record(db, organization, request_id, fingerprint, receipt, actor, now, snapshot=report)
+
+    def _report_import(self, db, organization, cohort_id, report_id):
+        return db.execute("""SELECT json_extract(payload, '$.report_sha256'), sequence, payload, at FROM learning_events
+            WHERE organization=? AND cohort_id=? AND kind='provider_report_imported'
+            AND json_extract(payload, '$.report_id')=?""", (organization, cohort_id, report_id)).fetchone()
+
+    def _record_report_snapshot(self, db, organization, cohort_id, sequence, snapshot, actor, now):
+        self._event(db, organization, cohort_id, REPORT_SOURCE_EVENT,
+                    {"import_sequence": sequence, "snapshot": snapshot, "actor": actor}, now)
+
+    def _saved_report_snapshot(self, db, organization, cohort_id, imported):
+        rows = db.execute("""SELECT payload FROM learning_events
+            WHERE organization=? AND cohort_id=? AND kind=?
+            AND json_extract(payload, '$.import_sequence')=? LIMIT 2""",
+            (organization, cohort_id, REPORT_SOURCE_EVENT, imported["sequence"])).fetchall()
+        if not rows:
+            return None
+        snapshot = json.loads(rows[0][0]).get("snapshot")
+        if len(rows) != 1 or type(snapshot) is not dict or digest(snapshot) != imported[0]:
+            raise Conflict("Stored provider snapshot does not match the import receipt")
+        return snapshot
+
+    def report_snapshot(self, organization, cohort_id, report_id):
+        identifier(report_id)
+        with self.database.connect() as db:
+            db.execute("BEGIN")
+            cohort, _ = self._cohort(db, organization, cohort_id)
+            imported = self._report_import(db, organization, cohort_id, report_id)
+            if imported is None:
+                raise NotFound("Provider report not found in this cohort")
+            snapshot = self._saved_report_snapshot(db, organization, cohort_id, imported)
+            if snapshot is None:
+                raise NotFound("Provider snapshot is unavailable for this import receipt")
+            validate_report_binding(snapshot, cohort, imported["at"])
+            receipt = json.loads(imported["payload"])
+            if any(receipt[key] != snapshot[key] for key in ("report_id", "job_id", "metric", "watermark", "final", "page_count")):
+                raise Conflict("Stored provider snapshot does not match the import receipt")
+            return {"import_receipt": receipt, "snapshot": snapshot}
 
     def _write_outcomes(self, db, organization, cohort, record, rows, now):
         cohort_id = cohort["id"]
@@ -313,7 +360,8 @@ class SqliteLearning:
                 "as_of": now, "beliefs": groups, "recommendations": recommend(cohort_id, groups) if finalized else [],
                 "finalization": json.loads(row["finalization"]) if finalized else None,
                 "events": [dict(r) | {"payload": json.loads(r["payload"])} for r in db.execute(
-                    "SELECT * FROM learning_events WHERE organization=? AND cohort_id=? ORDER BY sequence", (organization, cohort_id))],
+                    "SELECT * FROM learning_events WHERE organization=? AND cohort_id=? AND kind<>? ORDER BY sequence",
+                    (organization, cohort_id, REPORT_SOURCE_EVENT))],
                 "limitations": ["Synthetic responses are not customer evidence.", "Acceptance is simulated; delivery is not verified.",
                     "Beta(1,19) is an illustrative fixed prior, not calibrated production knowledge.",
                     "Monte Carlo intervals and probabilities are estimates, not guarantees.",

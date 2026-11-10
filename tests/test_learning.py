@@ -118,6 +118,29 @@ class LearningTests(unittest.TestCase):
         path.write_text(json.dumps(report))
         return self.app.learning.ingest_report(self.scope, self.actor, key, self.cohort, path)
 
+    def test_duplicate_json_fields_in_report_fail_before_any_import_writes(self):
+        self.now = self.opened["window_end"]
+        report = self.report("unique-fields", self.rows[:1])
+        raw = json.dumps(report)
+        path = self.root / "provider-report.json"
+        duplicates = (
+            ('"final": true', '"final": false, "final": true'),
+            ('"number": 1', '"number": 2, "number": 1'),
+            ('"event_id":', '"event_id": "different-event", "event_id":'),
+            ('"response": true', '"response": false, "response": true'),
+            ('"response": true', r'"resp\u006fnse": true, "response": true'),
+        )
+        for field, duplicate in duplicates:
+            with self.subTest(duplicate=duplicate):
+                self.assertEqual(raw.count(field), 1)
+                path.write_text(raw.replace(field, duplicate, 1))
+                with self.assertRaisesRegex(ValueError, "Duplicate JSON field"):
+                    self.app.learning.ingest_report(self.scope, self.actor, "report", self.cohort, path)
+        self.assertEqual(self.count("learning_outcomes"), 0)
+        self.assertEqual(self.count("learning_commands"), 1)
+        self.assertEqual(self.count("learning_events"), 1)
+        self.assertEqual(self.import_report(report)["added"], 1)
+
     def test_missing_report_page_writes_nothing_and_original_request_recovers_via_cli(self):
         self.now = self.opened["window_end"]
         report = self.report("with-gap", self.rows[:4], self.rows[4:7], self.rows[7:])
@@ -204,6 +227,46 @@ cli.main()
         self.assertEqual(self.count("learning_outcomes"), 1)
         self.assertEqual(self.count("learning_commands"), 2)
 
+    def test_snapshot_provenance_is_scoped_and_verifies_the_saved_pages(self):
+        self.now = self.opened["window_end"]
+        report = self.report("provenance", self.rows[:1], self.rows[1:2])
+        receipt = self.import_report(report)
+        (self.root / "provider-report.json").unlink()
+        reopened = build(self.path, clock=lambda: self.now).learning.store
+        source = reopened.report_snapshot(self.scope, self.cohort, "provenance")
+        self.assertEqual(source["snapshot"], report)
+        self.assertEqual(digest(source["snapshot"]), receipt["report_sha256"])
+        self.assertEqual(source["import_receipt"], receipt | {"actor": self.actor})
+        self.assertEqual(reopened.view(self.scope, self.cohort)["events"][-1]["payload"], source["import_receipt"])
+        with self.assertRaises(NotFound):
+            reopened.report_snapshot("another-scope", self.cohort, "provenance")
+        with self.store.database.transaction() as db:
+            db.execute("""UPDATE learning_events SET payload=json_remove(payload, '$.snapshot.pages[1]')
+                WHERE organization=? AND cohort_id=? AND kind='provider_report_source_recorded'""",
+                (self.scope, self.cohort))
+        with self.assertRaisesRegex(Conflict, "does not match the import receipt"):
+            reopened.report_snapshot(self.scope, self.cohort, "provenance")
+        with self.assertRaisesRegex(Conflict, "does not match the import receipt"):
+            self.import_report(report, "corrupt-retry")
+        self.assertEqual(self.count("learning_commands"), 2)
+
+    def test_exact_legacy_report_can_attach_provenance_without_rewriting_its_receipt(self):
+        self.now = self.opened["window_end"]
+        report = self.report("legacy", self.rows[:1])
+        receipt = self.import_report(report)
+        with self.store.database.transaction() as db:
+            db.execute("DELETE FROM learning_events WHERE organization=? AND cohort_id=? AND kind='provider_report_source_recorded'",
+                       (self.scope, self.cohort))
+        with self.assertRaisesRegex(NotFound, "snapshot is unavailable"):
+            self.store.report_snapshot(self.scope, self.cohort, "legacy")
+        self.assertEqual(self.import_report(report), receipt)
+        replay = self.import_report(report, "attach-original")
+        self.assertEqual((replay["added"], replay["duplicates"]), (0, 1))
+        self.assertEqual(self.store.report_snapshot(self.scope, self.cohort, "legacy"),
+                         {"import_receipt": receipt | {"actor": self.actor}, "snapshot": report})
+        self.assertEqual(self.import_report(report, "repeat-attachment")["added"], 0)
+        self.assertEqual(self.count("learning_events"), 3)
+
     def test_report_rejects_substituted_evidence_and_invalid_watermarks(self):
         self.now = self.opened["window_end"]
         report = self.report("source", self.rows[:2])
@@ -236,13 +299,18 @@ cli.main()
     def test_report_import_rolls_back_with_audit_and_checkpoint_clone_refuses_writes(self):
         self.now = self.opened["window_end"]
         report = self.report("atomic", self.rows[:2])
-        with self.store.database.transaction() as db:
-            db.execute("""CREATE TRIGGER fail_report_event BEFORE INSERT ON learning_events
-                WHEN NEW.kind='provider_report_imported' BEGIN SELECT RAISE(ABORT, 'fixture'); END""")
-        with self.assertRaises(sqlite3.IntegrityError):
-            self.import_report(report)
-        self.assertEqual(self.count("learning_outcomes"), 0)
-        self.assertEqual(self.count("learning_commands"), 1)
+        for event in ("provider_report_imported", "provider_report_source_recorded"):
+            with self.subTest(event=event):
+                with self.store.database.transaction() as db:
+                    db.execute(f"""CREATE TRIGGER fail_report_event BEFORE INSERT ON learning_events
+                        WHEN NEW.kind='{event}' BEGIN SELECT RAISE(ABORT, 'fixture'); END""")
+                with self.assertRaises(sqlite3.IntegrityError):
+                    self.import_report(report)
+                self.assertEqual(self.count("learning_outcomes"), 0)
+                self.assertEqual(self.count("learning_commands"), 1)
+                self.assertEqual(self.count("learning_events"), 1)
+                with self.store.database.transaction() as db:
+                    db.execute("DROP TRIGGER fail_report_event")
 
         restored = self.root / "inspection"
         restored.mkdir()

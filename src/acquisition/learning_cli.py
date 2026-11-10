@@ -21,6 +21,9 @@ def add_learning_commands(commands):
     show = commands.add_parser("learning-show")
     show.add_argument("--cohort", required=True)
     show.add_argument("--html", type=Path)
+    report = commands.add_parser("learning-show-report", help="Inspect the saved pages and receipt for one provider report")
+    report.add_argument("--cohort", required=True)
+    report.add_argument("--report", required=True)
     demo = commands.add_parser("demo-learning", help="Scripted synthetic outcomes with an isolated simulated clock")
     demo.add_argument("--request-id", default="day-four")
     demo.add_argument("--out", type=Path, default=Path(".local/day-four"))
@@ -32,6 +35,8 @@ def learning_command(app, args):
         return app.learning.open(scope, args.case, args.actor, args.request_id)
     if args.command == "learning-import-report":
         return app.learning.ingest_report(scope, args.actor, args.request_id, args.cohort, args.file)
+    if args.command == "learning-show-report":
+        return store.report_snapshot(scope, args.cohort, args.report)
     if args.command == "learning-import":
         with args.file.open("rb") as stream:
             raw = stream.read(4 * 1024 * 1024 + 1)
