@@ -68,6 +68,36 @@ The illustrative timestamp must be replaced with a valid timestamp inside that c
 
 The report is a read-only projection with no approval controls. It shows pending counts, mature posterior support, uncertainty, comparison rules and provenance. Saved files can become stale; regenerate them with `learning-show`.
 
+## Import recorded provider reports
+
+`learning-import-report` reads a local JSON snapshot for an existing accepted synthetic cohort. Use the organization, cohort ID, job ID, metric and exact window from `learning-show`. The report source uses the same immutable outcome importer as manual batches.
+
+```sh
+PYTHONPATH=src python3 -m acquisition --db .local/manual.sqlite --organization demo-org learning-import-report --cohort COHORT_ID --actor operator --request-id report-1 --file provider-report.json
+```
+
+The `synthetic-provider-report/v1` envelope has these fields. JSON object keys must be unique at every level.
+
+| Fields | Required value |
+| --- | --- |
+| `schema`, `mode` | `synthetic-provider-report/v1`, `SYNTHETIC_ONLY` |
+| `organization`, `cohort_id`, `job_id`, `metric`, `window_start`, `window_end` | Exact values from the frozen cohort. The accepted job and draft are verified again during import. |
+| `report_id` | Stable identity for one immutable snapshot within the cohort. Use a new ID for a cumulative snapshot with new content. |
+| `watermark`, `final` | Unix timestamp through which the snapshot reports, and a boolean. A final snapshot must attest the exact cutoff after it has passed. Explicit non-responses require that final attestation. |
+| `page_count`, `pages` | Declared count and all pages numbered `1` through `page_count`. Each page contains `report_id`, `number` and an `events` array. |
+
+Each event has `event_id` and `outcome`. The outcome uses the same exact assignment and observation fields as the manual batch above. For this synthetic source, the event ID is `synthetic_event_` followed by the SHA-256 of canonical JSON with `business_id` and `cohort_id` as its only keys. Use the repository's `acquisition.contracts.digest` for canonical encoding. These identities stay stable across snapshots. An exact event repeated across pages or cumulative reports adds no further observation. Changed content for an existing event, another report's page, missing pages or a reused report ID with different content rejects the snapshot atomically. The file limit is 4 MiB, with at most 100 pages and 10,000 events.
+
+The receipt records the report ID, digest, page count, watermark, duplicates and missing assignment count. `coverage_complete` requires a final snapshot with an explicit outcome for every enrolled business, including each no-mail control. A fully paginated report can still leave outcomes unknown. Import saves observations and audit evidence. The existing `learning-finalize` command separately checks maturity and complete coverage across stored observations before updating beliefs. This source reads recorded synthetic files and performs no scheduled polling or external requests.
+
+The normalized snapshot commits with the import receipt and outcomes. The saved pages retain each event's assignment and observation. Use the report ID from `learning-show` to inspect a single snapshot and check it against its original import digest, even when the source file is gone or the workspace is a read-only restore.
+
+```sh
+PYTHONPATH=src python3 -m acquisition --db .local/manual.sqlite --organization demo-org learning-show-report --cohort COHORT_ID --report REPORT_ID
+```
+
+An earlier import that saved only its digest has no inspectable snapshot. On the live store, use a fresh request ID to import the exact original report again and attach its pages after checking the saved digest and outcomes. This preserves the original receipt and adds no observations.
+
 ## Bayesian calculation and recommendation policy
 
 Each segment/creative group starts with the illustrative Beta(1,19) prior, with mean 5% and prior concentration 20. This is a demonstration choice, not a calibrated prior. With n trials and s responses, the posterior is Beta(1+s,19+n-s). Mean and standard deviation are computed from those parameters. Exact counts and parameters are persisted.
@@ -147,7 +177,7 @@ uncertainty on desktop and mobile while retaining separate preparation consent.
 
 ## Architecture and migration
 
-`learning/outcomes.py` owns membership, outcome and counted posterior rules. `learning/recommendations.py` owns reproducible advisory sampling. `LearningService` uses a `CohortSource` port, implemented in workflows through public review and campaign APIs. `SqliteLearning` implements the persistence port. The adapter rechecks the accepted receipt and stored bytes before admitting the cohort. A shared SQLite role helper keeps review and learning mutations consistent.
+`learning/outcomes.py` owns membership, outcome and counted posterior rules. `learning/reports.py` owns recorded snapshot validation. `learning/recommendations.py` owns reproducible advisory sampling. `LearningService` uses a `CohortSource` port, implemented in workflows through public review and campaign APIs, and a `ReportSource` port implemented by the local file adapter. `SqliteLearning` implements persistence and rechecks the accepted receipt and stored bytes before admitting the cohort or importing a report. A shared SQLite role helper keeps review and learning mutations consistent.
 
 Schema v5 adds cohorts, independent business membership, immutable outcomes, beliefs, commands and events under the existing initialization write lock. It preserves review records and the original schema-v3 legacy admission cutoff. Migration failure rolls back DDL and version changes; retry is tested. Older application versions reject schema v5. Mixed-version rollback is unsupported.
 

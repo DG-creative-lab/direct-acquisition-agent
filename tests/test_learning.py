@@ -1,7 +1,11 @@
 """Independent counts, real SQLite faults, scope, maturity and recovery probes."""
 import copy
 import json
+import os
+import shutil
 import sqlite3
+import subprocess
+import sys
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -13,6 +17,7 @@ from threading import Barrier
 from acquisition.bootstrap import build
 from acquisition.contracts import Conflict, NotFound, digest
 from acquisition.learning import counts_for, posterior, recommend, WINDOW_SECONDS
+from acquisition.local_root import CHECKPOINT_FILE
 from acquisition.review_demo import run_review_demo
 from acquisition.adapters.learning_report import render_learning
 from acquisition.reasoning import ModelConfig
@@ -95,6 +100,229 @@ class LearningTests(unittest.TestCase):
     def count(self, table):
         with self.store.database.connect() as db:
             return db.execute("SELECT COUNT(*) FROM " + table).fetchone()[0]
+
+    def report(self, report_id, *pages, final=True, watermark=None):
+        # Use the frozen acceptance as the expected source, independent of the adapter.
+        report = {key: self.proposal[key] for key in ("organization", "job_id", "metric", "window_start", "window_end")}
+        return report | {"schema": "synthetic-provider-report/v1", "mode": "SYNTHETIC_ONLY",
+            "cohort_id": self.cohort, "report_id": report_id, "final": final,
+            "watermark": self.opened["window_end"] if watermark is None else watermark,
+            "page_count": len(pages), "pages": [
+                {"report_id": report_id, "number": number, "events": [
+                    {"event_id": "synthetic_event_" + digest({"cohort_id": self.cohort, "business_id": row["business_id"]}),
+                     "outcome": row} for row in rows]}
+                for number, rows in enumerate(pages, 1)]}
+
+    def import_report(self, report, key="report"):
+        path = self.root / "provider-report.json"
+        path.write_text(json.dumps(report))
+        return self.app.learning.ingest_report(self.scope, self.actor, key, self.cohort, path)
+
+    def test_duplicate_json_fields_in_report_fail_before_any_import_writes(self):
+        self.now = self.opened["window_end"]
+        report = self.report("unique-fields", self.rows[:1])
+        raw = json.dumps(report)
+        path = self.root / "provider-report.json"
+        duplicates = (
+            ('"final": true', '"final": false, "final": true'),
+            ('"number": 1', '"number": 2, "number": 1'),
+            ('"event_id":', '"event_id": "different-event", "event_id":'),
+            ('"response": true', '"response": false, "response": true'),
+            ('"response": true', r'"resp\u006fnse": true, "response": true'),
+        )
+        for field, duplicate in duplicates:
+            with self.subTest(duplicate=duplicate):
+                self.assertEqual(raw.count(field), 1)
+                path.write_text(raw.replace(field, duplicate, 1))
+                with self.assertRaisesRegex(ValueError, "Duplicate JSON field"):
+                    self.app.learning.ingest_report(self.scope, self.actor, "report", self.cohort, path)
+        self.assertEqual(self.count("learning_outcomes"), 0)
+        self.assertEqual(self.count("learning_commands"), 1)
+        self.assertEqual(self.count("learning_events"), 1)
+        self.assertEqual(self.import_report(report)["added"], 1)
+
+    def test_missing_report_page_writes_nothing_and_original_request_recovers_via_cli(self):
+        self.now = self.opened["window_end"]
+        report = self.report("with-gap", self.rows[:4], self.rows[4:7], self.rows[7:])
+        with self.assertRaisesRegex(Conflict, "missing pages"):
+            self.import_report(report | {"pages": [report["pages"][0], report["pages"][2]]})
+        self.assertEqual(self.count("learning_outcomes"), 0)
+        self.assertEqual(self.count("learning_commands"), 1)
+        self.assertEqual(self.store.view(self.scope, self.cohort)["missing"], 754)
+
+        path = self.root / "provider-report.json"
+        path.write_text(json.dumps(report))
+        script = '''import sys
+import acquisition.__main__ as cli
+from functools import partial
+now = float(sys.argv.pop(1))
+cli.build = partial(cli.build, clock=lambda: now)
+cli.main()
+'''
+        child = subprocess.run([sys.executable, "-c", script, str(self.now), "--db", str(self.path),
+                                "--organization", self.scope, "learning-import-report", "--cohort", self.cohort,
+                                "--actor", self.actor, "--request-id", "report", "--file", str(path)],
+                               capture_output=True, text=True, timeout=30,
+                               env=dict(os.environ, PYTHONPATH=str(Path("src").resolve())))
+        self.assertEqual(child.returncode, 0, child.stderr)
+        receipt = json.loads(child.stdout)
+        self.assertEqual(receipt["added"], 754)
+        self.assertTrue(receipt["coverage_complete"])
+        self.assertEqual(self.import_report(report), receipt)
+        self.assertEqual(self.count("learning_outcomes"), 754)
+        self.assertEqual(self.count("learning_beliefs"), 0)
+
+    def test_duplicate_events_and_cumulative_reports_preserve_independent_counts(self):
+        self.now += 1
+        positives = [row for row in self.rows if row["response"]][:4]
+        early = self.report("early", positives, positives[:2], final=False, watermark=self.now)
+        receipt = self.import_report(early, "early")
+        self.assertEqual((receipt["added"], receipt["duplicates"], receipt["duplicate_events"]), (4, 0, 2))
+        self.assertFalse(receipt["coverage_complete"])
+        with self.assertRaisesRegex(Conflict, "window must close"):
+            self.finalize()
+
+        self.now = self.opened["window_end"]
+        final = self.report("cumulative", self.rows[:400], self.rows[400:])
+        receipt = self.import_report(final, "cumulative")
+        self.assertEqual((receipt["added"], receipt["duplicates"], receipt["missing_from_report"]), (750, 4, 0))
+        self.assertTrue(receipt["coverage_complete"])
+        reordered = final | {"pages": [page | {"events": list(reversed(page["events"]))}
+                                       for page in reversed(final["pages"])]}
+        self.assertEqual(self.import_report(reordered, "cumulative"), receipt)
+        replay = self.import_report(reordered, "cumulative-replay")
+        self.assertEqual((replay["added"], replay["duplicates"]), (0, 754))
+        self.assertEqual(self.import_report(early, "late-early")["added"], 0)
+        self.assertEqual(sum(e["kind"] == "provider_report_imported"
+                             for e in self.store.view(self.scope, self.cohort)["events"]), 2)
+        finalization = self.finalize()
+        self.assertEqual((finalization["observations"], finalization["successes"]), (754, 76))
+        beliefs = self.store.view(self.scope, self.cohort)["beliefs"]
+        self.assertEqual(sum(row["trials"] for row in beliefs if row["arm"] == "no_mail"), 74)
+
+    def test_complete_pages_and_final_watermark_do_not_substitute_for_control_outcomes(self):
+        self.now = self.opened["window_end"]
+        mailed = [row for row in self.rows if row["arm"] != "no_mail"]
+        report = self.report("treatment-only", mailed[:350], mailed[350:])
+        receipt = self.import_report(report)
+        self.assertEqual((receipt["added"], receipt["missing_from_report"]), (680, 74))
+        self.assertFalse(receipt["coverage_complete"])
+        with self.assertRaisesRegex(Conflict, "including controls"):
+            self.finalize()
+        self.assertEqual(self.count("learning_beliefs"), 0)
+        self.assertEqual(self.store.view(self.scope, self.cohort)["missing"], 74)
+
+    def test_provider_report_identity_conflicts_leave_existing_outcomes_unchanged(self):
+        self.now = self.opened["window_end"]
+        report = self.report("original", self.rows[:1])
+        self.import_report(report)
+        changed = self.report("original", self.rows[:2])
+        with self.assertRaisesRegex(Conflict, "request ID"):
+            self.import_report(changed)
+        with self.assertRaisesRegex(Conflict, "report ID"):
+            self.import_report(changed, "another-key")
+        conflicting = self.rows[0] | {"response": False, "observed_at": self.now}
+        with self.assertRaisesRegex(Conflict, "immutable outcome"):
+            self.import_report(self.report("conflicting", [self.rows[1], conflicting]), "conflicting")
+        self.assertEqual(self.count("learning_outcomes"), 1)
+        self.assertEqual(self.count("learning_commands"), 2)
+
+    def test_snapshot_provenance_is_scoped_and_verifies_the_saved_pages(self):
+        self.now = self.opened["window_end"]
+        report = self.report("provenance", self.rows[:1], self.rows[1:2])
+        receipt = self.import_report(report)
+        (self.root / "provider-report.json").unlink()
+        reopened = build(self.path, clock=lambda: self.now).learning.store
+        source = reopened.report_snapshot(self.scope, self.cohort, "provenance")
+        self.assertEqual(source["snapshot"], report)
+        self.assertEqual(digest(source["snapshot"]), receipt["report_sha256"])
+        self.assertEqual(source["import_receipt"], receipt | {"actor": self.actor})
+        self.assertEqual(reopened.view(self.scope, self.cohort)["events"][-1]["payload"], source["import_receipt"])
+        with self.assertRaises(NotFound):
+            reopened.report_snapshot("another-scope", self.cohort, "provenance")
+        with self.store.database.transaction() as db:
+            db.execute("""UPDATE learning_events SET payload=json_remove(payload, '$.snapshot.pages[1]')
+                WHERE organization=? AND cohort_id=? AND kind='provider_report_source_recorded'""",
+                (self.scope, self.cohort))
+        with self.assertRaisesRegex(Conflict, "does not match the import receipt"):
+            reopened.report_snapshot(self.scope, self.cohort, "provenance")
+        with self.assertRaisesRegex(Conflict, "does not match the import receipt"):
+            self.import_report(report, "corrupt-retry")
+        self.assertEqual(self.count("learning_commands"), 2)
+
+    def test_exact_legacy_report_can_attach_provenance_without_rewriting_its_receipt(self):
+        self.now = self.opened["window_end"]
+        report = self.report("legacy", self.rows[:1])
+        receipt = self.import_report(report)
+        with self.store.database.transaction() as db:
+            db.execute("DELETE FROM learning_events WHERE organization=? AND cohort_id=? AND kind='provider_report_source_recorded'",
+                       (self.scope, self.cohort))
+        with self.assertRaisesRegex(NotFound, "snapshot is unavailable"):
+            self.store.report_snapshot(self.scope, self.cohort, "legacy")
+        self.assertEqual(self.import_report(report), receipt)
+        replay = self.import_report(report, "attach-original")
+        self.assertEqual((replay["added"], replay["duplicates"]), (0, 1))
+        self.assertEqual(self.store.report_snapshot(self.scope, self.cohort, "legacy"),
+                         {"import_receipt": receipt | {"actor": self.actor}, "snapshot": report})
+        self.assertEqual(self.import_report(report, "repeat-attachment")["added"], 0)
+        self.assertEqual(self.count("learning_events"), 3)
+
+    def test_report_rejects_substituted_evidence_and_invalid_watermarks(self):
+        self.now = self.opened["window_end"]
+        report = self.report("source", self.rows[:2])
+        wrong_page = copy.deepcopy(report)
+        wrong_page["pages"][0]["report_id"] = "different-snapshot"
+        wrong_event = copy.deepcopy(report)
+        wrong_event["pages"][0]["events"][0]["event_id"] = wrong_event["pages"][0]["events"][1]["event_id"]
+        wrong_assignment = self.rows[0] | {"arm": "no_mail" if self.rows[0]["arm"] == "A" else "A"}
+        cases = [
+            (report | {"organization": "different-scope"}, "accepted cohort"),
+            (report | {"job_id": "different-job"}, "accepted cohort"),
+            (report | {"metric": "delivered"}, "accepted cohort"),
+            (report | {"watermark": self.now + 1}, "watermark"),
+            (report | {"watermark": self.now - 1}, "entire closed"),
+            (report | {"final": False}, "non-response requires a final report"),
+            (wrong_page, "belong to the report"),
+            (wrong_event, "event identity"),
+            (self.report("wrong-assignment", [wrong_assignment]), "frozen business assignment"),
+        ]
+        for invalid, expected in cases:
+            with self.subTest(expected=expected), self.assertRaisesRegex(ValueError, expected):
+                self.import_report(invalid)
+        with self.store.database.transaction() as db:
+            db.execute("DELETE FROM simulated_agency_jobs WHERE organization=? AND case_id=?", (self.scope, self.case))
+        with self.assertRaisesRegex(Conflict, "accepted experiment is invalid"):
+            self.import_report(report)
+        self.assertEqual(self.count("learning_outcomes"), 0)
+        self.assertEqual(self.count("learning_commands"), 1)
+
+    def test_report_import_rolls_back_with_audit_and_checkpoint_clone_refuses_writes(self):
+        self.now = self.opened["window_end"]
+        report = self.report("atomic", self.rows[:2])
+        for event in ("provider_report_imported", "provider_report_source_recorded"):
+            with self.subTest(event=event):
+                with self.store.database.transaction() as db:
+                    db.execute(f"""CREATE TRIGGER fail_report_event BEFORE INSERT ON learning_events
+                        WHEN NEW.kind='{event}' BEGIN SELECT RAISE(ABORT, 'fixture'); END""")
+                with self.assertRaises(sqlite3.IntegrityError):
+                    self.import_report(report)
+                self.assertEqual(self.count("learning_outcomes"), 0)
+                self.assertEqual(self.count("learning_commands"), 1)
+                self.assertEqual(self.count("learning_events"), 1)
+                with self.store.database.transaction() as db:
+                    db.execute("DROP TRIGGER fail_report_event")
+
+        restored = self.root / "inspection"
+        restored.mkdir()
+        (restored / CHECKPOINT_FILE).write_text("{}")
+        db_path = restored / self.path.name
+        shutil.copyfile(self.path, db_path)
+        before = db_path.read_bytes()
+        inspection = build(db_path, clock=lambda: self.now)
+        with self.assertRaisesRegex(Conflict, "inspection-only"):
+            inspection.learning.ingest_report(self.scope, self.actor, "report", self.cohort, self.root / "provider-report.json")
+        self.assertEqual(inspection.learning.store.view(self.scope, self.cohort)["missing"], 754)
+        self.assertEqual(db_path.read_bytes(), before)
 
     def test_only_accepted_campaign_can_open_and_members_include_controls(self):
         self.assertEqual(self.opened["members"], 754)
