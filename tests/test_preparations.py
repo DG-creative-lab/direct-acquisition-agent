@@ -9,11 +9,13 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Event
 from unittest.mock import patch
+from uuid import uuid4
 
 from acquisition.contracts import Conflict, NotFound
 from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.reasoning import ModelError
 from acquisition.workspace import Workspace
+from acquisition.workspace_models import ModelSelectionRejected, ModelSessionExpired
 from test_conversations import PlannerModel, proposal
 from test_model_copy import FakeModel, reply
 
@@ -22,6 +24,9 @@ class CombinedModel:
     def __init__(self, result=None):
         self.planner = PlannerModel(result or proposal(copy_mode="model"))
         self.copy = FakeModel()
+
+    def validate_key(self):
+        pass
 
     def complete(self, request):
         if request["tools"][0]["function"]["name"] == "submit_campaign_brief":
@@ -90,11 +95,127 @@ class PreparationTests(unittest.TestCase):
         self.assertEqual(len(self.model.copy.requests), 3)
         self.assertEqual(len(self.w.listing()["sessions"]), 1)
 
+    def test_browser_model_stays_frozen_and_only_original_session_can_continue(self):
+        key = "fixture-key-" + "x" * 40
+        session = str(uuid4())
+        chosen, other = "vendor/selected", "vendor/other"
+        browser_model = CombinedModel()
+        models = [{"id": chosen, "tier": "Lower cost"}, {"id": other, "tier": "Standard"}]
+        with patch("acquisition.workspace_models.workspace_models", return_value=models), patch(
+            "acquisition.workspace_models.OpenRouter", return_value=browser_model
+        ):
+            connection = self.w.models.connect(key, session)
+            with self.w.models.browser(connection["handle"], session, chosen, "Lower cost"):
+                self.admit()
+            reopened = self.open()
+            with self.assertRaises(ModelSessionExpired), reopened.models.browser(connection["handle"], session):
+                self.fail("A fresh server must require reconnection")
+            reopened.advance_preparations()
+            for wrong_key, wrong_session in [(key, str(uuid4())), (key + "y", session)]:
+                wrong = reopened.models.connect(wrong_key, wrong_session)
+                with reopened.models.browser(wrong["handle"], wrong_session):
+                    reopened.advance_browser_model()
+            self.assertEqual(browser_model.planner.requests, [])
+            self.assertEqual(self.model.planner.requests, [])
+            self.assertEqual(reopened.conversation(self.c)["preparations"][0]["status"], "planning")
+
+            original = reopened.models.connect(key, session)
+            self.assertEqual(original["binding"], connection["binding"])
+            with reopened.models.browser(original["handle"], session, other, "Standard"):
+                self.assertEqual(self.finish(reopened)["status"], "review_ready")
+            requests = browser_model.planner.requests + browser_model.copy.requests
+            self.assertEqual(len(requests), 4)
+            self.assertEqual({r["model"] for r in requests}, {chosen})
+            self.assertTrue(all(r["tool_choice"] == "required" for r in requests))
+            self.assertTrue(all(r["provider"]["max_price"] == {"prompt": 0.25, "completion": 0.50, "request": 0}
+                                for r in requests))
+            self.assertNotIn(key, str(requests))
+            self.assertNotIn(session, str(requests))
+            for store in self.root.rglob("*.sqlite*"):
+                self.assertNotIn(key.encode(), store.read_bytes())
+                self.assertNotIn(session.encode(), store.read_bytes())
+                self.assertNotIn(connection["handle"].encode(), store.read_bytes())
+            self.assert_no_release(reopened)
+
+    def test_browser_key_does_not_enable_paid_execution_in_a_verified_workspace(self):
+        verified = Workspace(self.root / "verified", real_clock=lambda: self.now, verified_admissions=True)
+        cid = verified.create_conversation("browser", "Verified paid planning")["id"]
+        verified.message_conversation(cid, "brief", 0, "Prepare a £600 contractor experiment.")
+        model = "vendor/selected"
+        with patch("acquisition.workspace_models.workspace_models", return_value=[{"id": model, "tier": "Standard"}]), patch(
+            "acquisition.workspace_models.OpenRouter", return_value=self.model
+        ):
+            session = str(uuid4())
+            connection = verified.models.connect("fixture-key-" + "x" * 40, session)
+            with verified.models.browser(connection["handle"], session, model, "Standard"):
+                verified.start_preparation(cid, "prepare", 1, False, True)
+                verified.advance_browser_model()
+        progress = verified.conversation(cid)["preparations"][0]
+        self.assertTrue(progress["generation"]["admission_paused"])
+        self.assertEqual(self.model.planner.requests, [])
+        self.assertEqual(self.model.copy.requests, [])
+
+    def test_refreshed_catalogue_requires_reselection_before_higher_price_admission(self):
+        session = str(uuid4())
+        model = "vendor/selected"
+        before = [{"id": model, "tier": "Lower cost"}]
+        after = [{"id": model, "tier": "Standard"}]
+        self.w.message_conversation(self.c, "brief", 0, "Prepare a £600 contractor experiment.")
+        with patch("acquisition.workspace_models.workspace_models", side_effect=[before, after]), patch(
+            "acquisition.workspace_models.OpenRouter", return_value=self.model
+        ):
+            handle = self.w.models.connect("fixture-key-" + "x" * 40, session)["handle"]
+            self.assertEqual(self.w.models.catalogue(), before)
+            self.w.models._refresh_at = 0
+            with self.w.models.browser(handle, session, model, "Lower cost"), self.assertRaisesRegex(
+                ModelSelectionRejected, "higher price tier"
+            ):
+                self.w.start_preparation(self.c, "prepare", 1, False, True)
+            self.assertEqual(self.w.conversation(self.c)["preparations"], [])
+            self.assertEqual(self.model.planner.requests, [])
+            with self.w.models.browser(handle, session, model, "Standard"):
+                self.w.start_preparation(self.c, "prepare", 1, False, True)
+                self.w.advance_browser_model()
+        self.assertEqual(len(self.model.planner.requests), 1)
+        self.assertEqual(self.model.planner.requests[0]["provider"]["max_price"],
+                         {"prompt": 1.0, "completion": 2.0, "request": 0})
+
+    def test_verified_staged_planning_replays_without_rechecking_the_catalogue(self):
+        verified = Workspace(self.root / "verified", real_clock=lambda: self.now, verified_admissions=True)
+        scope, tab, model = "local-conversations", str(uuid4()), "vendor/selected"
+        cid = verified.create_conversation("browser", "Staged planning")["id"]
+        verified.message_conversation(cid, "brief", 0, "Prepare a £600 contractor experiment.")
+        store = verified._conversation_app().admissions.store
+        with patch("acquisition.workspace_models.OpenRouter", return_value=self.model), patch.object(
+            verified.models, "catalogue", return_value=[{"id": model, "tier": "Lower cost"}]
+        ):
+            connection = verified.models.connect("fixture-key-" + "x" * 40, tab)
+            with verified.models.browser(connection["handle"], tab, model, "Lower cost"), patch.object(
+                type(store), "admit", side_effect=OSError("Lost after staging")
+            ), self.assertRaisesRegex(OSError, "after staging"):
+                verified.plan_conversation(cid, "plan", 1)
+        self.assertIsNotNone(store.request_for_planning(scope, cid, "plan"))
+        self.assertEqual(verified.conversation(cid)["plans"], [])
+
+        reopened = Workspace(verified.root, real_clock=lambda: self.now)
+        with patch.object(reopened.models, "catalogue", side_effect=AssertionError("Catalogue consulted")):
+            result = reopened.plan_conversation(cid, "plan", 1, replay_only=True)
+        self.assertEqual(result["current_plan"]["request_id"], "plan")
+        app = reopened._conversation_app()
+        run = result["current_plan"]["run_id"]
+        state = app.tasks.inspect(scope, run)
+        self.assertEqual(state["admission"]["status"], "paused")
+        self.assertEqual(state["tasks"][0]["inputs"]["model_config"]["max_prompt_usd_per_million"], 0.25)
+        self.assertEqual(self.model.planner.requests, [])
+
     def test_explicit_copy_consent_cannot_be_expanded_by_replay_or_new_key(self):
         row = self.admit(consent=False)
         self.assertEqual(self.finish()["status"], "needs_consent")
         self.assertEqual(self.w.listing()["sessions"], [])
         self.assertEqual(self.model.copy.requests, [])
+        plan = self.w.conversation(self.c)["current_plan"]["result"]
+        with self.assertRaisesRegex(Conflict, "does not authorize model copy"):
+            self.w.draft_conversation(self.c, "direct-draft", 1, plan["id"])
         for key in ("prepare", "different"):
             with self.assertRaises(Conflict):
                 self.w.start_preparation(self.c, key, 1, False, True)
@@ -289,7 +410,7 @@ class PreparationTests(unittest.TestCase):
     def test_configuration_failure_blocks_without_claiming_the_saved_plan(self):
         row = self.admit()
         original = self.w._conversation_app
-        def unavailable(with_model=False):
+        def unavailable(with_model=False, *, model_config=None):
             if with_model:
                 raise ValueError("A server credential is unavailable")
             return original()

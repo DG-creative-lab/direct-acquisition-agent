@@ -1,7 +1,6 @@
 """A one-call routing proposal. No mutation or approval tool is exposed."""
 import json
 from copy import deepcopy
-from dataclasses import asdict
 from acquisition.contracts import canonical
 from acquisition.conversations import COPY_ACTION_CAPABILITY, TYPED_ACTION_CAPABILITY, ROUTING_CAPABILITIES, ACTION_KINDS, TYPED_ACTION_KINDS, validate_action
 from acquisition.reasoning import CallScope, ModelError, tool_contract, validate_assets
@@ -32,7 +31,7 @@ class ConversationRouter:
 
     def eligible(self, capability, inputs):
         if capability not in ROUTING_CAPABILITIES:return True
-        return self.inference is not None and self.inference.gateway is not None and inputs.get('model_config')==asdict(self.inference.config)
+        return self.inference is not None and self.inference.gateway is not None and inputs.get('model_config')==self.inference.config.payload()
 
     @staticmethod
     def messages(frozen):

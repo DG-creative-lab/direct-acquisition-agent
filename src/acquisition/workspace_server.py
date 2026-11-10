@@ -14,16 +14,20 @@ from acquisition.contracts import Conflict, NotFound
 from acquisition.conversations import ActionNotSaved, AudienceSelectionRejected, MessageRejectedConflict, MessageRejectedInvalid, MessageRejectedNotFound
 from acquisition.reasoning import ModelError
 from acquisition.workspace import Workspace
+from acquisition.workspace_models import ModelSelectionRejected, ModelSessionExpired
 from acquisition.local_root import workspace_root_lock, require_live_root
 
 
 class WorkspaceServer(ThreadingHTTPServer):
-    daemon_threads = True
+    # Handlers can reserve inference and commit workspace state.
+    daemon_threads = False
 
     def __init__(self, port, workspace, assets):
         self.workspace, self.assets = workspace, Path(assets).resolve()
         self.token = secrets.token_urlsafe(32)
         self.preparation_stop = threading.Event()
+        self.request_gate = threading.Lock()
+        self.closing = False
         self.preparation_worker = None
         require_live_root(workspace.root)
         self.root_lock = ExitStack()
@@ -45,22 +49,33 @@ class WorkspaceServer(ThreadingHTTPServer):
     def _continue_preparations(self):
         while not self.preparation_stop.wait(0.25):
             try:
+                self.workspace.models.expire()
                 self.workspace.advance_preparations()
             except Exception:
                 # A storage interruption leaves original durable identities intact.
                 # No alternate run/key is ever created by this scheduler.
                 continue
 
+    def process_request(self, request, client_address):
+        with self.request_gate:
+            if self.closing:
+                self.shutdown_request(request)
+                return
+            super().process_request(request, client_address)
+
     def server_close(self):
-        self.preparation_stop.set()
+        with self.request_gate:
+            self.closing = True
+            self.preparation_stop.set()
+        super().server_close()
         if self.preparation_worker is not None:
             self.preparation_worker.join()
-        super().server_close()
         self.root_lock.close()
 
 
 class Handler(BaseHTTPRequestHandler):
     server: WorkspaceServer
+    timeout = 15  # Bound idle socket reads while the server drains handlers.
 
     def log_message(self, *args):
         pass
@@ -115,6 +130,8 @@ class Handler(BaseHTTPRequestHandler):
             path = self.parsed_target.path
             if path == "/api/sessions":
                 return self._send(200, self.server.workspace.listing())
+            if path == "/api/openrouter/models":
+                return self._send(200, {"models": self.server.workspace.models.catalogue()})
             if path == "/api/conversations":
                 return self._send(200, self.server.workspace.conversations())
             if path == "/api/knowledge":
@@ -158,6 +175,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self._guard(mutation=True):
             return
+        browser = ExitStack()
         try:
             length = int(self.headers.get("Content-Length", "0"))
             if not 0 < length <= 16384 or self.headers.get("Content-Type", "").split(";")[0] != "application/json":
@@ -166,6 +184,29 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(data, dict):
                 raise ValueError("Use a JSON object")
             path = self.parsed_target.path
+            authorization = self.headers.get("Authorization")
+            handle = self.headers.get("X-OpenRouter-Handle")
+            tab = self.headers.get("X-OpenRouter-Session")
+            if path == "/api/openrouter/check":
+                if data or not authorization or not authorization.startswith("Bearer "):
+                    raise ValueError("Use an OpenRouter bearer key.")
+                connection = self.server.workspace.models.connect(authorization.removeprefix("Bearer "), tab, handle)
+                return self._send(200, connection)
+            if authorization is not None:
+                raise ValueError("Use an OpenRouter connection handle.")
+            if path == "/api/openrouter/disconnect":
+                if not handle or not tab or data:
+                    raise ValueError("Use the connected OpenRouter browser session.")
+                self.server.workspace.models.disconnect(handle, tab)
+                return self._send(200, {"ok": True})
+            if handle is not None or tab is not None:
+                browser.enter_context(self.server.workspace.models.browser(
+                    handle, tab, self.headers.get("X-OpenRouter-Model"), self.headers.get("X-OpenRouter-Tier")))
+            if path == "/api/openrouter/advance":
+                if handle is None or data:
+                    raise ValueError("Use the connected OpenRouter browser session.")
+                self.server.workspace.advance_browser_model()
+                return self._send(200, {"ok": True})
             if path == "/api/conversations":
                 if set(data) != {"request_id", "title"}:
                     raise ValueError("Use exact conversation creation fields")
@@ -191,7 +232,8 @@ class Handler(BaseHTTPRequestHandler):
                 if parts[3] == "messages" and set(data) == {"request_id", "expected_revision", "content"}:
                     return self._send(200, self.server.workspace.message_conversation(parts[2], **data))
                 if parts[3] == "plan" and set(data) == {"request_id", "expected_revision"}:
-                    return self._send(200, self.server.workspace.plan_conversation(parts[2], **data))
+                    return self._send(200, self.server.workspace.plan_conversation(parts[2], **data,
+                        replay_only=self.headers.get("X-Workspace-Plan-Replay") == "1"))
                 if parts[3] == "plan-fixture" and set(data) == {"request_id", "expected_revision"}:
                     return self._send(200, self.server.workspace.plan_conversation_fixture(parts[2], **data))
                 if parts[3] == "draft" and set(data) == {"request_id", "expected_revision", "plan_id"}:
@@ -217,6 +259,10 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, self.server.workspace.prepare(parts[2]))
                 return self._send(200, self.server.workspace.action(parts[2], parts[3], data))
             raise NotFound("Unknown workspace route")
+        except ModelSessionExpired as error:
+            self._send(409, {"error": str(error), "openrouter_disconnected": True})
+        except ModelSelectionRejected as error:
+            self._send(409, {"error": str(error), "model_selection_not_saved": True})
         except ActionNotSaved as error:
             self._send(409,{"error":str(error),"action_not_saved":True})
         except AudienceSelectionRejected as error:
@@ -229,6 +275,8 @@ class Handler(BaseHTTPRequestHandler):
                 {"error": str(error) if not isinstance(error, KeyError) else "Missing required workspace field"})
         except Exception:
             self._send(500, {"error": "The action did not return a confirmed result. Refresh before retrying; existing domain receipts prevent duplicate effects."})
+        finally:
+            browser.close()
 
 
 def main():

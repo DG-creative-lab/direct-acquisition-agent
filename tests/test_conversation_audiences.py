@@ -11,6 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, replace
 from pathlib import Path
 from unittest.mock import patch
+from uuid import uuid4
 
 from acquisition.adapters.sqlite.database import Database, AUDIENCE_SELECTIONS
 from acquisition.bootstrap import build
@@ -78,6 +79,39 @@ class ConversationAudienceTests(unittest.TestCase):
         approved=self.w.action(session['id'],'approve',{'request_id':'approve','subject_id':view['review']['subject']['id'],'reason':'Reviewed exact source, population and copy.'})
         self.assertTrue(approved['review']['approval_valid'])
         self.assertEqual(json.loads(self.w.artifact(session['id'],'manifest',approved['review']['subject']['id'])[0])['brief']['audience_source'],selected)
+
+    def test_audience_confirmation_cannot_step_a_browser_preparation_after_a_concurrent_tick(self):
+        tab, model = str(uuid4()), "vendor/selected"
+        with patch("acquisition.workspace_models.OpenRouter", return_value=self.model), patch(
+            "acquisition.workspace_models.workspace_models", return_value=[{"id": model, "tier": "Standard"}]
+        ):
+            handle = self.w.models.connect("fixture-key-" + "x" * 40, tab)["handle"]
+            with self.w.models.browser(handle, tab, model, "Standard"):
+                self.waiting(model=True)
+
+            read_row = self.w.preparations.store.for_revision
+            interleaved = False
+
+            def poll_after_confirmation_read(*args):
+                nonlocal interleaved
+                row = read_row(*args)
+                if not interleaved:
+                    interleaved = True
+                    self.assertEqual(row["status"], "selecting_audience")
+                    with self.w.models.browser(handle, tab):
+                        self.w.advance_browser_model()
+                    self.assertEqual(read_row(*args)["status"], "preparing")
+                return row
+
+            with patch.object(self.w.preparations.store, "for_revision", side_effect=poll_after_confirmation_read):
+                selected = self.choose()
+            self.assertTrue(interleaved)
+            self.assertEqual(selected["preparations"][0]["status"], "preparing")
+            self.assertEqual(self.model.copy.requests, [])
+            with self.w.models.browser(handle, tab):
+                view = self.finish()
+            self.assertEqual(len(self.model.copy.requests), 3)
+            self.assertFalse(view["review"]["approval_valid"])
 
     def test_model_context_and_review_bind_source_without_inheriting_authority(self):
         self.waiting(model=True);selected=self.choose()['audience_receipt'];view=self.finish()

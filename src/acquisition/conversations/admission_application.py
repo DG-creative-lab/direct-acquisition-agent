@@ -1,5 +1,4 @@
 """Explicit caller admission, with original-command recovery before input work."""
-from dataclasses import asdict
 from acquisition.contracts import Conflict, canonical, digest
 from .ports import AdmissionStore
 
@@ -37,7 +36,7 @@ class WorkflowAdmissions:
         native_request=request_id if old is None or 'native_request_id' in old else None
         if old:
             expected={'conversation_id':conversation_id,'revision':revision,'fixture':fixture,
-                      'allow_model':not fixture,'model_config':asdict(config) if config else None}
+                      'allow_model':not fixture,'model_config':config.payload() if config else None}
             if native_request is not None:expected['native_request_id']=native_request
             if {k:v for k,v in old.items() if k!='context'}!=expected:
                 raise Conflict('Planning command differs from its saved admission')
@@ -58,7 +57,7 @@ class WorkflowAdmissions:
         old=self.store.request_inputs(organization,request_id)
         if old:
             if (old.get('kind')!=kind or old.get('allow_model')!=allow_model or
-                    old.get('model_config')!=(asdict(config) if config else None)):
+                    old.get('model_config')!=(config.payload() if config else None)):
                 raise Conflict('Execution command differs from its saved inputs or model permission')
             refs=old['references']
             if 'entrypoint' in old:

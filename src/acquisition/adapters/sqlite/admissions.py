@@ -115,7 +115,7 @@ class SqliteAdmissions:
         if self.workflow_source is None or self.workflow_intent is None:
             raise ValueError('Workflow admission composition is unavailable')
         values={'kind':kind,'references':references,'allow_model':allow_model,
-                'model_config':asdict(model_config) if model_config else None}
+                'model_config':model_config.payload() if model_config else None}
         if entrypoint is not None:values['entrypoint']=entrypoint
         command=canonical(values)
         if len(command.encode())>1_048_576:raise ValueError('Workflow request exceeds the admission envelope')
@@ -158,7 +158,7 @@ class SqliteAdmissions:
         planning_permission(fixture,allow_model,model_config)
         values={'conversation_id':conversation_id,'revision':revision,'context':context,
                 'fixture':fixture,'allow_model':allow_model,
-                'model_config':asdict(model_config) if model_config else None}
+                'model_config':model_config.payload() if model_config else None}
         if native_request_id is not None:values['native_request_id']=native_request
         inputs=canonical(values)
         if len(inputs.encode())>1_048_576:raise ValueError('Planning inputs exceed the admission envelope')
@@ -260,7 +260,7 @@ class SqliteAdmissions:
             if saved is None:return None
             if (row['revision']!=revision or frozen['revision']!=revision or
                     frozen['conversation_id']!=conversation_id or frozen['request_id']!=request_id or
-                    bool(frozen.get('fixture'))!=fixture or frozen['model_config']!=(asdict(config) if config else None)):
+                    bool(frozen.get('fixture'))!=fixture or frozen['model_config']!=(config.payload() if config else None)):
                 raise Conflict('Legacy planning replay differs from its original command')
             if frozen_context is not None:
                 context={k:v for k,v in frozen.items() if k not in

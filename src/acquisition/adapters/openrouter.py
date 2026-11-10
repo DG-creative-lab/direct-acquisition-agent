@@ -1,6 +1,7 @@
 """Thin REST adapter; orchestration and tool execution stay in our application."""
 
 import json
+import re
 import urllib.error
 import urllib.request
 from decimal import Decimal, InvalidOperation
@@ -9,6 +10,8 @@ from acquisition.reasoning import ModelError
 
 
 BASE = "https://openrouter.ai/api/v1"
+CATALOGUE = "/models?sort=most-popular&supported_parameters=tools%2Ctool_choice&output_modalities=text&limit=200"
+WORKSPACE_PRICE_TIERS = {"Free": (0, 0), "Lower cost": (0.25, 0.50), "Standard": (1.0, 2.0)}
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -22,6 +25,20 @@ class OpenRouter:
             raise ModelError("OpenRouter key is missing")
         self._api_key, self.timeout = api_key.strip(), timeout
         self._opener = urllib.request.build_opener(NoRedirect())
+
+    def validate_key(self):
+        request = urllib.request.Request(BASE + "/key", headers={"Authorization": "Bearer " + self._api_key})
+        try:
+            with self._opener.open(request, timeout=8) as response:
+                if response.status != 200:
+                    raise ModelError("OpenRouter could not verify the key. Try again.")
+        except urllib.error.HTTPError as error:
+            rejected = error.code in {401, 403}
+            error.close()
+            raise ModelError("OpenRouter rejected this key." if rejected else
+                             "OpenRouter could not verify the key. Try again.") from None
+        except (urllib.error.URLError, OSError):
+            raise ModelError("OpenRouter could not verify the key. Try again.") from None
 
     def complete(self, request: dict) -> dict:
         payload = json.dumps(request, allow_nan=False).encode()
@@ -101,3 +118,47 @@ def inexpensive_models() -> list[dict]:
                            "output_usd_per_million": str(completion),
                            "supports_forced_tool_choice": "tool_choice" in model.get("supported_parameters", [])})
     return sorted(result, key=lambda m: (Decimal(m["input_usd_per_million"]) + Decimal(m["output_usd_per_million"]), m["id"]))
+
+
+def workspace_models() -> list[dict]:
+    """Return a small, popular shortlist within the workspace routing ceilings."""
+    try:
+        with urllib.request.build_opener(NoRedirect()).open(BASE + CATALOGUE, timeout=8) as response:
+            raw = response.read(4_000_001)
+        if len(raw) > 4_000_000:
+            raise ValueError
+        data = json.loads(raw)["data"]
+        if type(data) is not list:
+            raise ValueError
+    except (KeyError, TypeError, ValueError, OSError, ModelError):
+        raise ModelError("The OpenRouter model list is unavailable. Try again.") from None
+    groups = {tier: [] for tier in WORKSPACE_PRICE_TIERS}
+    seen = set()
+    for model in data:
+        try:
+            model_id = model["id"]
+            name = model["name"]
+            if (not re.fullmatch(r"[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+(?::free)?", model_id)
+                    or len(model_id) > 160 or model_id.startswith("openrouter/") or model_id in seen
+                    or type(name) is not str or not name.strip() or len(name) > 160
+                    or not {"tools", "tool_choice"} <= set(model["supported_parameters"])
+                    or any("text" not in model["architecture"][field] for field in ("input_modalities", "output_modalities"))
+                    or model["context_length"] < 16384):
+                continue
+            prices = model["pricing"]
+            prompt = Decimal(prices["prompt"]) * 1_000_000
+            completion = Decimal(prices["completion"]) * 1_000_000
+            request_cost = Decimal(prices.get("request", "0"))
+            if not (prompt >= 0 and completion >= 0 and request_cost == 0):
+                continue
+        except (AttributeError, KeyError, TypeError, InvalidOperation, OverflowError):
+            continue
+        if model_id.endswith(":free") and (prompt or completion):
+            continue
+        tier = next((tier for tier, (input_limit, output_limit) in WORKSPACE_PRICE_TIERS.items()
+                     if prompt <= input_limit and completion <= output_limit), None)
+        if tier and len(groups[tier]) < 4:
+            groups[tier].append({"id": model_id, "name": name, "tier": tier,
+                                 "input": float(prompt), "output": float(completion)})
+            seen.add(model_id)
+    return [model for group in groups.values() for model in group]

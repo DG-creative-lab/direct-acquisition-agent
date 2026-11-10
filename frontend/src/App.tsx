@@ -3,6 +3,7 @@ import {
   ArrowDownToLine,
   BarChart3,
   Check,
+  ChevronDown,
   ChevronRight,
   Clock3,
   FileText,
@@ -22,7 +23,16 @@ import {
   BookOpen,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { command, date, download, money, partialDelivery, read } from "./api";
+import {
+  command,
+  date,
+  download,
+  money,
+  OpenRouterDisconnected,
+  openRouterRequest,
+  partialDelivery,
+  read,
+} from "./api";
 import type { Act, Session, State } from "./api";
 import { Badge, Empty, Modal } from "./ui";
 import { AudienceView, CopyView } from "./CampaignViews";
@@ -30,6 +40,9 @@ import ReviewPanel from "./ReviewPanel";
 import LearningView from "./LearningView";
 import ConversationWorkspace from "./ConversationWorkspace";
 import KnowledgeView from "./KnowledgeView";
+import { OpenRouterSettings } from "./OpenRouterSettings";
+import { openRouterSession, saveOpenRouterSession } from "./openrouter-session";
+import type { OpenRouterSession } from "./openrouter-session";
 
 type Page =
   "assistant" | "campaign" | "evidence" | "learning" | "activity" | "knowledge";
@@ -49,6 +62,8 @@ export default function App() {
     [creating, setCreating] = useState(false),
     [mode, setMode] = useState<"fixture" | "model">("fixture");
   const [listed, setListed] = useState(false);
+  const [modelSession, setModelSession] = useState(openRouterSession);
+  const [showOpenRouter, setShowOpenRouter] = useState(false);
   const [parent, setParent] = useState<string | null>(null);
   const [conversationMount, setConversationMount] =
     useState<HTMLDivElement | null>(null);
@@ -56,6 +71,36 @@ export default function App() {
     generation = useRef(0),
     listGeneration = useRef(0);
   selectedRef.current = selected;
+  const updateModelSession = (value: OpenRouterSession | null) => {
+    saveOpenRouterSession(value);
+    setModelSession(value);
+  };
+  useEffect(() => {
+    if (!modelSession) return;
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout>;
+    const advance = async () => {
+      try {
+        await openRouterRequest("advance", modelSession, controller.signal);
+      } catch (error) {
+        if (
+          error instanceof OpenRouterDisconnected &&
+          !controller.signal.aborted
+        ) {
+          controller.abort();
+          if (openRouterSession()?.handle === modelSession.handle)
+            updateModelSession(null);
+        }
+      } finally {
+        if (!controller.signal.aborted) timer = setTimeout(advance, 1800);
+      }
+    };
+    timer = setTimeout(advance, 250);
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [modelSession]);
   const loadList = useCallback(async () => {
     const epoch = ++listGeneration.current;
     const list = await read<{ sessions: Session[] }>("/api/sessions");
@@ -275,7 +320,7 @@ export default function App() {
               <span>
                 <strong>{s.name.split(" / ")[0]}</strong>
                 <small>
-                  {s.mode === "model" ? "GPT-OSS-120B" : "Offline fixture"} ·{" "}
+                  {s.mode === "model" ? "Model copy" : "Offline fixture"} ·{" "}
                   {new Date(s.created_at * 1000).toLocaleDateString("en-GB", {
                     day: "numeric",
                     month: "short",
@@ -299,12 +344,22 @@ export default function App() {
             <br />
             No production data.
           </p>
-          <div className="profile">
+          <button
+            className="profile reviewer-settings"
+            aria-haspopup="dialog"
+            onClick={() => setShowOpenRouter(true)}
+          >
             <span className="avatar">LR</span>
             <span>
-              Local reviewer<small>Trusted local workspace</small>
+              Local reviewer
+              <small>
+                {modelSession
+                  ? "OpenRouter connected"
+                  : "Trusted local workspace"}
+              </small>
             </span>
-          </div>
+            <ChevronDown size={14} />
+          </button>
         </div>
       </aside>
       <div className="main-shell">
@@ -335,12 +390,31 @@ export default function App() {
                 className={busy === "Refreshing" ? "spin" : ""}
               />
             </button>
-            <span className="avatar small">LR</span>
+            <span className="avatar small top-avatar" aria-hidden="true">
+              LR
+            </span>
+            <button
+              className="top-profile icon-button"
+              aria-label="Local reviewer settings"
+              aria-haspopup="dialog"
+              onClick={() => setShowOpenRouter(true)}
+            >
+              <span className="avatar small">LR</span>
+            </button>
           </div>
         </header>
         <main id="workspace-main">
           <div hidden={page !== "assistant"}>
             <ConversationWorkspace
+              modelSession={modelSession}
+              onModelSelected={(model) => {
+                if (modelSession)
+                  updateModelSession({
+                    ...modelSession,
+                    model: { id: model.id, name: model.name, tier: model.tier },
+                  });
+              }}
+              onModelSettings={() => setShowOpenRouter(true)}
               onCampaignsChanged={loadList}
               navigationTarget={conversationMount}
               active={page === "assistant"}
@@ -826,6 +900,13 @@ export default function App() {
           )}
         </main>
       </div>
+      {showOpenRouter && (
+        <OpenRouterSettings
+          session={modelSession}
+          onChange={updateModelSession}
+          onClose={() => setShowOpenRouter(false)}
+        />
+      )}
       {creating && (
         <Modal
           label="new-title"

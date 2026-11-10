@@ -1,4 +1,3 @@
-from dataclasses import asdict
 from datetime import datetime, timezone
 
 from acquisition.campaigns import brief_from, validate_copy_revision
@@ -13,7 +12,7 @@ class CopyRevisionWorkflow:
         self.campaigns, self.drafts, self.memory, self.inference, self.reviews = campaigns, drafts, memory, inference, reviews
 
     def eligible(self, capability, inputs):
-        return capability not in self.capabilities() or inputs.get("workflow_version") != "copy-revision/v3" or (self.inference is not None and inputs.get("model_config") == asdict(self.inference.config))
+        return capability not in self.capabilities() or inputs.get("workflow_version") != "copy-revision/v3" or (self.inference is not None and inputs.get("model_config") == self.inference.config.payload())
 
     def _check(self, claim):
         if claim.inputs.get("workflow_version") != "copy-revision/v3" or not self.eligible(claim.capability, claim.inputs):

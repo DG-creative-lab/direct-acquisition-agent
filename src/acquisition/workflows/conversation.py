@@ -1,7 +1,6 @@
 """A bounded interpretation task. It can propose briefs, never approve or execute."""
 
 import json
-from dataclasses import asdict
 
 from acquisition.contracts import canonical, digest
 from acquisition.conversations import CAPABILITY, FIXTURE_MESSAGE, validate_result, bind_requested_scope, scope_projection, scope_response, budget_response
@@ -49,7 +48,7 @@ class ConversationPlanner:
     def eligible(self, capability, inputs):
         if capability != CAPABILITY:
             return True
-        return self.inference is not None and inputs.get("model_config") == asdict(self.inference.config)
+        return self.inference is not None and inputs.get("model_config") == self.inference.config.payload()
 
     @staticmethod
     def messages(frozen):

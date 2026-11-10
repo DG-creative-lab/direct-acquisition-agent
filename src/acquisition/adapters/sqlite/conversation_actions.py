@@ -88,6 +88,8 @@ def require_campaign_creation(db, organization, plan, selection, request_id):
         require_typed_source(db, organization, receipt)
         if receipt['effect_request_id'] != request_id:
             raise Conflict('Resume the original confirmed preparation in chat')
+        if plan['copy_mode'] == 'model' and receipt['allow_model_copy'] is not True:
+            raise Conflict('The confirmed preparation does not authorize model copy')
         if not selection:
             raise Conflict('Confirm an exact audience dataset before campaign preparation')
     row = db.execute('SELECT payload FROM conversation_audiences WHERE organization=? AND conversation_id=? AND revision=?',

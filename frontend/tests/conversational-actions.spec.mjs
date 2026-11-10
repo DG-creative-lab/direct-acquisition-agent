@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { spawn } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -52,6 +52,19 @@ if scenario == 'typed-next':
     w.action(sid,'handoff',{'request_id':'handoff','approval_id':approval})
     w.action(sid,'open-learning',{'request_id':'open'})
     w.action(sid,'finalize',{'request_id':'finalize'})
+if scenario == 'legacy-followup-race':
+    original = w.route_followup
+    def delay_first(*args, **kwargs):
+        started = root/'original-started'
+        if not started.exists():
+            started.touch()
+            deadline = time.monotonic() + 25
+            while not (root/'release-original').exists():
+                if time.monotonic() >= deadline:
+                    raise TimeoutError('Test did not release the original POST')
+                time.sleep(0.05)
+        return original(*args, **kwargs)
+    w.route_followup = delay_first
 server=WorkspaceServer(0,w,Path('frontend/dist'))
 print('http://127.0.0.1:'+str(server.server_port),flush=True)
 server.serve_forever()
@@ -135,6 +148,99 @@ async function current(page) {
   );
   return backend(page, "/api/conversations/" + id);
 }
+
+test("resending a legacy follow-up shares one routing call with a delayed original POST", async ({
+  page,
+}) => {
+  await workspace("legacy-followup-race", async (url, root) => {
+    await open(page, url);
+    const { id, revision } = await current(page);
+    const path = `/api/conversations/${id}/actions`;
+    const requestId = "original-followup";
+    const payload = {
+      allow_model_copy: false,
+      content: "Explain the excluded businesses.",
+      expected_revision: revision,
+    };
+    const token = await page
+      .locator('meta[name="workspace-token"]')
+      .getAttribute("content");
+    await page.evaluate(
+      ({ id, path, requestId, payload }) => {
+        sessionStorage.setItem(
+          "conversation-pending-message",
+          JSON.stringify({
+            conversationId: id,
+            ...payload,
+            route: true,
+          }),
+        );
+        sessionStorage.setItem(
+          "workspace-pending:" + JSON.stringify([path, payload]),
+          requestId,
+        );
+      },
+      { id, path, requestId, payload },
+    );
+    const original = page.request.post(url + path, {
+      headers: { Origin: url, "X-Workspace-Token": token },
+      data: { ...payload, request_id: requestId },
+    });
+    const resends = [];
+    await page.route(url + path, (route) => {
+      resends.push(route.request().postDataJSON());
+      if (resends.length === 1)
+        return route.fulfill({
+          status: 409,
+          json: { action_not_saved: true, error: "Test resend rejected." },
+        });
+      return route.continue();
+    });
+    try {
+      await expect
+        .poll(() =>
+          access(join(root, "original-started")).then(
+            () => true,
+            () => false,
+          ),
+        )
+        .toBe(true);
+      await page.reload();
+      await page.getByRole("button", { name: "Retry saving message" }).click();
+      await expect(page.getByText(/no saved receipt yet/)).toBeVisible();
+      expect(resends).toEqual([]);
+      const resend = page.getByRole("button", {
+        name: "Resend original follow-up",
+      });
+      await resend.click();
+      await expect(page.getByText("Test resend rejected.")).toBeVisible();
+      await page.reload();
+      await resend.click();
+      await expect(
+        page.getByRole("region", { name: "Saved follow-up" }),
+      ).toHaveCount(1);
+      expect(resends).toEqual([
+        { ...payload, request_id: requestId },
+        { ...payload, request_id: requestId },
+      ]);
+    } finally {
+      await writeFile(join(root, "release-original"), "");
+    }
+    const response = await original;
+    expect(response.ok()).toBe(true);
+    const { action_receipt } = await response.json();
+    await expect
+      .poll(async () =>
+        (await current(page)).actions.map((action) => [
+          action.id,
+          action.request_id,
+          action.status,
+        ]),
+      )
+      .toEqual([[action_receipt.id, requestId, "succeeded"]]);
+    expect((await current(page)).execution.used).toBe(1);
+  });
+});
 
 test("read-only follow-ups preserve the selected audience and approval on desktop and mobile", async ({
   page,

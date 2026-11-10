@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from acquisition.bootstrap import build, build_admissions, build_preparations, build_workspace_state, verified_admission_mode, agent_catalogue
-from acquisition.conversations import ACTIVE_PREPARATION, AudienceSelectionRejected, ActionNotSaved, pending_copy_clarification, EnvironmentIntent, FIXTURE_MESSAGE, TYPED_ACTION_ALIASES
+from acquisition.conversations import ACTIVE_PREPARATION, AudienceSelectionRejected, ActionNotSaved, pending_copy_clarification, EnvironmentIntent, FIXTURE_MESSAGE, TYPED_ACTION_ALIASES, action_alias
 from acquisition.conversations import MessageRejectedConflict, MessageRejectedInvalid, MessageRejectedNotFound
 from acquisition.adapters.environment import openrouter_key
 from acquisition.adapters.openrouter import OpenRouter
@@ -25,8 +25,9 @@ from acquisition.reasoning import ModelConfig
 from acquisition.creative import validate_fact_pack, fixture_catalog, historical_hook
 from acquisition.learning import followup_hypotheses
 from acquisition.campaigns import FollowupBrief, build_draft, brief_from
-from dataclasses import replace, asdict
+from dataclasses import replace
 from acquisition.reviews import ReviewPolicy, text, ActorUnavailable
+from acquisition.workspace_models import WorkspaceModels
 
 
 def _partial_delivery(review):
@@ -38,6 +39,7 @@ REVISION_BLOCKS = {
     "ancestry_unavailable": "Historical campaign ancestry needs recovery. Restore its original workspace relationship before model calls can resume. Usage remains incomplete until that relationship is verified.",
     "evidence_unavailable": "Product evidence is unavailable or outside its review window. Review verified evidence and prepare a current campaign before requesting another revision. This request keeps its frozen inputs.",
     "configuration_unavailable": "Restore the server-side OpenRouter key and the original model settings. This saved request will resume automatically when its configuration is available. Do not submit another revision to retry it.",
+    "browser_configuration_unavailable": "Continue this revision in its original OpenRouter browser session. It keeps the selected model and its original limits.",
     "continuation_unavailable": "Revision continuation is unavailable. Inspect the original run and server storage. The server will recheck this saved request; it will not repeat an uncertain provider call.",
 }
 
@@ -58,6 +60,8 @@ class Workspace:
         require_live_root(self.root)
         self.root.mkdir(parents=True, exist_ok=True)
         self.lock = threading.RLock()
+        self.models = WorkspaceModels()
+        self._browser_tick = threading.Lock()
         with self.control() as db:
             initialize_control_tables(db)
             initialize_workspace_identity(db)
@@ -154,15 +158,21 @@ class Workspace:
             raise NotFound("Campaign not found in this workspace")
         return json.loads(row[0])
 
-    def _app(self, session, with_model=False, *, revision_admission=False):
+    def _model_gateway(self, config):
+        if config.browser_binding:
+            return self.models.gateway(config)
+        return OpenRouter(openrouter_key(Path(".env.local")))
+
+    def _app(self, session, with_model=False, *, revision_admission=False, model_config=None):
         verified=self._verified_mode()
         authoritative=self.authority.get(session['id']) if verified else None
         if authoritative is not None:session=authoritative
         gateway, config = None, None
         if (with_model or revision_admission) and session["mode"] == "model":
             validate_fact_pack(self.pack, datetime.fromtimestamp(self.real_clock(), timezone.utc).date())
-            if with_model and not verified:gateway = OpenRouter(openrouter_key(Path(".env.local")))
-            config = ModelConfig("openai/gpt-oss-120b", max_calls=10, force_tool_choice=True)
+            config = model_config or ModelConfig("openai/gpt-oss-120b", max_calls=10, force_tool_choice=True)
+            if with_model and not verified:
+                gateway = self._model_gateway(config)
         # Each sandbox has its own durable clock. Live generation starts at real
         # time; explicit outcome simulation alone can advance the sandbox clock.
         conversation_db = session.get("database_scope") == "conversations" or session.get("conversation_plan") or session["organization"] == "local-conversations"
@@ -192,11 +202,11 @@ class Workspace:
         return {"sessions": [{k: s[k] for k in ("id", "name", "mode", "created_at", "case_id")} for s in sessions],
                 "mode": "LOCAL_SYNTHETIC_SANDBOX", "hosted_authentication": False}
 
-    def _conversation_app(self, with_model=False):
+    def _conversation_app(self, with_model=False, *, model_config=None):
         # Scope and database location are server-owned, never model/browser input.
         verified=self._verified_mode()
-        gateway = OpenRouter(openrouter_key(Path(".env.local"))) if with_model and not verified else None
-        config = ModelConfig("openai/gpt-oss-120b", max_calls=2, force_tool_choice=True) if with_model else None
+        config = model_config or (self.models.selected(2) if with_model else None)
+        gateway = self._model_gateway(config) if with_model and not verified else None
         return build(self.root / "conversations.sqlite", clock=self.real_clock, gateway=gateway, model_config=config, workspace_organization='local-conversations',verified_admissions=verified)
 
     def conversations(self):
@@ -433,6 +443,11 @@ class Workspace:
         app=self._conversation_app();old=app.actions.store.request('local-conversations',conversation_id,request_id)
         try:
             context=old['context'] if old else self.action_context(conversation_id,expected_revision)
+            if self.models.binding and old is None and type(content) is str:
+                shortcut = action_alias(content, typed=context['schema'] == 'routing-context/v3')
+                target = context.get('action_targets', {}).get('prepare_campaign', {}).get('target')
+                if shortcut is None or (shortcut == 'prepare_campaign' and target and target['mode'] == 'planning'):
+                    app = self._conversation_app(model_config=self.models.selected(1))
             row=app.actions.admit('local-conversations',conversation_id,request_id,expected_revision,content,allow_model_copy,context)
         except (Conflict,ValueError,NotFound) as error:raise ActionNotSaved(str(error)) from error
         # Admission is durable before any task or provider request. Recovery can
@@ -444,7 +459,7 @@ class Workspace:
         app=self._conversation_app();row=app.actions.store.get('local-conversations',action_id)
         if row['inputs']['conversation_id']!=conversation_id:raise NotFound('Action belongs to another conversation')
         receipt=app.actions.store.confirm('local-conversations',action_id,request_id,target_id,expected_revision,self.real_clock())
-        self._continue_confirmed_action(receipt)
+        self._continue_confirmed_action(receipt, row['model_config'])
         return self.conversation(conversation_id)|{'action_confirmation':receipt}
 
     def confirm_typed_action(self, conversation_id, action_id, request_id, result_id, expected_revision):
@@ -453,6 +468,8 @@ class Workspace:
             row = app.actions.store.get('local-conversations', action_id)
             if row['inputs']['conversation_id'] != conversation_id:
                 raise NotFound('Action belongs to another conversation')
+            confirmed = row['confirmed']
+            target = confirmed['target'] if confirmed and confirmed.get('action') == 'prepare_campaign' else None
             if not row['confirmed']:
                 result = app.actions.view('local-conversations', row)['result']
                 if not result or result['id'] != result_id or not result['requires_confirmation']:
@@ -465,9 +482,11 @@ class Workspace:
                 elif result['kind'] == 'prepare_campaign':
                     if self._prepare_target(conversation_id, source, sessions) != result['evidence']:
                         raise Conflict('The confirmed preparation target is no longer current')
+                    target = result['evidence']
+            config = self._typed_preparation_config(app, conversation_id, expected_revision, target, row['model_config'])
             receipt = app.actions.store.confirm_typed(
                 'local-conversations', conversation_id, action_id, request_id, result_id, expected_revision)
-            self._continue_typed_action(app, receipt)
+            self._continue_typed_action(app, receipt, config)
         return self.conversation(conversation_id) | {'action_confirmation': receipt}
 
     def _typed_effect(self, app, receipt):
@@ -512,7 +531,22 @@ class Workspace:
                 'fixture': fixture, 'allow_model_copy': not fixture and receipt['allow_model_copy'],
                 'use_audience_catalogue': True}
 
-    def _continue_typed_action(self, app, receipt):
+    def _typed_preparation_config(self, app, conversation_id, revision, target, routing_config):
+        if target is None or target['mode'] == 'fixture':
+            return None
+        if 'plan_id' not in target:
+            return routing_config
+        source = app.conversations.view('local-conversations', conversation_id)
+        plan = next((p for p in source['plans'] if p['revision'] == revision
+                     and p['result'] and p['result']['id'] == target['plan_id']), None)
+        if not plan or not plan['run_id']:
+            raise Conflict('The original campaign plan is unavailable.')
+        config = self._planning_copy_config(app, plan['run_id'])
+        return config.payload() if config else None
+
+    def _continue_typed_action(self, app, receipt, frozen_config=None):
+        if not self.models.matches(frozen_config):
+            return
         if self._typed_effect(app, receipt):
             return
         organization, conversation_id = 'local-conversations', receipt['conversation_id']
@@ -527,7 +561,8 @@ class Workspace:
             else:
                 inputs = self._typed_preparation_inputs(receipt)
                 self.preparations.admit(organization, conversation_id, request, revision,
-                                        inputs['fixture'], inputs['allow_model_copy'], inputs['use_audience_catalogue'])
+                                        inputs['fixture'], inputs['allow_model_copy'], inputs['use_audience_catalogue'],
+                                        model_config=self.models.frozen(frozen_config, max_calls=2))
         else:
             source = app.conversations.view(organization, conversation_id)
             if self._experiment_target(source, self._sessions()) != target:
@@ -553,19 +588,26 @@ class Workspace:
         revision_request_id=action_id+':copy'
         native=self._app(session)
         if native.reviews.store.revision_request(session['organization'],revision_request_id) is None:
-            native=self._app(session,revision_admission=True)
+            config = self.models.selected(5)
+            native=self._app(session, with_model=bool(config.browser_binding),
+                             revision_admission=True, model_config=config)
         reference={'organization':'local-conversations','conversation_id':conversation_id,'action_id':action_id,
                    'result_id':result_id,'revision':expected_revision}
         native.revisions.admit(session['organization'],session['case_id'],revision_request_id,target['subject_id'],
             target['id'],proposal['feedback'],True,conversation_action=reference,confirmation_request_id=request_id)
         return self.conversation(conversation_id)
 
-    def _continue_confirmed_action(self, receipt):
+    def _continue_confirmed_action(self, receipt, frozen_config):
+        if not self.models.matches(frozen_config):
+            return
         source=self.preparation_source('local-conversations',receipt['conversation_id'])
         revision=receipt['message_receipt']['revision']
         if source['revision']!=revision or len(source['plans'])>=6:return
         try:
-            self.preparations.admit('local-conversations',receipt['conversation_id'],receipt['preparation_request_id'],revision,False,receipt['allow_model_copy'],True)
+            # Recovery uses the routing request's credential binding and model.
+            config = self.models.frozen(frozen_config, max_calls=2)
+            self.preparations.admit('local-conversations',receipt['conversation_id'],receipt['preparation_request_id'],revision,False,receipt['allow_model_copy'],True,
+                                    model_config=config)
         except (ValueError,Conflict,NotFound):
             # The confirmed amendment and consent remain discoverable for restart
             # or configuration recovery. Never choose a replacement request ID.
@@ -594,14 +636,16 @@ class Workspace:
             if value['status'] in {'admitted','queued'} and not row['alias']:
                 if app.admissions.required():
                     value |= {'status':'blocked','detail':'Execution remains paused pending cutover activation. Inspect the original request and run.'}
-                elif row['model_config']!=asdict(app.actions.config):
-                    value['status']='blocked'
-                    value['detail']='Restore the original routing model and limits to resume this saved request. Its inputs have been preserved.'
+                elif row['model_config'].get('browser_binding'):
+                    value['detail']='Continue in the original OpenRouter browser session.'
+                elif row['model_config'] != app.actions.config.payload():
+                    value |= {'status':'blocked','detail':'Restore the original routing model and limits to resume this saved request.'}
                 else:
-                    try:openrouter_key(Path('.env.local'))
+                    try:
+                        if not openrouter_key(Path('.env.local')):
+                            raise ValueError("Missing server key")
                     except ValueError:
-                        value['status']='blocked'
-                        value['detail']='Routing is waiting for the server-side OpenRouter key. Restore it to resume this saved request.'
+                        value |= {'status':'blocked','detail':'Routing is waiting for the server-side OpenRouter key. Restore it to resume this saved request.'}
             if value['confirmed']:
                 if value['confirmed'].get('kind') == 'typed_action_confirmation':
                     receipt = value['confirmed']
@@ -655,18 +699,22 @@ class Workspace:
             try:
                 if row['confirmed']:
                     if row['confirmed'].get('kind') == 'typed_action_confirmation':
+                        receipt = row['confirmed']
+                        target = receipt['target'] if receipt['action'] == 'prepare_campaign' else None
                         with self.lock:
-                            self._continue_typed_action(app, row['confirmed'])
+                            config = self._typed_preparation_config(app, receipt['conversation_id'], receipt['revision'],
+                                                                    target, row['model_config'])
+                            self._continue_typed_action(app, receipt, config)
                     elif row['confirmed'].get('kind') != 'copy_revision_confirmation':
-                        self._continue_confirmed_action(row['confirmed'])
+                        self._continue_confirmed_action(row['confirmed'], row['model_config'])
                     continue
-                if row['alias']:continue
+                if row['alias'] or not self.models.matches(row['model_config']):continue
                 source=app.conversations.view('local-conversations',row['inputs']['conversation_id'])
                 if source['revision']!=row['inputs']['revision']:continue
                 current=app.actions.view('local-conversations',row)
                 if current['status'] not in {'admitted','queued','running'}:continue
                 with self.lock:
-                    configured=self._conversation_app(with_model=True)
+                    configured=self._conversation_app(with_model=True, model_config=self.models.frozen(row['model_config']))
                     run=configured.actions.reconcile('local-conversations',row)
                     configured.worker.tick('local-conversations',run_id=run)
             except Exception:
@@ -723,15 +771,16 @@ class Workspace:
         if organization != "local-conversations":
             raise NotFound("Conversation organization is not available in this workspace")
 
-    def freeze_preparation_plan(self, organization, conversation_id, request_id, revision, fixture):
+    def freeze_preparation_plan(self, organization, conversation_id, request_id, revision, fixture, model_config=None):
         self._preparation_scope(organization)
-        app = self._conversation_app(with_model=not fixture)
+        app = self._conversation_app(with_model=not fixture, model_config=model_config)
         return app.conversations.planning_context(organization, conversation_id, request_id, revision, fixture)
 
     def admit_preparation_plan(self, organization, row):
         self._preparation_scope(organization)
         inputs = row["inputs"]
-        app = self._conversation_app(with_model=not inputs["fixture"])
+        config = row['planning_context'].get('model_config')
+        app = self._conversation_app(with_model=not inputs["fixture"], model_config=self.models.frozen(config))
         plan = app.conversations.plan_fixture if inputs["fixture"] else app.conversations.plan
         return plan(organization, inputs["conversation_id"], row["plan_request_id"], inputs["revision"],
                     frozen_context=row["planning_context"])
@@ -857,7 +906,8 @@ class Workspace:
     def step_preparation_plan(self, organization, row):
         self._preparation_scope(organization)
         with self.lock:
-            app = self._conversation_app(with_model=not row["inputs"]["fixture"])
+            config = row['planning_context'].get('model_config')
+            app = self._conversation_app(with_model=not row["inputs"]["fixture"], model_config=self.models.frozen(config))
             app.worker.tick(organization, run_id=row["run_id"])
             return self._run_generation(app, organization, row["run_id"])
 
@@ -885,7 +935,10 @@ class Workspace:
         except (Conflict, ValueError, NotFound) as error:
             raise AudienceSelectionRejected(str(error)) from error
         row = self.preparations.store.for_revision('local-conversations', conversation_id, receipt['revision'])
-        if row and row['status'] == 'selecting_audience':
+        # A browser tick can advance the row immediately after selection commits.
+        # Leave the whole continuation to the executor that holds its credential.
+        if (row and row['status'] == 'selecting_audience'
+                and not self.models.frozen(row['planning_context'].get('model_config'))):
             self.preparations.step('local-conversations', row['id'])
         return self.conversation(conversation_id) | {'audience_receipt':receipt}
 
@@ -936,6 +989,8 @@ class Workspace:
             public = {k: v for k, v in row.items() if k != "planning_context"}
             if generation and generation.get('admission_paused'):
                 public |= {'status':'blocked','detail':'Execution remains paused pending cutover activation. Inspect the original request and run.'}
+            elif row['status'] in {'admitting', 'planning', 'preparing'} and (row['planning_context'].get('model_config') or {}).get('browser_binding'):
+                public['detail'] = 'Continue in the original OpenRouter browser session.'
             if row['inputs']['revision'] <= source['execution']['stopped_through'] and row['status'] in ACTIVE_PREPARATION | {'blocked','needs_consent'}:
                 public |= {'status':'cancelled','detail':'Stopped by you. Send a new brief to start new work; the shared allowance does not reset.'}
             if generation and generation.get('budget_exhausted') and public['status'] in ACTIVE_PREPARATION | {'failed','blocked'}:
@@ -964,11 +1019,21 @@ class Workspace:
             values.append(public | {"current": source["revision"] == row["inputs"]["revision"], "generation": generation})
         return values
 
+    def advance_browser_model(self):
+        # The browser lends its key for one bounded pass. No server scheduler
+        # retains it between requests or adopts work from a different session.
+        if self._browser_tick.acquire(blocking=False):
+            try:
+                self.advance_preparations()
+            finally:
+                self._browser_tick.release()
+
     def advance_preparations(self):
-        self.recover_execution()
+        if not self.models.binding:
+            self.recover_execution()
         self.advance_actions()
         for row in self.preparations.store.listing("local-conversations"):
-            if row["status"] in ACTIVE_PREPARATION:
+            if row["status"] in ACTIVE_PREPARATION and self.models.matches(row['planning_context'].get('model_config')):
                 self.preparations.step("local-conversations", row["id"])
         self.advance_copy_revisions()
 
@@ -984,7 +1049,7 @@ class Workspace:
             if self._verified_mode() and self.authority.get(identity) is None and prior is None:
                 raise Conflict('Legacy sandbox environment requires migration before new revision intent')
             if prior is None:
-                app = self._app(session, with_model=True)
+                app = self._app(session, with_model=True, model_config=self.models.selected(5))
             app.revisions.admit(session["organization"], session["case_id"], request_id, expected_subject, target_id, feedback, allow_model_copy)
             return self.view(identity) | {"command_replayed": prior is not None}
 
@@ -1048,12 +1113,15 @@ class Workspace:
                         continue
                     with self.lock:
                         receipt = app.reviews.store.revision_request(scope, row["request_id"])
+                        frozen = receipt['task_inputs']['model_config']
+                        if not self.models.matches(frozen):
+                            continue
                         blocker = "evidence_unavailable"
                         today = datetime.fromtimestamp(app.clock(), timezone.utc).date()
                         for pack in (self.pack, receipt["context"]["product_facts"], app.reviews.store.evidence(scope)["pack"]):
                             validate_fact_pack(pack, today)
-                        blocker = "configuration_unavailable"
-                        configured = self._app(session, with_model=True)
+                        blocker = "browser_configuration_unavailable" if frozen.get('browser_binding') else "configuration_unavailable"
+                        configured = self._app(session, with_model=True, model_config=self.models.frozen(frozen))
                         run = configured.revisions.reconcile(scope, receipt)
                         blocker = "continuation_unavailable"
                         # Configuration is restored before dispatch. Do not let
@@ -1073,9 +1141,22 @@ class Workspace:
         return self._conversation_app().conversations.reply_budget('local-conversations', conversation_id, request_id,
                                                                   expected_revision, plan_id, content)
 
-    def plan_conversation(self, conversation_id, request_id, expected_revision):
+    def plan_conversation(self, conversation_id, request_id, expected_revision, *, replay_only=False):
         with self.lock:
-            app = self._conversation_app(with_model=True)
+            scope = "local-conversations"
+            native = self._conversation_app()
+            admissions = native.admissions.store
+            staged_key = admissions.request_for_planning(scope, conversation_id, request_id)
+            saved = admissions.request_inputs(scope, staged_key) if staged_key else None
+            if saved is None:
+                saved = next((p for p in native.conversations.store.snapshot(scope, conversation_id)['admissions']
+                              if p['request_id'] == request_id), None)
+            if replay_only and not saved:
+                raise Conflict("The saved planning request is unavailable.")
+            if saved and (saved['revision'] != expected_revision or not saved.get('model_config')):
+                raise Conflict("Planning command differs from its saved admission.")
+            config = ModelConfig(**saved['model_config']) if saved else None
+            app = self._conversation_app(with_model=True, model_config=config)
             run_id = app.conversations.plan("local-conversations", conversation_id, request_id, expected_revision)
             app.worker.drain("local-conversations", run_id=run_id)
             return app.conversations.view("local-conversations", conversation_id)
@@ -1121,6 +1202,13 @@ class Workspace:
             model_copy = plan["copy_mode"] == "model"
             start = self.real_clock() if model_copy else datetime.fromisoformat(self.pack["checked_on"]).replace(tzinfo=timezone.utc).timestamp() + 43200
             if model_copy:
+                if preparation and preparation['inputs']['allow_model_copy'] is not True:
+                    raise Conflict("The saved preparation does not authorize model copy.")
+                config = self._planning_copy_config(app, current['run_id'])
+                if config:
+                    if self._verified_mode():
+                        raise Conflict("Browser model copy is paused in this verified workspace.")
+                    self.models.gateway(config)
                 validate_fact_pack(self.pack, datetime.fromtimestamp(start, timezone.utc).date())
             if requires_audience:
                 start = max(start, self.real_clock())
@@ -1202,7 +1290,7 @@ class Workspace:
             hypothesis = ' '.join(h['segment'] + ': ' + h['hypothesis'] for h in hypotheses)
             memory = app.learning.store.memory_snapshot(scope, segments)
             p = {"parent_id":identity, "source_cohort":cohort_id, "learning":source,
-                "model_config":asdict(ModelConfig("openai/gpt-oss-120b",max_calls=10,force_tool_choice=True)), "memory":memory, "brief":{"budget_pence":budget,"unit_cost_pence":85,"max_candidates":1000,"policy_version":"demo-marketing/v1","segments":list(segments)},
+                "model_config":ModelConfig("openai/gpt-oss-120b",max_calls=10,force_tool_choice=True).payload(), "memory":memory, "brief":{"budget_pence":budget,"unit_cost_pence":85,"max_candidates":1000,"policy_version":"demo-marketing/v1","segments":list(segments)},
                 "hypothesis":hypothesis, "hypotheses":hypotheses, "snapshot_id":app.audiences.put(snapshot),
                 "population":sorted({r["business_id"] for r in csv.DictReader(io.StringIO(preview.assignments_csv))}),
                 "contexts":app.followup_contexts(scope,snapshot,segments,memory,{h['segment']: h for h in hypotheses}),
@@ -1307,6 +1395,10 @@ class Workspace:
                     db.execute("INSERT INTO sessions VALUES(?,?,?)", (identity, fingerprint, canonical(session)))
             return self.prepare(identity)
 
+    def _planning_copy_config(self, app, run_id):
+        state = app.tasks.inspect('local-conversations', run_id)
+        return self.models.frozen(state['tasks'][0]['inputs'].get('model_config'), max_calls=10)
+
     def prepare(self, identity, *, partial=False):
         with self.lock:
             self._ensure_descendant_links(strict_session_id=identity)
@@ -1315,7 +1407,15 @@ class Workspace:
                 return self.view(identity)
             if self._verified_mode() and self.authority.get(identity) is None:
                 raise Conflict('Legacy sandbox environment is inspectable; migrate it before verified preparation')
-            app = self._app(session, with_model=True)
+            config = None
+            if session['mode'] == 'model' and session.get('conversation_plan'):
+                plan = session['conversation_plan']
+                planner = self._conversation_app()
+                source = planner.conversations.view('local-conversations', plan['conversation_id'])
+                original = next((p for p in source['plans'] if p['result'] == plan), None)
+                if original and original['run_id']:
+                    config = self._planning_copy_config(planner, original['run_id'])
+            app = self._app(session, with_model=True, model_config=config)
             store = app.reviews.store
             scope = session["organization"]
             store.initialize_actor(scope, "local-operator", ("operator",))
@@ -1337,7 +1437,7 @@ class Workspace:
                     app.followups.check(scope,p,identity)
                     brief = brief_from(p["brief"] | {"campaign_id":identity,"followup_id":p["id"]})
                     if session["mode"] == "model":
-                        if asdict(app.inference.config) != p["model_config"]:
+                        if app.inference.config.payload() != p["model_config"]:
                             raise Conflict("Restore the model settings frozen in this follow-up proposal")
                         run = app.start_model(scope, identity, snapshot_override=app.audiences.get(scope,p["snapshot_id"]),brief_override=brief,contexts_override=p["contexts"])
                     else:

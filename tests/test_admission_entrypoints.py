@@ -381,7 +381,7 @@ class RevisionCallerCoverageTests(unittest.TestCase):
         run=configured.revisions.reconcile(self.scope,receipt)
         intent=configured.admissions.store.get(self.scope,configured.tasks.inspect(self.scope,run)['admission']['id'])
         self.assertEqual(intent.parent_run_id,self.base['review']['run_id'])
-        self.assertEqual(asdict(intent.model_config),receipt['task_inputs']['model_config'])
+        self.assertEqual(intent.model_config.payload(),receipt['task_inputs']['model_config'])
         self.assertEqual(configured.worker.drain(self.scope,run_id=run),0)
         self.assertEqual(configured.revisions.reconcile(self.scope,receipt),run)
         modified=json.loads(json.dumps(receipt));modified['task_inputs']['feedback']='Changed after confirmation'

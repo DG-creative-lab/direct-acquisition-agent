@@ -1,3 +1,6 @@
+import { openRouterHeaders, openRouterSession } from "./openrouter-session";
+import type { OpenRouterSession } from "./openrouter-session";
+
 export type ValidationReport = {
   id: string;
   subject_id: string;
@@ -240,6 +243,74 @@ export type State = {
 export const token = () =>
   document.querySelector<HTMLMetaElement>('meta[name="workspace-token"]')
     ?.content ?? "";
+
+function modelCommand(path: string, payload: Record<string, unknown>) {
+  const conversation =
+    /^\/api\/conversations\/[^/]+\/(actions|confirm-copy-action|plan|preparations)$/.test(
+      path,
+    );
+  const campaign = /^\/api\/sessions\/[^/]+\/copy-revisions$/.test(path);
+  return (conversation && payload.fixture !== true) || campaign;
+}
+
+export class OpenRouterDisconnected extends Error {}
+
+async function providerPost<T>(
+  action: "check" | "advance" | "disconnect",
+  headers: Record<string, string>,
+  signal?: AbortSignal,
+) {
+  const response = await fetch(`/api/openrouter/${action}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Workspace-Token": token(),
+      ...headers,
+    },
+    body: "{}",
+    signal,
+  });
+  const result = await response.json();
+  if (!response.ok) {
+    if (result.openrouter_disconnected)
+      throw new OpenRouterDisconnected(result.error);
+    throw new Error(result.error ?? "OpenRouter is unavailable.");
+  }
+  return result as T;
+}
+
+export async function connectOpenRouter(
+  key: string,
+  tab: string,
+  previous: OpenRouterSession | null,
+): Promise<OpenRouterSession> {
+  const connection = await providerPost<
+    Pick<OpenRouterSession, "handle" | "binding">
+  >("check", {
+    ...(previous ? { "X-OpenRouter-Handle": previous.handle } : {}),
+    "X-OpenRouter-Session": tab,
+    Authorization: "Bearer " + key,
+  });
+  return {
+    ...connection,
+    session: tab,
+    model:
+      previous?.binding === connection.binding ? previous?.model : undefined,
+  };
+}
+
+export function openRouterRequest(
+  action: "advance" | "disconnect",
+  session: OpenRouterSession,
+  signal?: AbortSignal,
+) {
+  return providerPost<{ ok: true }>(
+    action,
+    openRouterHeaders({ ...session, model: undefined }),
+    signal,
+  );
+}
+
 export async function read<T>(path: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(path, {
     headers: { "X-Workspace-Token": token() },
@@ -249,10 +320,12 @@ export async function read<T>(path: string, signal?: AbortSignal): Promise<T> {
   if (!response.ok) throw new Error(result.error ?? "Unable to load workspace");
   return result;
 }
+const pendingPrefix = "workspace-pending:";
+
 function pendingKey(path: string, payload: Record<string, unknown>) {
   // Workspace commands have flat JSON fields. Match the server's order-independent identity.
   return (
-    "workspace-pending:" +
+    pendingPrefix +
     JSON.stringify([
       path,
       Object.fromEntries(
@@ -284,34 +357,237 @@ function migratePendingCommand() {
   }
   const key = pendingKey(path, payload);
   if (!sessionStorage.getItem(key))
-    sessionStorage.setItem(key, record.request_id);
+    // The single-record format predates browser-funded commands.
+    sessionStorage.setItem(
+      key,
+      JSON.stringify({ requestId: record.request_id, browser: null }),
+    );
   sessionStorage.removeItem("workspace-pending");
 }
 
 export class MessageNotSavedError extends Error {}
+export class FollowupReceiptPendingError extends Error {}
 export class AudienceNotSavedError extends Error {}
+export class ModelSelectionNotSavedError extends Error {}
+
+export type ModelFunding = {
+  browser: Pick<OpenRouterSession, "binding" | "model"> | null;
+};
+
+export function captureModelFunding(): ModelFunding {
+  const current = openRouterSession();
+  return {
+    browser: current
+      ? { binding: current.binding, model: current.model }
+      : null,
+  };
+}
+
+type PendingCommand = ModelFunding & {
+  requestId: string;
+  legacyFollowup?: true;
+};
+
+export function pendingPreparation(conversationId: string, revision: number) {
+  const path = `/api/conversations/${conversationId}/preparations`;
+  const prefix = pendingPrefix + "[" + JSON.stringify(path) + ",";
+  const matches = Object.keys(sessionStorage)
+    .filter((key) => key.startsWith(prefix))
+    .map((key) => {
+      const [, payload] = JSON.parse(key.slice(pendingPrefix.length));
+      if (payload.expected_revision !== revision) return null;
+      const { fixture, allow_model_copy, use_audience_catalogue } = payload;
+      const record = sessionStorage.getItem(key);
+      const inputs = {
+        expected_revision: revision,
+        fixture,
+        allow_model_copy,
+        ...(use_audience_catalogue === true
+          ? { use_audience_catalogue: true }
+          : {}),
+      };
+      if (
+        typeof fixture !== "boolean" ||
+        typeof allow_model_copy !== "boolean" ||
+        key !== pendingKey(path, inputs) ||
+        !record
+      )
+        throw new Error(
+          "The original preparation inputs could not be verified.",
+        );
+      const funding = record.startsWith("{")
+        ? { browser: (JSON.parse(record) as PendingCommand).browser }
+        : undefined;
+      if (
+        funding &&
+        funding.browser !== null &&
+        typeof funding.browser?.binding !== "string"
+      )
+        throw new Error(
+          "The original preparation funding could not be verified.",
+        );
+      return { conversationId, ...inputs, funding };
+    })
+    .filter((intent) => intent !== null);
+  if (matches.length > 1)
+    throw new Error(
+      "More than one preparation is pending for this brief. Inspect the saved conversation before retrying.",
+    );
+  return matches[0];
+}
+
+async function observePendingFollowup<T>(
+  conversationPath: string,
+  payload: Record<string, unknown>,
+  requestId: string,
+): Promise<T | null> {
+  const view = await read<{
+    id: string;
+    revision: number;
+    actions: {
+      id: string;
+      request_id: string;
+      revision: number;
+      content: string;
+      allow_model_copy: boolean;
+    }[];
+  }>(conversationPath);
+  if (
+    conversationPath !== `/api/conversations/${view.id}` ||
+    !Array.isArray(view.actions)
+  )
+    throw new Error(
+      "The workspace could not verify this follow-up. Retry checking its receipt.",
+    );
+  const action = view.actions.find((item) => item.request_id === requestId);
+  if (!action) {
+    // The server reads the revision before listing actions. Admission checks
+    // that revision in the same transaction that saves the follow-up.
+    if (
+      typeof payload.expected_revision === "number" &&
+      view.revision > payload.expected_revision
+    )
+      return null;
+    throw new FollowupReceiptPendingError(
+      "There is no saved receipt yet. Check again or resend the original follow-up.",
+    );
+  }
+  if (
+    action.revision !== payload.expected_revision ||
+    action.content !== payload.content ||
+    action.allow_model_copy !== payload.allow_model_copy
+  )
+    throw new Error("The saved follow-up differs from this pending message.");
+  return {
+    ...view,
+    action_receipt: { id: action.id, revision: action.revision },
+  } as T;
+}
 
 export async function command<T = State>(
   path: string,
   payload: Record<string, unknown>,
+  funding?: ModelFunding | null,
+  legacyFollowup?: {
+    resend: boolean;
+    acknowledge: () => void;
+  },
 ): Promise<T> {
   migratePendingCommand();
   const key = pendingKey(path, payload);
-  let requestId = sessionStorage.getItem(key);
-  if (!requestId) {
-    requestId = crypto.randomUUID();
+  const saved = sessionStorage.getItem(key);
+  const usesModel = modelCommand(path, payload);
+  const current = usesModel ? openRouterSession() : null;
+  const followup = /^(\/api\/conversations\/[^/]+)\/actions$/.exec(path);
+  const savedCommand = saved?.startsWith("{")
+    ? (JSON.parse(saved) as PendingCommand)
+    : null;
+  const legacyRequestId =
+    followup && (!savedCommand || savedCommand.legacyFollowup)
+      ? (savedCommand?.requestId ?? saved)
+      : null;
+  if (legacyRequestId && followup && !legacyFollowup?.resend) {
+    const result = await observePendingFollowup<T>(
+      followup[1],
+      payload,
+      legacyRequestId,
+    );
+    legacyFollowup?.acknowledge();
+    sessionStorage.removeItem(key);
+    if (result === null)
+      throw new MessageNotSavedError(
+        "The brief has changed. Review it before sending this follow-up again.",
+      );
+    return result;
+  }
+  if (legacyFollowup?.resend && !legacyRequestId)
+    throw new Error(
+      "The original follow-up request ID is unavailable. Check its receipt before continuing.",
+    );
+  let pending: PendingCommand;
+  if (savedCommand) {
+    pending = savedCommand;
+  } else if (!saved || legacyRequestId) {
+    if (usesModel && funding === null && !legacyRequestId)
+      throw new MessageNotSavedError(
+        "The previous submission did not record a request ID. Review the text and send it again when ready.",
+      );
+    pending = {
+      requestId: legacyRequestId ?? crypto.randomUUID(),
+      browser: usesModel ? (funding ?? captureModelFunding()).browser : null,
+      ...(legacyRequestId ? { legacyFollowup: true } : {}),
+    };
     // Persist before dispatch. Storage failure leaves the action undispatched.
-    sessionStorage.setItem(key, requestId);
+    sessionStorage.setItem(key, JSON.stringify(pending));
+  } else {
+    if (usesModel)
+      throw new Error(
+        "This older pending request has no saved provider choice. Inspect the conversation before starting a new request.",
+      );
+    pending = { requestId: saved, browser: null };
+  }
+  let headers: Record<string, string> = {};
+  if (pending.browser) {
+    if (!current || current.binding !== pending.browser.binding)
+      throw new Error(
+        "Reconnect the original OpenRouter key in this tab before retrying this request.",
+      );
+    headers = openRouterHeaders({ ...current, model: pending.browser.model });
+  } else if (
+    /^\/api\/(conversations\/[^/]+\/draft|sessions\/[^/]+\/prepare)$/.test(path)
+  ) {
+    // These operations use settings bound by the server to existing work.
+    headers = openRouterHeaders(openRouterSession());
   }
   const response = await fetch(path, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "X-Workspace-Token": token(),
+      ...headers,
     },
-    body: JSON.stringify({ ...payload, request_id: requestId }),
+    body: JSON.stringify({ ...payload, request_id: pending.requestId }),
   });
   const result = await response.json();
+  if (
+    legacyRequestId &&
+    !response.ok &&
+    (result.action_not_saved === true ||
+      result.model_selection_not_saved === true)
+  ) {
+    // This attempt was rejected. An earlier request with the same ID may still commit.
+    sessionStorage.setItem(key, legacyRequestId);
+    throw new Error(
+      result.error ??
+        "The resend was rejected. Check the original follow-up receipt.",
+    );
+  }
+  if (!response.ok && result.model_selection_not_saved === true) {
+    sessionStorage.removeItem(key);
+    throw new ModelSelectionNotSavedError(
+      result.error ?? "Choose an available OpenRouter model in the composer.",
+    );
+  }
   if (
     !response.ok &&
     response.status === 409 &&
@@ -352,6 +628,7 @@ export async function command<T = State>(
       result.error ??
         "The action did not return a confirmed result. Refresh before retrying.",
     );
+  if (legacyRequestId) legacyFollowup?.acknowledge();
   sessionStorage.removeItem(key);
   return result;
 }
@@ -366,6 +643,11 @@ export async function replay<T>(
     headers: {
       "Content-Type": "application/json",
       "X-Workspace-Token": token(),
+      "X-Workspace-Plan-Replay": "1",
+      // This path observes an existing plan. The server selects its frozen configuration.
+      ...openRouterHeaders(
+        modelCommand(path, payload) ? openRouterSession() : null,
+      ),
     },
     body: JSON.stringify({ ...payload, request_id: requestId }),
   });

@@ -1,5 +1,4 @@
 """Persistent action interpretation. Inspection never appends a brief amendment."""
-from dataclasses import asdict
 import json
 from acquisition.contracts import Conflict, canonical, digest
 from acquisition.runtime import TaskSpec
@@ -37,7 +36,8 @@ class ConversationActions:
             context=json.loads(canonical(self.assets(organization,context)))
         frozen={'schema':'conversation-action/v1','organization':organization,'inputs':inputs,'context':context,
                 'method':'authored_alias/v1' if quick else 'model/v1','alias':quick,
-                'model_config':asdict(self.config) if not quick else None,
+                'model_config':self.config.payload() if not quick or (
+                    quick == 'prepare_campaign' and self.config and self.config.browser_binding) else None,
                 'run_request_id':'conversation-action:'+digest({'organization':organization,'conversation_id':conversation_id,'request_id':request_id})}
         if context['schema']=='routing-context/v3':
             frozen |= {'schema':'conversation-action/v3', 'capability':TYPED_ACTION_CAPABILITY}
@@ -52,7 +52,7 @@ class ConversationActions:
         if canonical({k:v for k,v in saved.items() if k!="confirmed"})!=canonical({k:v for k,v in row.items() if k!="confirmed"}):
             raise Conflict("Routing continuation differs from its durable admission")
         if row['alias']:return None
-        if self.config is None or row['model_config']!=asdict(self.config):
+        if self.config is None or row['model_config']!=self.config.payload():
             raise ValueError('Restore the original routing model and limits')
         if self.admissions and self.admissions.required():
             legacy=self.admissions.legacy_workflow(organization,row['run_request_id'],

@@ -110,7 +110,7 @@ class ReviewRegressions(unittest.TestCase):
                 contexts[segment] = identity
                 db.execute("INSERT INTO creative_contexts VALUES(?,?,?)", ("one", identity, canonical(context)))
             shared = {"snapshot_id": snapshot.id, "brief": asdict(Brief("legacy")), "workflow_version": "monthly-mail/v2",
-                      "context_ids": contexts, "model_config": asdict(config)}
+                      "context_ids": contexts, "model_config": config.payload()}
             specs = [TaskSpec("audiences.inspect_model.v2", shared)] + [
                 TaskSpec("creative.generate.v2", shared | {"segment": segment}) for segment in sorted(contexts)
             ] + [TaskSpec("campaigns.build_model_draft.v2", shared), TaskSpec("campaigns.model_review_checkpoint.v2", shared, 5)]

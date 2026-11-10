@@ -3,7 +3,7 @@
 No persistence, provider access or approval authority lives in this composition.
 The storage adapter reloads the source under its admission transaction.
 """
-from dataclasses import asdict, replace
+from dataclasses import replace
 from datetime import datetime, timezone
 
 from acquisition.contracts import Conflict, digest
@@ -43,7 +43,7 @@ def coverage_plan(kind, references, source, config, organization, now):
     inference = Inference(None, None, config, lambda: now) if config else None
     if kind == 'routing':
         frozen = source['action']
-        if frozen.get('alias') or frozen['model_config'] != asdict(config):
+        if frozen.get('alias') or frozen['model_config'] != config.payload():
             raise Conflict('Routing requires its original model admission; aliases need no task')
         if frozen.get('capability',ACTION_CAPABILITY) not in ROUTING_CAPABILITIES:
             raise Conflict('Routing source has an unsupported capability')
@@ -51,7 +51,7 @@ def coverage_plan(kind, references, source, config, organization, now):
         return [TaskSpec(frozen.get('capability', ACTION_CAPABILITY), frozen)], frozen['run_request_id'], frozen['id']
     if kind == 'copy-revision':
         receipt = source['revision']
-        if receipt['task_inputs']['model_config'] != asdict(config) or receipt['inputs']['allow_model_copy'] is not True:
+        if receipt['task_inputs']['model_config'] != config.payload() or receipt['inputs']['allow_model_copy'] is not True:
             raise Conflict('Copy revision requires its exact original generation permission and settings')
         context = receipt['context']
         _copy_preflight(context, organization, inference, now)
@@ -62,7 +62,7 @@ def coverage_plan(kind, references, source, config, organization, now):
         raise Conflict('Campaign copy mode differs from the saved proposal')
     contexts = source['contexts']
     if config:
-        if kind == 'learning-followup' and asdict(config) != source['proposal']['model_config']:
+        if kind == 'learning-followup' and config.payload() != source['proposal']['model_config']:
             raise Conflict('Follow-up requires the proposal\'s exact frozen model settings')
         segments = set(getattr(brief, 'segments', ('inventory', 'contractors')))
         if set(contexts) != segments:
@@ -116,6 +116,6 @@ def coverage_intent(organization, request_id, kind, references, source, allow_mo
     intent = AdmissionIntent.from_tasks(organization=organization, request_id=request_id,
         workflow_version=kind + '-admission/v1', ownership=owner, source_id=operation_id,
         source_fingerprint=digest(source), context_fingerprint=digest(source.get('contexts', source)),
-        parent_run_id=source.get('parent_run_id'), consent_id=('consent_' + digest({'request': marker, 'source': source, 'config': asdict(config)})) if config else None,
+        parent_run_id=source.get('parent_run_id'), consent_id=('consent_' + digest({'request': marker, 'source': source, 'config': config.payload()})) if config else None,
         model_config=config, tasks=tasks)
     return intent, ('campaign' if kind in CAMPAIGN_ADMISSION_KINDS else kind) + ':' + operation_id

@@ -1,0 +1,194 @@
+.profile.reviewer-settings {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--brand-rule);
+  text-align: left;
+  min-height: 44px;
+}
+
+.reviewer-settings > svg {
+  margin-left: auto;
+}
+
+.reviewer-settings:hover {
+  background: var(--brand-dark-surface);
+}
+
+.top-actions .top-profile {
+  display: none;
+}
+
+@media (max-width: 1020px) {
+  .top-actions .top-profile {
+    display: grid;
+    place-items: center;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+  }
+  .top-actions > .top-avatar {
+    display: none;
+  }
+}
+
+@media (max-width: 360px) {
+  .topbar .top-actions {
+    gap: 5px;
+  }
+  .topbar .breadcrumb {
+    min-width: 0;
+  }
+  .topbar .breadcrumb strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.openrouter-form {
+  display: grid;
+  gap: 12px;
+}
+
+.openrouter-close,
+.model-options .text-button {
+  min-height: 44px;
+}
+
+.openrouter-form label {
+  font-weight: 700;
+}
+
+.openrouter-form input {
+  min-height: 44px;
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--brand-panel);
+  border: 1px solid var(--brand-rule);
+  color: var(--brand-ink);
+}
+
+.openrouter-form p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--brand-muted);
+}
+
+.openrouter-form .openrouter-error {
+  color: var(--status-error-ink);
+}
+
+.openrouter-form > a {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--brand-ink);
+  width: fit-content;
+}
+
+.openrouter-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.composer-settings {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  column-gap: 12px;
+}
+
+.model-picker {
+  position: relative;
+  margin-left: auto;
+  max-width: 100%;
+}
+
+.model-picker summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 10px;
+  color: var(--brand-ink);
+  font-size: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.model-picker summary::-webkit-details-marker {
+  display: none;
+}
+
+.model-picker summary:hover,
+.model-picker[open] summary {
+  background: var(--brand-surface);
+}
+
+.model-picker summary span {
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-options {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  right: 0;
+  z-index: 5;
+  width: min(310px, calc(100vw - 44px));
+  max-height: min(390px, 46dvh);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 14px;
+  background: var(--brand-panel);
+  border: 1px solid var(--brand-rule);
+  box-shadow: 0 8px 22px rgb(0 0 0 / 12%);
+}
+
+.is-empty .model-options {
+  bottom: auto;
+  top: calc(100% + 4px);
+}
+
+.model-options h3,
+.model-options h4 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.model-options p,
+.model-options small {
+  color: var(--brand-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.model-options section {
+  border-top: 1px solid var(--brand-rule);
+  padding: 10px 0 3px;
+}
+
+.model-options section > button {
+  display: grid;
+  align-content: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 5px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--brand-ink);
+  text-align: left;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.model-options section > button:hover,
+.model-options section > button[aria-pressed="true"] {
+  background: var(--brand-surface);
+}
