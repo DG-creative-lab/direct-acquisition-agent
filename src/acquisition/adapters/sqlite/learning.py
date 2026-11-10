@@ -5,7 +5,8 @@ from collections import defaultdict
 
 from acquisition.campaigns import Draft
 from acquisition.contracts import Conflict, NotFound, canonical, digest
-from acquisition.learning import cohort_proposal, counts_for, finite, identifier, posterior, recommend, validate_outcome
+from acquisition.learning import (cohort_proposal, counts_for, finite, identifier, normalize_report,
+                                  posterior, recommend, validate_outcome, validate_report_binding)
 from .actors import require_actor
 from .drafts import read_draft, verify
 from .simulated_delivery import SqliteSimulatedDelivery, require_provider_result
@@ -16,20 +17,20 @@ def accepted_cohort_draft(db, organization, cohort):
     try:
         if (cohort['organization'] != organization or cohort['id'] != 'cohort_' + digest(
                 {k: v for k, v in cohort.items() if k != 'id'})):
-            raise Conflict('Finalized source cohort integrity failure')
+            raise Conflict('Source cohort integrity failure')
         job = db.execute('SELECT * FROM simulated_agency_jobs WHERE organization=? AND case_id=?',
                          (organization, cohort['case_id'])).fetchone()
         if job is None:
-            raise Conflict('Finalized source lacks its accepted simulated job')
+            raise Conflict('Source cohort lacks its accepted simulated job')
         receipt = json.loads(job['payload'])
         if (receipt['kind'] != 'simulated_agency_acceptance'
                 or any(job[key] != receipt[key] for key in ('id', 'case_id', 'approval_id', 'subject_id'))
                 or receipt['id'] != 'fake_job_' + digest({'case': receipt['case_id'], 'approval': receipt['approval_id']})):
-            raise Conflict('Finalized source acceptance identity is inconsistent')
+            raise Conflict('Source cohort acceptance identity is inconsistent')
         require_provider_result(SqliteSimulatedDelivery(db), organization, receipt)
         draft = read_draft(db, organization, receipt['draft_id'])
         if cohort_proposal(organization, receipt, draft) != cohort:
-            raise Conflict('Finalized source cohort differs from its accepted experiment')
+            raise Conflict('Source cohort differs from its accepted experiment')
         return draft
     except (NotFound, ValueError, TypeError, KeyError) as error:
         raise Conflict('Source accepted experiment is invalid') from error
@@ -196,24 +197,61 @@ class SqliteLearning:
             if cached:
                 return cached
             cohort, record = self._cohort(db, organization, cohort_id)
-            members = {m["business_id"]: m for m in cohort["members"]}
-            added = 0
-            for row in normalized["outcomes"]:
-                if row["business_id"] not in members:
-                    raise Conflict("Outcome business is outside the enrolled cohort")
-                validate_outcome(row, members[row["business_id"]], cohort, now)
-                old = db.execute("SELECT payload FROM learning_outcomes WHERE organization=? AND cohort_id=? AND business_id=?",
-                    (organization, cohort_id, row["business_id"])).fetchone()
-                if old:
-                    if old[0] != canonical(row):
-                        raise Conflict("An immutable outcome already exists for this business")
-                else:
-                    if record["finalized_at"] is not None:
-                        raise Conflict("Finalized outcomes are immutable")
-                    db.execute("INSERT INTO learning_outcomes VALUES(?,?,?,?)", (organization, cohort_id, row["business_id"], canonical(row)))
-                    added += 1
+            added = self._write_outcomes(db, organization, cohort, record, normalized["outcomes"], now)
             return self._record(db, organization, request_id, fingerprint,
                 {"kind": "outcomes_imported", "cohort_id": cohort_id, "added": added, "duplicates": len(rows) - added, "mode": "SYNTHETIC_ONLY"}, actor, now)
+
+    def ingest_report(self, organization, actor, request_id, cohort_id, report):
+        report, outcomes, duplicate_events = normalize_report(report)
+        report_hash = digest(report)
+        with self.database.transaction() as db:
+            now = self._now()
+            require_actor(db, organization, actor, "operator")
+            fingerprint, cached = self._cached(db, organization, actor, request_id, "ingest_report",
+                                               {"cohort_id": cohort_id, "report_sha256": report_hash})
+            if cached:
+                return cached
+            cohort, record = self._cohort(db, organization, cohort_id)
+            validate_report_binding(report, cohort, now)
+            accepted_cohort_draft(db, organization, cohort)
+            previous = db.execute("""SELECT json_extract(payload, '$.report_sha256') FROM learning_events
+                WHERE organization=? AND cohort_id=? AND kind='provider_report_imported'
+                AND json_extract(payload, '$.report_id')=?""", (organization, cohort_id, report["report_id"])).fetchone()
+            if previous and previous[0] != report_hash:
+                raise Conflict("Provider report ID already binds a different snapshot")
+            added = self._write_outcomes(db, organization, cohort, record, outcomes.values(), report["watermark"])
+            missing = len(cohort["members"]) - len(outcomes)
+            receipt = {key: report[key] for key in ("mode", "cohort_id", "job_id", "metric", "report_id", "watermark", "final", "page_count")}
+            receipt |= {"kind": "provider_report_imported", "report_sha256": report_hash, "added": added,
+                        "duplicates": len(outcomes) - added, "duplicate_events": duplicate_events,
+                        "missing_from_report": missing, "coverage_complete": report["final"] and missing == 0}
+            if previous:
+                if added:
+                    raise Conflict("Previously imported report outcomes are missing")
+                return self._command(db, organization, request_id, fingerprint, receipt)
+            return self._record(db, organization, request_id, fingerprint, receipt, actor, now)
+
+    def _write_outcomes(self, db, organization, cohort, record, rows, now):
+        cohort_id = cohort["id"]
+        members = {m["business_id"]: m for m in cohort["members"]}
+        added = 0
+        for row in rows:
+            business_id = row["business_id"]
+            if business_id not in members:
+                raise Conflict("Outcome business is outside the enrolled cohort")
+            validate_outcome(row, members[business_id], cohort, now)
+            payload = canonical(row)
+            old = db.execute("SELECT payload FROM learning_outcomes WHERE organization=? AND cohort_id=? AND business_id=?",
+                             (organization, cohort_id, business_id)).fetchone()
+            if old:
+                if old[0] != payload:
+                    raise Conflict("An immutable outcome already exists for this business")
+            else:
+                if record["finalized_at"] is not None:
+                    raise Conflict("Finalized outcomes are immutable")
+                db.execute("INSERT INTO learning_outcomes VALUES(?,?,?,?)", (organization, cohort_id, business_id, payload))
+                added += 1
+        return added
 
     def _outcomes(self, db, organization, cohort_id):
         return {r["business_id"]: json.loads(r["payload"]) for r in db.execute(

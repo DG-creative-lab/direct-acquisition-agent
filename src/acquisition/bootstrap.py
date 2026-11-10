@@ -34,6 +34,7 @@ from acquisition.adapters.sqlite.simulated_delivery import SqliteSimulatedDelive
 from acquisition.reviews import ReviewService, CopyRevisionService
 from acquisition.workflows.copy_revision import CopyRevisionWorkflow
 from acquisition.learning import LearningService
+from acquisition.adapters.local_reports import LocalSyntheticReports
 from acquisition.adapters.sqlite.learning import SqliteLearning
 from acquisition.workflows.learning import AcceptedCohortSource
 from acquisition.adapters.sqlite.conversations import SqliteConversations
@@ -511,6 +512,7 @@ def build(path: str | Path, clock: Callable[[], float] = time.time,
                        eligible=lambda capability, inputs: model_workflow.eligible(capability, inputs) and conversation_model.eligible(capability, inputs) and planner.eligible(capability, inputs) and revision_workflow.eligible(capability, inputs) and router.eligible(capability, inputs)), clock,
                        campaigns.catalogue_hash, memory, calls, inference,
                        ReviewService(reviews),
-                       LearningService(SqliteLearning(database, clock), AcceptedCohortSource(reviews, drafts)), conversations, revision_service, SqliteFollowups(database),
+                       LearningService(SqliteLearning(database, clock), AcceptedCohortSource(reviews, drafts),
+                                       LocalSyntheticReports()), conversations, revision_service, SqliteFollowups(database),
                        discovery, ConversationAudiences(conversations, discovery, SqliteAudienceSelections(database, clock), audiences, clock), actions,
                        ConversationExecution(SqliteExecution(database), clock),admissions,model_config)
