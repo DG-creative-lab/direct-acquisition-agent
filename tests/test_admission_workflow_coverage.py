@@ -379,7 +379,7 @@ class LearningAdmissionCoverageTests(unittest.TestCase):
         before=self.admission_effects(store)
         for field,value in changes.items():
             changed=replace(original,**{field:value})
-            self.assertNotEqual(asdict(changed),p['model_config'])
+            self.assertNotEqual(changed.payload(),p['model_config'])
             with self.subTest(field=field),patch('acquisition.workflows.admission_coverage._copy_preflight',
                     side_effect=AssertionError('Mismatched settings reached model preflight')):
                 with self.assertRaisesRegex(Conflict,'frozen model settings'):
@@ -403,7 +403,7 @@ class LearningAdmissionCoverageTests(unittest.TestCase):
         def old_task_builder(kind,references,source,config,organization,now):
             # Reproduce the prior writer's unchecked task construction. The
             # actual saved source, its fingerprint and consent stay intact.
-            substituted=source|{'proposal':source['proposal']|{'model_config':asdict(config)}}
+            substituted=source|{'proposal':source['proposal']|{'model_config':config.payload()}}
             return coverage_plan(kind,references,substituted,config,organization,now)
         with patch('acquisition.workflows.admission_coverage.coverage_plan',side_effect=old_task_builder):
             intent=store.request_workflow(self.scope,'previous-writer','learning-followup',{'proposal_id':p['id']},

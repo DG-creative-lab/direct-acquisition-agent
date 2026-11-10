@@ -1,5 +1,4 @@
 from collections.abc import Callable
-from dataclasses import asdict
 import re
 
 from acquisition.contracts import Conflict, NotFound, digest
@@ -73,7 +72,7 @@ class ConversationService:
         knowledge = self._knowledge(organization, conversation_id, request_id)
         context = {"knowledge": knowledge, "knowledge_id": "knowledge_" + digest(knowledge),
                    "messages": source["messages"], "previous_results": [] if fixture else [p["result"] for p in source["plans"] if p["result"]],
-                   "model_config": None if fixture else asdict(self.config) if self.config else None}
+                   "model_config": None if fixture else self.config.payload() if self.config else None}
         context['budget_policy'] = BUDGET_POLICY
         context['requested_scope'] = requested_scope(organization, conversation_id, expected_revision, source['messages'])
         if fixture:
@@ -98,13 +97,13 @@ class ConversationService:
             source=self.view(organization, conversation_id)
             previous = [p["result"] for p in source["plans"] if p["result"]]
             knowledge = self._knowledge(organization, conversation_id, request_id)
-            context = {"knowledge": knowledge, "knowledge_id": "knowledge_" + digest(knowledge), "model_config": asdict(self.config),
+            context = {"knowledge": knowledge, "knowledge_id": "knowledge_" + digest(knowledge), "model_config": self.config.payload(),
                        "previous_results": previous}
             if source.get('confirmed_action_exchanges'):
                 context['confirmed_action_exchanges']=source['confirmed_action_exchanges']
         else:
             context = frozen_context
-            if context["model_config"] != asdict(self.config):
+            if context["model_config"] != self.config.payload():
                 raise ValueError("Restore the original planner settings before admission")
         frozen = self.store.admit(organization, conversation_id, request_id, expected_revision, context, self.clock(), self.preflight)
         if frozen.get("fixture"):

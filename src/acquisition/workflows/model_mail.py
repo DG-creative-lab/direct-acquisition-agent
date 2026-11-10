@@ -11,7 +11,7 @@ from .monthly_mail import MonthlyMail
 
 def model_task_plan(snapshot_id: str, brief: Brief, contexts: dict[str, str], inference: Inference) -> list[TaskSpec]:
     shared = {"snapshot_id": snapshot_id, "brief": asdict(brief), "workflow_version": "monthly-mail/v3",
-              "context_ids": contexts, "model_config": asdict(inference.config)}
+              "context_ids": contexts, "model_config": inference.config.payload()}
     return [TaskSpec("audiences.inspect_model.v3", shared)] + [
         TaskSpec("creative.generate.v3", shared | {"segment": segment}) for segment in sorted(contexts)
     ] + [TaskSpec("campaigns.build_model_draft.v3", shared),
@@ -34,12 +34,12 @@ class ModelMonthlyMail(MonthlyMail):
         version = inputs.get("workflow_version")
         if version not in {"monthly-mail/v2", "monthly-mail/v3"} or not capability.endswith("." + version.rsplit("/", 1)[-1]):
             return True  # Invalid protocol is a task error, not a worker configuration mismatch.
-        return self.inference is not None and inputs.get("model_config") == asdict(self.inference.config)
+        return self.inference is not None and inputs.get("model_config") == self.inference.config.payload()
 
     def _check_version(self, claim: Claim) -> None:
         if (self.inference is None or claim.inputs.get("workflow_version") not in {"monthly-mail/v2", "monthly-mail/v3"}
                 or not claim.capability.endswith("." + claim.inputs["workflow_version"].rsplit("/", 1)[-1])
-                or claim.inputs.get("model_config") != asdict(self.inference.config)):
+                or claim.inputs.get("model_config") != self.inference.config.payload()):
             raise ModelError("configure_the_original_model_and_limits_before_resuming")
 
     def generate(self, claim: Claim) -> Outcome:
@@ -89,7 +89,7 @@ class ConversationModelMail(ModelMonthlyMail):
     def eligible(self, capability, inputs):
         if capability not in self.capabilities():
             return True
-        return self.inference is not None and inputs.get("model_config") == asdict(self.inference.config)
+        return self.inference is not None and inputs.get("model_config") == self.inference.config.payload()
 
     def _check_version(self, claim):
         if (claim.inputs.get("workflow_version") != "conversation-model-mail/v3"

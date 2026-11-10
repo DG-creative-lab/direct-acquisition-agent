@@ -21,11 +21,11 @@ flowchart TD
 
 In a new chat, choose **Try the offline example**. The agent saves the brief, prepares the contractor experiment in the background, and offers **Review campaign**. Progress survives refresh.
 
-For a custom brief, describe the objective, audience and explicit GBP budget. Sending invokes bounded OpenRouter planning. To request generated copy, say so in the message and enable **Allow model copy for this request**. The agent continues through preparation and checks, asking only for missing input or permission. It ends at an unapproved review candidate. A new message stops continuation of the earlier brief.
+For a custom brief, open **Local reviewer**, connect an OpenRouter API key and choose a model in the chat composer. The key lives in workspace server memory while the tab is connected. Reconnect it after a server restart or five minutes of inactivity. Describe the objective, audience and explicit GBP budget. Sending invokes bounded OpenRouter planning. To request generated copy, say so in the message and enable **Allow model copy for this request**. The agent continues through preparation and checks, asking only for missing input or permission. It ends at an unapproved review candidate. A new message stops continuation of the earlier brief.
 
 The manual campaign controls remain available: choose **New campaign**, select **Offline fixtures** and choose **Prepare campaign**. The workspace creates a separate synthetic sandbox with 1,000 business records, two audience segments and four fixture variants. The campaign displays a simulated clock. Independent new campaigns preserve previous campaigns in their own sandboxes.
 
-Model copy is optional. Selecting **Generate with GPT-OSS-120B** explicitly requests provider inference using the server's OpenRouter key and spending controls. Opening or navigating the interface alone makes no inference request. See [grounding](product-grounding.md) before evaluating generated copy.
+The standalone **Generate with GPT-OSS-120B** option uses the server's OpenRouter key and spending controls. Opening or navigating the interface alone does not start a generation. See [workspace model settings](workspace.md#optional-model-copy) and [product grounding](product-grounding.md).
 
 Choose **Review campaign** in the conversation to inspect and decide on the prepared result without leaving chat. **Open campaign workspace** retains access to the full operational controls.
 

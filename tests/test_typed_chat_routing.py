@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
+from uuid import uuid4
 
 from acquisition.bootstrap import initialize_fixture_workspace
 from acquisition.contracts import Conflict, NotFound, digest
@@ -14,6 +15,7 @@ from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.workspace import Workspace
 from test_conversation_actions import _set_up_workspace
 from test_conversations import proposal
+from test_preparations import CombinedModel
 import test_conversation_learning as learning_tests
 
 
@@ -162,6 +164,41 @@ class TypedPrepareTests(unittest.TestCase):
         self.assertEqual(final['execution']['used'], 0)
         review = self.w.view(final['campaigns'][0]['session_id'])['review']
         self.assertEqual(review['manifest']['brief']['audience_source'], selection)
+
+    def test_confirmed_saved_plan_uses_planner_connection_instead_of_router_connection(self):
+        cid = self.w.create_conversation("two-keys", "Saved model brief")["id"]
+        self.w.message_conversation(cid, "brief", 0, "Prepare a £600 contractor experiment with model copy.")
+        planner, router = CombinedModel(), self.gateway
+        router.action = "prepare_campaign"
+        model, tab = "vendor/selected", str(uuid4())
+        with patch("acquisition.workspace_models.OpenRouter") as adapter, patch(
+            "acquisition.workspace_models.workspace_models", return_value=[{"id": model, "tier": "Standard"}]
+        ):
+            adapter.side_effect = lambda key: planner if key.endswith("a") else adapter.return_value
+            adapter.return_value.complete.side_effect = router.complete
+            first = self.w.models.connect("fixture-key-" + "x" * 40 + "a", tab)["handle"]
+            second = self.w.models.connect("fixture-key-" + "x" * 40 + "b", tab)["handle"]
+            with self.w.models.browser(first, tab, model, "Standard"):
+                self.w.plan_conversation(cid, "plan", 1)
+            with self.w.models.browser(second, tab, model, "Standard"):
+                self.w.route_followup(cid, "route", 1, "Could you go ahead and prepare the campaign we discussed?", True)
+                self.w.advance_browser_model()
+                action = self.w.conversation(cid)["actions"][0]
+                waiting = self.w.confirm_typed_action(cid, action["id"], "confirm", action["result"]["id"], 1)
+            self.choose(self.w, cid, waiting["actions"][0]["audience_choice"])
+            with self.w.models.browser(second, tab):
+                self.w.advance_browser_model()
+            self.w.advance_preparations()
+            self.assertEqual(self.w.conversation(cid)["campaigns"], [])
+            with self.w.models.browser(first, tab):
+                for _ in range(6):
+                    self.w.advance_browser_model()
+            final = self.w.conversation(cid)
+            self.assertEqual(len(final["campaigns"]), 1)
+            self.assertIsNotNone(final["campaigns"][0]["case_id"])
+            self.assertEqual(len(planner.copy.requests), 3)
+            self.assertEqual(len(router.routing_requests), 1)
+            self.assertEqual(router.copy.requests, [])
 
     def test_pending_fixture_preparation_without_catalogue_flag_waits_for_selection(self):
         cid = self.w.create_conversation('early-chat', 'Fixture brief')['id']

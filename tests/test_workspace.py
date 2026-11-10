@@ -7,17 +7,21 @@ import threading
 import unittest
 import urllib.request
 import urllib.error
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlencode
 from contextlib import redirect_stderr
 from pathlib import Path
 from unittest.mock import patch
+from uuid import uuid4
 
 from acquisition.workspace import Workspace
 from acquisition.workspace_server import WorkspaceServer, main
 from acquisition.contracts import Conflict, NotFound
 from acquisition.reasoning import ModelConfig
 from acquisition.bootstrap import build
+from acquisition.local_root import workspace_root_lock
 from test_model_copy import FakeModel
+from test_preparations import CombinedModel
 
 
 class WorkspaceTests(unittest.TestCase):
@@ -242,6 +246,88 @@ class WorkspaceHttpTests(unittest.TestCase):
                 self.assertEqual(status, 403)
         self.assertEqual(self.server.workspace.listing()["sessions"], [])
         self.assertEqual(self.request('/api/sessions', headers={"X-Workspace-Token": ""})[0], 403)
+
+    def test_browser_provider_validation_uses_the_same_origin_and_never_echoes_credentials(self):
+        key = "fixture-key-" + "x" * 40
+        headers = {"Authorization": "Bearer " + key, "X-OpenRouter-Session": str(uuid4())}
+        path = "/api/openrouter/check"
+        with patch("acquisition.workspace_models.OpenRouter") as adapter:
+            for invalid in ({"Origin": "https://attacker.invalid"}, {"Host": "attacker.invalid"},
+                            {"X-Workspace-Token": ""}):
+                self.assertEqual(self.request(path, {}, headers | invalid)[0], 403)
+            self.assertEqual(self.request(path, {})[0], 400)
+            adapter.assert_not_called()
+            status, body, response_headers = self.request(path, {}, headers)
+            self.assertEqual(status, 200)
+            connection = json.loads(body)
+            self.assertEqual(set(connection), {"handle", "binding"})
+            self.assertEqual(response_headers["Cache-Control"], "no-store")
+            adapter.assert_called_once_with(key)
+            adapter.return_value.validate_key.assert_called_once_with()
+            self.assertNotIn(key.encode(), body)
+            advance = "/api/openrouter/advance"
+            session = headers["X-OpenRouter-Session"]
+            handle = {"X-OpenRouter-Handle": connection["handle"], "X-OpenRouter-Session": session}
+            self.assertEqual(self.request(advance, {}, headers)[0], 400)
+            self.assertEqual(self.request(advance, {}, handle | {"X-OpenRouter-Session": str(uuid4())})[0], 409)
+            self.assertEqual(self.request(advance, {}, handle)[0], 200)
+            self.assertEqual(self.request("/api/openrouter/disconnect", {}, handle)[0], 200)
+            status, body, _ = self.request(advance, {}, handle)
+            self.assertEqual(status, 409)
+            self.assertTrue(json.loads(body)["openrouter_disconnected"])
+            with patch.object(self.server.workspace.models, "idle_seconds", 0):
+                expired = json.loads(self.request(path, {}, headers)[1])
+            self.assertEqual(expired["binding"], connection["binding"])
+            self.assertEqual(self.request(advance, {}, handle | {"X-OpenRouter-Handle": expired["handle"]})[0], 409)
+
+    def test_shutdown_holds_root_lock_until_browser_inference_commits(self):
+        entered, release, closed = threading.Event(), threading.Event(), threading.Event()
+        workspace = self.server.workspace
+        workspace.real_clock = lambda: 1793404800.
+        gateway = CombinedModel()
+        complete = gateway.complete
+
+        def delayed(request):
+            entered.set()
+            if not release.wait(15):
+                raise TimeoutError("Test did not release the model")
+            return complete(request)
+
+        gateway.complete = delayed
+        tab, model = str(uuid4()), "vendor/selected"
+        with patch("acquisition.workspace_models.OpenRouter", return_value=gateway), patch(
+            "acquisition.workspace_models.workspace_models", return_value=[{"id": model, "tier": "Standard"}]
+        ), ThreadPoolExecutor(max_workers=2) as pool:
+            connection = workspace.models.connect("fixture-key-" + "x" * 40, tab)
+            headers = {"X-OpenRouter-Handle": connection["handle"], "X-OpenRouter-Session": tab}
+            cid = workspace.create_conversation("browser", "Shutdown boundary")["id"]
+            workspace.message_conversation(cid, "brief", 0, "Prepare a £600 contractor experiment.")
+            with workspace.models.browser(connection["handle"], tab, model, "Standard"):
+                workspace.start_preparation(cid, "prepare", 1, False, True)
+
+            def close():
+                self.stop()
+                closed.set()
+
+            request = pool.submit(self.request, "/api/openrouter/advance", {}, headers)
+            try:
+                self.assertTrue(entered.wait(10))
+                closing = pool.submit(close)
+                self.assertTrue(self.server.preparation_stop.wait(10))
+                self.assertFalse(closed.wait(1))
+                with self.assertRaises(BlockingIOError), workspace_root_lock(workspace.root):
+                    pass
+            finally:
+                release.set()
+            self.assertEqual(request.result(timeout=10)[0], 200)
+            closing.result(timeout=10)
+            reopened = WorkspaceServer(0, Workspace(workspace.root, real_clock=workspace.real_clock), self.server.assets)
+            try:
+                progress = reopened.workspace.conversation(cid)["preparations"][0]
+                self.assertEqual(progress["status"], "preparing")
+                self.assertFalse(progress["generation"]["outcome_uncertain"])
+            finally:
+                reopened.server_close()
 
     def test_audience_discovery_is_guarded_read_only_and_exactly_selected(self):
         self.server.workspace.real_clock=lambda:1793404800.

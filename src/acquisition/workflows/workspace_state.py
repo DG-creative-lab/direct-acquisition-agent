@@ -16,7 +16,7 @@ def validate_environment_run(session,creation,admitted,command,source,parent,*,s
               'conversation':'conversation-campaign','followup':'learning-followup'}.get(kind)
     if workflow is None or command.get('kind')!=workflow or admitted.workflow_version!=workflow+'-admission/v1':
         raise Conflict('Sandbox run has a different admitted source kind')
-    permission=asdict(ModelConfig('openai/gpt-oss-120b',max_calls=10,force_tool_choice=True)) if model else None
+    permission=ModelConfig('openai/gpt-oss-120b',max_calls=10,force_tool_choice=True).payload() if model else None
     as_of=datetime.fromtimestamp(session['clock'],timezone.utc).date().isoformat()
     parent_run=parent['run_id'] if parent else None
     inputs=json.loads(creation['inputs'])
@@ -65,7 +65,7 @@ def validate_environment_run(session,creation,admitted,command,source,parent,*,s
     expected_parent=parent_run if parent else None
     if (admitted.workflow_version!=workflow+'-admission/v1' or admitted.source_id!=sid or
             admitted.parent_run_id!=expected_parent or asdict(admitted.ownership)!=owner or
-            (asdict(admitted.model_config) if admitted.model_config else None)!=permission or
+            (admitted.model_config.payload() if admitted.model_config else None)!=permission or
             command.get('kind')!=workflow or command.get('allow_model') is not model or command.get('model_config')!=permission or
             canonical(command.get('entrypoint'))!=canonical(entry) or canonical(command.get('references'))!=canonical(refs) or
             canonical(admitted.tasks[0].inputs.get('brief'))!=canonical(brief)):

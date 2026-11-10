@@ -1,6 +1,5 @@
 """Version-bounded readers of historical evidence. No ownership writes or live policy checks."""
 import json
-from dataclasses import asdict
 
 from acquisition.contracts import Conflict, digest
 from acquisition.conversations import CAPABILITY, FIXTURE_CAPABILITY, ROUTING_CAPABILITIES
@@ -58,7 +57,7 @@ class LegacyFacts:
     def config(config):
         if type(config) is not dict:
             raise Conflict('Frozen model settings are missing')
-        parsed = asdict(ModelConfig(**config))
+        parsed = ModelConfig(**config).payload()
         if parsed != config:
             raise Conflict('Frozen model settings are incomplete')
         return digest(config)

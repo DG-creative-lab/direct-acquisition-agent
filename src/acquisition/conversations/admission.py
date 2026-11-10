@@ -133,6 +133,7 @@ class AdmissionIntent:
     def payload(self):
         value=asdict(self)
         value.pop('task_plan_json')
+        value['model_config'] = self.model_config.payload() if self.model_config else None
         value['schema']=ADMISSION_SCHEMA
         value['tasks']=json.loads(self.task_plan_json)
         return value
@@ -215,7 +216,7 @@ def planning_intent(organization, request_id, source, context, history, *, fixtu
     if source['organization']!=organization:raise Conflict('Planning source belongs to another organization')
     allowed={'knowledge','knowledge_id','model_config','previous_results','fixture','messages','confirmed_action_exchanges','requested_scope','budget_policy'}
     if type(context) is not dict or set(context)-allowed:raise ValueError('Unsupported planning context fields')
-    if context.get('model_config')!=(asdict(config) if config else None):
+    if context.get('model_config')!=(config.payload() if config else None):
         raise Conflict('Planning context and permitted model settings differ')
     if context.get('previous_results')!=([] if fixture else history):
         raise Conflict('Planning history differs from authoritative results')

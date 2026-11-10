@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   ArrowUpRight,
@@ -11,13 +11,19 @@ import {
 } from "lucide-react";
 import {
   command,
+  captureModelFunding,
   AudienceNotSavedError,
+  FollowupReceiptPendingError,
   MessageNotSavedError,
+  ModelSelectionNotSavedError,
   money,
+  pendingPreparation,
   read,
   replay,
 } from "./api";
-import type { State } from "./api";
+import type { ModelFunding, State } from "./api";
+import { ModelPicker } from "./OpenRouterSettings";
+import type { OpenRouterModel, OpenRouterSession } from "./openrouter-session";
 import "./conversation.css";
 import ConversationActions, {
   type AudienceCandidate,
@@ -95,13 +101,16 @@ type PreparationIntent = {
   fixture: boolean;
   allow_model_copy: boolean;
   use_audience_catalogue?: boolean;
+  funding?: ModelFunding;
 };
-const preparationIntentKey = "conversation-preparation-intent";
-function savedPreparationIntent(): PreparationIntent | null {
+const legacyPreparationIntentKey = "conversation-preparation-intent";
+const preparationIntentPrefix = legacyPreparationIntentKey + ":";
+const preparationIntentKey = (conversationId: string, revision: number) =>
+  preparationIntentPrefix + JSON.stringify([conversationId, revision]);
+
+function readPreparationIntent(key: string): PreparationIntent | null {
   try {
-    const value = JSON.parse(
-      sessionStorage.getItem(preparationIntentKey) ?? "null",
-    );
+    const value = JSON.parse(sessionStorage.getItem(key) ?? "null");
     return value &&
       typeof value.conversationId === "string" &&
       Number.isInteger(value.expected_revision) &&
@@ -112,6 +121,26 @@ function savedPreparationIntent(): PreparationIntent | null {
   } catch {
     return null;
   }
+}
+
+function savedPreparationIntents(): Record<string, PreparationIntent> {
+  const intents: Record<string, PreparationIntent> = {};
+  const legacy = readPreparationIntent(legacyPreparationIntentKey);
+  if (legacy)
+    intents[
+      preparationIntentKey(legacy.conversationId, legacy.expected_revision)
+    ] = legacy;
+  for (const key of Object.keys(sessionStorage)) {
+    if (!key.startsWith(preparationIntentPrefix)) continue;
+    const intent = readPreparationIntent(key);
+    if (
+      intent &&
+      key ===
+        preparationIntentKey(intent.conversationId, intent.expected_revision)
+    )
+      intents[key] = intent;
+  }
+  return intents;
 }
 const activePreparation = (status: string) =>
   ["admitting", "planning", "selecting_audience", "preparing"].includes(status);
@@ -157,6 +186,8 @@ type PendingMessage = {
   content: string;
   allow_model_copy?: boolean;
   route?: boolean;
+  funding?: ModelFunding;
+  canResendLegacyFollowup?: boolean;
 };
 const pendingMessageKey = "conversation-pending-message";
 function savedPendingMessage(): PendingMessage | null {
@@ -178,12 +209,18 @@ const example =
   "Prepare a £600 direct-mail response experiment for UK contractors. Use offline copy fixtures.";
 
 export default function ConversationWorkspace({
+  modelSession,
+  onModelSelected,
+  onModelSettings,
   onOpenCampaign,
   navigationTarget,
   active,
   onNavigate,
   onCampaignsChanged,
 }: {
+  modelSession: OpenRouterSession | null;
+  onModelSelected: (model: OpenRouterModel) => void;
+  onModelSettings: () => void;
   onOpenCampaign: (state: State) => void;
   navigationTarget: HTMLElement | null;
   active: boolean;
@@ -205,8 +242,32 @@ export default function ConversationWorkspace({
     () => savedPendingMessage()?.content ?? "",
   );
   const [allowModelCopy, setAllowModelCopy] = useState(false);
-  const [preparationIntent, setPreparationIntent] = useState(
-    savedPreparationIntent,
+  const [preparationIntents, setPreparationIntents] = useState(
+    savedPreparationIntents,
+  );
+  const updatePreparationIntent = useCallback(
+    (intent: PreparationIntent, pending: boolean) => {
+      const key = preparationIntentKey(
+        intent.conversationId,
+        intent.expected_revision,
+      );
+      if (pending) sessionStorage.setItem(key, JSON.stringify(intent));
+      else sessionStorage.removeItem(key);
+      const legacy = readPreparationIntent(legacyPreparationIntentKey);
+      if (
+        legacy &&
+        key ===
+          preparationIntentKey(legacy.conversationId, legacy.expected_revision)
+      )
+        sessionStorage.removeItem(legacyPreparationIntentKey);
+      setPreparationIntents((intents) => {
+        const next = { ...intents };
+        if (pending) next[key] = intent;
+        else delete next[key];
+        return next;
+      });
+    },
+    [],
   );
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -230,6 +291,15 @@ export default function ConversationWorkspace({
   };
   const epoch = useRef(0);
   const loadingConversation = !!selected && conversation?.id !== selected;
+  const preparationIntent =
+    conversation?.id === selected
+      ? preparationIntents[
+          preparationIntentKey(conversation.id, conversation.revision)
+        ]
+      : undefined;
+  const savedPreparation = conversation?.preparations?.find(
+    (preparation) => preparation.inputs.revision === conversation.revision,
+  );
 
   const accept = (value: Conversation) => {
     epoch.current += 1;
@@ -272,24 +342,16 @@ export default function ConversationWorkspace({
 
   useEffect(() => {
     if (
-      !conversation ||
-      !preparationIntent ||
-      conversation.id !== preparationIntent.conversationId
+      preparationIntent &&
+      savedPreparation &&
+      savedPreparation.inputs.fixture === preparationIntent.fixture &&
+      savedPreparation.inputs.allow_model_copy ===
+        preparationIntent.allow_model_copy &&
+      !!savedPreparation.inputs.use_audience_catalogue ===
+        !!preparationIntent.use_audience_catalogue
     )
-      return;
-    const saved = conversation.preparations?.find(
-      (p) =>
-        p.inputs.revision === preparationIntent.expected_revision &&
-        p.inputs.fixture === preparationIntent.fixture &&
-        p.inputs.allow_model_copy === preparationIntent.allow_model_copy &&
-        !!p.inputs.use_audience_catalogue ===
-          !!preparationIntent.use_audience_catalogue,
-    );
-    if (saved) {
-      sessionStorage.removeItem(preparationIntentKey);
-      setPreparationIntent(null);
-    }
-  }, [conversation, preparationIntent]);
+      updatePreparationIntent(preparationIntent, false);
+  }, [savedPreparation, preparationIntent, updatePreparationIntent]);
 
   const preparedCampaigns =
     conversation?.campaigns
@@ -358,21 +420,27 @@ export default function ConversationWorkspace({
   }, [selected, preparing, active]);
 
   const continuePreparation = async (intent: PreparationIntent) => {
-    sessionStorage.setItem(preparationIntentKey, JSON.stringify(intent));
-    setPreparationIntent(intent);
-    const value = await command<Conversation>(
-      `/api/conversations/${intent.conversationId}/preparations`,
-      {
-        expected_revision: intent.expected_revision,
-        fixture: intent.fixture,
-        allow_model_copy: intent.allow_model_copy,
-        ...(intent.use_audience_catalogue
-          ? { use_audience_catalogue: true }
-          : {}),
-      },
-    );
-    sessionStorage.removeItem(preparationIntentKey);
-    setPreparationIntent(null);
+    updatePreparationIntent(intent, true);
+    let value: Conversation;
+    try {
+      value = await command<Conversation>(
+        `/api/conversations/${intent.conversationId}/preparations`,
+        {
+          expected_revision: intent.expected_revision,
+          fixture: intent.fixture,
+          allow_model_copy: intent.allow_model_copy,
+          ...(intent.use_audience_catalogue
+            ? { use_audience_catalogue: true }
+            : {}),
+        },
+        intent.funding,
+      );
+    } catch (error) {
+      if (error instanceof ModelSelectionNotSavedError)
+        updatePreparationIntent({ ...intent, funding: undefined }, true);
+      throw error;
+    }
+    updatePreparationIntent(intent, false);
     accept(value);
   };
 
@@ -410,8 +478,10 @@ export default function ConversationWorkspace({
       await createDraft(id, revision, plan.result);
     }
   };
-  const send = async () => {
+  const send = async (resendLegacyFollowup = false) => {
     if ((!message.trim() && !pendingMessage) || busy) return;
+    if (resendLegacyFollowup && !pendingMessage?.canResendLegacyFollowup)
+      return;
     if (loadingConversation) {
       setError(
         "Wait for the saved conversation to load before sending a reply.",
@@ -420,6 +490,10 @@ export default function ConversationWorkspace({
     }
     setError("");
     setBusy("Saving your request");
+    const funding =
+      !pendingMessage || resendLegacyFollowup
+        ? captureModelFunding()
+        : pendingMessage.funding;
     let current = conversation;
     try {
       if (!current && pendingMessage)
@@ -449,6 +523,7 @@ export default function ConversationWorkspace({
         expected_revision: current.revision,
         content: message.trim(),
         allow_model_copy: allowModelCopy,
+        funding,
         route:
           current.revision > 0 &&
           (typedShortcut || (!current.execution?.stopped && !budgetQuestion)),
@@ -485,8 +560,20 @@ export default function ConversationWorkspace({
                   ? { allow_model_copy: pending.allow_model_copy === true }
                   : {}),
               },
+          (resendLegacyFollowup ? funding : pending.funding) ?? null,
+          pending.route
+            ? {
+                resend: resendLegacyFollowup,
+                acknowledge: () => sessionStorage.removeItem(pendingMessageKey),
+              }
+            : undefined,
         );
       } catch (error) {
+        if (error instanceof FollowupReceiptPendingError) {
+          const waiting = { ...pending, canResendLegacyFollowup: true };
+          sessionStorage.setItem(pendingMessageKey, JSON.stringify(waiting));
+          setPendingMessage(waiting);
+        }
         if (error instanceof MessageNotSavedError) {
           sessionStorage.removeItem(pendingMessageKey);
           setPendingMessage(null);
@@ -513,10 +600,10 @@ export default function ConversationWorkspace({
         fixture: false,
         allow_model_copy: pending.allow_model_copy === true,
         use_audience_catalogue: true,
+        funding: pending.funding,
       };
       if (saved.revision === messageRevision) {
-        sessionStorage.setItem(preparationIntentKey, JSON.stringify(intent));
-        setPreparationIntent(intent);
+        updatePreparationIntent(intent, true);
       }
       sessionStorage.removeItem(pendingMessageKey);
       setPendingMessage(null);
@@ -528,6 +615,10 @@ export default function ConversationWorkspace({
           "Your message was saved, but the brief has since changed. Review the latest messages and send a new request with its own copy permission.",
         );
       setBusy("Starting campaign preparation");
+      if (!intent.funding)
+        throw new Error(
+          "Your message was saved. Choose a model and resume preparation to confirm funding.",
+        );
       await continuePreparation(intent);
       await list();
     } catch (e) {
@@ -569,15 +660,30 @@ export default function ConversationWorkspace({
     }
   };
   const resume = async () => {
-    if (!conversation || busy) return;
+    if (!conversation || loadingConversation || busy) return;
     setError("");
     setBusy("Resuming the request");
     try {
-      if (preparationIntent?.conversationId === conversation.id) {
-        await continuePreparation(preparationIntent);
+      if (preparationIntent) {
+        await continuePreparation({
+          ...preparationIntent,
+          funding: preparationIntent.funding ?? captureModelFunding(),
+        });
         return;
       }
       const plan = conversation.current_plan;
+      if (!plan && savedPreparation) return;
+      if (!plan) {
+        // Older tabs may have lost the intent when a different chat overwrote it.
+        const original = pendingPreparation(
+          conversation.id,
+          conversation.revision,
+        );
+        if (original) {
+          await continuePreparation(original);
+          return;
+        }
+      }
       const offline =
         plan?.mode === "fixture" ||
         (!plan &&
@@ -1027,7 +1133,7 @@ export default function ConversationWorkspace({
                                   ? "The provider may have processed and charged for this request. Inspect the original run before requesting another generation."
                                   : generation.provider_error ===
                                       "provider_http_401"
-                                    ? "OpenRouter rejected the API key (401). Update the server key, then send a new message to create a fresh proposal."
+                                    ? "OpenRouter rejected the API key (401). Check your OpenRouter settings before sending a fresh request."
                                     : generation.provider_error ===
                                         "provider_outcome_unknown"
                                       ? "The provider outcome is unknown. Inspect this run before explicitly requesting a new proposal."
@@ -1181,18 +1287,18 @@ export default function ConversationWorkspace({
             conversation?.messages.length &&
             !busy &&
             !preparing &&
-            (preparationIntent?.conversationId === conversation.id ||
-              !conversation.current_plan ||
-              ["queued", "running", "admitted"].includes(
-                conversation.current_plan.status,
-              )) ? (
+            !loadingConversation &&
+            (preparationIntent ||
+              (conversation.current_plan
+                ? ["queued", "running", "admitted"].includes(
+                    conversation.current_plan.status,
+                  )
+                : !savedPreparation)) ? (
               <button
                 className="text-button conversation-resume"
                 onClick={resume}
               >
-                {preparationIntent?.conversationId === conversation.id
-                  ? "Resume preparation"
-                  : "Resume planning"}
+                {preparationIntent ? "Resume preparation" : "Resume planning"}
               </button>
             ) : null}
           </div>
@@ -1238,7 +1344,9 @@ export default function ConversationWorkspace({
                 className="conversation-send"
                 aria-label={
                   pendingMessage
-                    ? "Retry saving message"
+                    ? pendingMessage.canResendLegacyFollowup
+                      ? "Check follow-up receipt"
+                      : "Retry saving message"
                     : commentTarget
                       ? "Save copy comment"
                       : "Send to agent"
@@ -1254,24 +1362,48 @@ export default function ConversationWorkspace({
               </button>
             </div>
             {!commentTarget && (
-              <label className="conversation-consent">
-                <input
-                  type="checkbox"
-                  checked={allowModelCopy}
-                  disabled={!!busy || !!pendingMessage}
-                  onChange={(event) => setAllowModelCopy(event.target.checked)}
+              <section
+                className="composer-settings"
+                aria-label="Model settings for chat"
+              >
+                <label className="conversation-consent">
+                  <input
+                    type="checkbox"
+                    checked={pendingMessage?.allow_model_copy ?? allowModelCopy}
+                    disabled={!!busy || !!pendingMessage}
+                    onChange={(event) =>
+                      setAllowModelCopy(event.target.checked)
+                    }
+                  />
+                  Allow model copy for this request
+                </label>
+                <ModelPicker
+                  session={modelSession}
+                  onSelect={onModelSelected}
+                  onSettings={onModelSettings}
                 />
-                Allow model copy for this request
-              </label>
+              </section>
+            )}
+            {pendingMessage?.canResendLegacyFollowup && (
+              <button
+                type="button"
+                className="button secondary"
+                disabled={!!busy || loadingConversation}
+                onClick={() => void send(true)}
+              >
+                Resend original follow-up
+              </button>
             )}
             <p>
               {commentTarget
                 ? "Your comment is saved against this exact variant. Request a revision separately to generate new copy."
-                : pendingMessage
-                  ? "The last message needs confirmation. Retry saving it before continuing."
-                  : loadingConversation
-                    ? "Loading your saved conversation."
-                    : "First requests allow up to 2 planning calls. Follow-ups may use 1 routing call. Brief changes need confirmation; copy revisions ask for separate permission for up to 5 calls. If allowed, campaign copy adds up to 10 calls. Approval is separate."}
+                : pendingMessage?.canResendLegacyFollowup
+                  ? "A resend uses the original request ID. The first resend uses the funding shown in the composer."
+                  : pendingMessage
+                    ? "The last message needs confirmation. Retry saving it before continuing."
+                    : loadingConversation
+                      ? "Loading your saved conversation."
+                      : "First requests allow up to 2 planning calls. Follow-ups may use 1 routing call. Brief changes need confirmation; copy revisions ask for separate permission for up to 5 calls. If allowed, campaign copy adds up to 10 calls. Approval is separate."}
             </p>
           </form>
           {!hasMessages && (

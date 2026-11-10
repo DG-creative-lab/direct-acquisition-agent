@@ -16,7 +16,7 @@ class PreparationCoordinator:
         self.store, self.host = store, host
         self.execution = Lock()
 
-    def admit(self, organization, conversation_id, request_id, expected_revision, fixture, allow_model_copy, use_audience_catalogue=False):
+    def admit(self, organization, conversation_id, request_id, expected_revision, fixture, allow_model_copy, use_audience_catalogue=False, *, model_config=None):
         identity(organization), identity(conversation_id), identity(request_id), revision_number(expected_revision)
         if expected_revision < 1 or type(fixture) is not bool or type(allow_model_copy) is not bool or (fixture and allow_model_copy):
             raise ValueError("Choose a current brief and explicit generation permissions")
@@ -35,7 +35,7 @@ class PreparationCoordinator:
             raise Conflict("This revision already has a preparation request; inspect its original progress")
         preparation_id = "preparation_" + digest({"organization": organization, **inputs})[:32]
         plan_request = preparation_id + ":plan"
-        context = self.host.freeze_preparation_plan(organization, conversation_id, plan_request, expected_revision, fixture)
+        context = self.host.freeze_preparation_plan(organization, conversation_id, plan_request, expected_revision, fixture, model_config)
         # Persist consent and frozen inputs first. Startup can discover this row
         # even if plan/task admission or its metadata write is interrupted.
         row = self.store.create(organization, request_id, {"id": preparation_id, "inputs": inputs,

@@ -240,7 +240,7 @@ class Application:
             raise Conflict('Legacy replay cannot introduce a new execution parent')
         conversation=isinstance(brief,ConversationBrief)
         if model:
-            if self.model_config is None or frozen.get('model_config')!=asdict(self.model_config):
+            if self.model_config is None or frozen.get('model_config')!=self.model_config.payload():
                 raise Conflict('Legacy model replay requires its original settings')
             contexts=frozen.get('context_ids')
             if not isinstance(contexts,dict) or (contexts_override is not None and contexts_override!=contexts):

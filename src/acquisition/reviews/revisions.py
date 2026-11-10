@@ -1,6 +1,5 @@
 """Bounded copy feedback. Immutable admissions precede task/model effects."""
 
-from dataclasses import asdict
 from acquisition.contracts import Conflict
 from acquisition.runtime import TaskSpec, TaskStore
 from acquisition.campaigns import DraftStore
@@ -47,11 +46,11 @@ class CopyRevisionService:
             "base_variants": sorted([c for c in base.manifest["creatives"] if c["segment"] == target["segment"]], key=lambda c: c["arm"])}}
         if self.asset_context:
             context = self.asset_context(organization, context, revision=True)
-        return self.store.admit_revision(organization, request_id, inputs, context, asdict(self.config),
+        return self.store.admit_revision(organization, request_id, inputs, context, self.config.payload(),
                                          confirmation_request_id=confirmation_request_id)
 
     def reconcile(self, organization, receipt):
-        if self.config is None or asdict(self.config) != receipt["task_inputs"]["model_config"]:
+        if self.config is None or self.config.payload() != receipt["task_inputs"]["model_config"]:
             raise ValueError("Restore the original copy revision configuration")
         if self.execution_admission:
             run=self.execution_admission(organization,receipt,self.config)
