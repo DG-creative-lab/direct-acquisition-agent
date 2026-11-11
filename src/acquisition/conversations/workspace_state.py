@@ -93,7 +93,8 @@ class WorkspaceState:
     def clock(self,identity,real_time):return self.store.clock(identity,environment_time(real_time))
     def begin(self,key,action,payload):
         identity(key)
-        if action not in {'approve','reject','refresh','revoke','suppress','handoff','open-learning','observe','finalize'}:
+        if action not in {'approve','reject','refresh','revoke','suppress','handoff','open-learning','observe','finalize',
+                          'advance-report-check','finalize-report-learning'}:
             raise ValueError('Unsupported sandbox command')
         identity(payload['request_id'])
         if len(canonical(payload).encode())>65536:raise ValueError('Sandbox command exceeds its envelope')

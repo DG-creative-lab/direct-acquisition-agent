@@ -185,6 +185,71 @@ with patch.object(SqliteTasks, 'settle', exit_after_draft):
             self.assertEqual(db.execute('SELECT count(*) FROM simulated_agency_jobs WHERE organization=?', (scope,)).fetchone()[0], 1)
             self.assertEqual(db.execute('SELECT count(*) FROM model_calls').fetchone()[0], 0)
 
+    def test_recorded_monitoring_keeps_exact_fixture_time_and_restores_for_inspection(self):
+        _, session = self.start_campaign()
+        for _ in range(4):
+            self.w.advance_preparations()
+        sid, scope = session['id'], session['organization']
+        review = self.w.view(sid)['review']
+        approved = self.w.action(sid, 'approve', {'request_id': 'approve', 'subject_id': review['subject']['id'],
+                                                  'reason': 'Reviewed exact fixture'})
+        accepted = self.w.action(sid, 'handoff', {'request_id': 'handoff',
+                                                  'approval_id': approved['review']['approval']['id']})
+        job = accepted['review']['handoff']['id']
+        opened = self.w.action(sid, 'open-learning', {'request_id': 'open', 'handoff_id': job})
+        app = self.w._app(self.w._session(sid))
+        cohort = app.learning.source.accepted(scope, opened['session']['case_id'])
+        cohort_id, due = cohort['id'], cohort['window_end']
+        report = {key: cohort[key] for key in ('organization', 'job_id', 'metric', 'window_start', 'window_end')}
+        events = [{'event_id': 'synthetic_event_' + digest({'cohort_id': cohort_id, 'business_id': member['business_id']}),
+                   'outcome': member | {'response': False, 'observed_at': due}}
+                  for member in cohort['members']]
+        report |= {'schema': 'synthetic-provider-report/v1', 'mode': 'SYNTHETIC_ONLY', 'cohort_id': cohort_id,
+                   'report_id': 'mature-recording', 'watermark': due, 'final': True, 'page_count': 1,
+                   'pages': [{'report_id': 'mature-recording', 'number': 1, 'events': events}]}
+        path = self.parent / 'recorded.json'
+        path.write_text(canonical(report))
+        registered = self.process('-m', 'acquisition', '--db', app.tasks.database.path, '--organization', scope,
+                                  'learning-monitor-start', '--cohort', cohort_id, '--actor', 'local-operator',
+                                  '--request-id', 'schedule', '--first-check', due, '--interval-seconds', 3600,
+                                  '--file', path)
+        self.assertEqual(registered.returncode, 0, registered.stderr)
+        path.unlink()
+        with self.assertRaisesRegex(Conflict, 'campaign clock'):
+            app.learning.check_reports(scope, cohort_id, standalone=True)
+        self.w.advance_report_monitoring()
+        self.assertEqual(self.w.view(sid)['learning']['received'], 0)
+        payload = {'request_id': 'check', 'handoff_id': job, 'cohort_id': cohort_id, 'next_due': due, 'position': 0}
+        with self.assertRaisesRegex(Conflict, 'current recorded report'):
+            self.w.action(sid, 'advance-report-check', payload | {'position': 1})
+        self.assertEqual(self.w.view(sid)['session']['clock'], opened['session']['clock'])
+        with patch('acquisition.learning.application.LearningService.check_reports'):
+            # Simulate a stop after the fixture clock commits but before the runner checks.
+            self.w.action(sid, 'advance-report-check', payload)
+        self.w = self.workspace()
+        self.w.advance_report_monitoring()
+        state = self.w.view(sid)
+        plan = state['learning']['monitoring']
+        self.assertEqual((plan['status'], plan['watermark']), ('complete', due))
+        self.assertEqual(state['learning']['received'], len(events))
+        self.assertEqual(state['learning']['beliefs'], [])
+        self.assertTrue(self.w.action(sid, 'advance-report-check', payload)['command_replayed'])
+        with self.assertRaisesRegex(Conflict, 'recorded report controls'):
+            self.w.action(sid, 'finalize', {'request_id': 'simulate', 'handoff_id': job, 'cohort_id': cohort_id})
+        final = self.w.action(sid, 'finalize-report-learning',
+                              {'request_id': 'finalize', 'handoff_id': job, 'cohort_id': cohort_id})
+        self.assertEqual(final['learning']['finalization']['observations'], len(events))
+        self.assertEqual(final['learning']['finalization']['successes'], 0)
+
+        checkpoint = build_workspace_checkpoint()
+        bundle, restored = self.parent / 'report-checkpoint', self.parent / 'report-restore'
+        manifest = checkpoint.create(self.root, bundle)
+        checkpoint.restore(bundle, restored, manifest['checkpoint_id'])
+        inspection = build(restored / app.tasks.database.path.relative_to(self.root), clock=lambda: due)
+        self.assertEqual(inspection.learning.monitoring.status(scope, cohort_id), plan)
+        with self.assertRaisesRegex(Conflict, 'inspection-only'):
+            inspection.learning.check_reports(scope, cohort_id)
+
     def test_stopped_claim_cannot_publish_or_resume_after_restart(self):
         cid, session = self.start_campaign()
         run, scope = session['run_id'], session['organization']

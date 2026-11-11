@@ -200,6 +200,138 @@ cli.main()
         beliefs = self.store.view(self.scope, self.cohort)["beliefs"]
         self.assertEqual(sum(row["trials"] for row in beliefs if row["arm"] == "no_mail"), 74)
 
+    def test_monitor_restarts_after_report_commit_without_recounting_observations(self):
+        self.now += 1
+        early = self.report("early", [row for row in self.rows if row["response"]][:4],
+                            final=False, watermark=self.now)
+        final = self.report("final", self.rows[:400], self.rows[400:])
+        files = [self.root / name for name in ("early.json", "final.json")]
+        for path, report in zip(files, (early, final)):
+            path.write_text(json.dumps(report))
+        schedule = self.app.learning.schedule_reports(self.scope, self.actor, "schedule", self.cohort,
+                                                      self.now, 86400, files)
+        self.assertEqual((schedule["position"], schedule["next_due"]), (0, self.now))
+        for path in files:
+            path.unlink()
+
+        def tick(now, lease_time, crash=False):
+            script = """
+import os
+import sys
+from unittest.mock import patch
+import acquisition.__main__ as cli
+from acquisition.adapters.sqlite.report_monitoring import SqliteReportMonitoring
+
+now, lease_time, crash = sys.argv[1:4]
+del sys.argv[1:4]
+real_build = cli.build
+def build(*args, **kwargs):
+    app = real_build(*args, **kwargs, clock=lambda: float(now))
+    app.learning.monitoring.lease_clock = lambda: float(lease_time)
+    return app
+cli.build = build
+if crash == 'True':
+    # The normal importer has already returned from its committed transaction.
+    with patch.object(SqliteReportMonitoring, 'finish', lambda *args: os._exit(91)):
+        cli.main()
+else:
+    cli.main()
+"""
+            return subprocess.run(
+                [sys.executable, "-c", script, str(now), str(lease_time), str(crash),
+                 "--db", str(self.path), "--organization", self.scope, "learning-monitor-tick", "--cohort", self.cohort],
+                capture_output=True, text=True, timeout=30, env=dict(os.environ, PYTHONPATH=str(Path("src").resolve())))
+
+        crash = tick(self.now, 100, crash=True)
+        self.assertEqual(crash.returncode, 91, crash.stderr)
+        self.assertEqual(self.count("learning_outcomes"), 4)
+        self.assertEqual(self.count("learning_commands"), 3)  # Open, schedule and the first report import.
+        self.assertEqual(self.app.learning.monitoring.status(self.scope, self.cohort)["position"], 0)
+        self.assertEqual(self.store.report_snapshot(self.scope, self.cohort, "early")["import_receipt"]["added"], 4)
+
+        leased = tick(self.now, 101)
+        self.assertEqual(leased.returncode, 0, leased.stderr)
+        self.assertEqual(json.loads(leased.stdout)["monitoring"]["position"], 0)
+        resumed = tick(self.now, 131)
+        self.assertEqual(resumed.returncode, 0, resumed.stderr)
+        plan = json.loads(resumed.stdout)["monitoring"]
+        self.assertEqual((plan["position"], plan["last_report_id"], plan["watermark"]), (1, "early", self.now))
+        self.assertEqual(self.count("learning_commands"), 3)
+        self.assertEqual(self.count("learning_outcomes"), 4)
+        self.assertEqual(self.count("learning_beliefs"), 0)
+
+        self.now = self.opened["window_end"]
+        complete = tick(self.now, 132)
+        self.assertEqual(complete.returncode, 0, complete.stderr)
+        self.assertEqual(json.loads(complete.stdout)["monitoring"]["status"], "complete")
+        report_receipt = self.store.report_snapshot(self.scope, self.cohort, "final")["import_receipt"]
+        self.assertEqual((report_receipt["added"], report_receipt["duplicates"]), (750, 4))
+        self.assertEqual(self.count("learning_beliefs"), 0)
+        result = self.finalize()
+        self.assertEqual((result["observations"], result["successes"]), (754, 76))
+        view = self.store.view(self.scope, self.cohort)
+        self.assertEqual(sum(group["trials"] for group in view["beliefs"] if group["arm"] == "no_mail"), 74)
+        self.assertEqual([event["payload"]["report_id"] for event in view["events"]
+                          if event["kind"] == "provider_report_imported"], ["early", "final"])
+
+    def test_monitor_pause_fences_a_claim_and_cadence_keeps_the_cohort_cutoff(self):
+        self.now += 1
+        positives = [row for row in self.rows if row["response"]][:2]
+        monitor = self.app.learning.monitoring
+        early = self.report("early", positives[:1], final=False, watermark=self.now)
+        later = self.report("later", positives, final=False, watermark=self.now)
+        with self.assertRaisesRegex(Conflict, "accepted cohort"):
+            monitor.start(self.scope, self.actor, "wrong", self.cohort, self.now, 60, [early | {"job_id": "another-job"}])
+        conflicting = self.report("later", [positives[0] | {"observed_at": self.now - 1}], final=False, watermark=self.now)
+        with self.assertRaisesRegex(Conflict, "disagree on an immutable outcome"):
+            monitor.start(self.scope, self.actor, "conflicting", self.cohort, self.now, 60, [early, conflicting])
+        self.assertIsNone(monitor.status(self.scope, self.cohort))
+        monitor.start(self.scope, self.actor, "schedule", self.cohort, self.now, 60, [early, later])
+        self.assertIsNone(monitor.status("another-organization", self.cohort))
+        self.assertIsNone(monitor.claim("another-organization", self.cohort))
+        old_token = monitor.claim(self.scope, self.cohort)
+        self.assertIsNotNone(old_token)
+        self.assertIsNone(monitor.claim(self.scope, self.cohort))
+        self.now -= 1
+        self.assertFalse(monitor.import_claim(self.scope, self.cohort, old_token))
+        self.assertEqual(self.count("learning_outcomes"), 0)
+        self.now += 1
+        pause = monitor.update(self.scope, self.actor, "pause", self.cohort, 1, "paused")
+        self.assertEqual(pause["status"], "paused")
+        monitor.import_claim(self.scope, self.cohort, old_token)
+        monitor.finish(self.scope, self.cohort, old_token)
+        self.app.learning.check_reports(self.scope, self.cohort)
+        self.assertEqual(self.count("learning_outcomes"), 0)
+        with self.assertRaisesRegex(Conflict, "current unfinished schedule"):
+            monitor.update(self.scope, self.actor, "stale", self.cohort, 1, "scheduled")
+        resume = monitor.update(self.scope, self.actor, "resume", self.cohort, 2, "scheduled", 3600)
+        self.assertEqual(resume, monitor.update(self.scope, self.actor, "resume", self.cohort, 2, "scheduled", 3600))
+        lease_time = 100
+        monitor.lease_clock = lambda: lease_time
+        lease = monitor.claim(self.scope, self.cohort)
+        original = self.store.import_report
+
+        def expire_during_import(*args):
+            nonlocal lease_time
+            original(*args)
+            lease_time = 131
+
+        with patch.object(self.store, "import_report", side_effect=expire_during_import):
+            with self.assertRaisesRegex(Conflict, "expired before import committed"):
+                monitor.import_claim(self.scope, self.cohort, lease)
+        self.assertEqual(self.count("learning_outcomes"), 0)
+        self.app.learning.check_reports(self.scope, self.cohort)
+        plan = monitor.status(self.scope, self.cohort)
+        self.assertEqual((plan["position"], plan["next_due"]), (1, self.now + 3600))
+        self.app.learning.check_reports(self.scope, self.cohort)
+        self.assertEqual(self.count("learning_outcomes"), 1)
+        self.now = self.opened["window_end"]
+        self.app.learning.check_reports(self.scope, self.cohort)
+        self.assertEqual(self.count("learning_outcomes"), 2)
+        self.assertEqual(self.store.view(self.scope, self.cohort)["cohort"]["window_end"], self.now)
+        with self.assertRaisesRegex(Conflict, "including controls"):
+            self.finalize()
+
     def test_complete_pages_and_final_watermark_do_not_substitute_for_control_outcomes(self):
         self.now = self.opened["window_end"]
         mailed = [row for row in self.rows if row["arm"] != "no_mail"]

@@ -15,6 +15,12 @@ from .simulated_delivery import SqliteSimulatedDelivery, require_provider_result
 REPORT_SOURCE_EVENT = "provider_report_source_recorded"
 
 
+def require_manual_simulation(db, organization, cohort_id):
+    if db.execute("SELECT 1 FROM report_monitoring WHERE organization=? AND cohort_id=?",
+                  (organization, cohort_id)).fetchone():
+        raise Conflict("Use the recorded report controls for this cohort")
+
+
 def accepted_cohort_draft(db, organization, cohort):
     """Rebuild an accepted experiment without treating its receipt as authority."""
     try:
@@ -188,7 +194,7 @@ class SqliteLearning:
                 return self._command(db, organization, request_id, fingerprint, opened)
             return self._record(db, organization, request_id, fingerprint, opened, actor, now)
 
-    def ingest(self, organization, actor, request_id, cohort_id, batch):
+    def ingest(self, organization, actor, request_id, cohort_id, batch, *, simulate=False):
         if (type(batch) is not dict or set(batch) != {"schema", "mode", "cohort_id", "outcomes"}
                 or batch["schema"] != "synthetic-outcomes/v1" or batch["mode"] != "SYNTHETIC_ONLY" or batch["cohort_id"] != cohort_id
                 or type(batch["outcomes"]) is not list or not 1 <= len(batch["outcomes"]) <= 10000):
@@ -205,6 +211,8 @@ class SqliteLearning:
             fingerprint, cached = self._cached(db, organization, actor, request_id, "ingest", normalized)
             if cached:
                 return cached
+            if simulate:
+                require_manual_simulation(db, organization, cohort_id)
             cohort, record = self._cohort(db, organization, cohort_id)
             added = self._write_outcomes(db, organization, cohort, record, normalized["outcomes"], now)
             return self._record(db, organization, request_id, fingerprint,
@@ -215,30 +223,36 @@ class SqliteLearning:
         report_hash = digest(report)
         with self.database.transaction() as db:
             now = self._now()
-            require_actor(db, organization, actor, "operator")
-            fingerprint, cached = self._cached(db, organization, actor, request_id, "ingest_report",
-                                               {"cohort_id": cohort_id, "report_sha256": report_hash})
-            if cached:
-                return cached
-            cohort, record = self._cohort(db, organization, cohort_id)
-            validate_report_binding(report, cohort, now)
-            accepted_cohort_draft(db, organization, cohort)
-            previous = self._report_import(db, organization, cohort_id, report["report_id"])
-            if previous and previous[0] != report_hash:
-                raise Conflict("Provider report ID already binds a different snapshot")
-            added = self._write_outcomes(db, organization, cohort, record, outcomes.values(), report["watermark"])
-            missing = len(cohort["members"]) - len(outcomes)
-            receipt = {key: report[key] for key in ("mode", "cohort_id", "job_id", "metric", "report_id", "watermark", "final", "page_count")}
-            receipt |= {"kind": "provider_report_imported", "report_sha256": report_hash, "added": added,
-                        "duplicates": len(outcomes) - added, "duplicate_events": duplicate_events,
-                        "missing_from_report": missing, "coverage_complete": report["final"] and missing == 0}
-            if previous:
-                if added:
-                    raise Conflict("Previously imported report outcomes are missing")
-                if self._saved_report_snapshot(db, organization, cohort_id, previous) is None:
-                    self._record_report_snapshot(db, organization, cohort_id, previous["sequence"], report, actor, now)
-                return self._command(db, organization, request_id, fingerprint, receipt)
-            return self._record(db, organization, request_id, fingerprint, receipt, actor, now, snapshot=report)
+            return self.import_report(db, organization, actor, request_id, cohort_id, report,
+                                      outcomes, duplicate_events, report_hash, now)
+
+    def import_report(self, db, organization, actor, request_id, cohort_id, report,
+                      outcomes, duplicate_events, report_hash, now):
+        """Commit report evidence inside the caller's scoped write transaction."""
+        require_actor(db, organization, actor, "operator")
+        fingerprint, cached = self._cached(db, organization, actor, request_id, "ingest_report",
+                                           {"cohort_id": cohort_id, "report_sha256": report_hash})
+        if cached:
+            return cached
+        cohort, record = self._cohort(db, organization, cohort_id)
+        validate_report_binding(report, cohort, now)
+        accepted_cohort_draft(db, organization, cohort)
+        previous = self._report_import(db, organization, cohort_id, report["report_id"])
+        if previous and previous[0] != report_hash:
+            raise Conflict("Provider report ID already binds a different snapshot")
+        added = self._write_outcomes(db, organization, cohort, record, outcomes.values(), report["watermark"])
+        missing = len(cohort["members"]) - len(outcomes)
+        receipt = {key: report[key] for key in ("mode", "cohort_id", "job_id", "metric", "report_id", "watermark", "final", "page_count")}
+        receipt |= {"kind": "provider_report_imported", "report_sha256": report_hash, "added": added,
+                    "duplicates": len(outcomes) - added, "duplicate_events": duplicate_events,
+                    "missing_from_report": missing, "coverage_complete": report["final"] and missing == 0}
+        if previous:
+            if added:
+                raise Conflict("Previously imported report outcomes are missing")
+            if self._saved_report_snapshot(db, organization, cohort_id, previous) is None:
+                self._record_report_snapshot(db, organization, cohort_id, previous["sequence"], report, actor, now)
+            return self._command(db, organization, request_id, fingerprint, receipt)
+        return self._record(db, organization, request_id, fingerprint, receipt, actor, now, snapshot=report)
 
     def _report_import(self, db, organization, cohort_id, report_id):
         return db.execute("""SELECT json_extract(payload, '$.report_sha256'), sequence, payload, at FROM learning_events

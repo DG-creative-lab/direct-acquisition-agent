@@ -1220,3 +1220,11 @@ companion mutation removes the existing-account receipt fence.
 Admission mutation probes remove the serialized model-settings comparison
 for follow-up staging and admission, routing, and copy revision. Each
 corresponding regression detects the removal.
+
+## Recorded report monitoring
+
+| Invariant | Offline evidence | Boundary |
+| --- | --- | --- |
+| A restart after import preserves one check and one observation per business | A child process exits after four outcomes and their receipt commit but before schedule progress. A fresh process recovers the same receipt after lease expiry. A cumulative final recording adds 750 distinct outcomes and finalization counts 754 observations, including 74 controls. | The schedule freezes normalized reports and uses one scoped import request ID for each position. Import and schedule progress commit separately. |
+| Only a due and authorized check may import | Real SQLite rejects a substituted job, a stale revision and a wrong organization. Pausing fences an existing claim. Expiring a lease after writes but before commit rolls back the import. Cadence changes preserve the cohort cutoff. | The scoped plan and lease are checked inside the import transaction. |
+| The workspace preserves the cohort clock and separates finalization from monitoring | A verified fixture rejects a stale check, restarts after advancing its clock and processes the due recording. A browser test confirms the displayed check, sees the verified watermark and finalizes explicitly. A restored checkpoint exposes the schedule for inspection and rejects a check. | Monitoring checks recorded synthetic files. Learning applies the existing maturity and population rules. |

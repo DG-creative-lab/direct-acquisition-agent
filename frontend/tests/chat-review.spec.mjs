@@ -68,6 +68,34 @@ if sys.argv[2] == 'historical-dialog':
     row=w.preparations.store.listing('local-conversations')[0]
     w.preparations.store.update('local-conversations',row,'preparing',None)
     w.advance_preparations=w.advance_copy_revisions
+if sys.argv[2] == 'handoff-recorded':
+    from acquisition.contracts import canonical, digest
+    original_action = w.action
+    def stage_recording(identity, action, payload):
+        result = original_action(identity, action, payload)
+        if action != 'open-learning' or result.get('command_replayed'):
+            return result
+        session = w._session(identity)
+        app = w._app(session)
+        scope = session['organization']
+        cohort = app.learning.source.accepted(scope, session['case_id'])
+        end = cohort['window_end']
+        events = [{'event_id': 'synthetic_event_' + digest({'cohort_id': cohort['id'], 'business_id': member['business_id']}),
+                   'outcome': member | {'response': False, 'observed_at': end}} for member in cohort['members']]
+        report = {key: cohort[key] for key in ('organization', 'job_id', 'metric', 'window_start', 'window_end')}
+        report |= {'schema': 'synthetic-provider-report/v1', 'mode': 'SYNTHETIC_ONLY', 'cohort_id': cohort['id'],
+                   'report_id': 'recorded', 'watermark': end, 'final': True, 'page_count': 1,
+                   'pages': [{'report_id': 'recorded', 'number': 1, 'events': events}]}
+        path = Path(sys.argv[1]) / 'recorded.json'
+        path.write_text(canonical(report))
+        replay = path.with_name('cumulative.json')
+        replay.write_text(canonical(report | {'report_id': 'cumulative',
+            'pages': [report['pages'][0] | {'report_id': 'cumulative'}]}))
+        app.learning.schedule_reports(scope, 'local-operator', 'schedule', cohort['id'], end, 3600, [path, replay])
+        path.unlink()
+        replay.unlink()
+        return w.view(identity)
+    w.action = stage_recording
 server=WorkspaceServer(0,w,Path('frontend/dist'))
 print('http://127.0.0.1:'+str(server.server_port),flush=True)
 server.serve_forever()
@@ -1262,6 +1290,45 @@ test("offline conversational learning preserves unknown results then shows compl
       final.learning,
     );
     expect(errors).toEqual([]);
+  });
+});
+
+test("recorded monitoring advances the exact fixture check and leaves learning explicit", async ({
+  page,
+}) => {
+  await workspace("handoff-recorded", async (url) => {
+    const learning = await acceptedLearning(page, url);
+    const sid = await selected(page);
+    await learningStep(page, learning, "Open outcome window");
+    const monitoring = learning.getByRole("region", {
+      name: "Recorded report monitoring",
+    });
+    await expect(monitoring).toContainText("0 of 2 synthetic reports checked");
+    await expect(monitoring).toContainText("Next check");
+    await expect(
+      learning.getByRole("button", { name: "Simulate day 7 responses" }),
+    ).toHaveCount(0);
+    await learningStep(page, monitoring, "Advance to next report check");
+    await expect(monitoring).toContainText("2 of 2 synthetic reports checked");
+    await expect(monitoring).toContainText("Reports verified through");
+    const checked = (await backend(page, `/api/sessions/${sid}`)).body.learning;
+    expect(checked.received).toBe(checked.enrolled);
+    expect(checked.beliefs).toEqual([]);
+    expect(
+      checked.events
+        .filter((event) => event.kind === "provider_report_imported")
+        .map((event) => [event.payload.report_id, event.payload.added]),
+    ).toEqual([
+      ["recorded", checked.enrolled],
+      ["cumulative", 0],
+    ]);
+    await learningStep(page, monitoring, "Finalize recorded learning");
+    await expect(
+      learning.getByText("Finalized", { exact: true }),
+    ).toBeVisible();
+    const final = (await backend(page, `/api/sessions/${sid}`)).body.learning;
+    expect(final.finalization.observations).toBe(checked.enrolled);
+    expect(final.finalization.successes).toBe(0);
   });
 });
 

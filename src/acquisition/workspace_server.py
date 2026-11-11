@@ -5,6 +5,7 @@ import json
 import mimetypes
 import secrets
 import threading
+import time
 from contextlib import ExitStack
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -47,7 +48,14 @@ class WorkspaceServer(ThreadingHTTPServer):
         self.preparation_worker.start()
 
     def _continue_preparations(self):
+        next_report_check = time.monotonic()
         while not self.preparation_stop.wait(0.25):
+            if time.monotonic() >= next_report_check:
+                try:
+                    self.workspace.advance_report_monitoring()
+                except Exception:
+                    pass  # The next pass rechecks the same scoped schedules.
+                next_report_check = time.monotonic() + 2
             try:
                 self.workspace.models.expire()
                 self.workspace.advance_preparations()

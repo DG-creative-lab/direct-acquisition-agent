@@ -18,11 +18,24 @@ const descriptions = {
     "Close synthetic window and learn",
     "Advance this campaign's sandbox clock to day 28, import explicit outcomes for every assigned business and request finalization. Existing maturity, completeness and immutable-outcome checks still apply. Synthetic labels deliberately favor variant A.",
   ],
+  "advance-report-check": [
+    "Advance to the recorded report check",
+    "Advance this fixture campaign to the displayed check time and import the scheduled synthetic report.",
+  ],
+  "finalize-report-learning": [
+    "Finalize recorded learning",
+    "Update beliefs from saved outcomes after the observation window has closed and every enrolled business has an explicit result.",
+  ],
 } as const;
 type Action = keyof typeof descriptions;
 type Intent = {
   action: Action;
-  payload: { handoff_id: string; cohort_id?: string };
+  payload: {
+    handoff_id: string;
+    cohort_id?: string;
+    position?: number;
+    next_due?: number;
+  };
 };
 
 export default function ConversationLearning({
@@ -51,12 +64,13 @@ export default function ConversationLearning({
   });
   const [intent, setIntent] = useState<Intent | null>(null);
   const [localError, setLocalError] = useState("");
-  const propose: Act = async (action) => {
+  const propose: Act = async (action, payload = {}) => {
     if (busy || saved || !Object.hasOwn(descriptions, action)) return false;
     setLocalError("");
     setIntent({
       action: action as Action,
       payload: {
+        ...payload,
         handoff_id: state.review!.handoff!.id,
         ...(action !== "open-learning"
           ? { cohort_id: state.learning!.cohort.id }
@@ -192,6 +206,12 @@ export default function ConversationLearning({
               <>
                 <span>BOUND COHORT</span>
                 <code>{intent.payload.cohort_id}</code>
+              </>
+            )}
+            {intent.payload.next_due !== undefined && (
+              <>
+                <span>SCHEDULED CHECK</span>
+                <time>{date(intent.payload.next_due)} UTC</time>
               </>
             )}
           </div>
