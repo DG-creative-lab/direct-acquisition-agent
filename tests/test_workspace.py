@@ -14,7 +14,7 @@ from pathlib import Path
 from unittest.mock import patch
 from uuid import uuid4
 
-from acquisition.workspace import Workspace
+from acquisition.workspace import MonitoringRejected, Workspace
 from acquisition.workspace_server import WorkspaceServer, main
 from acquisition.contracts import Conflict, NotFound
 from acquisition.reasoning import ModelConfig
@@ -102,6 +102,52 @@ class WorkspaceTests(unittest.TestCase):
         with self.assertRaisesRegex(Conflict, "recorded report controls"):
             self.act("finalize")
         self.assertEqual(self.workspace.view(self.id)["session"]["clock"], now)
+
+    def test_uploaded_monitoring_recovers_domain_commit_and_fences_rejected_requests(self):
+        self.accepted()
+        opened = self.act("open-learning")
+        session = self.workspace._session(self.id)
+        app = self.workspace._app(session)
+        cohort = app.learning.source.accepted(session["organization"], session["case_id"])
+        cohort_id, end = cohort["id"], cohort["window_end"]
+        report = {key: cohort[key] for key in ("organization", "job_id", "metric", "window_start", "window_end")}
+        report |= {"schema": "synthetic-provider-report/v1", "mode": "SYNTHETIC_ONLY", "cohort_id": cohort_id,
+                   "report_id": "uploaded", "watermark": end, "final": True, "page_count": 1,
+                   "pages": [{"report_id": "uploaded", "number": 1, "events": []}]}
+        payload = {"request_id": "schedule", "handoff_id": cohort["job_id"], "cohort_id": cohort_id,
+                   "first_check": end, "interval_seconds": 3600, "reports": [json.dumps(report)]}
+        invalid = payload | {"request_id": "rejected", "reports": [json.dumps(report).replace(
+            '"final": true', '"final": false, "final": true')]}
+        with self.assertRaisesRegex(MonitoringRejected, "Duplicate JSON field") as rejected:
+            self.workspace.monitoring_command(self.id, "monitoring-start", invalid)
+        self.assertTrue(rejected.exception.not_saved)
+        # A delayed earlier submission cannot commit after the rejection fence.
+        with self.assertRaises(MonitoringRejected):
+            self.workspace.monitoring_command(self.id, "monitoring-start", payload | {"request_id": "rejected"})
+        self.assertIsNone(app.learning.monitoring.status(session["organization"], cohort_id))
+        with patch.object(self.workspace, "view", side_effect=OSError("Response lost after commit")):
+            with self.assertRaisesRegex(OSError, "Response lost"):
+                self.workspace.monitoring_command(self.id, "monitoring-start", payload)
+        self.workspace = Workspace(self.root, real_clock=lambda: 1792972800.)
+        recovered = self.workspace.monitoring_command(self.id, "monitoring-start", payload)
+        self.assertEqual(recovered["learning"]["monitoring"]["revision"], 1)
+        self.assertEqual(recovered["learning"]["received"], 0)
+        with self.assertRaises(MonitoringRejected) as committed_conflict:
+            self.workspace.monitoring_command(self.id, "monitoring-start", payload | {"interval_seconds": 1800})
+        self.assertFalse(committed_conflict.exception.not_saved)
+        update = {"request_id": "pause", "handoff_id": cohort["job_id"], "cohort_id": cohort_id,
+                  "revision": 1, "status": "paused", "interval_seconds": None}
+        paused = self.workspace.monitoring_command(self.id, "monitoring-update", update)
+        self.assertEqual(paused["learning"]["monitoring"]["status"], "paused")
+        self.assertEqual(self.workspace.monitoring_command(self.id, "monitoring-update", update)["learning"]["monitoring"]["revision"], 2)
+        resumed = self.workspace.monitoring_command(self.id, "monitoring-update", update | {
+            "request_id": "resume", "revision": 2, "status": "scheduled", "interval_seconds": 1800})
+        self.assertEqual(resumed["learning"]["monitoring"]["interval_seconds"], 1800)
+        self.assertEqual(resumed["learning"]["cohort"]["window_end"], end)
+        with app.tasks.database.connect() as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM report_monitoring").fetchone()[0], 1)
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM report_monitoring_sources").fetchone()[0], 1)
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM learning_commands WHERE request_id='schedule'").fetchone()[0], 1)
 
     def test_artifact_download_cannot_substitute_a_newer_subject(self):
         with self.assertRaises(Conflict):
@@ -266,6 +312,45 @@ class WorkspaceHttpTests(unittest.TestCase):
                 self.assertEqual(status, 403)
         self.assertEqual(self.server.workspace.listing()["sessions"], [])
         self.assertEqual(self.request('/api/sessions', headers={"X-Workspace-Token": ""})[0], 403)
+
+    def test_uploaded_reports_use_guarded_bounded_routes_and_exact_cohort(self):
+        workspace = self.server.workspace
+        workspace.real_clock = lambda: 1792972800.
+        state = workspace.create("upload", "fixture")
+        sid = state["session"]["id"]
+        approved = workspace.action(sid, "approve", {"request_id": "approve",
+            "subject_id": state["review"]["subject"]["id"], "reason": "Reviewed exact fixture"})
+        workspace.action(sid, "handoff", {"request_id": "handoff", "approval_id": approved["review"]["approval"]["id"]})
+        opened = workspace.action(sid, "open-learning", {"request_id": "open"})
+        session = workspace._session(sid)
+        app = workspace._app(session)
+        cohort = app.learning.source.accepted(session["organization"], session["case_id"])
+        report = {key: cohort[key] for key in ("organization", "job_id", "metric", "window_start", "window_end")}
+        report |= {"schema": "synthetic-provider-report/v1", "mode": "SYNTHETIC_ONLY", "cohort_id": cohort["id"],
+                   "report_id": "uploaded", "watermark": cohort["window_end"], "final": True, "page_count": 1,
+                   "pages": [{"report_id": "uploaded", "number": 1, "events": []}]}
+        payload = {"request_id": "schedule", "handoff_id": cohort["job_id"], "cohort_id": cohort["id"],
+                   "first_check": cohort["window_end"], "interval_seconds": 3600,
+                   "reports": [json.dumps(report) + " " * 17000]}
+        path = "/api/sessions/" + sid + "/monitoring-start"
+        for headers in ({"Host": "attacker.invalid"}, {"X-Workspace-Token": "wrong"}, {"Origin": "https://attacker.invalid"}):
+            self.assertEqual(self.request(path, payload, headers)[0], 403)
+        self.assertIsNone(app.learning.monitoring.status(session["organization"], cohort["id"]))
+        bad_target = payload | {"request_id": "wrong-job", "handoff_id": "another-job"}
+        status, body, _ = self.request(path, bad_target)
+        self.assertEqual(status, 409)
+        self.assertTrue(json.loads(body)["monitoring_not_saved"])
+        self.assertIsNone(app.learning.monitoring.status(session["organization"], cohort["id"]))
+        status, body, _ = self.request(path, payload)
+        self.assertEqual(status, 200, body)
+        self.assertEqual(json.loads(body)["learning"]["monitoring"]["report_count"], 1)
+        self.assertEqual(self.request(path, payload)[0], 200)
+        too_large = payload | {"request_id": "too-large", "reports": [" " * (4 * 1024 * 1024 + 1)]}
+        status, body, _ = self.request(path, too_large)
+        self.assertEqual(status, 409)
+        self.assertIn("4 MiB", json.loads(body)["error"])
+        self.assertEqual(self.request("/api/sessions/" + sid + "/monitoring-update", payload)[0], 400)
+        self.assertEqual(workspace.view(sid)["learning"]["monitoring"]["revision"], 1)
 
     def test_browser_provider_validation_uses_the_same_origin_and_never_echoes_credentials(self):
         key = "fixture-key-" + "x" * 40

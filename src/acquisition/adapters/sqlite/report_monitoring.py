@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from acquisition.contracts import Conflict, canonical, digest
 from acquisition.learning import finite, identifier, normalize_report, validate_outcome, validate_report_binding
+from acquisition.reviews import ActorUnavailable
 
 from .actors import require_actor
 from .learning import accepted_cohort_draft
@@ -52,6 +53,22 @@ class SqliteReportMonitoring:
     def _source(self, db, organization, cohort_id, position):
         return db.execute("""SELECT * FROM report_monitoring_sources
             WHERE organization=? AND cohort_id=? AND position=?""", (organization, cohort_id, position)).fetchone()
+
+    def reject(self, organization, actor, request_id, payload):
+        """Fence a rejected browser request before allowing a different submission."""
+        identifier(request_id)
+        fingerprint = digest({"actor": actor, "kind": "monitor_rejected", "payload": payload})
+        with self.database.transaction() as db:
+            try:
+                require_actor(db, organization, actor, "operator")
+            except ActorUnavailable:
+                return False
+            old = db.execute("SELECT request_hash FROM learning_commands WHERE organization=? AND request_id=?",
+                             (organization, request_id)).fetchone()
+            if old:
+                return old["request_hash"] == fingerprint
+            self.learning._command(db, organization, request_id, fingerprint, {"kind": "monitoring_rejected"})
+            return True
 
     def status(self, organization, cohort_id):
         identifier(cohort_id)

@@ -14,7 +14,7 @@ from urllib.parse import urlsplit, parse_qs
 from acquisition.contracts import Conflict, NotFound
 from acquisition.conversations import ActionNotSaved, AudienceSelectionRejected, MessageRejectedConflict, MessageRejectedInvalid, MessageRejectedNotFound
 from acquisition.reasoning import ModelError
-from acquisition.workspace import Workspace
+from acquisition.workspace import MonitoringRejected, Workspace
 from acquisition.workspace_models import ModelSelectionRejected, ModelSessionExpired
 from acquisition.local_root import workspace_root_lock, require_live_root
 
@@ -185,8 +185,13 @@ class Handler(BaseHTTPRequestHandler):
             return
         browser = ExitStack()
         try:
+            path = self.parsed_target.path
+            parts = path.strip("/").split("/")
+            monitoring_upload = (len(parts) == 4 and parts[:2] == ["api", "sessions"]
+                                 and parts[3] == "monitoring-start")
             length = int(self.headers.get("Content-Length", "0"))
-            if not 0 < length <= 16384 or self.headers.get("Content-Type", "").split(";")[0] != "application/json":
+            limit = 34 * 1024 * 1024 if monitoring_upload else 16384
+            if not 0 < length <= limit or self.headers.get("Content-Type", "").split(";")[0] != "application/json":
                 return self._send(400, {"error": "Use a bounded JSON request"})
             data = json.loads(self.rfile.read(length))
             if not isinstance(data, dict):
@@ -257,6 +262,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, self.server.workspace.create(data["request_id"], data["mode"], data.get("parent_id")))
             parts = path.strip("/").split("/")
             if len(parts) == 4 and parts[:2] == ["api", "sessions"]:
+                if parts[3] in {"monitoring-start", "monitoring-update"}:
+                    return self._send(200, self.server.workspace.monitoring_command(parts[2], parts[3], data))
                 if parts[3] == "followup-proposal" and set(data) == {"request_id", "cohort_id"}:
                     return self._send(200, self.server.workspace.propose_followup(parts[2], **data))
                 if parts[3] == "followup-prepare" and set(data) == {"request_id", "proposal_id", "mode", "allow_model_copy"}:
@@ -267,6 +274,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, self.server.workspace.prepare(parts[2]))
                 return self._send(200, self.server.workspace.action(parts[2], parts[3], data))
             raise NotFound("Unknown workspace route")
+        except MonitoringRejected as error:
+            self._send(409, {"error": str(error), "monitoring_not_saved": error.not_saved})
         except ModelSessionExpired as error:
             self._send(409, {"error": str(error), "openrouter_disconnected": True})
         except ModelSelectionRejected as error:

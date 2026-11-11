@@ -135,6 +135,8 @@ export default function ConversationLearning({
         busy={busy || !!saved}
         act={propose}
         onCampaign={() => {}}
+        monitoringAct={act}
+        monitoringError={error}
       />
       {state.learning?.status === "finalized" && (
         <p>

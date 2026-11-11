@@ -1,5 +1,6 @@
 import { openRouterHeaders, openRouterSession } from "./openrouter-session";
 import type { OpenRouterSession } from "./openrouter-session";
+import { monitoringCommand } from "./monitoring-session";
 
 export type ValidationReport = {
   id: string;
@@ -131,6 +132,8 @@ export type Recommendation = {
 export type Learning = {
   cohort: { id: string; window_start: number; window_end: number };
   monitoring?: {
+    revision: number;
+    interval_seconds: number;
     status: "scheduled" | "paused" | "blocked" | "complete";
     position: number;
     report_count: number;
@@ -503,6 +506,8 @@ export async function command<T = State>(
     acknowledge: () => void;
   },
 ): Promise<T> {
+  if (/^\/api\/sessions\/[^/]+\/monitoring-(start|update)$/.test(path))
+    return monitoringCommand<T>(path, payload, token());
   migratePendingCommand();
   const key = pendingKey(path, payload);
   const saved = sessionStorage.getItem(key);

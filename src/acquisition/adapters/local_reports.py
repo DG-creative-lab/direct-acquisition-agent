@@ -13,6 +13,11 @@ def _unique_fields(pairs):
 
 
 class LocalSyntheticReports:
+    def parse(self, raw):
+        if type(raw) is not bytes or len(raw) > 4 * 1024 * 1024:
+            raise ValueError("Provider report exceeds the 4 MiB limit")
+        return json.loads(raw, object_pairs_hook=_unique_fields)
+
     def read(self, path):
         limit = 4 * 1024 * 1024
         try:
@@ -20,6 +25,4 @@ class LocalSyntheticReports:
                 raw = stream.read(limit + 1)
         except OSError as error:
             raise ValueError(f"Could not read provider report: {error}") from error
-        if len(raw) > limit:
-            raise ValueError("Provider report exceeds the 4 MiB limit")
-        return json.loads(raw, object_pairs_hook=_unique_fields)
+        return self.parse(raw)

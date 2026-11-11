@@ -168,6 +168,8 @@ export default function ConversationCampaignReview({
       "finalize",
       "advance-report-check",
       "finalize-report-learning",
+      "monitoring-start",
+      "monitoring-update",
     ].includes(action);
     if (
       busy ||

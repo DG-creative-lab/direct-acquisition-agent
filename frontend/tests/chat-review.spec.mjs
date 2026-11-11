@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -68,7 +68,7 @@ if sys.argv[2] == 'historical-dialog':
     row=w.preparations.store.listing('local-conversations')[0]
     w.preparations.store.update('local-conversations',row,'preparing',None)
     w.advance_preparations=w.advance_copy_revisions
-if sys.argv[2] == 'handoff-recorded':
+if sys.argv[2] in {'handoff-recorded', 'handoff-upload'}:
     from acquisition.contracts import canonical, digest
     original_action = w.action
     def stage_recording(identity, action, payload):
@@ -87,6 +87,12 @@ if sys.argv[2] == 'handoff-recorded':
                    'report_id': 'recorded', 'watermark': end, 'final': True, 'page_count': 1,
                    'pages': [{'report_id': 'recorded', 'number': 1, 'events': events}]}
         path = Path(sys.argv[1]) / 'recorded.json'
+        if sys.argv[2] == 'handoff-upload':
+            # Two valid JSON recordings exceed typical session-storage capacity.
+            path.write_text(canonical(report) + ' ' * (3 * 1024 * 1024))
+            path.with_name('cumulative.json').write_text(canonical(report | {'report_id': 'cumulative',
+                'pages': [report['pages'][0] | {'report_id': 'cumulative'}]}) + ' ' * (3 * 1024 * 1024))
+            return w.view(identity)
         path.write_text(canonical(report))
         replay = path.with_name('cumulative.json')
         replay.write_text(canonical(report | {'report_id': 'cumulative',
@@ -1619,5 +1625,214 @@ test("requested scope is visible and unsupported facets never prepare a substitu
         page.getByRole("button", { name: /Review campaign/ }),
       ).toHaveCount(0);
     }
+  });
+});
+
+for (const committed of [false, true]) {
+  test(`monitoring uploads recover one schedule after a lost creation response, committed=${committed}`, async ({
+    page,
+  }) => {
+    test.setTimeout(60000);
+    await workspace("handoff-upload", async (url, root) => {
+      const learning = await acceptedLearning(page, url);
+      await learningStep(page, learning, "Open outcome window");
+      const sid = await selected(page);
+      const opened = (await backend(page, `/api/sessions/${sid}`)).body;
+      const controls = learning.getByRole("region", {
+        name: "Monitoring setup and controls",
+      });
+      if (!committed) await page.setViewportSize({ width: 390, height: 844 });
+      await controls
+        .getByLabel("Recorded synthetic reports", { exact: true })
+        .setInputFiles([
+          join(root, "recorded.json"),
+          join(root, "cumulative.json"),
+        ]);
+      await controls
+        .getByLabel("First report check, UTC", { exact: true })
+        .fill(
+          new Date(opened.learning.cohort.window_end * 1000)
+            .toISOString()
+            .slice(0, 16),
+        );
+      await controls
+        .getByLabel("Check every, in minutes", { exact: true })
+        .fill("15");
+      const attempts = [];
+      await page.route("**/api/sessions/*/monitoring-start", async (route) => {
+        attempts.push(route.request().postDataJSON());
+        if (attempts.length === 1) {
+          if (committed) await route.fetch();
+          await route.abort("failed");
+        } else await route.continue();
+      });
+      await controls
+        .getByRole("button", {
+          name: "Review monitoring schedule",
+          exact: true,
+        })
+        .click();
+      const dialog = page.getByRole("dialog");
+      await expect(dialog).toContainText(opened.learning.cohort.id);
+      await expect(dialog).toContainText(opened.review.handoff.id);
+      await dialog
+        .getByRole("button", {
+          name: "Confirm monitoring schedule",
+          exact: true,
+        })
+        .click();
+      await expect(
+        controls.getByRole("button", {
+          name: "Recover saved monitoring request",
+          exact: true,
+        }),
+      ).toBeVisible();
+      const beforeReload = (await backend(page, `/api/sessions/${sid}`)).body
+        .learning.monitoring;
+      if (committed) expect(beforeReload.revision).toBe(1);
+      else {
+        expect(beforeReload).toBeUndefined();
+        await expect(
+          learning.getByRole("button", {
+            name: "Close window & learn",
+            exact: true,
+          }),
+        ).toBeDisabled();
+      }
+      await page.reload();
+      await controls
+        .getByRole("button", {
+          name: "Recover saved monitoring request",
+          exact: true,
+        })
+        .click();
+      await expect(controls).toContainText(
+        "Current cadence 15 minutes. Schedule revision 1.",
+      );
+      expect(attempts).toHaveLength(2);
+      expect(attempts[1]).toEqual(attempts[0]);
+      const stored = JSON.parse(
+        execFileSync(
+          "python3",
+          [
+            "-c",
+            `
+import json, sqlite3, sys
+with sqlite3.connect(sys.argv[1]) as db:
+    print(json.dumps([db.execute('SELECT COUNT(*) FROM '+table).fetchone()[0]
+                      for table in ('report_monitoring', 'report_monitoring_sources', 'learning_outcomes')]))
+`,
+            join(root, "conversations.sqlite"),
+          ],
+          { encoding: "utf8" },
+        ),
+      );
+      expect(stored).toEqual([1, 2, 0]);
+      await controls
+        .getByLabel("Check every, in minutes", { exact: true })
+        .fill("30");
+      await controls
+        .getByRole("button", { name: "Save cadence", exact: true })
+        .click();
+      await expect(controls).toContainText(
+        "Current cadence 30 minutes. Schedule revision 2.",
+      );
+      if (committed) {
+        let lostPause = false;
+        await page.route(
+          "**/api/sessions/*/monitoring-update",
+          async (route) => {
+            if (
+              !lostPause &&
+              route.request().postDataJSON().status === "paused"
+            ) {
+              lostPause = true;
+              await route.fetch();
+              await route.abort("failed");
+            } else await route.continue();
+          },
+        );
+      }
+      await controls
+        .getByRole("button", { name: "Pause monitoring", exact: true })
+        .click();
+      if (committed) {
+        await expect(
+          controls.getByRole("button", {
+            name: "Recover saved monitoring request",
+            exact: true,
+          }),
+        ).toBeVisible();
+        await page.reload();
+        await controls
+          .getByRole("button", {
+            name: "Recover saved monitoring request",
+            exact: true,
+          })
+          .click();
+      }
+      await expect(controls).toContainText("Schedule revision 3.");
+      await page.reload();
+      await expect(
+        controls.getByRole("button", {
+          name: "Resume monitoring",
+          exact: true,
+        }),
+      ).toBeVisible();
+      const paused = (await backend(page, `/api/sessions/${sid}`)).body
+        .learning;
+      expect(paused.monitoring.status).toBe("paused");
+      expect(paused.received).toBe(0);
+      await controls
+        .getByRole("button", { name: "Resume monitoring", exact: true })
+        .click();
+      await expect(controls).toContainText("Schedule revision 4.");
+      const resumed = (await backend(page, `/api/sessions/${sid}`)).body
+        .learning;
+      expect(resumed.monitoring.status).toBe("scheduled");
+      expect(resumed.monitoring.interval_seconds).toBe(1800);
+      expect(resumed.cohort.window_end).toBe(opened.learning.cohort.window_end);
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      ).toBe(true);
+    });
+  });
+}
+
+test("monitoring storage failure prevents upload dispatch", async ({
+  page,
+}) => {
+  await workspace("handoff-upload", async (url, root) => {
+    const learning = await acceptedLearning(page, url);
+    await learningStep(page, learning, "Open outcome window");
+    const controls = learning.getByRole("region", {
+      name: "Monitoring setup and controls",
+    });
+    await controls
+      .getByLabel("Recorded synthetic reports", { exact: true })
+      .setInputFiles(join(root, "recorded.json"));
+    await controls
+      .getByRole("button", { name: "Review monitoring schedule", exact: true })
+      .click();
+    let dispatched = 0;
+    await page.route("**/api/sessions/*/monitoring-start", async (route) => {
+      dispatched += 1;
+      await route.continue();
+    });
+    await page.evaluate(() => {
+      IDBObjectStore.prototype.put = function () {
+        throw new DOMException("fixture-quota-exceeded", "QuotaExceededError");
+      };
+    });
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Confirm monitoring schedule", exact: true })
+      .click();
+    await expect(page.getByRole("dialog").getByRole("alert")).toContainText(
+      "fixture-quota-exceeded",
+    );
+    expect(dispatched).toBe(0);
   });
 });
