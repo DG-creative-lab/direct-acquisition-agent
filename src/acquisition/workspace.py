@@ -20,7 +20,7 @@ from acquisition.adapters.sqlite.workspace_ancestry import initialize_workspace_
 from acquisition.adapters.sqlite.workspace_projection import initialize_control_tables
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.local_root import require_live_root
-from acquisition.learning import identifier
+from acquisition.learning import finite, identifier
 from acquisition.reasoning import ModelConfig
 from acquisition.creative import validate_fact_pack, fixture_catalog, historical_hook
 from acquisition.learning import followup_hypotheses
@@ -1037,6 +1037,23 @@ class Workspace:
                 self.preparations.step("local-conversations", row["id"])
         self.advance_copy_revisions()
 
+    def advance_report_monitoring(self):
+        with self.lock:
+            sessions = self.authority.listing() if self._verified_mode() else self._sessions()
+            for session in sessions:
+                cohort = session["cohort_id"]
+                if not cohort:
+                    continue
+                try:
+                    app = self._app(session)
+                    scope = session["organization"]
+                    plan = app.learning.monitoring.status(scope, cohort)
+                    if plan and plan["status"] == "scheduled" and plan["next_due"] <= app.clock():
+                        app.learning.check_reports(scope, cohort)
+                except (ValueError, NotFound, sqlite3.Error):
+                    # A store interruption leaves the check reclaimable when its lease expires.
+                    continue
+
     def request_copy_revision(self, identity, request_id, expected_subject, target_id, feedback, allow_model_copy):
         if allow_model_copy is not True:
             raise ValueError("Explicit model-copy permission is required for a revision")
@@ -1509,9 +1526,15 @@ class Workspace:
             if _attempt >= 3:
                 raise Conflict("Campaign changed while loading; refresh the review")
             return self.view(identity, _attempt=_attempt + 1)
+        learning = None
+        if session["cohort_id"]:
+            monitoring = app.learning.monitoring.status(scope, session["cohort_id"])
+            learning = app.learning.store.view(scope, session["cohort_id"])
+            if monitoring is not None:
+                learning["monitoring"] = monitoring
         return {"session": public, "review": review, "audience": population,
             "copy_revisions": revisions, "followups": self._followup_progress(app,scope,identity),
-            "learning": app.learning.store.view(scope, session["cohort_id"]) if session["cohort_id"] else None,
+            "learning": learning,
             "tasks": app.tasks.inspect(scope, session["run_id"])}
 
     def action(self, identity, action, payload):
@@ -1524,17 +1547,24 @@ class Workspace:
             fields = {"approve": {"subject_id", "reason"}, "reject": {"subject_id", "reason"},
                 "refresh": {"subject_id"}, "revoke": {"approval_id", "reason"},
                 "suppress": {"business_id", "reason"}, "handoff": {"approval_id"},
-                "open-learning": set(), "observe": set(), "finalize": set()}
+                "open-learning": set(), "observe": set(), "finalize": set(),
+                "advance-report-check": {"handoff_id", "cohort_id", "position", "next_due"},
+                "finalize-report-learning": {"handoff_id", "cohort_id"}}
             # Chat binds each explicit simulation decision to the displayed
             # accepted job/cohort. Retain the existing workspace payloads.
             bound_learning = action in {"open-learning", "observe", "finalize"} and "handoff_id" in payload
             if bound_learning:
                 fields[action] = {"handoff_id"} if action == "open-learning" else {"handoff_id", "cohort_id"}
+            recorded_learning = action in {"advance-report-check", "finalize-report-learning"}
             if action not in fields or set(payload) != fields[action] | {"request_id"}:
                 raise ValueError("Use the exact fields for this workspace action")
-            for field in fields[action]:
+            for field in fields[action] - {"position", "next_due"}:
                 text(payload[field]) if field == "reason" else identifier(payload[field])
-            if bound_learning:
+            if action == "advance-report-check":
+                finite(payload["next_due"])
+                if type(payload["position"]) is not int or session["mode"] != "fixture":
+                    raise ValueError("Advance a displayed report check in a fixture campaign")
+            if bound_learning or recorded_learning:
                 accepted = app.learning.source.accepted(scope, case)
                 if accepted["job_id"] != payload["handoff_id"]:
                     raise Conflict("Learning request refers to a different accepted job")
@@ -1555,7 +1585,16 @@ class Workspace:
                     if old["done"]:
                         return self.view(identity) | {"command_replayed": True}
                 elif not owned:
-                    db.execute("INSERT INTO commands VALUES(?,?,?,0)", (identity, request_id, fingerprint))
+                    if action == "advance-report-check":
+                        with app.learning.monitoring.fixture_check(scope, "local-operator", session["cohort_id"], case,
+                                                                  payload["handoff_id"], payload["position"], payload["next_due"]):
+                            db.execute("BEGIN IMMEDIATE")
+                            session["clock"] = max(session["clock"], payload["next_due"])
+                            db.execute("UPDATE sessions SET payload=? WHERE id=?", (canonical(session), identity))
+                            db.execute("INSERT INTO commands VALUES(?,?,?,0)", (identity, request_id, fingerprint))
+                            db.commit()
+                    else:
+                        db.execute("INSERT INTO commands VALUES(?,?,?,0)", (identity, request_id, fingerprint))
             store = app.reviews.store
             if action in {"approve", "reject"}:
                 store.decide(scope, case, payload["subject_id"], "local-reviewer", action, request_id, payload["reason"], 86400)
@@ -1573,9 +1612,19 @@ class Workspace:
                 receipt = app.learning.open(scope, case, "local-operator", request_id)
                 session["cohort_id"] = receipt["cohort_id"]
                 self._save(session)
+            elif action == "advance-report-check":
+                app.learning.check_reports(scope, session["cohort_id"], expected_position=payload["position"])
+            elif action == "finalize-report-learning":
+                plan = app.learning.monitoring.status(scope, session["cohort_id"])
+                if not plan or plan["status"] != "complete":
+                    raise Conflict("Finish checking the recorded reports before finalizing learning")
+                app.learning.store.finalize(scope, "local-operator", request_id, session["cohort_id"],
+                                            accepted["window_end"])
             elif action in {"observe", "finalize"}:
                 if not session["cohort_id"]:
                     raise Conflict("Open an outcome window first")
+                if app.learning.monitoring.status(scope, session["cohort_id"]):
+                    raise Conflict("Use the recorded report controls for this cohort")
                 cohort = app.learning.source.accepted(scope, case)
                 target = cohort["window_start"] + 7 * 86400 if action == "observe" else cohort["window_end"]
                 if not owned:
@@ -1590,7 +1639,8 @@ class Workspace:
                         rows.append(member | {"response": response, "observed_at": cohort["window_start"] + 7 * 86400 if response else cohort["window_end"]})
                 if rows:
                     app.learning.store.ingest(scope, "local-operator", request_id + ":import", session["cohort_id"],
-                        {"schema": "synthetic-outcomes/v1", "mode": "SYNTHETIC_ONLY", "cohort_id": session["cohort_id"], "outcomes": rows})
+                        {"schema": "synthetic-outcomes/v1", "mode": "SYNTHETIC_ONLY", "cohort_id": session["cohort_id"], "outcomes": rows},
+                        simulate=True)
                 if action == "finalize":
                     app.learning.store.finalize(scope, "local-operator", request_id, session["cohort_id"], cohort["window_end"])
             else:

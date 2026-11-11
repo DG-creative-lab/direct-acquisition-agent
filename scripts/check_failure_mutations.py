@@ -1165,6 +1165,10 @@ CASES = [
     ("followup-source-cannot-be-stripped", "adapters/sqlite/reviews.py",
      'if source_brief.get("followup_id") and canonical(source_brief) != canonical(bundle[0].manifest["brief"]):', 'if False:',
      "test_followups.FollowupTests.test_later_population_allocation_blocks_review_and_cannot_be_removed_from_brief"),
+    ("recorded-report-lease-at-commit", "adapters/sqlite/report_monitoring.py",
+     '            if self._leased(db, organization, cohort_id, token) is None:\n                raise Conflict("Report check lease expired before import committed")',
+     '            pass',
+     "test_learning.LearningTests.test_monitor_pause_fences_a_claim_and_cadence_keeps_the_cohort_cutoff"),
 ]
 
 

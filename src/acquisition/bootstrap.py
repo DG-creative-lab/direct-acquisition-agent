@@ -36,6 +36,7 @@ from acquisition.workflows.copy_revision import CopyRevisionWorkflow
 from acquisition.learning import LearningService
 from acquisition.adapters.local_reports import LocalSyntheticReports
 from acquisition.adapters.sqlite.learning import SqliteLearning
+from acquisition.adapters.sqlite.report_monitoring import SqliteReportMonitoring
 from acquisition.workflows.learning import AcceptedCohortSource
 from acquisition.adapters.sqlite.conversations import SqliteConversations
 from acquisition.conversations import ConversationService, CAPABILITY as PLANNER_CAPABILITY, FIXTURE_CAPABILITY
@@ -507,12 +508,14 @@ def build(path: str | Path, clock: Callable[[], float] = time.time,
             allow_model=True,config=config)
     revision_service = CopyRevisionService(reviews, drafts, memory, tasks, clock, revision_config, copy_assets,revision_admission)
     discovery = AudienceDiscovery(LocalAudienceSource(Path(__file__).resolve().parents[2] / "config/audience-catalogue"), clock)
+    learning_store = SqliteLearning(database, clock)
+    learning = LearningService(learning_store, AcceptedCohortSource(reviews, drafts),
+                               LocalSyntheticReports(), SqliteReportMonitoring(learning_store))
     capabilities = revision_workflow.capabilities() | workflow.capabilities() | ConversationMail(audiences, campaigns).capabilities() | model_workflow.capabilities() | conversation_model.capabilities() | {PLANNER_CAPABILITY: planner.plan, FIXTURE_CAPABILITY: planner.fixture_plan, ACTION_CAPABILITY:router.route, COPY_ACTION_CAPABILITY:router.route, TYPED_ACTION_CAPABILITY:router.route}
     return Application(tasks, audiences, drafts, Worker(tasks, capabilities, execution_clock, lease_seconds=180 if inference else 60,
                        eligible=lambda capability, inputs: model_workflow.eligible(capability, inputs) and conversation_model.eligible(capability, inputs) and planner.eligible(capability, inputs) and revision_workflow.eligible(capability, inputs) and router.eligible(capability, inputs)), clock,
                        campaigns.catalogue_hash, memory, calls, inference,
                        ReviewService(reviews),
-                       LearningService(SqliteLearning(database, clock), AcceptedCohortSource(reviews, drafts),
-                                       LocalSyntheticReports()), conversations, revision_service, SqliteFollowups(database),
+                       learning, conversations, revision_service, SqliteFollowups(database),
                        discovery, ConversationAudiences(conversations, discovery, SqliteAudienceSelections(database, clock), audiences, clock), actions,
                        ConversationExecution(SqliteExecution(database), clock),admissions,model_config)

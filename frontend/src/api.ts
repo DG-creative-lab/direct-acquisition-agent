@@ -130,6 +130,16 @@ export type Recommendation = {
 };
 export type Learning = {
   cohort: { id: string; window_start: number; window_end: number };
+  monitoring?: {
+    status: "scheduled" | "paused" | "blocked" | "complete";
+    position: number;
+    report_count: number;
+    next_due: number | null;
+    last_checked: number | null;
+    last_report_id: string | null;
+    watermark: number | null;
+    detail: string | null;
+  } | null;
   status: string;
   enrolled: number;
   received: number;

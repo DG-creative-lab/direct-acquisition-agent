@@ -88,7 +88,7 @@ The `synthetic-provider-report/v1` envelope has these fields. JSON object keys m
 
 Each event has `event_id` and `outcome`. The outcome uses the same exact assignment and observation fields as the manual batch above. For this synthetic source, the event ID is `synthetic_event_` followed by the SHA-256 of canonical JSON with `business_id` and `cohort_id` as its only keys. Use the repository's `acquisition.contracts.digest` for canonical encoding. These identities stay stable across snapshots. An exact event repeated across pages or cumulative reports adds no further observation. Changed content for an existing event, another report's page, missing pages or a reused report ID with different content rejects the snapshot atomically. The file limit is 4 MiB, with at most 100 pages and 10,000 events.
 
-The receipt records the report ID, digest, page count, watermark, duplicates and missing assignment count. `coverage_complete` requires a final snapshot with an explicit outcome for every enrolled business, including each no-mail control. A fully paginated report can still leave outcomes unknown. Import saves observations and audit evidence. The existing `learning-finalize` command separately checks maturity and complete coverage across stored observations before updating beliefs. This source reads recorded synthetic files and performs no scheduled polling or external requests.
+The receipt records the report ID, digest, page count, watermark, duplicates and missing assignment count. `coverage_complete` requires a final snapshot with an explicit outcome for every enrolled business, including each no-mail control. A fully paginated report can still leave outcomes unknown. Import saves observations and audit evidence. The `learning-finalize` command separately checks maturity and complete coverage across stored observations before updating beliefs.
 
 The normalized snapshot commits with the import receipt and outcomes. The saved pages retain each event's assignment and observation. Use the report ID from `learning-show` to inspect a single snapshot and check it against its original import digest, even when the source file is gone or the workspace is a read-only restore.
 
@@ -97,6 +97,50 @@ PYTHONPATH=src python3 -m acquisition --db .local/manual.sqlite --organization d
 ```
 
 An earlier import that saved only its digest has no inspectable snapshot. On the live store, use a fresh request ID to import the exact original report again and attach its pages after checking the saved digest and outcomes. This preserves the original receipt and adds no observations.
+
+## Schedule recorded report checks
+
+An operator can register one finite schedule for an open cohort from an accepted
+simulated job. Use the `organization` and `cohort_id` in the recording. A chat
+campaign uses `<root>/conversations.sqlite`. A standalone workspace campaign
+uses `<root>/<organization>/campaign.sqlite`, including its follow-ups. Use the
+existing local operator identity, usually `local-operator` in the workspace.
+
+```sh
+export PYTHONPATH=src
+python3 -m acquisition --db STORE --organization ORG learning-monitor-start \
+  --cohort COHORT_ID --actor OPERATOR --request-id schedule-1 \
+  --first-check UNIX_SECONDS --interval-seconds 3600 --file early.json --file final.json
+python3 -m acquisition --db STORE --organization ORG learning-monitor-show --cohort COHORT_ID
+python3 -m acquisition --db STORE --organization ORG learning-monitor-update \
+  --cohort COHORT_ID --actor OPERATOR --request-id pause-1 --revision CURRENT_REVISION --status paused
+```
+
+Provide 1 to 12 distinct reports in watermark order, up to 16 MiB total.
+The schedule freezes their contents and hashes in SQLite. The first check must
+fall inside the cohort window. Each report becomes available at its watermark.
+After a successful check, the next due time uses the current clock and cadence,
+bounded by the cohort cutoff and the next report's availability. A restarted
+runner checks at most one report per cohort per pass and processes the remaining
+recordings over subsequent passes. Missed intervals do not create check records.
+
+Use the latest schedule revision, a fresh request ID and `--status scheduled`
+to resume a paused or blocked check. An optional `--interval-seconds` updates
+the cadence after the currently scheduled check. Pausing stops pending imports.
+The cohort metric, cutoff and accepted assignments stay fixed.
+
+The workspace server checks due recordings while it runs. Learning shows the
+schedule status, last check, watermark and next due time. A fixture operator can
+advance the sandbox clock to the exact next displayed check. For an independent
+CLI store, run `learning-monitor-tick --cohort COHORT_ID` with the same database
+and organization to check one due report. Workspace cohorts use their own
+campaign clocks.
+
+Import and schedule progress have separate commits. If the process exits
+between them, the next runner reclaims the check after the 30-second lease and
+uses the original import receipt. Completing the schedule means all staged
+files were checked. Finalization still requires explicit outcomes for the whole
+mature cohort, including controls. Checkpoint restores allow schedule inspection.
 
 ## Bayesian calculation and recommendation policy
 

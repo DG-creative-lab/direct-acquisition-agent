@@ -186,6 +186,8 @@ export default function App() {
                   finalize:
                     "The simulated window is complete. Beliefs updated once.",
                   "open-learning": "Outcome window opened.",
+                  "advance-report-check": "Recorded report check refreshed.",
+                  "finalize-report-learning": "Recorded outcomes counted once.",
                 } as Record<string, string>
               )[action] ?? "Campaign prepared."),
         );

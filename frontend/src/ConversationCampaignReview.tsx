@@ -114,9 +114,11 @@ export default function ConversationCampaignReview({
     partiallyAccepted,
   ]);
   const pending =
-    state?.copy_revisions?.some((r) =>
+    state?.learning?.monitoring?.status === "scheduled" ||
+    (state?.copy_revisions?.some((r) =>
       ["admitted", "queued", "running", "blocked"].includes(r.status),
-    ) ?? false;
+    ) ??
+      false);
   useEffect(() => {
     const controller = new AbortController();
     const stamp = ++epoch.current;
@@ -160,9 +162,13 @@ export default function ConversationCampaignReview({
     };
   }, [pending, active, sessionId]);
   const act: Act = async (action, payload = {}) => {
-    const learningAction = ["open-learning", "observe", "finalize"].includes(
-      action,
-    );
+    const learningAction = [
+      "open-learning",
+      "observe",
+      "finalize",
+      "advance-report-check",
+      "finalize-report-learning",
+    ].includes(action);
     if (
       busy ||
       (!interactive &&

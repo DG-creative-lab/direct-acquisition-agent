@@ -83,6 +83,26 @@ class WorkspaceTests(unittest.TestCase):
         self.assertEqual(reopened["learning"]["finalization"], final["learning"]["finalization"])
         self.assertEqual(reopened["review"]["subject"], final["review"]["subject"])
 
+    def test_completed_simulation_replays_after_monitoring_is_scheduled(self):
+        self.accepted()
+        self.act("open-learning")
+        early = self.act("observe")
+        session = self.workspace._session(self.id)
+        app = self.workspace._app(session)
+        cohort = early["learning"]["cohort"]
+        scope, cohort_id, now = cohort["organization"], cohort["id"], early["session"]["clock"]
+        report = {key: cohort[key] for key in ("organization", "job_id", "metric", "window_start", "window_end")}
+        report |= {"schema": "synthetic-provider-report/v1", "mode": "SYNTHETIC_ONLY", "cohort_id": cohort_id,
+                   "report_id": "empty-recording", "watermark": now, "final": False, "page_count": 1,
+                   "pages": [{"report_id": "empty-recording", "number": 1, "events": []}]}
+        app.learning.monitoring.start(scope, "local-operator", "schedule", cohort_id, now, 3600, [report])
+        replay = self.act("observe")
+        self.assertTrue(replay["command_replayed"])
+        self.assertEqual(replay["learning"]["events"], early["learning"]["events"])
+        with self.assertRaisesRegex(Conflict, "recorded report controls"):
+            self.act("finalize")
+        self.assertEqual(self.workspace.view(self.id)["session"]["clock"], now)
+
     def test_artifact_download_cannot_substitute_a_newer_subject(self):
         with self.assertRaises(Conflict):
             self.workspace.artifact(self.id, "manifest", "stale-subject")

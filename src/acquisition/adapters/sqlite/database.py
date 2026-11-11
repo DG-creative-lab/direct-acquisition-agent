@@ -403,6 +403,24 @@ CREATE TRIGGER IF NOT EXISTS simulated_delivery_no_delete BEFORE DELETE ON simul
 PRAGMA user_version=16;
 """
 
+REPORT_MONITORING = """
+CREATE TABLE IF NOT EXISTS report_monitoring (
+ organization TEXT NOT NULL, cohort_id TEXT NOT NULL, actor TEXT NOT NULL,
+ interval_seconds INTEGER NOT NULL, first_check REAL NOT NULL, revision INTEGER NOT NULL,
+ status TEXT NOT NULL CHECK(status IN ('scheduled','paused','blocked','complete')),
+ position INTEGER NOT NULL, report_count INTEGER NOT NULL, next_due REAL,
+ last_checked REAL, last_report_id TEXT, watermark REAL, detail TEXT,
+ lease_token TEXT, lease_until REAL, CHECK((lease_token IS NULL) = (lease_until IS NULL)),
+ PRIMARY KEY(organization,cohort_id),
+ FOREIGN KEY(organization,cohort_id) REFERENCES learning_cohorts(organization,id));
+CREATE TABLE IF NOT EXISTS report_monitoring_sources (
+ organization TEXT NOT NULL, cohort_id TEXT NOT NULL, position INTEGER NOT NULL,
+ available_at REAL NOT NULL, report_sha256 TEXT NOT NULL, snapshot TEXT NOT NULL,
+ PRIMARY KEY(organization,cohort_id,position),
+ FOREIGN KEY(organization,cohort_id) REFERENCES report_monitoring(organization,cohort_id));
+PRAGMA user_version=17;
+"""
+
 
 class Database:
     def __init__(self, path: str | Path, *, verified_admissions=False, clock=time.time, fixture_execution=False):
@@ -415,9 +433,12 @@ class Database:
             if verified_admissions:
                 require_live_root(self.path)
             with self.connect() as connection:
-                if connection.execute('PRAGMA user_version').fetchone()[0] not in {14, 15, 16}:
+                version = connection.execute('PRAGMA user_version').fetchone()[0]
+                if version not in {14, 15, 16, 17}:
                     raise ValueError('Unsupported application schema for checkpoint inspection')
                 self._validate_workspace_schema(connection)
+                if version >= 17:
+                    self._validate_report_monitoring_schema(connection)
             return
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.transaction() as connection:
@@ -425,7 +446,7 @@ class Database:
             version = connection.execute("PRAGMA user_version").fetchone()[0]
             if fixture_execution and (version != 0 or connection.execute('SELECT 1 FROM sqlite_schema LIMIT 1').fetchone()):
                 raise Conflict('Fixture execution requires a fresh application store')
-            if not 0 <= version <= 16:
+            if not 0 <= version <= 17:
                 raise ValueError(f"Unsupported database schema {version}")
             if (verified_admissions and version < 10
                     and connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='runs'").fetchone()
@@ -489,6 +510,9 @@ class Database:
             if version < 16:
                 self._apply_migration(connection, SIMULATED_DELIVERY)
             self._validate_simulated_delivery_schema(connection)
+            if version < 17:
+                self._apply_migration(connection, REPORT_MONITORING)
+            self._validate_report_monitoring_schema(connection)
             if verified_admissions:
                 # Seal under the same write lock that skipped legacy recovery.
                 from .admission_guard import seal_legacy_writes
@@ -505,6 +529,11 @@ class Database:
     @staticmethod
     def _validate_simulated_delivery_schema(connection):
         connection.execute('SELECT organization,case_id,approval_id,id,simulation,binding,provider_draft,result,result_hash FROM simulated_deliveries LIMIT 0')
+
+    @staticmethod
+    def _validate_report_monitoring_schema(connection):
+        connection.execute('SELECT organization,cohort_id,position,report_count,next_due,lease_token,lease_until FROM report_monitoring LIMIT 0')
+        connection.execute('SELECT organization,cohort_id,position,available_at,report_sha256,snapshot FROM report_monitoring_sources LIMIT 0')
 
     @classmethod
     def _initialize_workspace_schema(cls,connection):
@@ -524,7 +553,7 @@ class Database:
         database=cls.__new__(cls);database.path=Path(path)
         if not database.path.is_file():raise ValueError('Authoritative application store is unavailable')
         with database.connect() as db:
-            if db.execute('PRAGMA user_version').fetchone()[0] not in {14, 15, 16}:
+            if db.execute('PRAGMA user_version').fetchone()[0] not in {14, 15, 16, 17}:
                 raise ValueError('Migrate the authoritative application store before workspace access')
         return database
 

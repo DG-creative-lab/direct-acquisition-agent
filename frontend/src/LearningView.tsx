@@ -57,6 +57,11 @@ export default function LearningView({
       </Empty>
     );
   const complete = learning.status === "finalized";
+  const monitoring = learning.monitoring;
+  const binding = {
+    handoff_id: state.review.handoff.id,
+    cohort_id: learning.cohort.id,
+  };
   return (
     <section className="learning-workspace">
       <div className="learning-window">
@@ -66,7 +71,9 @@ export default function LearningView({
             {complete
               ? "A complete cohort. Counted once."
               : learning.received
-                ? "Early responses received"
+                ? monitoring
+                  ? "Recorded outcomes received"
+                  : "Early responses received"
                 : "Waiting for response evidence"}
           </h3>
           <p>
@@ -90,7 +97,73 @@ export default function LearningView({
           </div>
         ))}
       </div>
-      {!complete && (
+      {monitoring && (
+        <section
+          className="observation-actions"
+          aria-label="Recorded report monitoring"
+        >
+          <div>
+            <Clock3 size={19} />
+            <span>
+              Recorded report monitoring
+              <strong>
+                {monitoring.position} of {monitoring.report_count} synthetic
+                reports checked
+              </strong>
+              {monitoring.last_checked !== null && (
+                <small>Last check {date(monitoring.last_checked)} UTC</small>
+              )}
+              {monitoring.watermark !== null && (
+                <small>
+                  Reports verified through {date(monitoring.watermark)} UTC
+                </small>
+              )}
+              {monitoring.status === "scheduled" &&
+                monitoring.next_due !== null && (
+                  <small>Next check {date(monitoring.next_due)} UTC</small>
+                )}
+              {monitoring.status === "blocked" && (
+                <small>Blocked. {monitoring.detail}</small>
+              )}
+              {monitoring.status === "paused" && <small>Paused</small>}
+              {monitoring.status === "complete" && (
+                <small>All scheduled reports checked</small>
+              )}
+            </span>
+          </div>
+          {state.session.mode === "fixture" &&
+            monitoring.status === "scheduled" &&
+            monitoring.next_due !== null && (
+              <button
+                className="button secondary"
+                disabled={busy}
+                onClick={() =>
+                  act("advance-report-check", {
+                    ...binding,
+                    position: monitoring.position,
+                    next_due: monitoring.next_due,
+                  })
+                }
+              >
+                Advance to next report check
+              </button>
+            )}
+          {!complete && monitoring.status === "complete" && (
+            <button
+              className="button primary"
+              disabled={
+                busy ||
+                learning.missing > 0 ||
+                state.session.clock < learning.cohort.window_end
+              }
+              onClick={() => act("finalize-report-learning", binding)}
+            >
+              Finalize recorded learning
+            </button>
+          )}
+        </section>
+      )}
+      {!complete && !monitoring && (
         <div className="observation-actions">
           <div>
             <Clock3 size={19} />
@@ -268,7 +341,9 @@ export default function LearningView({
         <div>
           <strong>Synthetic outcomes. No measured customer performance.</strong>
           <p>
-            Labels deliberately favor variant A to demonstrate learning.
+            {monitoring
+              ? "Recorded reports contain synthetic outcomes for this cohort."
+              : "Labels deliberately favor variant A to demonstrate learning."}{" "}
             Simulated acceptance does not establish delivery. Repeated business
             exposure and corrections require further modelling.
           </p>

@@ -86,7 +86,7 @@ class ReviewCliTests(unittest.TestCase):
                 db.close()
             migrated = Database(path)
             with migrated.connect() as db:
-                self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 16)
+                self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 17)
                 self.assertEqual([tuple(r) for r in db.execute("SELECT * FROM legacy_task_admissions")], old)
                 self.assertEqual(db.execute("SELECT status FROM runs WHERE id='later'").fetchone()[0], "queued")
 

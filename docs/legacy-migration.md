@@ -32,7 +32,7 @@ snapshot or a cold-backup protocol. Keep writers stopped throughout inspection.
 
 ## Apply a reviewed plan
 
-Apply targets an existing schema-14 through schema-16 `conversations.sqlite` sealed under
+Apply targets an existing schema-14 through schema-17 `conversations.sqlite` sealed under
 `verified-paused/v1`. Sealing is a separate format decision. On an unsealed
 schema-14 store, review the [cutover contract](execution-authority-decision.md)
 before running `PYTHONPATH=src python3 -m acquisition --db

@@ -12,6 +12,8 @@ from acquisition.conversations import EnvironmentIntent, WORKSPACE_OWNER, enviro
 from .database import Database
 from .admission_guard import verified_required, binding
 from .actors import require_actor
+from .learning import require_manual_simulation
+from .report_monitoring import require_due_report
 
 
 class SqliteWorkspaceState:
@@ -292,6 +294,7 @@ class SqliteWorkspaceState:
                 return bool(old['done'])
             if action in {'observe','finalize'}:
                 require_actor(db,org,'local-operator','operator')
+                require_manual_simulation(db, org, session['cohort_id'])
                 row=db.execute('''SELECT c.payload FROM learning_cohorts c JOIN simulated_agency_jobs j
                     ON j.organization=c.organization AND j.id=c.job_id WHERE c.organization=? AND c.id=? AND j.case_id=?''',
                     (org,session['cohort_id'],session['case_id'])).fetchone()
@@ -299,6 +302,15 @@ class SqliteWorkspaceState:
                 cohort=json.loads(row[0]);target=cohort['window_start']+7*86400 if action=='observe' else cohort['window_end']
                 environment_time(target)
                 db.execute("UPDATE campaign_environments SET clock=?,clock_mode='SIMULATED',epoch=epoch+1 WHERE organization=? AND id=?",
+                           (max(session['clock'],target),org,identity))
+            if action == 'advance-report-check':
+                if session['mode'] != 'fixture' or payload['cohort_id'] != session['cohort_id']:
+                    raise Conflict('Refresh the current recorded report check before advancing time')
+                target = payload['next_due']
+                environment_time(target)
+                require_due_report(db, org, 'local-operator', session['cohort_id'], session['case_id'],
+                                   payload['handoff_id'], payload['position'], target)
+                db.execute("UPDATE campaign_environments SET clock=?,epoch=epoch+1 WHERE organization=? AND id=?",
                            (max(session['clock'],target),org,identity))
             db.execute('INSERT INTO workspace_commands VALUES(?,?,?,?,0)',(org,identity,payload['request_id'],inputs))
             return False
