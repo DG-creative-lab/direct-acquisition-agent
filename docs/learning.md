@@ -100,6 +100,22 @@ An earlier import that saved only its digest has no inspectable snapshot. On the
 
 ## Schedule recorded report checks
 
+In the workspace, open the accepted campaign's outcome window in Learning.
+Choose **Recorded synthetic reports**, select the JSON files, set the first
+check in UTC and enter the cadence in minutes. Use **Move up** and **Move down**
+to order the recordings by watermark. **Review monitoring schedule**
+shows the reports, accepted job and cohort before confirmation. Existing schedules
+offer **Save cadence**, **Pause monitoring** and **Resume monitoring**. Pausing
+and resuming retain the saved cadence. Save a cadence change explicitly to apply
+it after the currently scheduled check.
+
+Before sending, the browser saves the original reports, settings and request ID
+in IndexedDB. After a lost response or reload, use **Recover saved monitoring
+request**. It reuses the original submission. A confirmed response clears the
+pending upload. A rejected submission clears only after the server has fenced
+that request against a delayed commit. Keep the workspace's browser storage
+available while recovering a request.
+
 An operator can register one finite schedule for an open cohort from an accepted
 simulated job. Use the `organization` and `cohort_id` in the recording. A chat
 campaign uses `<root>/conversations.sqlite`. A standalone workspace campaign

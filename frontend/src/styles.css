@@ -2565,3 +2565,44 @@ td small {
 .learning-columns > aside {
   min-width: 0;
 }
+
+.monitoring-controls {
+  border-block: 1px solid var(--brand-rule);
+  padding: 20px 0;
+  margin: 20px 0;
+}
+.monitoring-controls p {
+  color: var(--brand-muted);
+  line-height: 1.6;
+}
+.monitoring-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 16px;
+  margin: 16px 0;
+}
+.monitoring-fields label {
+  display: grid;
+  gap: 8px;
+  max-width: 100%;
+}
+.monitoring-fields input {
+  min-height: 44px;
+  max-width: 100%;
+  padding: 10px;
+  border: 1px solid var(--brand-rule);
+  background: var(--brand-panel);
+  color: var(--brand-ink);
+  font: inherit;
+}
+.monitoring-controls li,
+.monitoring-controls code {
+  overflow-wrap: anywhere;
+}
+.monitoring-controls li {
+  margin-block: 8px;
+}
+.monitoring-controls li .button {
+  margin-inline-start: 8px;
+}

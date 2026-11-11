@@ -50,6 +50,12 @@ CHECKPOINT_BLOCKS = {
     'checkpoint_recovery_unavailable':'Review recovery is unavailable for this checkpoint. Inspect its saved case and local storage; other conversations can continue.',
 }
 
+class MonitoringRejected(ValueError):
+    """A monitoring command was rejected before its domain transaction committed."""
+    def __init__(self, message, not_saved=False):
+        super().__init__(message)
+        self.not_saved = not_saved
+
 
 class Workspace:
     def __init__(self, root, real_clock=time.time, *, verified_admissions=False):
@@ -1536,6 +1542,52 @@ class Workspace:
             "copy_revisions": revisions, "followups": self._followup_progress(app,scope,identity),
             "learning": learning,
             "tasks": app.tasks.inspect(scope, session["run_id"])}
+
+    def monitoring_command(self, identity, action, payload):
+        with self.lock:
+            app, scope = None, None
+            try:
+                session = self._session(identity)
+                if self._verified_mode() and self.authority.get(identity) is None:
+                    raise Conflict("Migrate this legacy campaign before configuring monitoring")
+                app = self._app(session)
+                scope, case = session["organization"], session["case_id"]
+                fields = {"request_id", "handoff_id", "cohort_id"}
+                if action == "monitoring-start":
+                    fields |= {"reports", "first_check", "interval_seconds"}
+                elif action == "monitoring-update":
+                    fields |= {"revision", "status", "interval_seconds"}
+                else:
+                    raise ValueError("Use a supported monitoring command")
+                if type(payload) is not dict or set(payload) != fields:
+                    raise ValueError("Use the exact fields for this monitoring command")
+                for key in ("request_id", "handoff_id", "cohort_id"):
+                    identifier(payload[key])
+                if not case or not session["cohort_id"]:
+                    raise Conflict("Open the accepted campaign's outcome window before monitoring")
+                accepted = app.learning.source.accepted(scope, case)
+                if (payload["handoff_id"] != accepted["job_id"] or payload["cohort_id"] != session["cohort_id"]
+                        or payload["cohort_id"] != accepted["id"]):
+                    raise Conflict("Monitoring must bind the displayed accepted job and cohort")
+                if action == "monitoring-start":
+                    receipt = app.learning.schedule_uploaded_reports(
+                        scope, "local-operator", payload["request_id"], payload["cohort_id"],
+                        payload["first_check"], payload["interval_seconds"], payload["reports"])
+                else:
+                    receipt = app.learning.monitoring.update(
+                        scope, "local-operator", payload["request_id"], payload["cohort_id"],
+                        payload["revision"], payload["status"], payload["interval_seconds"])
+            except (ValueError, NotFound) as error:
+                fenced = False
+                if app is not None and type(payload) is dict:
+                    try:
+                        identifier(payload.get("request_id"))
+                        fenced = app.learning.monitoring.reject(scope, "local-operator", payload["request_id"], payload)
+                    except ValueError:
+                        pass
+                raise MonitoringRejected(str(error), fenced) from error
+            # Projection failure after the domain commit keeps the browser request pending.
+            return self.view(identity) | {"monitoring_receipt": receipt}
 
     def action(self, identity, action, payload):
         with self.lock:

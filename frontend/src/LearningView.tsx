@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   ArrowRight,
   BarChart3,
@@ -8,6 +9,7 @@ import {
 import type { Act, State } from "./api";
 import { date, percent } from "./api";
 import { Badge, Empty, segmentName } from "./ui";
+import MonitoringControls from "./MonitoringControls";
 
 export default function LearningView({
   state,
@@ -15,13 +17,19 @@ export default function LearningView({
   act,
   onCampaign,
   onNext,
+  monitoringAct = act,
+  monitoringError,
 }: {
   state: State;
   busy: boolean;
   act: Act;
   onCampaign: () => void;
   onNext?: () => void;
+  monitoringAct?: Act;
+  monitoringError?: string;
 }) {
+  const [monitoringPending, setMonitoringPending] = useState(false);
+  const learningBusy = busy || monitoringPending;
   const learning = state.learning;
   if (!state.review?.handoff)
     return (
@@ -97,6 +105,14 @@ export default function LearningView({
           </div>
         ))}
       </div>
+      <MonitoringControls
+        key={state.session.id + learning.cohort.id}
+        state={state}
+        busy={busy}
+        act={monitoringAct}
+        requestError={monitoringError}
+        onPendingChange={setMonitoringPending}
+      />
       {monitoring && (
         <section
           className="observation-actions"
@@ -136,7 +152,7 @@ export default function LearningView({
             monitoring.next_due !== null && (
               <button
                 className="button secondary"
-                disabled={busy}
+                disabled={learningBusy}
                 onClick={() =>
                   act("advance-report-check", {
                     ...binding,
@@ -152,7 +168,7 @@ export default function LearningView({
             <button
               className="button primary"
               disabled={
-                busy ||
+                learningBusy ||
                 learning.missing > 0 ||
                 state.session.clock < learning.cohort.window_end
               }
@@ -174,14 +190,14 @@ export default function LearningView({
           </div>
           <button
             className="button secondary"
-            disabled={busy || learning.received > 0}
+            disabled={learningBusy || learning.received > 0}
             onClick={() => act("observe")}
           >
             Simulate day 7 responses
           </button>
           <button
             className="button primary"
-            disabled={busy}
+            disabled={learningBusy}
             onClick={() => act("finalize")}
           >
             Close window & learn

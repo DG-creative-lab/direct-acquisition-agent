@@ -214,6 +214,12 @@ with patch.object(SqliteTasks, 'settle', exit_after_draft):
                                   '--request-id', 'schedule', '--first-check', due, '--interval-seconds', 3600,
                                   '--file', path)
         self.assertEqual(registered.returncode, 0, registered.stderr)
+        # The browser uses the same native command and preserves the original CLI receipt.
+        replay = self.w.monitoring_command(sid, 'monitoring-start', {
+            'request_id': 'schedule', 'handoff_id': job, 'cohort_id': cohort_id, 'first_check': due,
+            'interval_seconds': 3600, 'reports': [canonical(report)]})
+        self.assertEqual(replay['learning']['monitoring']['revision'], 1)
+        self.assertEqual(replay['learning']['monitoring']['report_count'], 1)
         path.unlink()
         with self.assertRaisesRegex(Conflict, 'campaign clock'):
             app.learning.check_reports(scope, cohort_id, standalone=True)

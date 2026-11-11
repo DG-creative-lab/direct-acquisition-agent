@@ -60,8 +60,11 @@ The executor also checks due recorded synthetic reports for cohorts with an
 operator-scheduled import. Learning displays the schedule and its verified
 watermark. Fixture campaigns can advance sandbox time to a displayed check.
 Completing a schedule leaves learning ready for a separate finalization decision
-once the cohort is mature and has complete explicit outcomes. Configure, pause
-and resume schedules through the [local learning CLI](learning.md#schedule-recorded-report-checks).
+once the cohort is mature and has complete explicit outcomes. Learning accepts
+recorded JSON uploads and offers cadence, pause and resume controls. A pending
+submission retains its original files and request ID in browser IndexedDB for
+explicit recovery after reload. The server fixes the application scope and checks
+the displayed accepted job and cohort. See the [monitoring operating flow](learning.md#schedule-recorded-report-checks).
 
 Progress reads can temporarily combine an older case mapping or preparation row with newer recovery state. The server reports pending checkpoint recovery from the exact saved stop receipt, which also drives the executor's retry. Chat keeps polling that pending mapping even after a transient blocker clears. An ordinary blocked preparation without a recovery receipt stops polling. These presentation hints grant no approval or inference permission.
 

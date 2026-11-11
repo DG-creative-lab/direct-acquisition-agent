@@ -188,6 +188,10 @@ export default function App() {
                   "open-learning": "Outcome window opened.",
                   "advance-report-check": "Recorded report check refreshed.",
                   "finalize-report-learning": "Recorded outcomes counted once.",
+                  "monitoring-start":
+                    "Monitoring request confirmed. Current schedule loaded.",
+                  "monitoring-update":
+                    "Monitoring request confirmed. Current schedule loaded.",
                 } as Record<string, string>
               )[action] ?? "Campaign prepared."),
         );
@@ -812,6 +816,7 @@ export default function App() {
                       state={state}
                       busy={!!busy}
                       act={act}
+                      monitoringError={error}
                       onCampaign={() => setPage("campaign")}
                       onNext={() => {
                         setParent(selected);

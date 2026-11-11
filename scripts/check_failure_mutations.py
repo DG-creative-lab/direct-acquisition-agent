@@ -1169,6 +1169,14 @@ CASES = [
      '            if self._leased(db, organization, cohort_id, token) is None:\n                raise Conflict("Report check lease expired before import committed")',
      '            pass',
      "test_learning.LearningTests.test_monitor_pause_fences_a_claim_and_cadence_keeps_the_cohort_cutoff"),
+    ("monitoring-rejected-request-fence", "adapters/sqlite/report_monitoring.py",
+     '            self.learning._command(db, organization, request_id, fingerprint, {"kind": "monitoring_rejected"})',
+     '            pass',
+     "test_workspace.WorkspaceTests.test_uploaded_monitoring_recovers_domain_commit_and_fences_rejected_requests"),
+    ("monitoring-displayed-job-binding", "workspace.py",
+     'if (payload["handoff_id"] != accepted["job_id"] or payload["cohort_id"] != session["cohort_id"]\n                        or payload["cohort_id"] != accepted["id"]):',
+     'if False:',
+     "test_workspace.WorkspaceHttpTests.test_uploaded_reports_use_guarded_bounded_routes_and_exact_cohort"),
 ]
 
 

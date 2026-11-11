@@ -23,6 +23,16 @@ class LearningService:
         return self.monitoring.start(organization, actor, request_id, cohort_id, first_check, interval,
                                      [self.reports.read(path) for path in paths])
 
+    def schedule_uploaded_reports(self, organization, actor, request_id, cohort_id, first_check, interval, uploads):
+        if (type(uploads) is not list or not 1 <= len(uploads) <= 12
+                or any(type(upload) is not str for upload in uploads)):
+            raise ValueError("Upload 1 to 12 synthetic report files")
+        raw = [upload.encode("utf-8") for upload in uploads]
+        if sum(len(upload) for upload in raw) > 16 * 1024 * 1024:
+            raise ValueError("Uploaded reports exceed the 16 MiB total limit")
+        return self.monitoring.start(organization, actor, request_id, cohort_id, first_check, interval,
+                                     [self.reports.parse(upload) for upload in raw])
+
     def check_reports(self, organization, cohort_id, *, standalone=False, expected_position=None):
         identifier(cohort_id)
         token = self.monitoring.claim(organization, cohort_id, standalone=standalone, expected_position=expected_position)
