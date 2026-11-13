@@ -45,6 +45,8 @@ The [local checkpoint adapter](workspace-checkpoints.md) uses the same root lock
 
 ## Repository map
 
+The [organization/profile foundation](organization-profiles.md) adds explicit taxonomy, campaign, product/brand and planning contracts inside the existing modules. `ProfilePreparation` composes their public APIs and a narrow atomic proposal-publication port, reusing campaign calculation without adding marketing dependencies to runtime. The CLI prepares unapproved synthetic proposals for two companies; chat, model execution, review/handoff and learning keep their existing contracts. The [channel expansion plan](channel-expansion-plan.md) describes subsequent proposed work.
+
 ```text
 frontend/src/                 React views, API client and presentation styles
 src/acquisition/

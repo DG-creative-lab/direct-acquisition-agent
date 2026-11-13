@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Protocol
 
-from .domain import Draft
+from .domain import Draft, CampaignProfile
 
 
 @dataclass(frozen=True)
@@ -14,6 +14,16 @@ class DraftLease:
 class DraftStore(Protocol):
     def put(self, organization: str, operation_id: str, draft: Draft, *, lease: DraftLease | None = None) -> str: ...
     def get(self, organization: str, draft_id: str) -> Draft: ...
+
+
+class CampaignProfileSource(Protocol):
+    def campaign_profile(self, organization: str, key: str, version: str) -> CampaignProfile: ...
+
+
+class ProfileProposalStore(Protocol):
+    def find(self, organization: str, request_id: str) -> Draft | None: ...
+    def publish(self, organization: str, request_id: str, snapshot, bundles: tuple, draft: Draft) -> str: ...
+    def get(self, organization: str, identity: str) -> Draft: ...
 
 
 class FollowupStore(Protocol):

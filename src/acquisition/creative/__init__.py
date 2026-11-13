@@ -5,3 +5,9 @@ from .grounding import GroundedCopyAgent, validate_fact_pack, validate_grounded_
 
 __all__ = ["historical_hook", "writing_preference", "validate_copy_assets", "grounded_tool_contracts", "copy_source_payloads", "Creative", "creative_record", "fixture_catalog", "CopyAgent", "validate_variants", "CreativeMemory",
            "GroundedCopyAgent", "validate_fact_pack", "validate_grounded_catalogue", "fact_pack_id", "claim_screen_request"]
+from .profiles import ProductProfile, product_profile_from, context_product_profile
+
+__all__ += ['ProductProfile', 'product_profile_from', 'context_product_profile']
+from .ports import ProductEvidenceSource
+from .profile_application import ProfileCopyService
+__all__ += ['ProductEvidenceSource', 'ProfileCopyService']

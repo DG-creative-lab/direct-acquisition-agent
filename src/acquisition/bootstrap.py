@@ -53,6 +53,28 @@ from acquisition.adapters.sqlite.admissions import SqliteAdmissions
 from acquisition.workflows.conversation import validate_planning_assets
 
 
+def build_profile_preparation(path, organization, profile_key, clock=time.time):
+    """Explicit unapproved fixture preparation. No tasks, model or release capabilities."""
+    require_live_root(path)
+    from acquisition.adapters.local_profiles import LocalProfiles, SyntheticProfileAudience
+    from acquisition.adapters.sqlite.profile_drafts import SqliteProfileDrafts
+    from acquisition.creative import ProfileCopyService
+    from acquisition.workflows.profile_preparation import ProfilePreparation
+    profiles = LocalProfiles(organization, profile_key, Path(__file__).resolve().parents[2] / 'config/profiles')
+    database = Database(path)
+    # Do not write any intermediate inputs into paused/verified or restored stores.
+    from acquisition.adapters.sqlite.admission_guard import verified_required
+    with database.connect() as connection:
+        if verified_required(connection):
+            raise Conflict('Profile preparation has no verified admission capability; execution stays paused')
+    require_live_root(database.path)
+    audiences = SqliteAudiences(database)
+    copy = ProfileCopyService(profiles)
+    drafts = SqliteProfileDrafts(database, profiles, copy, clock)
+    return ProfilePreparation(profiles, SyntheticProfileAudience(), copy,
+                              CampaignService(audiences, SqliteDrafts(database, clock), ()), drafts, clock)
+
+
 
 def agent_catalogue():
     skills = json.loads((Path(__file__).resolve().parents[2] / "config/agent-skills-v1.json").read_text())

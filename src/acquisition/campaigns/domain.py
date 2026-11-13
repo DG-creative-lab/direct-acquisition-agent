@@ -5,7 +5,7 @@ from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import date
 
-from acquisition.audiences import Snapshot
+from acquisition.audiences import Snapshot, AudienceTaxonomy, ProfiledSnapshot, taxonomy_from, catalogue_identity
 from acquisition.contracts import canonical, digest
 from acquisition.creative import Creative, creative_record
 
@@ -48,6 +48,66 @@ class Brief:
                 raise ValueError("Money and counts must be integers")
         if self.budget_pence < 0 or self.unit_cost_pence <= 0 or not 0 < self.max_candidates <= 400_000:
             raise ValueError("Invalid budget, unit cost or candidate limit")
+
+
+@dataclass(frozen=True)
+class CampaignProfile:
+    key: str
+    version: str
+    company: str
+    product_key: str
+    product_profile_id: str
+    taxonomy: AudienceTaxonomy
+    country: str = 'UK'
+    currency: str = 'GBP'
+    channel: str = 'direct_mail'
+    objective: str = 'response_experiment'
+    schema: str = 'campaign-profile/v1'
+
+    def __post_init__(self):
+        for value in (self.key, self.version, self.company, self.product_key):
+            catalogue_identity(value)
+        if (self.schema != 'campaign-profile/v1' or self.country != 'UK' or self.currency != 'GBP'
+                or self.channel != 'direct_mail' or self.objective != 'response_experiment'
+                or type(self.taxonomy) is not AudienceTaxonomy
+                or type(self.product_profile_id) is not str or not self.product_profile_id.startswith('product_profile_')
+                or len(self.product_profile_id) != len('product_profile_') + 64
+                or any(c not in '0123456789abcdef' for c in self.product_profile_id[len('product_profile_'):])):
+            raise ValueError('Unsupported profile, market, currency, channel or objective')
+
+    @property
+    def id(self):
+        return 'campaign_profile_' + digest(asdict(self))
+
+
+def campaign_profile_from(payload):
+    return CampaignProfile(**(payload | {'taxonomy': taxonomy_from(payload['taxonomy'])}))
+
+
+@dataclass(frozen=True)
+class ProfiledBrief(Brief):
+    profile: CampaignProfile | None = None
+    segments: tuple[str, ...] = ()
+    plan: dict | None = None
+
+    def __post_init__(self):
+        super().__post_init__()
+        if (type(self.profile) is not CampaignProfile or type(self.segments) is not tuple or not self.segments
+                or len(set(self.segments)) != len(self.segments)
+                or set(self.segments) - {s.key for s in self.profile.taxonomy.segments}):
+            raise ValueError('A profiled brief requires exact profile and taxonomy membership')
+        plan = self.plan
+        if (type(plan) is not dict or plan.get('schema') != 'profile-plan/v1'
+                or canonical(plan.get('profile')) != canonical(asdict(self.profile))
+                or plan.get('profile_id') != self.profile.id or plan.get('budget_pence') != self.budget_pence
+                or plan.get('segments') != list(self.segments) or plan.get('approval') != 'not_granted'
+                or plan.get('objective_kind') != self.profile.objective
+                or (plan.get('country'), plan.get('currency'), plan.get('channel')) != (
+                    self.profile.country, self.profile.currency, self.profile.channel)
+                or plan.get('copy_mode') != 'fixture' or plan.get('execution') != 'not_performed'
+                or plan.get('mode') != 'SYNTHETIC_PLANNING_ONLY'
+                or plan.get('id') != 'profile_plan_' + digest({k:v for k,v in plan.items() if k != 'id'})):
+            raise ValueError('Profile brief differs from its frozen plan')
 
 
 @dataclass(frozen=True)
@@ -137,6 +197,9 @@ def conversation_copy_brief(brief, objective):
 
 
 def brief_from(payload: dict) -> Brief:
+    if 'profile' in payload:
+        return ProfiledBrief(**(payload | {'profile': campaign_profile_from(payload['profile']),
+                                          'segments': tuple(payload['segments'])}))
     if "segments" not in payload:
         return Brief(**payload)
     kind = FollowupBrief if "followup_id" in payload else SourcedConversationBrief if "audience_source" in payload else ConversationBrief
@@ -170,10 +233,18 @@ def build_draft(snapshot: Snapshot, brief: Brief, creatives: tuple[Creative, ...
         raise ValueError("Incomplete audience snapshot")
     if snapshot.score_semantics != "synthetic_response_propensity_not_uplift":
         raise ValueError("Unsupported score semantics")
+    profiled = isinstance(brief, ProfiledBrief)
+    if profiled:
+        brief.__post_init__()
+        if (type(snapshot) is not ProfiledSnapshot or snapshot.taxonomy != brief.profile.taxonomy
+                or brief.plan.get('organization') != snapshot.organization or brief.plan.get('snapshot_id') != snapshot.id):
+            raise ValueError('Profiled campaign requires the exact scoped audience taxonomy and plan')
+    elif isinstance(snapshot, ProfiledSnapshot):
+        raise ValueError('Profiled audiences cannot downgrade to a legacy campaign')
     catalogue = {(item.segment, item.arm): item for item in creatives}
     if len(catalogue) != len(creatives) or len({item.id for item in creatives}) != len(creatives):
         raise ValueError("Duplicate creative identity or segment/arm")
-    segments = brief.segments if isinstance(brief, (ConversationBrief, FollowupBrief)) else ("inventory", "contractors")
+    segments = brief.segments if isinstance(brief, (ConversationBrief, FollowupBrief, ProfiledBrief)) else ("inventory", "contractors")
     if set(catalogue) != {(s, a) for s in segments for a in ("A", "B")}:
         raise ValueError("Incomplete creative catalogue")
     identity_counts = Counter(row.business_id for row in snapshot.records)
@@ -196,7 +267,7 @@ def build_draft(snapshot: Snapshot, brief: Brief, creatives: tuple[Creative, ...
             reason = "contact_cap"
         elif row.last_contact and (as_of - date.fromisoformat(row.last_contact)).days < 30:
             reason = "contact_cooldown"
-        elif isinstance(brief, (ConversationBrief, FollowupBrief)) and row.segment not in segments:
+        elif isinstance(brief, (ConversationBrief, FollowupBrief, ProfiledBrief)) and row.segment not in segments:
             reason = "outside_selected_segment"
         if reason:
             reasons[reason] += 1
@@ -231,8 +302,10 @@ def build_draft(snapshot: Snapshot, brief: Brief, creatives: tuple[Creative, ...
     if counts["input"] != sum(value for key, value in counts.items() if key != "input"):
         raise AssertionError("Population did not reconcile")
     brief_data = asdict(brief)
-    if isinstance(brief, (ConversationBrief, FollowupBrief)):
+    if isinstance(brief, (ConversationBrief, FollowupBrief, ProfiledBrief)):
         brief_data["segments"] = list(brief.segments)
+    if profiled:
+        brief_data['profile']['taxonomy']['segments'] = list(brief_data['profile']['taxonomy']['segments'])
     manifest = {
         "schema": "draft/v1", "mode": "SYNTHETIC_DRY_RUN_UNAPPROVED",
         "organization": snapshot.organization, "snapshot_id": snapshot.id,
@@ -254,6 +327,13 @@ def build_draft(snapshot: Snapshot, brief: Brief, creatives: tuple[Creative, ...
     }
     if getattr(brief, 'requested_scope', None) is not None:
         manifest['campaign_scope'] = asdict(CampaignScope())
+    if profiled:
+        manifest['schema'] = 'profile-draft/v1'
+        manifest['profile_id'] = brief.profile.id
+        manifest['product_profile_id'] = brief.profile.product_profile_id
+        manifest['currency'] = brief.profile.currency
+        manifest['approval'] = 'not_granted'
+        manifest['limitations'].append('Profile proposals have no installed review, handoff or model execution capability')
     canonical(manifest)  # Reject non-serializable/non-finite content before persistence.
     return Draft(manifest, mailing, assignments)
 

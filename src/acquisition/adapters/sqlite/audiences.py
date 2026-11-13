@@ -1,7 +1,7 @@
 import json
 from dataclasses import asdict
 
-from acquisition.audiences import Business, Snapshot
+from acquisition.audiences import Snapshot, snapshot_from
 from acquisition.contracts import Conflict, NotFound, canonical
 
 from .database import Database
@@ -24,8 +24,7 @@ def read_snapshot(connection, organization: str, snapshot_id: str) -> Snapshot:
     if row is None:
         raise NotFound("Audience not found in this organization")
     data = json.loads(row[0])
-    records = tuple(Business(**record) for record in data.pop("records"))
-    snapshot = Snapshot(records=records, **data)
+    snapshot = snapshot_from(data)
     if snapshot.id != snapshot_id or snapshot.organization != organization:
         raise Conflict("Stored audience integrity failure")
     return snapshot
