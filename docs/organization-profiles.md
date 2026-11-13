@@ -37,6 +37,8 @@ The result contains the exact draft/manifest identity, frozen plan, counts and c
 
 An identical request observes the original artifact with `observation: historical_proposal`, without recalculating its date or renewing evidence. Changed exact inputs under the same key conflict. A new key requires current evidence. Saved proposals remain historical after expiry.
 
+Publication verifies the whole audience against the installed synthetic recipe using the frozen organization, taxonomy, size, seed and date. Candidate rows, metadata and rehashed identities cannot establish their own provenance. An omitted `as_of` uses the UTC date checked at publication; a change of date between preparation and final publication validation requires fresh preparation. An explicit ISO date remains frozen. Historical replay continues to return the original artifact.
+
 Both checked packs retain their 25 October 2026 checked date and 24 November 2026 review deadline. This implementation does not extend that deadline. New preparation after expiry requires an actually reviewed new installed pack/profile version. Tests use a controlled clock without claiming live evidence verification.
 
 ## Contracts and ownership
@@ -48,7 +50,7 @@ Both checked packs retain their 25 October 2026 checked date and 24 November 202
 | `creative` | `ProductProfile`, `creative-context/v4` | Product/brand/source identity, exact pack hash, voice, framing terms, fixed facts, qualifications, CTA and disclosure |
 | `conversations` | `profile-plan/v1` | Freeze explicit typed inputs and profile references as an unapproved, non-executable plan |
 | Campaign ports | `CampaignProfileSource`, `ProfileProposalStore` | Resolve installed campaign profiles and atomically publish the preparation bundle |
-| Audience/creative ports | `ProfileFixtureAudience`, `ProductEvidenceSource` | Narrow source requirements without adapter selection in application services |
+| Audience/creative ports | `ProfileFixtureAudience`, `ProductEvidenceSource` | Generate synthetic fixtures and derive their expected recipe identity; resolve product evidence without adapter selection in application services |
 | `workflows` | `ProfilePreparation` | Compose public APIs without SQL or provider selection |
 | Adapters/bootstrap | Local profile source and SQLite publication | Select/wire implementations, persist inputs and enforce transaction/store fences |
 
@@ -58,7 +60,7 @@ The new planning contract takes explicit typed inputs. It does not establish gen
 
 ## Atomic publication and authority
 
-One SQLite `BEGIN IMMEDIATE` transaction checks store policy and request identity, then writes the snapshot, scoped contexts, fixture catalogues, proposal and operation mapping. The adapter reconstructs the proposal from stored inputs and independently installed configuration, validates exact copy and freshness before and after proposal writes, and rolls back the entire bundle on failure.
+One SQLite `BEGIN IMMEDIATE` transaction checks store policy and request identity, then writes the snapshot, scoped contexts, fixture catalogues, proposal and operation mapping. The adapter reconstructs the plan and brief from the exact frozen command and installed configuration, verifies the audience against the source port's expected recipe identity, and validates exact copy and freshness before and after proposal writes. It rolls back the entire bundle on failure. Expected recipe identities are cached only by trusted request parameters and taxonomy, without retaining candidate rows.
 
 Rehashing a candidate cannot choose replacement product/brand authority. Context/catalogue coverage must exactly match selected segments. Organization, source, context, qualification, CTA or catalogue substitution cannot publish.
 

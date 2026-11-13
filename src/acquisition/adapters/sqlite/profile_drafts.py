@@ -4,6 +4,7 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 
 from acquisition.campaigns import ProfiledBrief, brief_from, build_draft
+from acquisition.conversations import profile_plan
 from acquisition.contracts import Conflict, canonical, digest
 from acquisition.reviews import creatives_from
 
@@ -14,8 +15,9 @@ from .drafts import verify, read_draft
 
 
 class SqliteProfileDrafts:
-    def __init__(self, database, profiles, copy, clock):
+    def __init__(self, database, profiles, copy, source, clock):
         self.database, self.profiles, self.copy, self.clock = database, profiles, copy, clock
+        self.source = source
 
     def _validate(self, db, organization, draft):
         verify(organization, draft)
@@ -28,12 +30,26 @@ class SqliteProfileDrafts:
         if installed != brief.profile:
             raise Conflict('Proposal differs from the installed reviewed profile')
         snapshot = read_snapshot(db, organization, draft.manifest['snapshot_id'])
+        plan = brief.plan
+        command = plan['command']
+        expected_plan = profile_plan(organization, plan['request_id'], installed,
+            objective=plan['objective'], budget_pence=brief.budget_pence, segments=brief.segments,
+            country=installed.country, currency=installed.currency, channel=installed.channel,
+            snapshot_id=snapshot.id, command=command)
+        expected_brief = ProfiledBrief(campaign_id='profile-campaign-' + expected_plan['id'][13:],
+            budget_pence=brief.budget_pence, profile=installed, segments=brief.segments, plan=expected_plan)
+        if canonical(asdict(brief)) != canonical(asdict(expected_brief)):
+            raise Conflict('Profile proposal differs from its exact frozen request')
         creatives = creatives_from(draft)
         if build_draft(snapshot, brief, creatives) != draft:
             raise Conflict('Proposal differs from its exact frozen inputs')
         contexts = {item.context_id: read_context(db, organization, item.context_id) for item in creatives}
-        self.copy.validate(organization, creatives, contexts, installed.product_profile_id, brief.plan['id'],
-                           datetime.fromtimestamp(self.clock(), timezone.utc).date())
+        today = datetime.fromtimestamp(self.clock(), timezone.utc).date()
+        self.copy.validate(organization, creatives, contexts, installed.product_profile_id, plan['id'], today)
+        expected_snapshot_id = self.source.snapshot_identity(organization, installed.taxonomy,
+            command['size'], command['seed'], command['as_of'] if command['as_of'] is not None else today.isoformat())
+        if snapshot.id != expected_snapshot_id:
+            raise Conflict('Profile audience differs from its frozen synthetic recipe')
         for segment in brief.segments:
             saved = db.execute('SELECT payload FROM generated_catalogues WHERE organization=? AND operation_id=?',
                                (organization, brief.plan['id'] + ':' + segment)).fetchone()

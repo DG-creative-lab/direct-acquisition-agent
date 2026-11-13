@@ -1,6 +1,7 @@
 """Explicit profile-bound preparation contract, separate from historical chat plans."""
 
 from dataclasses import asdict
+from datetime import date
 
 from acquisition.campaigns import CampaignProfile
 from acquisition.contracts import canonical, digest
@@ -21,6 +22,18 @@ def profile_plan(organization, request_id, profile: CampaignProfile, *, objectiv
     if (type(segments) is not tuple or not segments or len(set(segments)) != len(segments)
             or set(segments) - {s.key for s in profile.taxonomy.segments}):
         raise ValueError('Select distinct segments from the installed profile taxonomy')
+    if (type(command) is not dict or type(command.get('size')) is not int
+            or not 1 <= command['size'] <= 400_000 or type(command.get('seed')) is not int):
+        raise ValueError('Freeze bounded synthetic size and integer seed in the request')
+    as_of = command.get('as_of')
+    if as_of is not None and (type(as_of) is not str or date.fromisoformat(as_of).isoformat() != as_of):
+        raise ValueError('Freeze an explicit ISO audience date or use the publication date')
+    expected_command = {'schema': 'profile-preparation/v1', 'organization': organization,
+        'key': profile.key, 'version': profile.version, 'objective': objective, 'budget_pence': budget_pence,
+        'segments': list(segments), 'country': country, 'currency': currency, 'channel': channel,
+        'size': command['size'], 'seed': command['seed'], 'as_of': as_of}
+    if canonical(command) != canonical(expected_command):
+        raise ValueError('Profile plan differs from its exact frozen request')
     import json
     payload = {'schema': 'profile-plan/v1', 'organization': organization, 'request_id': request_id,
         'profile': json.loads(canonical(asdict(profile))), 'profile_id': profile.id, 'objective': objective,

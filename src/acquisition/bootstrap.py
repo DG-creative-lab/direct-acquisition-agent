@@ -70,8 +70,9 @@ def build_profile_preparation(path, organization, profile_key, clock=time.time):
     require_live_root(database.path)
     audiences = SqliteAudiences(database)
     copy = ProfileCopyService(profiles)
-    drafts = SqliteProfileDrafts(database, profiles, copy, clock)
-    return ProfilePreparation(profiles, SyntheticProfileAudience(), copy,
+    source = SyntheticProfileAudience()
+    drafts = SqliteProfileDrafts(database, profiles, copy, source, clock)
+    return ProfilePreparation(profiles, source, copy,
                               CampaignService(audiences, SqliteDrafts(database, clock), ()), drafts, clock)
 
 

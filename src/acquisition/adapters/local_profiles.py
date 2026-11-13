@@ -1,6 +1,7 @@
 """Reviewed installed profiles, bound to one local organization by bootstrap."""
 
 from dataclasses import asdict
+from functools import lru_cache
 import json
 from pathlib import Path
 
@@ -56,6 +57,11 @@ class LocalProfiles:
 
 
 class SyntheticProfileAudience:
+    @lru_cache(maxsize=128)
+    def snapshot_identity(self, organization, taxonomy, size, seed, as_of):
+        # Only trusted request parameters supply the expected identity, never candidate rows or metadata.
+        return self.snapshot(organization, taxonomy, size, seed, as_of).id
+
     def snapshot(self, organization, taxonomy, size, seed, as_of):
         original = generate(organization, size, seed, as_of)
         segments = [s.key for s in taxonomy.segments]

@@ -10,6 +10,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ('profile-synthetic-provenance', 'adapters/sqlite/profile_drafts.py',
+     '        if snapshot.id != expected_snapshot_id:', '        if False:',
+     'test_profiles.ProfilePreparationTests.test_rehashed_replacement_audiences_cannot_publish_as_synthetic_recipe_output'),
+    ('profile-command-plan-binding', 'conversations/profile_planning.py',
+     '    if canonical(command) != canonical(expected_command):', '    if False:',
+     'test_profiles.ProfilePreparationTests.test_frozen_command_cannot_disagree_with_rehashed_plan_or_audience'),
+    ('profile-brief-request-binding', 'adapters/sqlite/profile_drafts.py',
+     '        if canonical(asdict(brief)) != canonical(asdict(expected_brief)):', '        if False:',
+     'test_profiles.ProfilePreparationTests.test_frozen_command_cannot_disagree_with_rehashed_plan_or_audience'),
     ('profile-installed-authority', 'adapters/sqlite/profile_drafts.py',
      'if installed != brief.profile:', 'if False:',
      'test_profiles.ProfilePreparationTests.test_organization_and_product_substitutions_cannot_publish'),

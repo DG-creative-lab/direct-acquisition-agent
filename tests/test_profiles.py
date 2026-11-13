@@ -166,9 +166,98 @@ class ProfilePreparationTests(unittest.TestCase):
         service = self.service()
         before = self.counts()
         service.proposals.clock = lambda: datetime(2026, 11, 25, tzinfo=timezone.utc).timestamp()
-        with self.assertRaises(ValueError):
-            self.prepare(service)
+        with self.assertRaisesRegex(ValueError, 'requires re-verification'):
+            self.prepare(service, as_of='2026-11-13')
         self.assertEqual(self.counts(), before)
+
+    def test_rehashed_replacement_audiences_cannot_publish_as_synthetic_recipe_output(self):
+        service = self.service()
+        original = self.prepare(service)
+        draft = service.proposals.get('one', original['draft_id'])
+        snapshot = SqliteAudiences(Database(self.path)).get('one', draft.manifest['snapshot_id'])
+        before = self.counts()
+        # Rebuild every dependent identity, so only independent provenance can reject these.
+        for change in ({'address': 'DEMO ONLY DO NOT POST: substituted record'},
+                       {'propensity_ppm': 999999}, {'business_id': 'substituted-business'},
+                       {'segment': 'maintenance'}, {'suppressed': True}):
+            changed = replace(snapshot, records=(snapshot.records[0],
+                replace(snapshot.records[1], **change), *snapshot.records[2:]))
+            candidate, bundles = self.rehashed_candidate(service, draft, changed, 'substituted-audience')
+            with self.subTest(change=change), self.assertRaisesRegex(Conflict, 'synthetic recipe'):
+                service.proposals.publish('one', 'substituted-audience', changed, bundles, candidate)
+            self.assertEqual(self.counts(), before)
+            self.assertEqual(service.proposals.get('one', draft.id), draft)
+        for changed in (replace(snapshot, seed=43), replace(snapshot, as_of='2026-11-12'),
+                        replace(snapshot, model_version='substituted-recipe/v1'),
+                        replace(snapshot, records=snapshot.records[:-1]),
+                        replace(snapshot, records=tuple(reversed(snapshot.records)))):
+            candidate, bundles = self.rehashed_candidate(service, draft, changed, 'substituted-metadata')
+            with self.subTest(snapshot_id=changed.id), self.assertRaisesRegex(Conflict, 'synthetic recipe'):
+                service.proposals.publish('one', 'substituted-metadata', changed, bundles, candidate)
+            self.assertEqual(self.counts(), before)
+
+    def test_frozen_command_cannot_disagree_with_rehashed_plan_or_audience(self):
+        service = self.service()
+        original = self.prepare(service)
+        draft = service.proposals.get('one', original['draft_id'])
+        snapshot = SqliteAudiences(Database(self.path)).get('one', draft.manifest['snapshot_id'])
+        before = self.counts()
+        for change in ({'objective': 'Another frozen objective.'}, {'budget_pence': 40000},
+                       {'segments': ['maintenance']}, {'key': 'iwoca'}, {'version': 'v2'},
+                       {'organization': 'two'}, {'country': 'France'}, {'currency': 'USD'},
+                       {'channel': 'email'}, {'schema': 'unknown'}, {'size': 99}, {'seed': 43},
+                       {'as_of': '2026-11-12'}, {'size': True}, {'seed': True}, {'as_of': ''},
+                       {'unexpected': 'field'}):
+            candidate, bundles = self.rehashed_candidate(service, draft, snapshot, 'substituted-command', change)
+            with self.subTest(change=change), self.assertRaises((ValueError, Conflict)):
+                service.proposals.publish('one', 'substituted-command', snapshot, bundles, candidate)
+            self.assertEqual(self.counts(), before)
+        for change in ({'unit_cost_pence': 1}, {'max_candidates': 10}, {'campaign_id': 'unbound-campaign'}):
+            candidate, bundles = self.rehashed_candidate(service, draft, snapshot, 'substituted-brief',
+                                                         brief_change=change)
+            with self.subTest(change=change), self.assertRaisesRegex(Conflict, 'frozen request'):
+                service.proposals.publish('one', 'substituted-brief', snapshot, bundles, candidate)
+            self.assertEqual(self.counts(), before)
+
+    def test_default_recipe_date_is_owned_by_publication_and_explicit_date_stays_frozen(self):
+        service = self.service()
+        for as_of in (None, '2026-11-12'):
+            original = self.prepare(service, request='original-' + str(as_of), as_of=as_of)
+            draft = service.proposals.get('one', original['draft_id'])
+            snapshot = SqliteAudiences(Database(self.path)).get('one', draft.manifest['snapshot_id'])
+            request = 'next-day-' + str(as_of)
+            candidate, bundles = self.rehashed_candidate(service, draft, snapshot, request)
+            before = self.counts()
+            service.proposals.clock = lambda: NOW + 86400
+            if as_of is None:
+                with self.assertRaisesRegex(Conflict, 'synthetic recipe'):
+                    service.proposals.publish('one', request, snapshot, bundles, candidate)
+                self.assertEqual(self.counts(), before)
+            else:
+                self.assertEqual(service.proposals.publish('one', request, snapshot, bundles, candidate), candidate.id)
+                self.assertEqual(service.proposals.get('one', candidate.id), candidate)
+            replay = self.prepare(service, request='original-' + str(as_of), as_of=as_of)
+            self.assertEqual(replay['observation'], 'historical_proposal')
+            self.assertEqual(replay['draft_id'], draft.id)
+            service.proposals.clock = lambda: NOW
+        moments = iter((NOW, NOW + 86400))
+        service.proposals.clock = lambda: next(moments)
+        before = self.counts()
+        with self.assertRaisesRegex(Conflict, 'synthetic recipe'):
+            self.prepare(service, request='crossing-midnight')
+        self.assertEqual(self.counts(), before)
+
+    def rehashed_candidate(self, service, draft, snapshot, request_id, command_change=None, brief_change=None):
+        brief = brief_from(draft.manifest['brief'])
+        plan = copy.deepcopy(brief.plan)
+        plan.update(request_id=request_id, snapshot_id=snapshot.id)
+        plan['command'].update(command_change or {})
+        plan['id'] = 'profile_plan_' + digest({k:v for k,v in plan.items() if k != 'id'})
+        bundles = tuple(service.copy.prepare('one', brief.profile.product_profile_id, segment, plan['id'],
+                                             date(2026, 11, 13)) for segment in brief.segments)
+        changed = replace(brief, **({'campaign_id': 'profile-campaign-' + plan['id'][13:], 'plan': plan}
+                                   | (brief_change or {})))
+        return build_draft(snapshot, changed, tuple(c for _, pair in bundles for c in pair)), bundles
 
     def test_source_change_after_write_rolls_back_proposal_catalogue_and_snapshot(self):
         service = self.service()
