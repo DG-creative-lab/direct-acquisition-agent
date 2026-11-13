@@ -305,6 +305,62 @@ class ContactTests(unittest.TestCase):
             self.assertFalse(view['current_ready_for_proposal'])
             self.assertEqual(view['saved']['report'],first['report'])
 
+    def test_equal_time_permission_conflicts_survive_regrant_omission_and_restart(self):
+        base = self.service().source.read('one','fielddesk-crm-a',1)
+        other_account = self.service().source.read('one','fielddesk-crm-b',1)
+        alias = contact_snapshot_from(json.loads(canonical(asdict(base)).replace('fielddesk-crm-a','fielddesk-crm-alias')))
+        person = base.contacts[0].ref.id
+        for name,change in (('denied',{'status':'denied'}),('expiry',{'expires_at':base.expires_at-60})):
+            conflict = replace(alias,version=2,observed_at=base.observed_at+60,permissions=tuple(
+                replace(p,**change) if p.contact.id==person and p.channel=='email' else p for p in alias.permissions))
+            regrant = replace(alias,version=3,observed_at=base.observed_at+120)
+            omitted = replace(alias,version=4,observed_at=base.observed_at+180,permissions=())
+            fresh = replace(alias,version=5,observed_at=base.observed_at+240,permissions=tuple(
+                replace(p,observed_at=base.observed_at+240) if p.contact.id==person and p.channel=='email' else p
+                for p in alias.permissions))
+            snapshots = (base,other_account,alias,conflict,regrant,omitted,fresh)
+            service = self.custom(snapshots,'permission-tie-'+name)
+            first = self.prepare(service)
+            service.refresh('one','alias','fielddesk-crm-alias',1)
+            service.refresh('one','conflict','fielddesk-crm-alias',2)
+            self.assertFalse(service.inspect('one',first['assessment_id'])['current_ready_for_proposal'])
+            candidate = service.prepare('one','regrant','fielddesk-crm-alias',3,'email')
+            with self.subTest(name=name):
+                self.assertFalse(candidate['report']['ready_for_proposal'])
+                self.assertIn('permission_changed',candidate['report']['rows'][0]['reasons'])
+                self.assertFalse(service.inspect('one',first['assessment_id'])['current_ready_for_proposal'])
+            service.refresh('one','omit','fielddesk-crm-alias',4)
+            code = '''
+import json,sys
+from pathlib import Path
+from acquisition.audiences import ContactDirectory,contact_snapshot_from
+from acquisition.adapters.contact_fixtures import RecordedContactSource
+from acquisition.adapters.local_profiles import LocalProfiles
+from acquisition.adapters.sqlite.contacts import SqliteContactDirectory
+from acquisition.adapters.sqlite.database import Database
+profiles=LocalProfiles('one','fielddesk',Path(sys.argv[2]))
+source=RecordedContactSource('one',tuple(contact_snapshot_from(s) for s in json.load(sys.stdin)))
+directory=ContactDirectory(source,SqliteContactDirectory(Database(sys.argv[1]),source,profiles,'fielddesk','v1',lambda:float(sys.argv[4])))
+print(json.dumps(directory.inspect('one',sys.argv[3])))
+'''
+            process = subprocess.run([sys.executable,'-c',code,str(service.store.database.path),
+                str(ROOT/'config/profiles'),first['assessment_id'],str(NOW)],
+                input=canonical([asdict(s) for s in snapshots]),cwd=ROOT,text=True,capture_output=True)
+            self.assertEqual(process.returncode,0,process.stderr)
+            view = json.loads(process.stdout)
+            with self.subTest(name=name):
+                self.assertFalse(view['currently_applicable'])
+                self.assertFalse(view['current_ready_for_proposal'])
+                self.assertIn('permission_changed',view['current']['rows'][0]['reasons'])
+                self.assertNotIn('pressure_changed',view['current']['rows'][0]['reasons'])
+                self.assertEqual(view['saved']['report'],first['report'])
+            calls = self.prepare(service,request='calls',channel='human_call')
+            other = service.prepare('one','other-account','fielddesk-crm-b',1,'email')
+            self.assertTrue(calls['report']['ready_for_proposal'])
+            self.assertTrue(other['report']['ready_for_proposal'])
+            recovered = service.prepare('one','fresh','fielddesk-crm-alias',5,'email')
+            self.assertTrue(recovered['report']['ready_for_proposal'])
+
     def test_stored_backdated_and_equal_time_pressure_cannot_erase_known_evidence(self):
         original = self.service().source.read('one','fielddesk-crm-a',1)
         for equal_time in (False,True):

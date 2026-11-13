@@ -80,6 +80,20 @@ Post-review verification on 13 November 2026, against the candidate based on `9e
 - The unchanged conversational corpus passed 12/12 with stable candidate-source fingerprints, zero false acceptances/rejections, zero planner/infrastructure failures and zero live calls.
 - An isolated comparison against `9ee774c` retained exact receipts and saved assessment payloads for all 12 installed company/version/email-or-call cases. Historical examples and configuration files have no diff. No schema migration or historical data rewrite was introduced.
 
+### Equal-time permission review remediation
+
+Re-review of `57db051` found the parallel permission case: a later source version could replace a same-time denial or differing expiry with a grant and restore false readiness. A real-SQLite regression reproduced that result through the attested source/store API before the fix.
+
+Permission reconciliation now retains every distinct observation at the greatest observed time for each source/contact/channel/purpose. Later versions and omissions cannot erase equal-time disagreement. The regression covers fresh-process inspection, unchanged saved history, channel/provider-account isolation and recovery with genuinely newer evidence. Two mutation probes remove chronological selection or equal-time retention; existing pressure probes now target their specific bucket to keep both boundaries independently testable.
+
+Post-review verification on 13 November 2026, against the candidate based on `57db051`:
+
+- `make test`: 908 backend tests passed with loopback access. `make arch-check` passed.
+- The 64-test focused selection passed. All 22 contact tests passed on Python 3.11 through 3.14.
+- All 73 selected harmful mutations were detected, including the new permission chronology and equal-time conflict probes. The full declared mutation portfolio was not rerun.
+- The unchanged conversational corpus passed 12/12 with stable candidate-source fingerprints, zero false acceptances/rejections, zero planner/infrastructure failures and zero live calls.
+- An isolated `57db051` comparison retained exact receipts and saved payloads for all 12 installed company/version/email-or-call cases. Historical examples and configuration have no diff. The fix introduces no schema migration or historical data rewrite.
+
 ## Reproduce the checks
 
 ```sh

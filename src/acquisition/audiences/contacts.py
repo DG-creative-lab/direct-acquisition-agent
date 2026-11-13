@@ -271,7 +271,12 @@ def contact_evidence_conflicts(snapshot, snapshots, channel, purpose):
     permissions, pressure = {}, {}
     for source in sorted(snapshots,key=lambda value:value.version):
         for observation in source.permissions:
-            permissions[(source.connection.key,observation.contact.id,observation.channel,observation.purpose)] = observation
+            key = (source.connection.key,observation.contact.id,observation.channel,observation.purpose)
+            known = permissions.get(key,())
+            if not known or observation.observed_at > known[0].observed_at:
+                permissions[key] = (observation,)
+            elif observation.observed_at == known[0].observed_at and observation not in known:
+                permissions[key] = (*known,observation)
         for observation in source.pressure:
             key = (source.connection.key,observation.contact.id)
             known = pressure.get(key,())
@@ -286,7 +291,7 @@ def contact_evidence_conflicts(snapshot, snapshots, channel, purpose):
         component = related_identities(person.ref.id,snapshots)
         own = own_permissions.get((person.ref.id,channel,purpose))
         if own is not None:
-            for other in permissions.values():
+            for other in (value for group in permissions.values() for value in group):
                 if other.contact.id in component and (other.channel,other.purpose)==(channel,purpose):
                     if (other.observed_at > own.observed_at or (other.observed_at == own.observed_at
                             and (other.status,other.expires_at)!=(own.status,own.expires_at))):
