@@ -64,6 +64,22 @@ Verification on 13 November 2026, in the candidate worktree based on merged main
 
 These are bounded offline observations. There were no frontend changes, live CRM reads, model spending, real recipients or outbound effects; interface checks and live provider/quality evaluation were outside this slice.
 
+### Pressure evidence review remediation
+
+Review of `9ee774c` found that a higher source version could replace a newer pressure observation with an older lower count. Regression probes reproduced both successful backward refresh and restored false readiness before the fix.
+
+Fresh refreshes now reject pressure observations older than any known observation for that source/contact, including after an intervening omission. Conflict evaluation selects pressure evidence by observation time and retains disagreements at equal times. This also fences valid historical v18 rows admitted by the previous writer without rewriting them. A genuinely newer observation can restore readiness, so an old high count does not become a permanent exclusion.
+
+Two real-SQLite regressions cover rejection/rollback, omission, older and equal-time evidence, fresh-process inspection, unchanged source/assessment bytes and recovery with newer evidence. Three mutation probes independently remove the import fence, chronological selection and equal-time retention.
+
+Post-review verification on 13 November 2026, against the candidate based on `9ee774c`:
+
+- `make test`: 907 backend tests passed with loopback access. `make arch-check` passed.
+- The 63-test focused selection passed. All 21 contact tests passed on Python 3.11 through 3.14.
+- All 71 selected harmful mutations were detected, including the three new pressure-evidence probes. The full declared mutation portfolio was not rerun.
+- The unchanged conversational corpus passed 12/12 with stable candidate-source fingerprints, zero false acceptances/rejections, zero planner/infrastructure failures and zero live calls.
+- An isolated comparison against `9ee774c` retained exact receipts and saved assessment payloads for all 12 installed company/version/email-or-call cases. Historical examples and configuration files have no diff. No schema migration or historical data rewrite was introduced.
+
 ## Reproduce the checks
 
 ```sh

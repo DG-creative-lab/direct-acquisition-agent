@@ -128,11 +128,16 @@ class SqliteContactDirectory:
         if snapshot.complete and any(r.ref.id not in records for old in history for r in (*old.accounts,*old.contacts)):
             raise Conflict('A complete refresh must retain known identities or explicit tombstones')
         permissions = {(p.contact.id,p.channel,p.purpose):p for p in snapshot.permissions}
+        pressure = {p.contact.id:p for p in snapshot.pressure}
         for old in history:
             for prior in old.permissions:
                 current_permission = permissions.get((prior.contact.id,prior.channel,prior.purpose))
                 if current_permission is not None and current_permission.observed_at < prior.observed_at:
                     raise Conflict('Contact permission observations cannot move backward')
+            for prior in old.pressure:
+                current_pressure = pressure.get(prior.contact.id)
+                if current_pressure is not None and current_pressure.observed_at < prior.observed_at:
+                    raise Conflict('Contact pressure observations cannot move backward')
         for old in self._history(db,organization):
             for prior in (*old.accounts,*old.contacts):
                 replacement = records.get(prior.ref.id)

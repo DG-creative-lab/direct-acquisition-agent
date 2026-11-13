@@ -10,6 +10,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ('contact-pressure-observation-order', 'adapters/sqlite/contacts.py',
+     '                if current_pressure is not None and current_pressure.observed_at < prior.observed_at:',
+     '                if False:',
+     'test_contacts.ContactTests.test_pressure_observation_times_cannot_regress_even_after_an_omission'),
+    ('contact-pressure-history-freshness', 'audiences/contacts.py',
+     '            if not known or observation.observed_at > known[0].observed_at:', '            if True:',
+     'test_contacts.ContactTests.test_stored_backdated_and_equal_time_pressure_cannot_erase_known_evidence'),
+    ('contact-pressure-equal-time-evidence', 'audiences/contacts.py',
+     '            elif observation.observed_at == known[0].observed_at and observation not in known:', '            elif False:',
+     'test_contacts.ContactTests.test_stored_backdated_and_equal_time_pressure_cannot_erase_known_evidence'),
     ('contact-newer-alias-evidence', 'adapters/sqlite/contacts.py',
      'permission_conflicts, pressure_conflicts = contact_evidence_conflicts(snapshot,history,channel,purpose)',
      'permission_conflicts, pressure_conflicts = set(), set()',

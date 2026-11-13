@@ -273,7 +273,12 @@ def contact_evidence_conflicts(snapshot, snapshots, channel, purpose):
         for observation in source.permissions:
             permissions[(source.connection.key,observation.contact.id,observation.channel,observation.purpose)] = observation
         for observation in source.pressure:
-            pressure[(source.connection.key,observation.contact.id)] = observation
+            key = (source.connection.key,observation.contact.id)
+            known = pressure.get(key,())
+            if not known or observation.observed_at > known[0].observed_at:
+                pressure[key] = (observation,)
+            elif observation.observed_at == known[0].observed_at and observation not in known:
+                pressure[key] = (*known,observation)
     own_permissions = {(p.contact.id,p.channel,p.purpose):p for p in snapshot.permissions}
     own_pressure = {p.contact.id:p for p in snapshot.pressure}
     permission_conflicts, pressure_conflicts = set(), set()
@@ -288,7 +293,7 @@ def contact_evidence_conflicts(snapshot, snapshots, channel, purpose):
                         permission_conflicts.add(person.ref.id)
         own = own_pressure.get(person.ref.id)
         if own is not None:
-            for other in pressure.values():
+            for other in (value for group in pressure.values() for value in group):
                 same_person = other.contact.id in component
                 if not same_person and other.experiment_unit != own.experiment_unit:
                     continue
