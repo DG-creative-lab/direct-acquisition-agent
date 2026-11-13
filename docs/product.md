@@ -36,6 +36,8 @@ The next experiment is another proposal, not an automatic campaign change. The c
 
 ## Implemented scope and limits
 
+The [profile foundation](organization-profiles.md) provides a Python/CLI path for unapproved synthetic postal proposals for iwoca and a fictional visit-planning company through the same services. It freezes product, brand, taxonomy, market, currency and channel references. It has no installed model, review, handoff or learning execution capability and does not add email/calling or change current chat. The [expansion plan](channel-expansion-plan.md) separates later work.
+
 | Capability | Current behavior | Further work |
 | --- | --- | --- |
 | Conversation | Persistent chat, bounded brief planner, continuous background preparation with explicit copy consent, saved progress, in-chat review, targeted copy revision and confirmed simulated handoff with accepted exports and explicit synthetic learning with frozen follow-up proposals and independent-population preparation | Real audience sources and delivery |

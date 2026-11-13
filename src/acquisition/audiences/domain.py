@@ -19,9 +19,12 @@ class Business:
     propensity_ppm: int | None
 
     def __post_init__(self) -> None:
+        self._validate(("inventory", "contractors"))
+
+    def _validate(self, segments) -> None:
         if not self.record_id or not self.business_id:
             raise ValueError("Record and business identity are required")
-        if self.segment not in {"inventory", "contractors"}:
+        if segments is not None and self.segment not in segments:
             raise ValueError("Unknown segment")
         if type(self.deliverable) is not bool or type(self.suppressed) is not bool:
             raise ValueError("Policy attestations must be booleans")
@@ -47,13 +50,18 @@ class Snapshot:
     score_semantics: str = "synthetic_response_propensity_not_uplift"
 
     def __post_init__(self) -> None:
+        self._validate("audience/v1")
+
+    def _validate(self, schema) -> None:
         date.fromisoformat(self.as_of)
-        if not self.organization or self.schema_version != "audience/v1":
+        if not self.organization or self.schema_version != schema:
             raise ValueError("Unsupported snapshot contract")
         if type(self.complete) is not bool or type(self.seed) is not int:
             raise ValueError("Invalid snapshot metadata")
         if len({record.record_id for record in self.records}) != len(self.records):
             raise ValueError("Record identities must be unique")
+        if schema == 'audience/v1' and any(isinstance(record, ProfiledBusiness) for record in self.records):
+            raise ValueError('Profiled records cannot use the legacy audience contract')
 
     @property
     def id(self) -> str:
@@ -65,6 +73,74 @@ def catalogue_identity(value: str) -> str:
     if type(value) is not str or not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", value) or value in {'.','..'}:
         raise ValueError('Use a bounded catalogue identity')
     return value
+
+
+@dataclass(frozen=True)
+class AudienceSegment:
+    key: str
+    label: str
+    description: str
+
+    def __post_init__(self):
+        catalogue_identity(self.key)
+        for value in (self.label, self.description):
+            if type(value) is not str or not 1 <= len(value.strip()) <= 600 or any(ord(c) < 32 for c in value):
+                raise ValueError('A segment requires bounded descriptive text')
+
+
+@dataclass(frozen=True)
+class AudienceTaxonomy:
+    key: str
+    version: str
+    segments: tuple[AudienceSegment, ...]
+
+    def __post_init__(self):
+        catalogue_identity(self.key)
+        catalogue_identity(self.version)
+        if (type(self.segments) is not tuple or not 1 <= len(self.segments) <= 8
+                or any(type(s) is not AudienceSegment for s in self.segments)
+                or len({s.key for s in self.segments}) != len(self.segments)):
+            raise ValueError('Declare a bounded distinct audience taxonomy')
+
+    @property
+    def id(self):
+        return 'taxonomy_' + digest(asdict(self))
+
+
+def taxonomy_from(payload):
+    return AudienceTaxonomy(**(payload | {'segments': tuple(AudienceSegment(**s) for s in payload['segments'])}))
+
+
+@dataclass(frozen=True)
+class ProfiledBusiness(Business):
+    """Segment membership is checked by the v2 snapshot's exact taxonomy."""
+
+    def __post_init__(self):
+        self._validate(None)
+        catalogue_identity(self.segment)
+
+
+@dataclass(frozen=True)
+class ProfiledSnapshot(Snapshot):
+    schema_version: str = 'audience/v2'
+    taxonomy: AudienceTaxonomy | None = None
+
+    def __post_init__(self):
+        self._validate('audience/v2')
+        if (type(self.taxonomy) is not AudienceTaxonomy or type(self.records) is not tuple
+                or not 1 <= len(self.records) <= 400_000):
+            raise ValueError('A profiled snapshot requires its exact taxonomy')
+        if any(type(r) is not ProfiledBusiness or r.segment not in {s.key for s in self.taxonomy.segments}
+               or not r.address.startswith('DEMO ONLY DO NOT POST:') for r in self.records):
+            raise ValueError('Profiled records must be synthetic and belong to the declared taxonomy')
+
+
+def snapshot_from(payload):
+    """Version dispatch preserves the original v1 serialization and validation."""
+    if payload.get('schema_version') == 'audience/v2':
+        return ProfiledSnapshot(**(payload | {'taxonomy': taxonomy_from(payload['taxonomy']),
+            'records': tuple(ProfiledBusiness(**r) for r in payload['records'])}))
+    return Snapshot(**(payload | {'records': tuple(Business(**r) for r in payload['records'])}))
 
 
 @dataclass(frozen=True)

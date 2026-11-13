@@ -1,0 +1,153 @@
+{
+  "schema": "installed-profile/v1",
+  "key": "iwoca",
+  "version": "v1",
+  "campaign": {
+    "key": "iwoca",
+    "version": "v1",
+    "company": "iwoca",
+    "product_key": "iwoca_flexi_loan",
+    "country": "UK",
+    "currency": "GBP",
+    "channel": "direct_mail",
+    "objective": "response_experiment"
+  },
+  "taxonomy": {
+    "key": "iwoca-audiences",
+    "version": "v1",
+    "segments": [
+      {
+        "key": "inventory",
+        "label": "Stock and inventory",
+        "description": "Stock orders and supplier payment dates."
+      },
+      {
+        "key": "contractors",
+        "label": "Projects and contractors",
+        "description": "Project expenses and client receipt dates."
+      }
+    ]
+  },
+  "product_profile": {
+    "key": "iwoca_flexi_loan",
+    "version": "v1",
+    "product": "UK iwoca Flexi-Loan",
+    "brand_key": "iwoca-brand",
+    "brand_version": "v1",
+    "brand_name": "iwoca",
+    "voice": "Plain, conditional language about stock or project payment dates.",
+    "disclosure": "SYNTHETIC DEMONSTRATION. Do not post. Unapproved profile proposal.",
+    "official_urls": [
+      "https://www.iwoca.co.uk/flexi-loan"
+    ],
+    "fact_pack_hash": "8a307a5b12481ac427e002860ddd50449b09b45f6acbde6699a18427ee459721",
+    "taxonomy_id": "taxonomy_418556f66447300fdb4382ed63f441974a6a555dbf61b2189b123b8da60cfbcf",
+    "segment_terms": [
+      [
+        "inventory",
+        [
+          "stock",
+          "inventory",
+          "supplier",
+          "order"
+        ]
+      ],
+      [
+        "contractors",
+        [
+          "project",
+          "client",
+          "contract",
+          "material"
+        ]
+      ]
+    ],
+    "prohibited_terms": [
+      "iwoca",
+      "flexi",
+      "lending"
+    ],
+    "evidence_kind": "public_reviewed",
+    "schema": "product-profile/v1"
+  },
+  "material": {
+    "pack": {
+      "version": "iwoca-flexi-loan/facts-v1",
+      "product": "UK iwoca Flexi-Loan",
+      "checked_on": "2026-10-25",
+      "review_by": "2026-11-24",
+      "verification": "Manually checked against the official product page. Public-source evidence, not lender approval of this demo's copy. Thirty-day review window is a local demo policy.",
+      "sources": [
+        {
+          "id": "iwoca-flexi-loan-official",
+          "url": "https://www.iwoca.co.uk/flexi-loan",
+          "title": "iwoca Flexi-Loan",
+          "checked_on": "2026-10-25",
+          "sections": [
+            "Repay or top up",
+            "We keep our prices simple",
+            "Loan calculator qualification"
+          ],
+          "excerpt": "No early repayment fees"
+        }
+      ],
+      "facts": [
+        {
+          "id": "flexi.early-repayment-fees",
+          "source_id": "iwoca-flexi-loan-official",
+          "copy": "iwoca does not charge an early repayment fee on its Flexi-Loan.",
+          "qualification": "Interest and other borrowing costs may still apply; this does not mean the loan is free."
+        },
+        {
+          "id": "flexi.interest-outstanding-days",
+          "source_id": "iwoca-flexi-loan-official",
+          "copy": "For its Flexi-Loan, iwoca charges interest on the outstanding balance for the days it is used.",
+          "qualification": "Loans longer than twelve months may also incur an additional fee."
+        }
+      ],
+      "required_qualification": "Lending is subject to assessment. The rate and terms offered depend on your business circumstances.",
+      "cta": "Explore iwoca's Flexi-Loan at https://www.iwoca.co.uk/flexi-loan.",
+      "excluded_claims": [
+        "rates and APR",
+        "loan amounts or terms",
+        "eligibility or personal approval",
+        "funding or decision speed",
+        "credit-score effects",
+        "tailored or bespoke terms",
+        "guaranteed business outcomes",
+        "testimonials or comparative claims",
+        "regulatory endorsement"
+      ]
+    },
+    "fixtures": {
+      "inventory": {
+        "A": {
+          "headline": "Planning a stock order?",
+          "opening": "If you are planning a stock order, when might supplier bills fall due?",
+          "hypothesis": "This framing may change message response; no outcomes have been observed.",
+          "fact_id": "flexi.early-repayment-fees"
+        },
+        "B": {
+          "headline": "When are supplier bills due?",
+          "opening": "If stock arrives before sales receipts, which payment dates need checking?",
+          "hypothesis": "This framing may change message response; no outcomes have been observed.",
+          "fact_id": "flexi.interest-outstanding-days"
+        }
+      },
+      "contractors": {
+        "A": {
+          "headline": "Planning project costs?",
+          "opening": "If you are planning a project, when might material costs fall due?",
+          "hypothesis": "This framing may change message response; no outcomes have been observed.",
+          "fact_id": "flexi.early-repayment-fees"
+        },
+        "B": {
+          "headline": "When are client receipts due?",
+          "opening": "If project costs arrive before client receipts, which dates need checking?",
+          "hypothesis": "This framing may change message response; no outcomes have been observed.",
+          "fact_id": "flexi.interest-outstanding-days"
+        }
+      }
+    }
+  }
+}

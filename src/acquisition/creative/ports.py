@@ -1,6 +1,7 @@
 from typing import Protocol
 
 from .domain import Creative
+from .profiles import ProductProfile
 
 
 class CreativeMemory(Protocol):
@@ -16,3 +17,8 @@ class CreativeMemory(Protocol):
     def get_context(self, organization: str, context_id: str) -> dict: ...
     def get_catalogue(self, organization: str, operation_id: str) -> tuple[Creative, ...] | None: ...
     def put_catalogue(self, organization: str, operation_id: str, variants: tuple[Creative, ...]) -> None: ...
+
+
+class ProductEvidenceSource(Protocol):
+    def product_profile(self, organization: str, identity: str) -> ProductProfile: ...
+    def product_material(self, organization: str, identity: str) -> dict: ...

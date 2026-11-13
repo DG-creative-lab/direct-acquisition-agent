@@ -19,7 +19,7 @@ from .selected_audience import require_selected_audience
 
 def verify(organization: str, draft: Draft) -> None:
     manifest = draft.manifest
-    if manifest.get("schema") != "draft/v1" or manifest.get("organization") != organization:
+    if manifest.get("schema") not in {"draft/v1", "profile-draft/v1"} or manifest.get("organization") != organization:
         raise Conflict("Unsupported or cross-organization artifact")
     if (hashlib.sha256(draft.mailing_csv.encode()).hexdigest() != manifest.get("mailing_sha256")
             or hashlib.sha256(draft.assignments_csv.encode()).hexdigest() != manifest.get("assignments_sha256")):
@@ -39,6 +39,8 @@ def read_draft(db, organization: str, draft_id: str) -> Draft:
 
 def write_draft(db, organization: str, operation_id: str, draft: Draft, now: float) -> str:
     verify(organization, draft)
+    if draft.manifest['schema'] != 'draft/v1':
+        raise Conflict('Profile proposals require their dedicated validated preparation port')
     brief = draft.manifest["brief"]
     require_brief_active(db, organization, brief)
     require_current_conversation(db, brief, draft.manifest.get('campaign_scope'))

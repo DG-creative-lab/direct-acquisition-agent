@@ -12,6 +12,7 @@ from acquisition.reasoning import CallScope, Inference, ModelError, tool_contrac
 from .application import READ, tool
 from .domain import Creative, model_editorial_memory
 from .ports import CreativeMemory
+from .profiles import ProductProfile, context_product_profile
 
 
 SUBMIT = tool("submit_grounded_copy", "Submit two audience hooks and select one supplied fact for each. Code renders product text.", {
@@ -45,7 +46,10 @@ def copy_source_payloads(context):
 
 
 def validate_copy_assets(context, organization=None):
+    profile = context_product_profile(context)
     if "agent_assets" in context:
+        if profile is not None:
+            raise ValueError('Profile reasoning assets require their explicit successor contract')
         if context["agent_assets"].get("model_projection") not in {None, "copy-context/v1"}:
             raise ValueError("Unsupported copy context projection")
         expected_skill = "revise-grounded-copy/v1" if context.get("copy_revision") else "grounded-copy/v1"
@@ -63,8 +67,11 @@ def fact_pack_id(pack: dict) -> str:
     return "facts_" + digest(pack)
 
 
-def validate_fact_pack(pack: dict, today: date) -> None:
+def validate_fact_pack(pack: dict, today: date, *, profile: ProductProfile | None = None) -> None:
     try:
+        if profile is not None and (type(profile) is not ProductProfile or digest(pack) != profile.fact_pack_hash
+                                    or pack['product'] != profile.product):
+            raise ValueError('Product pack differs from its reviewed profile')
         checked, review = date.fromisoformat(pack["checked_on"]), date.fromisoformat(pack["review_by"])
         if not checked <= today <= review or not 0 < (review - checked).days <= 30:
             raise ValueError("Product evidence is future-dated or requires re-verification")
@@ -75,7 +82,9 @@ def validate_fact_pack(pack: dict, today: date) -> None:
             raise ValueError("Missing or duplicated product source")
         for source in sources.values():
             url = urlparse(source["url"])
-            if (url.scheme != "https" or url.netloc != "www.iwoca.co.uk" or url.path != "/flexi-loan"
+            allowed = (source['url'] in profile.official_urls if profile is not None else
+                       url.netloc == 'www.iwoca.co.uk' and url.path == '/flexi-loan')
+            if (not allowed or url.scheme != "https"
                     or url.query or url.fragment or source["checked_on"] != pack["checked_on"]):
                 raise ValueError("Product source must be the reviewed official product page")
         ids = set()
@@ -101,7 +110,7 @@ def bounded_text(text: str, maximum: int) -> None:
         raise ValueError("Use full stops, commas or colons instead of em dashes")
 
 
-def validate_framing(headline: str, opening: str, segment: str) -> None:
+def validate_framing(headline: str, opening: str, segment: str, *, profile: ProductProfile | None = None) -> None:
     bounded_text(headline, 80)
     bounded_text(opening, 240)
     text = unicodedata.normalize("NFKC", headline + " " + opening).casefold()
@@ -118,11 +127,17 @@ def validate_framing(headline: str, opening: str, segment: str) -> None:
         raise ValueError("Generated framing implies a business benefit, even if posed as a question. Ask only about stock/project costs and payment dates.")
     vocabulary = {"inventory": r"\b(stock|inventory|supplier|shelves|order|purchase)\w*\b",
                   "contractors": r"\b(project|client|contract|material|labour|job|invoice)\w*\b"}
+    if profile is not None:
+        vocabulary = {key: r'\b(?:' + '|'.join(re.escape(term) for term in terms) + r')\w*\b'
+                      for key, terms in profile.segment_terms}
+        if any(re.search(r'\b' + re.escape(term) + r'\w*\b', text) for term in profile.prohibited_terms):
+            raise ValueError('Generated framing contains profile product wording')
     if segment not in vocabulary or not re.search(vocabulary[segment], text):
         raise ValueError("Framing must refer to the requested segment's business situation")
 
 
 def proposal(arguments: dict, context: dict) -> list[dict]:
+    profile = context_product_profile(context)
     required = {field + "_" + arm for arm in ("a", "b") for field in ("headline", "opening", "hypothesis", "fact_id")}
     if not isinstance(arguments, dict) or set(arguments) != required | {"guidance_id", "memory_id", "fact_pack_id"}:
         raise ValueError("Submit the exact flat grounded-copy fields")
@@ -137,7 +152,7 @@ def proposal(arguments: dict, context: dict) -> list[dict]:
         item = {field: arguments[field + "_" + arm] for field in ("headline", "opening", "hypothesis", "fact_id")}
         if type(item["fact_id"]) is not str or item["fact_id"] not in facts:
             raise ValueError("Choose an available product fact ID")
-        validate_framing(item["headline"], item["opening"], context["segment"])
+        validate_framing(item["headline"], item["opening"], context["segment"], profile=profile)
         bounded_text(item["hypothesis"], 240)
         result.append(item | {"arm": arm.upper()})
     if result[0]["opening"].casefold() == result[1]["opening"].casefold():
@@ -235,8 +250,10 @@ def claim_screen_request(items: list[dict], context: dict) -> tuple[list[dict], 
 
 def validate_grounded_catalogue(variants: tuple[Creative, ...], context: dict, today: date) -> None:
     validate_copy_assets(context)
+    profile = context_product_profile(context)
+    fixture = profile is not None and context['copy_mode'] == 'fixture'
     pack = context["product_facts"]
-    validate_fact_pack(pack, today)
+    validate_fact_pack(pack, today, profile=profile)
     pack_id = fact_pack_id(pack)
     if len(variants) != 2 or [v.arm for v in variants] != ["A", "B"]:
         raise ValueError("Grounded catalogue requires complete ordered A/B pair")
@@ -250,15 +267,20 @@ def validate_grounded_catalogue(variants: tuple[Creative, ...], context: dict, t
         if not item.opening.endswith(suffix) or item.locked_block != context["guidance"]["locked_block"]:
             raise ValueError("Product wording, qualification, CTA or demonstration disclosure changed")
         hook = item.opening[:-len(suffix)]
-        validate_framing(item.headline, hook, item.segment)
+        validate_framing(item.headline, hook, item.segment, profile=profile)
         bounded_text(item.hypothesis, 240)
-        if (item.status != "generated_unreviewed" or not item.model
+        if (item.status != ('synthetic_profile_fixture_unapproved' if fixture else 'generated_unreviewed')
+                or (item.model != 'offline-fixture/v1' if fixture else not item.model)
                 or not {pack_id, item.fact_id, context["guidance"]["version"]} <= set(item.evidence_ids)
                 or not set(item.evidence_ids) & {m["id"] for m in context["memory"]}):
             raise ValueError("Grounded copy requires unreviewed status and evidence provenance")
         items.append({"headline": item.headline, "opening": hook, "hypothesis": item.hypothesis,
                       "fact_id": item.fact_id, "arm": item.arm})
     revision_items(context, items)
+    if fixture:
+        if any(v.claim_check != 'not_evaluated' for v in variants):
+            raise ValueError('Offline fixtures cannot claim a semantic screen')
+        return
     if variants[0].claim_check != variants[1].claim_check:
         raise ValueError("Copy pair has different claim-check receipts")
     try:
@@ -294,6 +316,8 @@ class GroundedCopyAgent:
 
     @staticmethod
     def request(context):
+        if context_product_profile(context) is not None:
+            raise ValueError("Profile model execution has no installed capability")
         pack_id = fact_pack_id(context["product_facts"])
         identifiers = {"guidance_id": context["guidance"]["version"],
                        "memory_ids": [m["id"] for m in context["memory"]], "fact_pack_id": pack_id}
@@ -338,7 +362,10 @@ class GroundedCopyAgent:
     def generate(self, scope: CallScope, context_id: str, today: date) -> tuple[Creative, ...]:
         context = self.memory.get_context(scope.organization, context_id)
         validate_copy_assets(context, scope.organization)
-        validate_fact_pack(context["product_facts"], today)
+        profile = context_product_profile(context)
+        if profile is not None:
+            raise ValueError('Profile model execution has no installed capability')
+        validate_fact_pack(context["product_facts"], today, profile=profile)
         operation = scope.run_id + ":copy:" + context_id
         existing = self.memory.get_catalogue(scope.organization, operation)
         if existing is not None:

@@ -49,6 +49,8 @@ def creatives_from(draft: Draft) -> tuple[Creative, ...]:
 
 
 def validate_population(draft: Draft, snapshot: Snapshot, suppressions: set[str]) -> None:
+    if draft.manifest.get('schema') != 'draft/v1':
+        raise Conflict('Profile proposals have no installed review or handoff authority')
     creatives = creatives_from(draft)
     if snapshot.organization != draft.manifest.get("organization") or snapshot.id != draft.manifest.get("snapshot_id"):
         raise Conflict("Draft does not bind its audience snapshot")

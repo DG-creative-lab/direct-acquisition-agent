@@ -2,6 +2,44 @@
 
 The product is tested at pure-rule, persistence, process, HTTP and browser boundaries. This guide describes the current portfolio rather than the chronology of its construction. The portfolio includes frontend regressions, selected mutation probes and backend tests covering the campaign lifecycle, conversational planning and synthetic preparation. Test counts do not measure overall completeness or production readiness.
 
+## Organization/profile preparation foundation
+
+| Invariant | Offline evidence | Boundary |
+| --- | --- | --- |
+| A profile changes company/product/taxonomy without changing campaign logic | Two company fixtures use the same planning, copy and campaign services. Independently expected population counts and integer costs reconcile; Fielddesk output contains its fictional product, distinct labels, qualifications and CTA | Unapproved synthetic postal preparation only; no new chat, model, review/handoff or learning capability |
+| Reviewed source identity and current freshness bind publication | Exact profile/pack/context identities reject source, fact, qualification, CTA and product substitution. The source port derives the expected synthetic audience identity from frozen request parameters; consistently rehashed replacement rows, metadata and command/plan mismatches are rejected. Expiry or a default-date rollover at the commit boundary rolls back every input. Post-write source/catalogue mutations are rejected before commit | Installed local configuration and the synthetic recipe are the authority; candidate data cannot establish its own provenance. Model screening is not evaluated for fixtures |
+| Request replay and concurrent commands cannot duplicate or substitute work | A fresh interpreter replays original CLI inputs with unchanged row counts and artifact identity. Changed requests conflict; concurrent different inputs publish one complete bundle. Expired replay observes history without renewing evidence | Exact original command mapping; no runtime task, inference, approval or simulator effect is created |
+| A new proposal cannot downgrade or expand authority | Tests reject legacy campaign/writer/review/model paths, missing profile relations, another tenant, unsupported markets/currencies/channels and unknown profile versions. A newly sealed store and inspection marker prevent new writes | Existing verified-admission and restore fences remain intact; future capabilities need their own contracts |
+| Historical identities remain unchanged | Prechange main supplies fixed snapshot, draft and CSV identities. The regression compares exact values and checks legacy source URL parser semantics | Existing v1/v2/v3 contracts and schema cutoff remain authoritative; full existing suites provide additional compatibility coverage |
+
+See [organization profiles](organization-profiles.md) for ownership, supported entry points, replay semantics and the evidence deadline. Focused profile checks use real SQLite and fresh processes.
+
+Verification on 13 November 2026, in the candidate worktree based on `2e1a11b1c46b145e88474d97cfd54a503c58184b`:
+
+- `make test`: 883 tests passed on Python 3.14, including loopback HTTP tests. `make arch-check` passed.
+- The 19 profile regressions passed on Python 3.11, 3.12, 3.13 and 3.14. The combined profile/grounding/model/domain/architecture selection passed 54 tests.
+- All 24 selected harmful mutations were detected: nine new profile boundaries and 15 existing probes in changed modules. The full declared mutation portfolio was not rerun.
+- The unchanged conversational corpus passed 12/12, with zero false acceptances, false rejections, planner failures, infrastructure failures or live calls. Its candidate-source fingerprints remained stable during execution. Reproduce with `PYTHONPATH=src python3 scripts/evaluate_conversational_agent.py --output /tmp/profile-corpus.json`.
+- The documented Fielddesk CLI command prepared one unapproved synthetic proposal. Original `examples/` files and `config/iwoca-product-facts-v1.json` have no diff from the baseline; fixed original snapshot/draft/CSV hashes are asserted in `tests/test_profiles.py`.
+
+These checks establish bounded offline behavior. There were no frontend changes, provider calls, real recipients or delivery effects; interface checks and live quality evaluation were outside this slice.
+
+### Review remediation for #61
+
+Review of `a0245a6` exposed a provenance gap: a caller could replace synthetic rows and consistently rehash the audience, plan and draft. Internal consistency alone did not establish recipe origin. Regression probes reproduced publication of the replacement before the fix.
+
+Publication now obtains the expected audience identity through the injected `ProfileFixtureAudience` port using frozen organization, taxonomy, size, seed and date. It rebuilds the plan and brief from the frozen command and validates both before and after writes. Rejections roll back the entire bundle. Historical reads and replay retain their original identities and grant no new authority.
+
+Three additional real-SQLite regressions cover coordinated row/metadata replacement, command/plan/brief disagreement, and date ownership including a rollover between validation and commit. The expiry regression freezes the audience date and requires the product-evidence expiry error, so the independent date fence cannot mask a missing freshness check. Three additional harmful mutations remove the recipe, command and brief checks separately.
+
+Post-review verification on 13 November 2026, against the candidate based on `a0245a6`:
+
+- `make test`: 886 backend tests passed with loopback access. `make arch-check` passed.
+- The final 57-test focused selection passed, including the strengthened expiry assertion. All 22 profile tests passed on Python 3.11 through 3.14.
+- All 27 selected harmful mutations were detected, including the isolated product-freshness probe and the three new publication checks. The full declared mutation portfolio was not rerun.
+- The unchanged conversational corpus passed 12/12 with stable candidate-source fingerprints, zero false acceptances/rejections, zero planner/infrastructure failures and zero live calls.
+- A differential run against an isolated `a0245a6` export retained both companies' exact draft, audience and CSV identities. Historical examples, installed profile configuration and the original fact pack have no diff from that commit.
+
 ## Reproduce the checks
 
 ```sh

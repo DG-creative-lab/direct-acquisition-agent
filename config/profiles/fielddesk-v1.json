@@ -1,0 +1,142 @@
+{
+  "schema": "installed-profile/v1",
+  "key": "fielddesk",
+  "version": "v1",
+  "campaign": {
+    "key": "fielddesk",
+    "version": "v1",
+    "company": "fielddesk",
+    "product_key": "fielddesk_visit_planner",
+    "country": "UK",
+    "currency": "GBP",
+    "channel": "direct_mail",
+    "objective": "response_experiment"
+  },
+  "taxonomy": {
+    "key": "fielddesk-audiences",
+    "version": "v1",
+    "segments": [
+      {
+        "key": "maintenance",
+        "label": "Maintenance teams",
+        "description": "Maintenance appointment dates and service visits."
+      },
+      {
+        "key": "installations",
+        "label": "Installation teams",
+        "description": "Installation schedules and site visits."
+      }
+    ]
+  },
+  "product_profile": {
+    "key": "fielddesk_visit_planner",
+    "version": "v1",
+    "product": "Fielddesk Demo visit planner",
+    "brand_key": "fielddesk-brand",
+    "brand_version": "v1",
+    "brand_name": "Fielddesk Demo",
+    "voice": "Practical, concise questions about appointment dates and site visits.",
+    "disclosure": "SYNTHETIC DEMONSTRATION. Do not post. Unapproved profile proposal.",
+    "official_urls": [
+      "https://fielddesk.example.invalid/product"
+    ],
+    "fact_pack_hash": "a203be41908c7ff940d2cb7fcef16c9aa98b1fe976eef1ec7a716a10a0c706fd",
+    "taxonomy_id": "taxonomy_e17de2e9d77db49bb70ba4f39ae0efd4ddf7f5e4a2dab41076bbfbac337cf25d",
+    "segment_terms": [
+      [
+        "maintenance",
+        [
+          "maintenance",
+          "appointment",
+          "service",
+          "visit"
+        ]
+      ],
+      [
+        "installations",
+        [
+          "installation",
+          "site",
+          "schedule",
+          "visit"
+        ]
+      ]
+    ],
+    "prohibited_terms": [
+      "fielddesk",
+      "software",
+      "calendar"
+    ],
+    "evidence_kind": "synthetic_fixture",
+    "schema": "product-profile/v1"
+  },
+  "material": {
+    "pack": {
+      "version": "fielddesk-demo/facts-v1",
+      "product": "Fielddesk Demo visit planner",
+      "checked_on": "2026-10-25",
+      "review_by": "2026-11-24",
+      "verification": "Authored fictional specification. Synthetic fixture only, not externally verified product evidence.",
+      "sources": [
+        {
+          "id": "fielddesk-synthetic-specification",
+          "url": "https://fielddesk.example.invalid/product",
+          "title": "Fictional Fielddesk Demo specification",
+          "checked_on": "2026-10-25",
+          "excerpt": "Synthetic shared visit calendar and visit records."
+        }
+      ],
+      "facts": [
+        {
+          "id": "fielddesk.calendar",
+          "source_id": "fielddesk-synthetic-specification",
+          "copy": "Fielddesk Demo includes a shared calendar for scheduled service visits.",
+          "qualification": "This is a fictional capability for synthetic testing only."
+        },
+        {
+          "id": "fielddesk.visit-record",
+          "source_id": "fielddesk-synthetic-specification",
+          "copy": "Fielddesk Demo includes a record of completed visits.",
+          "qualification": "No real service is provided by this demonstration."
+        }
+      ],
+      "required_qualification": "Synthetic demonstration. No real product or service is being offered.",
+      "cta": "Explore the fictional Fielddesk Demo at https://fielddesk.example.invalid/product.",
+      "excluded_claims": [
+        "price",
+        "performance guarantees",
+        "customer testimonials"
+      ]
+    },
+    "fixtures": {
+      "maintenance": {
+        "A": {
+          "headline": "Planning maintenance visits?",
+          "opening": "If you are planning maintenance visits, how are appointment dates recorded?",
+          "hypothesis": "This framing may change message response; no outcomes have been observed.",
+          "fact_id": "fielddesk.calendar"
+        },
+        "B": {
+          "headline": "When are service visits due?",
+          "opening": "When several service visits fall in the same week, which dates need checking?",
+          "hypothesis": "This framing may change message response; no outcomes have been observed.",
+          "fact_id": "fielddesk.visit-record"
+        }
+      },
+      "installations": {
+        "A": {
+          "headline": "Planning installation dates?",
+          "opening": "If you are planning an installation, which site visit dates need checking?",
+          "hypothesis": "This framing may change message response; no outcomes have been observed.",
+          "fact_id": "fielddesk.calendar"
+        },
+        "B": {
+          "headline": "When are site visits due?",
+          "opening": "When installation schedules overlap, which visit dates need checking?",
+          "hypothesis": "This framing may change message response; no outcomes have been observed.",
+          "fact_id": "fielddesk.visit-record"
+        }
+      }
+    }
+  }
+}

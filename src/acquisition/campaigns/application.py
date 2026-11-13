@@ -20,10 +20,13 @@ class CampaignService:
     def prepare_with_catalogue(self, organization: str, snapshot_id: str, brief: Brief,
                                operation_id: str, creatives: tuple[Creative, ...], *, lease: DraftLease | None = None) -> dict:
         snapshot = self.audiences.get(organization, snapshot_id)
-        draft = build_draft(snapshot, brief, creatives)
+        draft = self.propose(snapshot, brief, creatives)
         if lease is None:
             draft_id = self.drafts.put(organization, operation_id, draft)
         else:
             draft_id = self.drafts.put(organization, operation_id, draft, lease=lease)
         return {"draft_id": draft_id, "manifest_hash": draft_id.removeprefix("draft_"),
                 "counts": draft.manifest["counts"], "variable_cost_pence": draft.manifest["variable_cost_pence"]}
+
+    def propose(self, snapshot, brief, creatives):
+        return build_draft(snapshot, brief, creatives)

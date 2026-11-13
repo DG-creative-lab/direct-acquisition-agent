@@ -15,6 +15,8 @@ A chat request continues through planning, then asks you to confirm an exact syn
 
 The [product overview](docs/product.md) explains the intended users, authority boundaries and current limits. The [user guide](docs/user-guide.md) follows the interface from a new campaign through review and learning.
 
+An additive [organization/profile foundation](docs/organization-profiles.md) prepares unapproved synthetic postal proposals for iwoca and a fictional B2B company through the same Python services. Its explicit CLI/API grants no model, review or delivery authority. The [multichannel expansion plan](docs/channel-expansion-plan.md) maps later work under epic #60.
+
 ## Try it locally
 
 Requires Python 3.11 or later, Node 22.12+ and pnpm 10.33+ on macOS or Linux.
