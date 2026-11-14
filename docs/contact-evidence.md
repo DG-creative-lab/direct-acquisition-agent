@@ -1,5 +1,7 @@
 # Scoped contact evidence and preparation readiness
 
+The additive [audience strategy slice](audience-strategies.md) consumes these exact assessments through audiences-owned inference ports and campaign-owned constraints. It does not turn an assessment into outbound authority.
+
 Issue [#62](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/62), under [epic #60](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/60).
 
 This foundation records scoped account/contact sources, channel permission observations, shared pressure inputs and local objections. It prepares immutable, non-executable contact-readiness assessments for either installed company profile. It creates no campaign, approval, model request, email or call task. The existing postal audience, campaign, review and learning formats retain their original meaning.

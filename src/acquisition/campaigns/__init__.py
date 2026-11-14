@@ -11,3 +11,5 @@ from .ports import CampaignProfileSource, ProfileProposalStore
 __all__ += ['CampaignProfile', 'ProfiledBrief', 'campaign_profile_from', 'CampaignProfileSource', 'ProfileProposalStore']
 from .contact_eligibility import contact_eligibility
 __all__ += ['contact_eligibility']
+from .contact_decisions import contact_decision_plan
+__all__ += ['contact_decision_plan']

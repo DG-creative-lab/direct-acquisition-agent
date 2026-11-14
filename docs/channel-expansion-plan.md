@@ -6,6 +6,8 @@ Status: proposed product and architecture direction. This document authorizes no
 
 Implementation tracking: [epic #60](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/60) contains 18 native subissues, #61 through #78, with module ownership, acceptance criteria and a dependency map. The first complete simulation milestone is #61 through #68. Existing #23/#26 work remains separately tracked; completed #25/#33 supply baseline contracts.
 
+Implementation notes (14 November 2026): #61 supplies [organization profiles](organization-profiles.md), #62 supplies [scoped contact evidence](contact-evidence.md), and the #63 slice supplies [offline audience strategies](audience-strategies.md). These additive API/CLI foundations preserve the postal workspace and grant no outbound authority. The broader journey and baseline facts below describe the original proposal.
+
 ## 1. Product decision and scope
 
 Evolve the application into an organization-independent B2B acquisition workspace. A user expresses an outcome; the agent researches permitted sources, proposes an audience and channel strategy, prepares contextual content, validates the result, obtains required approval, executes within that authority and reports verified observations.
