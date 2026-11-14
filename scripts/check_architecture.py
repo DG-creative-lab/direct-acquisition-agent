@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 MODULES = {"runtime", "audiences", "campaigns", "creative", "learning", "reasoning", "reviews", "conversations"}
-DEPENDENCIES = {"campaigns": {"audiences", "creative"}, "creative": {"reasoning"},
+DEPENDENCIES = {"campaigns": {"audiences", "creative"}, "creative": {"reasoning", "audiences"},
                 "reviews": {"audiences", "campaigns", "creative", "runtime"}, "conversations": {"reasoning", "runtime", "audiences", "campaigns"}}
 
 

@@ -434,13 +434,15 @@ class Database:
                 require_live_root(self.path)
             with self.connect() as connection:
                 version = connection.execute('PRAGMA user_version').fetchone()[0]
-                if version not in {14, 15, 16, 17, 18}:
+                if version not in {14, 15, 16, 17, 18, 19}:
                     raise ValueError('Unsupported application schema for checkpoint inspection')
                 self._validate_workspace_schema(connection)
                 if version >= 17:
                     self._validate_report_monitoring_schema(connection)
                 if version >= 18:
                     self._validate_contact_schema(connection)
+                if version >= 19:
+                    self._validate_recipient_context_schema(connection)
             return
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.transaction() as connection:
@@ -448,7 +450,7 @@ class Database:
             version = connection.execute("PRAGMA user_version").fetchone()[0]
             if fixture_execution and (version != 0 or connection.execute('SELECT 1 FROM sqlite_schema LIMIT 1').fetchone()):
                 raise Conflict('Fixture execution requires a fresh application store')
-            if not 0 <= version <= 18:
+            if not 0 <= version <= 19:
                 raise ValueError(f"Unsupported database schema {version}")
             if (verified_admissions and version < 10
                     and connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='runs'").fetchone()
@@ -519,6 +521,10 @@ class Database:
                 from .contacts import CONTACT_DIRECTORY
                 self._apply_migration(connection, CONTACT_DIRECTORY)
             self._validate_contact_schema(connection)
+            if version < 19:
+                from .recipient_contexts import RECIPIENT_CONTEXTS
+                self._apply_migration(connection, RECIPIENT_CONTEXTS)
+            self._validate_recipient_context_schema(connection)
             if verified_admissions:
                 # Seal under the same write lock that skipped legacy recovery.
                 from .admission_guard import seal_legacy_writes
@@ -527,6 +533,11 @@ class Database:
                 from .fixture_execution import install_fixture_execution
                 install_fixture_execution(connection, clock())
         self._enable_wal()
+
+    @staticmethod
+    def _validate_recipient_context_schema(connection):
+        from .recipient_contexts import validate_recipient_context_schema
+        validate_recipient_context_schema(connection)
 
     @staticmethod
     def _validate_contact_schema(connection):
@@ -564,7 +575,7 @@ class Database:
         database=cls.__new__(cls);database.path=Path(path)
         if not database.path.is_file():raise ValueError('Authoritative application store is unavailable')
         with database.connect() as db:
-            if db.execute('PRAGMA user_version').fetchone()[0] not in {14, 15, 16, 17, 18}:
+            if db.execute('PRAGMA user_version').fetchone()[0] not in {14, 15, 16, 17, 18, 19}:
                 raise ValueError('Migrate the authoritative application store before workspace access')
         return database
 

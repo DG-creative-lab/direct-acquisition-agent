@@ -91,6 +91,24 @@ def build_audience_decisions(path, organization, profile_key, strategy='taxonomy
     return AudienceDecisions(categorizer,decision,store)
 
 
+def build_recipient_contexts(path, organization, profile_key, clock=time.time, *, guidance=None, read_only=False):
+    """Reviewed synthetic context only. No raw document prompts, inference or outbound authority."""
+    from acquisition.adapters.recipient_fixtures import RecordedRecipientContextSource, synthetic_recipient_evidence
+    from acquisition.adapters.sqlite.recipient_contexts import SqliteRecipientContexts
+    from acquisition.creative import RecipientContexts, RecipientContextGuidance
+    contacts = build_contact_directory(path,organization,profile_key,clock,read_only=read_only)
+    with contacts.store.database.connect() as db:
+        if db.execute('PRAGMA user_version').fetchone()[0]<19:
+            raise Conflict('Migrate the live application store before inspecting recipient context')
+    evidence = tuple(item for suffix in ('a','b') for item in synthetic_recipient_evidence(
+        contacts.source.read(organization,profile_key+'-crm-'+suffix,1)))
+    source = RecordedRecipientContextSource(organization,evidence)
+    selected_guidance = guidance if guidance is not None else RecipientContextGuidance()
+    if type(selected_guidance) is not RecipientContextGuidance: raise ValueError('Use typed frozen context guidance')
+    store = SqliteRecipientContexts(contacts.store,source,selected_guidance,read_only=read_only)
+    return RecipientContexts(source,store,selected_guidance)
+
+
 def build_profile_preparation(path, organization, profile_key, clock=time.time):
     """Explicit unapproved fixture preparation. No tasks, model or release capabilities."""
     require_live_root(path)

@@ -28,6 +28,8 @@ __all__ += ['ContactConnection', 'NativeReference', 'ContactAccount', 'ContactPe
             'channel_purpose', 'bounded', 'timestamp']
 from .contact_application import ContactDirectory
 from .contacts import contact_evidence_conflicts
+from .contacts import native_reference_from
 from .ports import ContactDirectoryStore, ContactSource
 __all__ += ['ContactDirectory', 'ContactDirectoryStore', 'ContactSource']
 __all__ += ['contact_evidence_conflicts']
+__all__ += ['native_reference_from']

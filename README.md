@@ -21,6 +21,8 @@ The [contact evidence guide](docs/contact-evidence.md) documents the scoped synt
 
 The [audience strategy guide](docs/audience-strategies.md) adds replaceable offline categorization and ranking over frozen contact features. Two deterministic strategies share independent eligibility, budget and account-assignment rules, producing saved synthetic proposals without outbound authority.
 
+The [recipient context guide](docs/recipient-context.md) adds bounded retrieval of reviewed synthetic facts for exact contacts and accounts. It records fact-level citations, missingness, permitted use and freshness while keeping raw source text out of prompt projections and saved receipts.
+
 ## Try it locally
 
 Requires Python 3.11 or later, Node 22.12+ and pnpm 10.33+ on macOS or Linux.
