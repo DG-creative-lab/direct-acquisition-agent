@@ -44,8 +44,10 @@ source-role and postwrite-objection probes. All 99 selected
 harmful mutations were detected across the channel, recipient, strategy,
 contact, profile, migration and checkpoint checks, plus the affected fixture
 settlement lease check. The full declared mutation portfolio was not rerun.
-`make arch-check` passed. The required full backend suite is still running;
-its result will be recorded before completion. No frontend files changed.
+`make arch-check` passed. `make test` completed all 957 backend tests on Python
+3.14 with loopback access. That full run began before the style-memory review
+correction; the final 16-test reruns above cover the correction. No frontend
+files changed, so `make interface-check` was not required.
 
 ## Recipient selected-review provenance follow-up
 
