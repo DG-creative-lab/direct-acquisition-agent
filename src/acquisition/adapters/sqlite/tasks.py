@@ -196,16 +196,21 @@ class SqliteTasks:
 
     def settle(self, claim: Claim, outcome: Outcome, now: float) -> None:
         with self.database.transaction() as connection:
-            row, fixture = self._owned(connection, claim, now)
-            connection.execute("UPDATE tasks SET status=?,output=?,token=NULL,lease_until=NULL WHERE id=?",
-                               (outcome.status, canonical(outcome.data), claim.task_id))
-            pending = connection.execute("SELECT COUNT(*) FROM tasks WHERE run_id=? AND status!='succeeded'",
-                                         (claim.run_id,)).fetchone()[0]
-            status = "waiting" if outcome.status == "waiting" else ("running" if pending else "succeeded")
-            connection.execute("UPDATE runs SET status=? WHERE id=?", (status, claim.run_id))
-            event(connection, claim.run_id, claim.task_id, "task_" + outcome.status, outcome.data, now)
-            if fixture:
-                require_fixture_deadline(row["lease_until"], self.execution_clock())
+            self.settle_in_transaction(connection,claim,outcome,now)
+
+    def settle_in_transaction(self, connection, claim, outcome, now):
+        """Compose a module result and runtime lifecycle under the caller's existing write lock."""
+        row, fixture = self._owned(connection, claim, now)
+        connection.execute("UPDATE tasks SET status=?,output=?,token=NULL,lease_until=NULL WHERE id=?",
+                           (outcome.status, canonical(outcome.data), claim.task_id))
+        pending = connection.execute("SELECT COUNT(*) FROM tasks WHERE run_id=? AND status!='succeeded'",
+                                     (claim.run_id,)).fetchone()[0]
+        status = "waiting" if outcome.status == "waiting" else ("running" if pending else "succeeded")
+        connection.execute("UPDATE runs SET status=? WHERE id=?", (status, claim.run_id))
+        event(connection, claim.run_id, claim.task_id, "task_" + outcome.status, outcome.data, now)
+        if fixture:
+            require_fixture_deadline(row["lease_until"], self.execution_clock())
+        return row
 
     def fail(self, claim: Claim, code: str, retry: bool, now: float) -> None:
         with self.database.transaction() as connection:

@@ -18,6 +18,8 @@ An additive [audience strategy API](audience-strategies.md) categorizes frozen s
 
 The [recipient context API](recipient-context.md) retrieves minimal reviewed synthetic observations for an exact contact/account. It qualifies factual statements as recorded observations, binds citations and permitted use, and omits stale, contradictory or missing specificity. These context artifacts provide a foundation for later personalized content; the workspace's current copy workflow keeps its existing contracts.
 
+The additive [channel content API](channel-content.md) now freezes complete synthetic email and human call-script payloads for one to six recipients, with code-assembled product wording and recipient observations, full-population validation and independent advisory screening. Its two authored framing choices and deterministic offline gateway establish control behavior, not live-model quality. It supplies no approval, sending or calling authority and is not yet routed through conversational execution.
+
 The campaign manifest binds source snapshot, creative identities, experiment assignments, counts, money and exported file hashes. Currency calculations use integer pence. Source population counts reconcile with exclusions, controls and mailing recipients. A high-score selected cohort does not represent all businesses, so observed lift cannot be generalized to a wider market without further evidence.
 
 ## Copy that can be inspected

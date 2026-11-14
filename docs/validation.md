@@ -1,5 +1,54 @@
 # Validation and limits
 
+## Grounded channel content, issue #65
+
+The confirmed path is a trusted local request with one to six current recipient
+context keys, frozen creative v5 inputs, bounded offline proposal/screen calls,
+code rendering, and an atomic SQLite artifact/task/event commit. The independent
+authorities are the exact requested population, current native contact/source
+history, reviewed v3 product pack, installed tool contracts and runtime lease.
+The screen is advisory. Live-model quality, actual recipient data, delivery,
+CRM writes and hosted identity are untested and unimplemented in this slice.
+
+| Protected outcome | Falsifiable invariant and exercised boundary |
+| --- | --- |
+| Complete exact content | Every intended native recipient has one validated payload and one screen verdict. Maximum batches cover both profiles and channels. Missing the last recipient, foreign facts, invented familiarity and recipient substitution prevent readiness. |
+| Grounded wording and safe rendering | Code assembles selected reviewed recipient wording, exact product fact, both qualifications and official CTA. Independent assertions check required text. Commit-time tampering removes a qualification, changes the destination, injects HTML or changes evidence. Literal authored markup is escaped. |
+| Honest sparse context | A complete reviewed source with zero facts produces generic content with no invented role, prior interaction or score-as-fact. |
+| Distinct source roles | A coordinated, rehashed asset bundle can pass generic asset integrity while demoting recipient evidence to preferences. The channel capability still rejects it. Legacy context versions and skill-added effect tools cannot substitute. New admissions use the existing current, segment-scoped style snapshot rather than preference history, while saved contexts retain frozen guidance. |
+| Bounded inference and recovery | Three normal calls or at most five with repair. A rejected or sampled screen cannot pass. Unknown calls are not repeated after restart; worker loss reuses completed observations before publishing once. No provider credential or raw exception reaches the inspection projection. |
+| Exact replay and fresh identity | Real SQLite and a fresh process retain the original payload and asset bytes without calls. Changed inputs under the same key fail. Rewrites bind the parent population and receive new identities without approval or outcomes. |
+| Current authority at commit | Cancellation or source objection during work prevents publication. Faults after task/event writes expire the lease or add an objection inside the transaction; artifact and success lifecycle writes roll back together. Forged passing results without model receipts cannot publish. |
+| Scoped history and paused execution | Wrong-organization reads and preparation fail. Read-only and verified-paused roots cannot start or claim channel work. Stale completed artifacts remain unchanged but are not ready for review. |
+| Atomic migration and restore | A real schema-19 migration failure rolls back DDL/version. Upgrade preserves recipient payload bytes and the original legacy admission cutoff. The existing cold-backup test now also preserves channel artifacts and refuses restored work. |
+
+The bounded failure space combines population membership and substitution,
+source-role downgrade, wording/qualification/rendering integrity, provider
+known/unknown/rejected outcomes, before/after commit faults, lease/stop/source
+changes, replay/rewrite, organization and schema/restart/restore state. It does
+not establish distributed-worker safety, production retention/deletion, live
+extraction, model usefulness or outbound authority. The deterministic screening
+fixture is not an independent judge of writing quality.
+
+Compatibility comparison against reviewed #64 head `05b8470` retained ten exact
+artifact/catalogue digests: the legacy postal draft and catalogue plus profile,
+contact, decision and recipient artifacts for both companies. Opening that
+schema-19 store with the new code preserved all rows in its 61 original tables
+while advancing to schema 20. Historical files and the original postal skill
+catalogue were not restyled or rewritten.
+
+The 93-test content/recipient/contact/strategy/profile selection passed on Python
+3.11, 3.12 and 3.13. After the style-memory review correction, the final 16
+channel tests passed on Python 3.11 through 3.14, including the additional
+source-role and postwrite-objection probes. All 99 selected
+harmful mutations were detected across the channel, recipient, strategy,
+contact, profile, migration and checkpoint checks, plus the affected fixture
+settlement lease check. The full declared mutation portfolio was not rerun.
+`make arch-check` passed. `make test` completed all 957 backend tests on Python
+3.14 with loopback access. That full run began before the style-memory review
+correction; the final 16-test reruns above cover the correction. No frontend
+files changed, so `make interface-check` was not required.
+
 ## Recipient selected-review provenance follow-up
 
 Review of `76c53ac` found that corroborating observations could select one fact ID

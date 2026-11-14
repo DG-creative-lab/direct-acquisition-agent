@@ -11,6 +11,7 @@ from unittest.mock import patch
 from acquisition.adapters.sqlite.database import Database, DAY_FOUR, CONVERSATIONS, AUDIENCE_SELECTIONS, CONVERSATION_ACTIONS, EXECUTION, EXECUTION_RECOVERY, ATOMIC_ADMISSIONS, WORKFLOW_ADMISSIONS, ADMISSION_CUTOVER, WRITING_PREFERENCES, SIMULATED_DELIVERY, REPORT_MONITORING
 from acquisition.adapters.sqlite.contacts import CONTACT_DIRECTORY
 from acquisition.adapters.sqlite.recipient_contexts import RECIPIENT_CONTEXTS
+from acquisition.adapters.sqlite.channel_content import CHANNEL_CONTENT
 
 
 class LearningCliTests(unittest.TestCase):
@@ -44,9 +45,9 @@ class LearningCliTests(unittest.TestCase):
             path = Path(temporary) / "old.sqlite"
             original = Database._apply_migration
             def skip_four(connection, script):
-                if script not in {DAY_FOUR, CONVERSATIONS, AUDIENCE_SELECTIONS, CONVERSATION_ACTIONS, EXECUTION, EXECUTION_RECOVERY, ATOMIC_ADMISSIONS, WORKFLOW_ADMISSIONS, ADMISSION_CUTOVER, WRITING_PREFERENCES, SIMULATED_DELIVERY, REPORT_MONITORING, CONTACT_DIRECTORY, RECIPIENT_CONTEXTS}:
+                if script not in {DAY_FOUR, CONVERSATIONS, AUDIENCE_SELECTIONS, CONVERSATION_ACTIONS, EXECUTION, EXECUTION_RECOVERY, ATOMIC_ADMISSIONS, WORKFLOW_ADMISSIONS, ADMISSION_CUTOVER, WRITING_PREFERENCES, SIMULATED_DELIVERY, REPORT_MONITORING, CONTACT_DIRECTORY, RECIPIENT_CONTEXTS, CHANNEL_CONTENT}:
                     original(connection, script)
-            with patch.object(Database, "_apply_migration", side_effect=skip_four), patch.object(Database, "_initialize_workspace_schema"), patch.object(Database, "_validate_writing_preference_schema"), patch.object(Database, "_validate_simulated_delivery_schema"), patch.object(Database, "_validate_report_monitoring_schema"), patch.object(Database, "_validate_contact_schema"), patch.object(Database, "_validate_recipient_context_schema"), patch.object(Database, "_validate_conversation_schema"), patch.object(Database, "_validate_audience_selection_schema"), patch.object(Database, "_validate_action_schema"), patch.object(Database, "_initialize_execution_schema"), patch.object(Database, "_initialize_execution_recovery_schema"), patch.object(Database, "_validate_admission_schema"):
+            with patch.object(Database, "_apply_migration", side_effect=skip_four), patch.object(Database, "_initialize_workspace_schema"), patch.object(Database, "_validate_writing_preference_schema"), patch.object(Database, "_validate_simulated_delivery_schema"), patch.object(Database, "_validate_report_monitoring_schema"), patch.object(Database, "_validate_contact_schema"), patch.object(Database, "_validate_recipient_context_schema"), patch.object(Database, "_validate_channel_schema"), patch.object(Database, "_validate_conversation_schema"), patch.object(Database, "_validate_audience_selection_schema"), patch.object(Database, "_validate_action_schema"), patch.object(Database, "_initialize_execution_schema"), patch.object(Database, "_initialize_execution_recovery_schema"), patch.object(Database, "_validate_admission_schema"):
                 old = Database(path)
             with old.connect() as db:
                 self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 4)
@@ -54,7 +55,7 @@ class LearningCliTests(unittest.TestCase):
                 cutoff = [tuple(r) for r in db.execute("SELECT * FROM legacy_task_admissions")]
             upgraded = Database(path)
             with upgraded.connect() as db:
-                self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 19)
+                self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 20)
                 self.assertEqual(db.execute("SELECT generation FROM review_actors").fetchone()[0], 7)
                 self.assertEqual([tuple(r) for r in db.execute("SELECT * FROM legacy_task_admissions")], cutoff)
 
@@ -63,9 +64,9 @@ class LearningCliTests(unittest.TestCase):
             path = Path(temporary) / "old.sqlite"
             original = Database._apply_migration
             def skip(connection, script):
-                if script not in {DAY_FOUR, CONVERSATIONS, AUDIENCE_SELECTIONS, CONVERSATION_ACTIONS, EXECUTION, EXECUTION_RECOVERY, ATOMIC_ADMISSIONS, WORKFLOW_ADMISSIONS, ADMISSION_CUTOVER, WRITING_PREFERENCES, SIMULATED_DELIVERY, REPORT_MONITORING, CONTACT_DIRECTORY, RECIPIENT_CONTEXTS}:
+                if script not in {DAY_FOUR, CONVERSATIONS, AUDIENCE_SELECTIONS, CONVERSATION_ACTIONS, EXECUTION, EXECUTION_RECOVERY, ATOMIC_ADMISSIONS, WORKFLOW_ADMISSIONS, ADMISSION_CUTOVER, WRITING_PREFERENCES, SIMULATED_DELIVERY, REPORT_MONITORING, CONTACT_DIRECTORY, RECIPIENT_CONTEXTS, CHANNEL_CONTENT}:
                     original(connection, script)
-            with patch.object(Database, "_apply_migration", side_effect=skip), patch.object(Database, "_initialize_workspace_schema"), patch.object(Database, "_validate_writing_preference_schema"), patch.object(Database, "_validate_simulated_delivery_schema"), patch.object(Database, "_validate_report_monitoring_schema"), patch.object(Database, "_validate_contact_schema"), patch.object(Database, "_validate_recipient_context_schema"), patch.object(Database, "_validate_conversation_schema"), patch.object(Database, "_validate_audience_selection_schema"), patch.object(Database, "_validate_action_schema"), patch.object(Database, "_initialize_execution_schema"), patch.object(Database, "_initialize_execution_recovery_schema"), patch.object(Database, "_validate_admission_schema"):
+            with patch.object(Database, "_apply_migration", side_effect=skip), patch.object(Database, "_initialize_workspace_schema"), patch.object(Database, "_validate_writing_preference_schema"), patch.object(Database, "_validate_simulated_delivery_schema"), patch.object(Database, "_validate_report_monitoring_schema"), patch.object(Database, "_validate_contact_schema"), patch.object(Database, "_validate_recipient_context_schema"), patch.object(Database, "_validate_channel_schema"), patch.object(Database, "_validate_conversation_schema"), patch.object(Database, "_validate_audience_selection_schema"), patch.object(Database, "_validate_action_schema"), patch.object(Database, "_initialize_execution_schema"), patch.object(Database, "_initialize_execution_recovery_schema"), patch.object(Database, "_validate_admission_schema"):
                 Database(path)
             def fail(connection, script):
                 if script == DAY_FOUR:
@@ -79,4 +80,4 @@ class LearningCliTests(unittest.TestCase):
                 self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 4)
                 self.assertIsNone(db.execute("SELECT name FROM sqlite_master WHERE name='learning_cohorts'").fetchone())
             with Database(path).connect() as db:
-                self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 19)
+                self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 20)

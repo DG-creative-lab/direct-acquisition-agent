@@ -1,0 +1,29 @@
+{
+  "version": "channel-skills/v1",
+  "skills": [
+    {
+      "id": "contextual-email/v1", "version": "v1",
+      "purpose": "Select bounded email framing and current evidence for each exact synthetic recipient.",
+      "applicable_intents": ["prepare_contextual_email"],
+      "required_source_kinds": ["authored_guidance", "product_evidence", "recipient_evidence", "channel_policy", "reviewer_preference"],
+      "guidance": ["Read frozen context before proposing. Select reviewed framing keys and supplied fact IDs only.", "Use limited or empty recipient context honestly. A score is never a recipient fact.", "Code assembles exact factual wording, qualifications, CTA and opt-out material. Screen every rendered payload. A pass is advisory."],
+      "tool_ids": ["read_channel_context/v1", "submit_contextual_email/v1", "record_channel_screen/v1"],
+      "expected_outputs": ["unapproved_recipient_email_artifacts"],
+      "validation_requirements": ["exact_population", "current_recipient_evidence", "grounded_product_pack", "every_rendered_payload", "independent_advisory_screen"],
+      "stop_conditions": ["stale_evidence", "bounded_repair_exhausted", "unknown_provider_outcome", "lease_or_stop_loss"],
+      "authority": "none"
+    },
+    {
+      "id": "call-guidance/v1", "version": "v1",
+      "purpose": "Prepare evidence-backed guidance for a human caller, without calling or approving contact.",
+      "applicable_intents": ["prepare_human_call_guidance"],
+      "required_source_kinds": ["authored_guidance", "product_evidence", "recipient_evidence", "channel_policy", "reviewer_preference"],
+      "guidance": ["Read frozen context and choose only installed framing and supplied evidence IDs for every intended contact.", "Include an introduction, qualified relevance, discovery, exact approved claims, objections, next steps and do-not-contact handling.", "Never infer familiarity or need. A rewrite needs a new identity. Screening never approves or calls anyone."],
+      "tool_ids": ["read_channel_context/v1", "submit_call_guidance/v1", "record_channel_screen/v1"],
+      "expected_outputs": ["unapproved_human_call_guidance_artifacts"],
+      "validation_requirements": ["exact_population", "current_recipient_evidence", "grounded_product_pack", "every_rendered_payload", "independent_advisory_screen"],
+      "stop_conditions": ["stale_evidence", "bounded_repair_exhausted", "unknown_provider_outcome", "lease_or_stop_loss"],
+      "authority": "none"
+    }
+  ]
+}

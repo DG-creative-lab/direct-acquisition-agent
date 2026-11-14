@@ -23,6 +23,8 @@ The [audience strategy guide](docs/audience-strategies.md) adds replaceable offl
 
 The [recipient context guide](docs/recipient-context.md) adds bounded retrieval of reviewed synthetic facts for exact contacts and accounts. It records fact-level citations, missingness, permitted use and freshness while keeping raw source text out of prompt projections and saved receipts.
 
+The [channel content guide](docs/channel-content.md) adds frozen personalized email and human call-script artifacts through a bounded agent API/CLI. It validates every recipient, uses exact reviewed product wording and provides separately versioned skills. The installed proposer and screen are offline fixtures; the artifacts remain unapproved and synthetic.
+
 ## Try it locally
 
 Requires Python 3.11 or later, Node 22.12+ and pnpm 10.33+ on macOS or Linux.

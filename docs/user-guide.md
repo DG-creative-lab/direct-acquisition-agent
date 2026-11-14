@@ -1,5 +1,10 @@
 # Campaign user guide
 
+The separate [channel content API/CLI](channel-content.md) prepares synthetic
+personalized email and human call scripts from exact recipient contexts. It is
+an additive agent-facing capability; the workspace journey below retains its
+postal preparation, review and simulation contracts.
+
 Use this guide with the local React workspace. [Local operations](workspace.md) covers installation and recovery. The workflow below uses offline fixtures and spends no provider credit.
 
 ```mermaid

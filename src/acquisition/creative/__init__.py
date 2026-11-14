@@ -22,3 +22,16 @@ __all__ += ['RecipientTarget', 'RecipientDocument', 'RecipientFact', 'RecipientE
     'recipient_fact_from', 'recipient_evidence_from', 'select_recipient_context', 'validate_recipient_assertions',
     'RecipientContextSource', 'RecipientContextStore', 'RecipientContexts']
 __all__ += ['reconstruct_saved_recipient_context']
+from .channel_content import (ChannelContentRequest, channel_tool_contracts, channel_source_payloads,
+    validate_channel_context, channel_recipient_wording, proposal_rows, render_channel_rows,
+    validate_rendered_channel, validate_channel_screen)
+from .ports import ChannelContentStore
+__all__ += ['ChannelContentRequest', 'ChannelContentStore', 'channel_tool_contracts', 'channel_source_payloads',
+    'validate_channel_context', 'channel_recipient_wording', 'proposal_rows', 'render_channel_rows',
+    'validate_rendered_channel', 'validate_channel_screen']
+from .channel_agent import ChannelContentAgent, channel_arguments
+__all__ += ['ChannelContentAgent', 'channel_arguments']
+from .channel_content import CAPABILITY as CHANNEL_CONTENT_CAPABILITY, FRAMES as CHANNEL_FRAMES
+__all__ += ['CHANNEL_CONTENT_CAPABILITY', 'CHANNEL_FRAMES']
+from .channel_content import synthetic_channel_policy
+__all__ += ['synthetic_channel_policy']

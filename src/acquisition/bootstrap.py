@@ -109,6 +109,30 @@ def build_recipient_contexts(path, organization, profile_key, clock=time.time, *
     return RecipientContexts(source,store,selected_guidance)
 
 
+def build_channel_preparation(path, organization, profile_key, clock=time.time, *, gateway=None, read_only=False):
+    """Installed offline model simulation only; no paid model, sender or review capability."""
+    from acquisition.adapters.channel_fixtures import OfflineChannelModel
+    from acquisition.adapters.sqlite.channel_content import SqliteChannelContent, SqliteChannelTasks
+    from acquisition.workflows.channel_content import ChannelContentWorkflow, ChannelPreparation
+    from acquisition.reasoning import ModelConfig
+    from acquisition.creative import CHANNEL_CONTENT_CAPABILITY
+    recipients = build_recipient_contexts(path,organization,profile_key,clock,read_only=read_only)
+    with recipients.store.contacts.database.connect() as db:
+        if db.execute('PRAGMA user_version').fetchone()[0]<20:
+            raise Conflict('Migrate the live store before inspecting channel artifacts')
+    config = ModelConfig('offline/channel-content-v1',max_calls=5,max_output_tokens=2400,max_input_bytes=32000,
+        max_prompt_usd_per_million=0,max_completion_usd_per_million=0,force_tool_choice=True)
+    catalogue = json.loads((Path(__file__).resolve().parents[2]/'config/channel-skills-v1.json').read_text())
+    database = recipients.store.contacts.database
+    store = SqliteChannelContent(recipients.store,recipients.store.contacts.profiles,profile_key,catalogue,
+        SqliteCreative(database),config,clock,read_only=read_only)
+    tasks = SqliteChannelTasks(store)
+    inference = Inference(gateway if gateway is not None else OfflineChannelModel(),SqliteCalls(database,clock),config,clock)
+    workflow = ChannelContentWorkflow(store,inference)
+    worker = Worker(tasks,{CHANNEL_CONTENT_CAPABILITY:workflow.generate},clock,lease_seconds=180,eligible=workflow.eligible)
+    return ChannelPreparation(store,worker,tasks,inference)
+
+
 def build_profile_preparation(path, organization, profile_key, clock=time.time):
     """Explicit unapproved fixture preparation. No tasks, model or release capabilities."""
     require_live_root(path)
@@ -131,6 +155,14 @@ def build_profile_preparation(path, organization, profile_key, clock=time.time):
     return ProfilePreparation(profiles, source, copy,
                               CampaignService(audiences, SqliteDrafts(database, clock), ()), drafts, clock)
 
+
+
+def channel_agent_catalogue():
+    """Content-only skill/tool discovery, separately versioned from historical postal assets."""
+    from acquisition.creative import channel_tool_contracts
+    catalogue = json.loads((Path(__file__).resolve().parents[2]/'config/channel-skills-v1.json').read_text())
+    tools = {tool['id']:tool for channel in ('email','human_call') for tool in channel_tool_contracts(channel)}
+    return catalogue | {'tools':list(tools.values()),'authority':'none','status':'installed_contracts_not_dynamic_dispatch'}
 
 
 def agent_catalogue():
