@@ -5,6 +5,11 @@ personalized email and human call scripts from exact recipient contexts. It is
 an additive agent-facing capability; the workspace journey below retains its
 postal preparation, review and simulation contracts.
 
+The [sequence simulation API/CLI](sequence-simulation.md) adds complete synthetic
+email/call strategies with controls, scheduled human tasks and explicit stop and
+uncertainty behavior. It can be called by an agent without a form-based setup.
+The conversational multichannel route and its approval flow remain later work.
+
 Use this guide with the local React workspace. [Local operations](workspace.md) covers installation and recovery. The workflow below uses offline fixtures and spends no provider credit.
 
 ```mermaid

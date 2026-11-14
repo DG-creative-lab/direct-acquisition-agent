@@ -1,5 +1,104 @@
 # Validation and limits
 
+## Sequence objection merge-history follow-up
+
+Review of `552a684` found that engagement objections matched exact native IDs,
+so a surviving contact or account could escape an earlier objection after a
+merge. The regressions failed before the fix: a new proposal was admitted after
+a transitive contact merge, and an account survivor's pending steps remained
+pending after a late objection against the original account.
+
+The SQLite composition now resolves native constraints through audiences'
+public `related_identities` function and organization-scoped immutable contact
+history. Proposal checks, step admission/commit checks and immediate pending-step
+propagation use the same ancestry semantics. Engagements' pure stop policy
+matches against those resolved sets; neither execution targets nor permission
+grants are inherited through a merge. Historical objection subjects, proposals,
+enrollments, intents and accepted observations retain their original bytes.
+No schema or approval-purpose change is required.
+
+Real SQLite cases cover a two-hop contact merge under a new connection alias,
+a fresh interpreter replay, and account objections both before and after the
+merge. They verify that an independently current survivor cannot produce a new
+proposal, that existing work is stopped, that another provider's same local
+native IDs remain unrelated, and that the saved history is unchanged. Four new
+mutation probes separately remove contact ancestry, account ancestry, pending
+propagation and execution admission. All 22 selected sequence probes were
+detected. The 43-test sequence/contact selection passed on Python 3.11, 3.12 and
+3.13. The fresh-interpreter case also passed standard test discovery on Python
+3.11 through 3.14 with explicit application/fixture import paths. `make test`
+passed all 978 backend tests on Python 3.14 with loopback access, after correcting
+that test-harness import setup. `make arch-check` and `git diff --check` passed.
+The full mutation portfolio was not rerun. Frontend files are unchanged.
+
+## Multichannel sequence simulation, issue #66
+
+Confirmed boundary: a trusted local agent/operator prepares an immutable
+campaign sequence from current #63 assignments and #65 content, then explicitly
+starts a synthetic engagement simulation. Campaigns owns selection, controls,
+cadences, budgets and proposal identity. Engagements owns pure step/stop policy,
+enrollments, effect observations and operational accounting. Its application
+depends on store/transport ports; bootstrap wires the installed synthetic
+adapters. Runtime and the existing postal approval purpose are unchanged.
+
+| Protected outcome | Independent authority and observable evidence |
+| --- | --- |
+| Frozen experiment membership | The saved audience decision is reconstructed against current contact evidence. Both profiles exercise A/B cadences with two native account units; a separate control case retains enrollment with no step or charge. Consistent account substitution across all content stages is rejected. |
+| Exact complete proposal | All initial email, human task and follow-up content is bound to its recipient/account, source connection, synthetic sender/assignee, schedule, costs and stop scope. Missing/wrong channel material, insufficient budget/capacity and schedules beyond known material validity fail before publication. |
+| Scoped, bounded simulation | Concurrent starts preserve one simulation per proposal and one enrollment per frozen unit. Concurrent claims submit two distinct initial effects, never the same step twice. Changed request inputs or provider configuration cannot reinterpret a saved command or pending effect. |
+| No uncertain repeats | Real SQLite and fresh-process replay preserve effect identities and make no duplicate submissions. Crash after reservation, timeout, partial acceptance and lost acknowledgement after a recorded receipt remain explicit uncertainty. Dependent calls cannot bypass an uncertain email result. |
+| Authority at reservation and commit | Current channel evidence, scope, stops, expiry and the lease are checked before transport and again at result commit. Faults after reservation/result writes expire the lease or add a stop; transition/audit writes roll back. Provider observations survive independently without granting continuation. |
+| Applicable stops | Replies pause the configured account's pending work while another account can continue. Objections stop that native scope and block fresh proposals containing it. Stop, reply and eligibility change during transport preserve acceptance as an observation while the step becomes stopped, paused or blocked. A bounce cannot authorize an ineligible call. |
+| Truthful observations and accounting | Hand calculations establish 208p maximum cost and six steps/two call tasks for two treatments; controls cost zero. Acceptance does not imply delivery, response or completed calling. Exact provider IDs, allowed event kinds and occurrence times are checked. Duplicate events under new keys do not double count. Two replies for one account yield one responding unit and two response observations. |
+| Human execution stays explicit | An accepted task binds a synthetic representative. Follow-up waits for task completion and the read model explains that wait. There is no autonomous voice call, automatic reply or send-time generation. |
+| Immutable identity and history | Step inputs and dispatch inputs/receipts have SQLite immutability guards. Claims and receipts are reconstructed against the immutable proposal. Rewrites and cached proposals confer no approval, and no learning cohort or postal handoff is created. |
+| Migration, restore and isolation | Schema-20 migration failure rolls back DDL/version while preserving channel artifacts and the legacy admission cutoff. Wrong-organization reads fail. Verified-paused and inspection-only stores refuse new simulation work. Cold restore retains a partially submitted sequence and observations while refusing advancement. |
+
+The bounded lifecycle has twelve modeled edges: pending to dispatching/paused/
+stopped/blocked; dispatching to accepted/rejected/partial/unknown/paused/stopped/
+blocked; paused to stopped. The SQLite cases exercise these edges, including
+in-flight reply and source-change schedules. Thirteen selected resurrection
+edges from terminal or paused states are rejected by the public domain policy.
+No claim of exhaustive concurrency, provider or deployment coverage follows.
+
+The failure portfolio covers exact membership, controls, coherent native target
+substitution, missing content, integer money/capacity bounds, due/expired source
+windows, receipt identity/cost substitution, event duplication and contradiction,
+provider configuration drift, concurrent starts/claims, process loss, late
+acceptance, cancellation/reply/objection/source changes and postwrite faults.
+Schema migration/rollback, fresh interpreters and cold backup/restore use real
+SQLite. Model inference and real provider behavior are not part of this slice.
+
+Seventeen artifact/catalogue digest comparisons against merged #65 code retain
+legacy postal, profile, contact, decision, recipient and email/call/rewrite
+content for both companies. Upgrading its schema-20 database preserves all rows
+in the 63 original tables. Frontend files, historical exports, skill catalogues
+and runtime scheduling code are unchanged.
+
+`make test` passed all 976 backend tests on Python 3.14 with loopback access,
+after restarting verification for the final domain-policy extraction. The final
+19 sequence tests passed on Python 3.14; the 19-test selection also passed on
+Python 3.11, 3.12 and 3.13. Added in-flight stop/source-change and illegal-edge
+checks were rerun on all four versions. The initial 20-test lifecycle/architecture
+selection and 27-test migration/checkpoint/database selection passed.
+
+All 117 selected harmful mutation probes were detected; the 18 sequence probes
+were rerun successfully after the domain-policy extraction. The full 480-case
+mutation portfolio was not rerun. `make arch-check` and `git diff --check` passed.
+The prior binary rejects schema 21 before migration. No frontend files changed,
+so `make interface-check` was not required. These results establish the modeled
+synthetic boundaries, not live provider quality or commercial effectiveness.
+
+Residual limits: synthetic transports and observations only; explicit per-proposal
+budgets/capacity, not a global production quota; no new sequence approval,
+conversation route, real dispatch, authenticated provider ingress, uncertain
+provider reconciliation, production retention/deletion or commercial learning.
+Different proposals are distinct explicitly requested simulations, not an
+implemented production campaign-revision or cumulative-exposure workflow.
+Current stops compose with campaign preparation without rewriting audience or
+content history. Live policy/data truth and commercial effectiveness remain
+unknown.
+
 ## Grounded channel content, issue #65
 
 The confirmed path is a trusted local request with one to six current recipient

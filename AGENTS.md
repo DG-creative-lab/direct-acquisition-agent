@@ -14,7 +14,7 @@ See `docs/product-grounding.md` for recorded live-model evidence.
 
 ## Boundaries
 
-- `runtime`, `audiences`, `campaigns`, `creative`, `reasoning`, `learning`, `reviews`, and `conversations` own their
+- `runtime`, `audiences`, `campaigns`, `creative`, `reasoning`, `learning`, `reviews`, `conversations`, and `engagements` own their
   domain values, rules and narrow ports. Their `domain.py` files use only the
   standard library, `contracts`, and declared public domain contracts.
 - Cross-module use goes through the provider module's `__init__.py` exports.

@@ -543,7 +543,7 @@ class ContactMigrationTests(unittest.TestCase):
                 self.assertEqual(db.execute('SELECT payload FROM audiences').fetchone()[0],saved)
             Database(path)
             with database.connect() as db:
-                self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],20)
+                self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],21)
                 self.assertEqual(tuple(db.execute('SELECT * FROM legacy_task_admissions').fetchone()),
                                  ('one','historical-run','historical-request-hash'))
                 self.assertEqual(db.execute('SELECT payload FROM audiences').fetchone()[0],saved)

@@ -24,6 +24,7 @@ from acquisition.adapters.sqlite.database import Database, WORKFLOW_ADMISSIONS, 
 from acquisition.adapters.sqlite.contacts import CONTACT_DIRECTORY
 from acquisition.adapters.sqlite.recipient_contexts import RECIPIENT_CONTEXTS
 from acquisition.adapters.sqlite.channel_content import CHANNEL_CONTENT
+from acquisition.adapters.sqlite.sequence_proposals import SEQUENCES
 import test_copy_revisions as revisions
 import test_followups as followups
 
@@ -426,8 +427,8 @@ class WorkflowAdmissionMigrationTests(unittest.TestCase):
         self.path=Path(self.temp.name)/'old.sqlite';self.now=1792972800.
         original=Database._apply_migration
         def eleven(db,script):
-            if script not in {WORKFLOW_ADMISSIONS,ADMISSION_CUTOVER, WRITING_PREFERENCES, SIMULATED_DELIVERY, REPORT_MONITORING, CONTACT_DIRECTORY, RECIPIENT_CONTEXTS, CHANNEL_CONTENT}:original(db,script)
-        with patch.object(Database,'_apply_migration',side_effect=eleven),patch.object(Database,'_initialize_workspace_schema'),patch.object(Database,'_validate_writing_preference_schema'),patch.object(Database,'_validate_simulated_delivery_schema'),patch.object(Database,'_validate_report_monitoring_schema'),patch.object(Database,'_validate_contact_schema'),patch.object(Database,'_validate_recipient_context_schema'),patch.object(Database,'_validate_channel_schema'):
+            if script not in {WORKFLOW_ADMISSIONS,ADMISSION_CUTOVER, WRITING_PREFERENCES, SIMULATED_DELIVERY, REPORT_MONITORING, CONTACT_DIRECTORY, RECIPIENT_CONTEXTS, CHANNEL_CONTENT, SEQUENCES}:original(db,script)
+        with patch.object(Database,'_apply_migration',side_effect=eleven),patch.object(Database,'_initialize_workspace_schema'),patch.object(Database,'_validate_writing_preference_schema'),patch.object(Database,'_validate_simulated_delivery_schema'),patch.object(Database,'_validate_report_monitoring_schema'),patch.object(Database,'_validate_contact_schema'),patch.object(Database,'_validate_recipient_context_schema'),patch.object(Database,'_validate_channel_schema'),patch.object(Database,'_validate_sequence_schema'):
             app=build(self.path,clock=lambda:self.now)
             store=build_admissions(self.path,clock=lambda:self.now)
             org='one';cid=app.conversations.create(org,'chat')['id']
@@ -448,7 +449,7 @@ class WorkflowAdmissionMigrationTests(unittest.TestCase):
         store=build_admissions(self.path,clock=lambda:self.now)
         self.assertEqual(store.admit(self.intent,self.now),self.receipt)
         with store.database.connect() as db:
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],20)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],21)
             self.assertEqual(db.execute('PRAGMA integrity_check').fetchone()[0],'ok')
             self.assertEqual(db.execute('PRAGMA foreign_key_check').fetchall(),[])
             with self.assertRaises(sqlite3.IntegrityError):db.execute('DELETE FROM admission_requests')
