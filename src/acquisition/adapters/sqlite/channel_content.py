@@ -120,7 +120,8 @@ class SqliteChannelContent:
                 'product_facts':self.profiles.product_material(organization,product.id)['pack'],
                 'recipients':recipients,'channel_policy':synthetic_channel_policy(profile.key,product),
                 'guidance':{'version':'grounded-channel/v1','frames':FRAMES,'authority':'none'},
-                'preferences':self.memory.preferences(organization),'model_config':self.config.payload()}
+                'preferences':self.memory.examples_snapshot(organization,tuple(sorted({r['segment'] for r in recipients}))),
+                'model_config':self.config.payload()}
             context = json.loads(canonical(context))
             kinds = {'guidance':'authored_guidance','product':'product_evidence','recipients':'recipient_evidence',
                      'policy':'channel_policy','preferences':'reviewer_preference'}

@@ -284,7 +284,12 @@ with patch('acquisition.adapters.channel_fixtures.OfflineChannelModel.complete',
         with self.assertRaises(Conflict): app.start('one','new','fielddesk',ids,'email')
 
     def test_frozen_assets_survive_guidance_changes_and_cannot_install_tools_or_downgrade_grounding(self):
-        ids,_=self.seed(); app=self.app(); run=app.start('one','content','fielddesk',ids,'email')
+        ids,_=self.seed(); app=self.app()
+        snapshot=app.store.memory.examples_snapshot
+        with patch.object(app.store.memory,'preferences',side_effect=AssertionError('History is not current style guidance')), \
+             patch.object(app.store.memory,'examples_snapshot',wraps=snapshot) as selected:
+            run=app.start('one','content','fielddesk',ids,'email')
+        selected.assert_called_once_with('one',('installations','maintenance'))
         context_id=app.inspect('one','content')['context_id']
         original=app.store.load('one',context_id)
         app.store.catalogue['skills'][0]['guidance'].append('New current guidance.')

@@ -10,6 +10,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ('channel-current-scoped-style-memory', 'adapters/sqlite/channel_content.py',
+     "                'preferences':self.memory.examples_snapshot(organization,tuple(sorted({r['segment'] for r in recipients}))),",
+     "                'preferences':self.memory.preferences(organization),",
+     'test_channel_content.ChannelContentTests.test_frozen_assets_survive_guidance_changes_and_cannot_install_tools_or_downgrade_grounding'),
     ('channel-exact-proposal-population', 'creative/channel_content.py',
      "    if (type(rows) is not list or len(rows)!=len(expected) or any(type(r) is not dict or set(r)!=\n            {'recipient_context_id','frame_key','product_fact_id','recipient_fact_ids'} for r in rows)\n            or len({r['recipient_context_id'] for r in rows})!=len(rows) or {r['recipient_context_id'] for r in rows}!=set(expected)):",
      '    if False:',

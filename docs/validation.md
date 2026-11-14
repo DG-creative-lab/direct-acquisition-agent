@@ -15,7 +15,7 @@ CRM writes and hosted identity are untested and unimplemented in this slice.
 | Complete exact content | Every intended native recipient has one validated payload and one screen verdict. Maximum batches cover both profiles and channels. Missing the last recipient, foreign facts, invented familiarity and recipient substitution prevent readiness. |
 | Grounded wording and safe rendering | Code assembles selected reviewed recipient wording, exact product fact, both qualifications and official CTA. Independent assertions check required text. Commit-time tampering removes a qualification, changes the destination, injects HTML or changes evidence. Literal authored markup is escaped. |
 | Honest sparse context | A complete reviewed source with zero facts produces generic content with no invented role, prior interaction or score-as-fact. |
-| Distinct source roles | A coordinated, rehashed asset bundle can pass generic asset integrity while demoting recipient evidence to preferences. The channel capability still rejects it. Legacy context versions and skill-added effect tools cannot substitute. |
+| Distinct source roles | A coordinated, rehashed asset bundle can pass generic asset integrity while demoting recipient evidence to preferences. The channel capability still rejects it. Legacy context versions and skill-added effect tools cannot substitute. New admissions use the existing current, segment-scoped style snapshot rather than preference history, while saved contexts retain frozen guidance. |
 | Bounded inference and recovery | Three normal calls or at most five with repair. A rejected or sampled screen cannot pass. Unknown calls are not repeated after restart; worker loss reuses completed observations before publishing once. No provider credential or raw exception reaches the inspection projection. |
 | Exact replay and fresh identity | Real SQLite and a fresh process retain the original payload and asset bytes without calls. Changed inputs under the same key fail. Rewrites bind the parent population and receive new identities without approval or outcomes. |
 | Current authority at commit | Cancellation or source objection during work prevents publication. Faults after task/event writes expire the lease or add an objection inside the transaction; artifact and success lifecycle writes roll back together. Forged passing results without model receipts cannot publish. |
@@ -38,8 +38,9 @@ while advancing to schema 20. Historical files and the original postal skill
 catalogue were not restyled or rewritten.
 
 The 93-test content/recipient/contact/strategy/profile selection passed on Python
-3.11, 3.12 and 3.13. The final 16 channel tests passed on Python 3.14, including
-the additional source-role and postwrite-objection probes. All 98 selected
+3.11, 3.12 and 3.13. After the style-memory review correction, the final 16
+channel tests passed on Python 3.11 through 3.14, including the additional
+source-role and postwrite-objection probes. All 99 selected
 harmful mutations were detected across the channel, recipient, strategy,
 contact, profile, migration and checkpoint checks, plus the affected fixture
 settlement lease check. The full declared mutation portfolio was not rerun.
