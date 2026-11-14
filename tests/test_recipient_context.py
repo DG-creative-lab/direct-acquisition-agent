@@ -145,6 +145,85 @@ class RecipientContextTests(unittest.TestCase):
         self.assertEqual(bounded['prompt_char_count'],len(canonical(bounded['prompt_data'])))
         self.assertLessEqual(len(canonical(bounded['prompt_data'])),256)
 
+    def test_corroborating_reviews_stay_bound_to_the_selected_fact_across_order_and_restart(self):
+        evidence = self.evidence()
+        roles = [replace(evidence.facts[0],review_id=review) for review in ('review-a','review-b')]
+        chosen, other = sorted(roles,key=lambda f:f.id)
+        sources = tuple(replace(evidence,source_key=key,declared_facts=5,facts=(*order,*evidence.facts[1:]))
+            for key,order in (('reviewed-context-a',(other,chosen)),('reviewed-context-b',(chosen,other))))
+        service = self.composed(sources)
+        for source in sources:
+            request = 'corroboration-'+source.source_key
+            first = self.prepare(service,request,source_key=source.source_key)
+            selected = next(f for f in first['context']['selected'] if f['slot']=='contact_role')
+            self.assertEqual(selected['fact_id'],chosen.id)
+            self.assertEqual(selected['review_id'],chosen.review_id)
+            self.assertNotEqual(chosen.review_id,other.review_id)
+            self.assertEqual(selected['evidence'],next(i['evidence'] for i in source.manifest()['facts'] if i['fact_id']==chosen.id))
+            self.assertTrue(service.inspect('one',request)['currently_applicable'])
+            process = subprocess.run([sys.executable,'-m','acquisition.recipient_cli','--db',str(self.path),
+                '--organization','one','--profile','fielddesk','prepare','--request-id',request,
+                '--assessment-id',self.assessment,'--contact-id',self.contact,'--source',source.source_key,
+                '--source-version','1','--slots',*SLOTS,'--max-facts','4'],cwd=ROOT,text=True,capture_output=True)
+            self.assertEqual(process.returncode,0,process.stderr)
+            self.assertEqual(json.loads(process.stdout)['context'],first['context'])
+
+    def test_v1_review_provenance_is_preserved_historically_and_v2_cannot_use_legacy_mismatch(self):
+        single = self.evidence()
+        roles = sorted((replace(single.facts[0],review_id=review) for review in ('review-a','review-b')),key=lambda f:f.id)
+        chosen, other = roles
+        corroborated = replace(single,source_key='reviewed-context-b',declared_facts=5,
+            facts=(other,chosen,*single.facts[1:]))
+        service = self.composed((single,corroborated))
+        for source, applicable in ((single,True),(corroborated,False)):
+            current = self.prepare(service,'current-'+source.source_key,source_key=source.source_key)
+            saved = service.inspect('one','current-'+source.source_key)['saved']
+            self.assertEqual(saved['schema'],'recipient-context-artifact/v2')
+            legacy = json.loads(canonical(saved)); legacy['schema'] = 'recipient-context-artifact/v1'
+            # Independent representation of the prior writer: review metadata came from the first observation.
+            role = next(f for f in legacy['context']['selected'] if f['slot']=='contact_role')
+            role['review_id'] = source.facts[0].review_id
+            identity = 'recipient_context_'+digest(legacy)
+            receipt = current | {'context_id':identity,'context':legacy['context']}
+            receipt = {k:v for k,v in receipt.items() if k not in {'observation','authority'}}
+            request_id = 'legacy-'+source.source_key
+            def seed(payload, record, request_key):
+                with self.contacts.store.database.transaction() as db:
+                    db.execute('INSERT INTO recipient_contexts VALUES(?,?,?)',
+                        ('one',record['context_id'],canonical(payload)))
+                    db.execute('INSERT INTO recipient_context_commands VALUES(?,?,?,?)',
+                        ('one',request_key,canonical({'kind':'recipient-context-prepare/v1','request':payload['request']}),canonical(record)))
+            seed(legacy,receipt,request_id)
+            before = self.counts()
+            view = service.inspect('one',request_id)
+            self.assertEqual(view['saved'],legacy)
+            self.assertEqual(view['currently_applicable'],applicable)
+            replay = self.prepare(service,request_id,source_key=source.source_key)
+            self.assertEqual(replay['context_id'],identity)
+            self.assertEqual(replay['context'],legacy['context'])
+            self.assertEqual(replay['observation'],'historical_receipt')
+            assertion = ({'fact_id':role['fact_id'],'statement':role['statement'],'target_id':legacy['context']['target_id']},)
+            if applicable:
+                self.assertEqual(service.validate('one',request_id,assertion)['validated_assertions'],1)
+            else:
+                self.assertEqual(next(f for f in view['current']['selected'] if f['slot']=='contact_role')['review_id'],chosen.review_id)
+                with self.assertRaises(Conflict): service.validate('one',request_id,assertion)
+            process = subprocess.run([sys.executable,'-m','acquisition.recipient_cli','--db',str(self.path),
+                '--organization','one','--profile','fielddesk','prepare','--request-id',request_id,
+                '--assessment-id',self.assessment,'--contact-id',self.contact,'--source',source.source_key,
+                '--source-version','1','--slots',*SLOTS,'--max-facts','4'],cwd=ROOT,text=True,capture_output=True)
+            self.assertEqual(process.returncode,0,process.stderr)
+            self.assertEqual(json.loads(process.stdout)['context'],legacy['context'])
+            self.assertEqual(self.counts(),before)
+            with self.contacts.store.database.connect() as db:
+                self.assertEqual(db.execute('SELECT payload FROM recipient_contexts WHERE organization=? AND id=?',
+                    ('one',identity)).fetchone()[0],canonical(legacy))
+            if not applicable:
+                forged = legacy | {'schema':'recipient-context-artifact/v2'}
+                forged_receipt = receipt | {'context_id':'recipient_context_'+digest(forged)}
+                seed(forged,forged_receipt,'bad-v2')
+                with self.assertRaisesRegex(Conflict,'frozen evidence'): service.inspect('one','bad-v2')
+
     def test_sparse_stale_unreviewed_incomplete_or_unpermitted_sources_omit_specificity(self):
         evidence = self.evidence()
         variants = {

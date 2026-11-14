@@ -6,7 +6,7 @@ import json
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.creative import (RecipientTarget, RecipientContextBasis, RecipientContextGuidance,
     RecipientContextRequest, RecipientEvidence, recipient_target_from, recipient_fact_from,
-    select_recipient_context, validate_recipient_assertions)
+    select_recipient_context, reconstruct_saved_recipient_context, validate_recipient_assertions)
 from .admission_guard import verified_required
 
 
@@ -167,7 +167,7 @@ class SqliteRecipientContexts:
                 raise Conflict('Recipient context differs from independently reconstructed inputs')
             manifest = self._install(db,organization,request,basis,evidence) if evidence is not None else None
             context, history = self._projection(db,organization,request,basis,guidance,manifest)
-            payload = json.loads(canonical({'schema':'recipient-context-artifact/v1','organization':organization,
+            payload = json.loads(canonical({'schema':'recipient-context-artifact/v2','organization':organization,
                 'request':asdict(request),'basis':asdict(basis),'guidance':asdict(guidance),
                 'source_selection':{'source_key':request.source_key,'version':request.source_version,
                     'source_id':self.source.manifest(organization,request.source_key,request.source_version,basis.target)['source_id']},
@@ -208,9 +208,9 @@ class SqliteRecipientContexts:
                              (organization,payload['manifest_id'])).fetchone()
             if row is None: raise Conflict('Frozen recipient source is unavailable')
             manifest = self._manifest(row,organization)
-        expected = select_recipient_context(basis.target,request,guidance,manifest,list(manifests.values()),
-                                            basis.channel,basis.purpose,payload['checked_at'],basis.eligible)
-        if (payload['schema']!='recipient-context-artifact/v1' or basis.target.organization!=organization
+        expected = reconstruct_saved_recipient_context(basis.target,request,guidance,manifest,list(manifests.values()),
+            basis.channel,basis.purpose,payload['checked_at'],basis.eligible,payload['schema'])
+        if (basis.target.organization!=organization
                 or basis.target.contact.id!=request.contact_id or basis.assessment_id!=request.assessment_id
                 or payload['source_selection']['source_key']!=request.source_key
                 or payload['source_selection']['version']!=request.source_version

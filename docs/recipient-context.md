@@ -111,6 +111,14 @@ it does not rewrite an artifact when source or guidance changes.
 The factual wording of v1 is part of its versioned artifact contract; changing
 that renderer requires a new version while preserving historical readers.
 
+New writes use `recipient-context-artifact/v2`: all selected provenance fields,
+including the reviewed-mapping reference, come from the chosen fact. The reader
+preserves v1 artifacts with their original observation-order metadata. If a v1
+artifact has a mismatched review reference, inspection retains its saved bytes
+but reports it inapplicable; current factual validation requires a newly prepared
+correct context. Accurate v1 artifacts remain usable while their evidence is
+current. This is an artifact-version change, not a database migration.
+
 `inspect` reports the saved artifact and current applicability separately.
 `validate` accepts only exact selected factual statements for the exact target
 and rechecks current applicability. It validates explicitly supplied assertions,

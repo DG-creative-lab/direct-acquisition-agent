@@ -286,9 +286,10 @@ def select_recipient_context(target, request, guidance, manifest, history, chann
                     'statement':facts[0].statement}])))>guidance.max_prompt_chars: reason = 'context_budget'
                 else:
                     item = min(group,key=lambda i:i['fact_id'])
-                    selected.append({'fact_id':item['fact_id'],'subject_id':facts[0].subject_id,'slot':slot,
-                        'statement':facts[0].statement,'evidence':item['evidence'],'review_id':facts[0].review_id,
-                        'observed_at':facts[0].observed_at,'expires_at':facts[0].expires_at,
+                    fact = recipient_fact_from(item['fact'])
+                    selected.append({'fact_id':item['fact_id'],'subject_id':fact.subject_id,'slot':slot,
+                        'statement':fact.statement,'evidence':item['evidence'],'review_id':fact.review_id,
+                        'observed_at':fact.observed_at,'expires_at':fact.expires_at,
                         'source_id':manifest['source_id'],'source_key':manifest['source_key'],'source_version':manifest['version']})
         if reason: omissions.append({'slot':slot,'reason':reason})
     return {'schema':'recipient-context/v1','mode':'SYNTHETIC_ONLY','target_id':target.id,
@@ -297,6 +298,20 @@ def select_recipient_context(target, request, guidance, manifest, history, chann
         'clarification':'Which reviewed business role or recent interaction should inform the message?' if not selected else None,
         'prompt_data':prompt(selected),'prompt_char_count':len(canonical(prompt(selected))),
         'retention':'synthetic_audit_only_no_raw_documents','authority':'none','approval':'not_granted','execution':'not_performed'}
+
+
+def reconstruct_saved_recipient_context(target, request, guidance, manifest, history, channel, purpose,
+                                        now, eligible, artifact_schema):
+    """Read immutable v1 bytes using their original review-order semantics. Never authorize with them."""
+    if artifact_schema not in {'recipient-context-artifact/v1','recipient-context-artifact/v2'}:
+        raise Conflict('Unsupported recipient context artifact version')
+    context = select_recipient_context(target,request,guidance,manifest,history,channel,purpose,now,eligible)
+    if artifact_schema=='recipient-context-artifact/v1' and manifest is not None:
+        for selected in context['selected']:
+            group = [i['fact'] for i in manifest['facts'] if i['fact']['slot']==selected['slot']]
+            latest = max(f['observed_at'] for f in group)
+            selected['review_id'] = next(f['review_id'] for f in group if f['observed_at']==latest)
+    return context
 
 
 def validate_recipient_assertions(context, assertions):

@@ -1,5 +1,28 @@
 # Validation and limits
 
+## Recipient selected-review provenance follow-up
+
+Review of `76c53ac` found that corroborating observations could select one fact ID
+and citation while retaining the first observation's reviewed-mapping reference.
+The regression failed before the fix with `review-b` instead of the selected
+fact's `review-a`. Selection now reads all output provenance from the chosen
+observation. Both source orders, real SQLite publication and new-process replay
+retain the fact/review/citation relationship.
+
+New context artifacts use v2 so stored v1 bytes retain their original derivation.
+The compatibility test seeds valid prior-writer v1 artifacts independently:
+accurate provenance remains currently applicable, while mismatched provenance
+stays readable/replayable as historical and cannot validate current assertions.
+The same mismatch is rejected in a v2 artifact. No saved row is rewritten and
+neither format grants approval or outbound authority.
+
+The 20 recipient tests and `make arch-check` passed. The 77-test recipient/contact/
+strategy/profile selection passed on Python 3.11, 3.12 and 3.13. All 85 selected
+harmful mutation probes were detected, including the chosen-review regression and
+the separation of legacy reconstruction from v2 validation. The full mutation
+portfolio was not rerun. `make test` passed all 941 backend tests on Python 3.14
+with loopback access. Frontend files and historical campaign artifacts are unchanged.
+
 ## Bounded recipient context, issue #64
 
 The confirmed path is a trusted local agent/operator request, current scoped

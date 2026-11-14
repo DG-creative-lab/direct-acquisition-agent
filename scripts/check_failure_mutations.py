@@ -10,6 +10,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ('recipient-selected-review-reference', 'creative/recipient_context.py',
+     "'evidence':item['evidence'],'review_id':fact.review_id", "'evidence':item['evidence'],'review_id':facts[0].review_id",
+     'test_recipient_context.RecipientContextTests.test_corroborating_reviews_stay_bound_to_the_selected_fact_across_order_and_restart'),
+    ('recipient-v2-cannot-inherit-legacy-review-order', 'creative/recipient_context.py',
+     "    if artifact_schema=='recipient-context-artifact/v1' and manifest is not None:",
+     '    if manifest is not None:',
+     'test_recipient_context.RecipientContextTests.test_v1_review_provenance_is_preserved_historically_and_v2_cannot_use_legacy_mismatch'),
     ('recipient-native-history-across-profiles', 'adapters/sqlite/recipient_contexts.py',
      "            if any(i['fact']['subject_id'] in {target.contact.id,target.account.id} for i in value['facts']):",
      "            if value['target']['profile_id']==target.profile_id and any(i['fact']['subject_id'] in {target.contact.id,target.account.id} for i in value['facts']):",
