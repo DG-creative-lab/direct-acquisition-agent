@@ -44,11 +44,19 @@ content for both companies. Upgrading its schema-20 database preserves all rows
 in the 63 original tables. Frontend files, historical exports, skill catalogues
 and runtime scheduling code are unchanged.
 
-The initial 20-test lifecycle/architecture selection and the 27-test migration/
-checkpoint/database selection passed. All 117 selected mutation probes were
-detected before the final domain-policy extraction. The full backend suite was
-restarted after that extraction; final results and focused reruns will be
-recorded before completion.
+`make test` passed all 976 backend tests on Python 3.14 with loopback access,
+after restarting verification for the final domain-policy extraction. The final
+19 sequence tests passed on Python 3.14; the 19-test selection also passed on
+Python 3.11, 3.12 and 3.13. Added in-flight stop/source-change and illegal-edge
+checks were rerun on all four versions. The initial 20-test lifecycle/architecture
+selection and 27-test migration/checkpoint/database selection passed.
+
+All 117 selected harmful mutation probes were detected; the 18 sequence probes
+were rerun successfully after the domain-policy extraction. The full 480-case
+mutation portfolio was not rerun. `make arch-check` and `git diff --check` passed.
+The prior binary rejects schema 21 before migration. No frontend files changed,
+so `make interface-check` was not required. These results establish the modeled
+synthetic boundaries, not live provider quality or commercial effectiveness.
 
 Residual limits: synthetic transports and observations only; explicit per-proposal
 budgets/capacity, not a global production quota; no new sequence approval,
