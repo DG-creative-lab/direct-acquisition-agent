@@ -11,3 +11,12 @@ __all__ += ['ProductProfile', 'product_profile_from', 'context_product_profile']
 from .ports import ProductEvidenceSource
 from .profile_application import ProfileCopyService
 __all__ += ['ProductEvidenceSource', 'ProfileCopyService']
+from .recipient_context import (RecipientTarget, RecipientDocument, RecipientFact, RecipientEvidence,
+    RecipientContextRequest, RecipientContextGuidance, RecipientContextBasis, recipient_target_from,
+    recipient_fact_from, recipient_evidence_from, select_recipient_context, validate_recipient_assertions)
+from .ports import RecipientContextSource, RecipientContextStore
+from .recipient_application import RecipientContexts
+__all__ += ['RecipientTarget', 'RecipientDocument', 'RecipientFact', 'RecipientEvidence',
+    'RecipientContextRequest', 'RecipientContextGuidance', 'RecipientContextBasis', 'recipient_target_from',
+    'recipient_fact_from', 'recipient_evidence_from', 'select_recipient_context', 'validate_recipient_assertions',
+    'RecipientContextSource', 'RecipientContextStore', 'RecipientContexts']

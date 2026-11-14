@@ -12,7 +12,7 @@ from pathlib import Path
 from unittest import TestCase
 from unittest.mock import patch
 
-from acquisition.bootstrap import build, build_workspace_checkpoint, build_contact_directory
+from acquisition.bootstrap import build, build_workspace_checkpoint, build_contact_directory, build_recipient_contexts
 from acquisition.contracts import Conflict, canonical
 from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.learning_demo import run_learning_demo
@@ -76,6 +76,9 @@ class WorkspaceCheckpointTests(TestCase):
         queued = legacy.start('another-org', 'pending', size=20)
         contacts = build_contact_directory(self.source / legacy_key,'contact-scope','fielddesk',lambda:1794528000.)
         contact_assessment = contacts.prepare('contact-scope','contact-request','fielddesk-crm-a',1,'email')
+        recipient_contexts = build_recipient_contexts(self.source / legacy_key,'contact-scope','fielddesk',lambda:1794528000.)
+        recipient_context = recipient_contexts.prepare('contact-scope','context-request',contact_assessment['assessment_id'],
+            contact_assessment['report']['eligible'][0],'reviewed-context-a',1)
         # Seed a paid historical conversation via a fake provider, then seal.
         paid_root = self.parent / 'paid'
         w = Workspace(paid_root, real_clock=lambda: self.now)
@@ -145,6 +148,14 @@ class WorkspaceCheckpointTests(TestCase):
         contact_view = self.command('--db',self.restore / legacy_key,'--organization','contact-scope',
             '--profile','fielddesk','inspect','--assessment-id',contact_assessment['assessment_id'],module='acquisition.contact_cli')
         self.assertEqual(contact_view['saved']['report'],contact_assessment['report'])
+        recipient_view = self.command('--db',self.restore / legacy_key,'--organization','contact-scope',
+            '--profile','fielddesk','inspect','--request-id','context-request',module='acquisition.recipient_cli')
+        self.assertEqual(recipient_view['saved']['context'],recipient_context['context'])
+        refused_context = self.cli('--db',self.restore / legacy_key,'--organization','contact-scope','--profile','fielddesk',
+            'prepare','--request-id','restored-context','--assessment-id',contact_assessment['assessment_id'],
+            '--contact-id',contact_assessment['report']['eligible'][0],'--source','reviewed-context-a',
+            '--source-version','1','--slots','contact_role',module='acquisition.recipient_cli')
+        self.assertNotEqual(refused_context.returncode,0)
         refused = self.cli('--db',self.restore / legacy_key,'--organization','contact-scope','--profile','fielddesk',
             'prepare','--request-id','restored-contact','--connection','fielddesk-crm-a','--version','1','--channel','email',
             module='acquisition.contact_cli')
