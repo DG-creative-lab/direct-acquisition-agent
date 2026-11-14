@@ -12,6 +12,8 @@ The #64 slice adds [bounded recipient context](recipient-context.md) with review
 
 The #65 slice adds [grounded channel content](channel-content.md): bounded offline framing selection, complete frozen email/call artifacts, separately versioned skills and validation of every intended synthetic recipient. Exact review, sequence orchestration, live models and external effects remain later work. The broader proposal below is unchanged.
 
+The #66 slice adds [sequence proposals and synthetic engagements](sequence-simulation.md), combining frozen audience assignments, controls and content with explicit cadences, costs, capacity, step identity, simulated observations and native stop behavior. Exact sequence approval and conversational continuation remain #67 and #68. This implementation adds no real outbound authority.
+
 ## 1. Product decision and scope
 
 Evolve the application into an organization-independent B2B acquisition workspace. A user expresses an outcome; the agent researches permitted sources, proposes an audience and channel strategy, prepares contextual content, validates the result, obtains required approval, executes within that authority and reports verified observations.

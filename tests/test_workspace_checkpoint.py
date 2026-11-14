@@ -13,6 +13,8 @@ from unittest import TestCase
 from unittest.mock import patch
 
 from acquisition.bootstrap import build, build_workspace_checkpoint, build_contact_directory, build_recipient_contexts, build_channel_preparation
+from acquisition.bootstrap import build_audience_decisions, build_sequence_simulation
+from acquisition.campaigns import SequenceRequest
 from acquisition.contracts import Conflict, canonical
 from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.learning_demo import run_learning_demo
@@ -82,6 +84,25 @@ class WorkspaceCheckpointTests(TestCase):
         channel_content = build_channel_preparation(self.source / legacy_key,'contact-scope','fielddesk',lambda:1794528000.).prepare(
             'contact-scope','channel-request','fielddesk',('context-request',),'email')
         self.assertTrue(channel_content['ready_for_review'])
+        # Preserve a partially submitted multichannel strategy and its control/treatment identity.
+        decisions=build_audience_decisions(self.source / legacy_key,'contact-scope','fielddesk',clock=lambda:1794528000.)
+        for seed in range(10):
+            decision=decisions.prepare('contact-scope','sequence-decision-'+str(seed),contact_assessment['assessment_id'],
+                budget_pence=100,unit_cost_pence=1,max_candidates=1,seed=seed)
+            if decision['decision']['plan']['allocations'][0]['arm']!='no_contact':break
+        selected=decision['decision']['plan']['allocations'][0]['contact_id']
+        sequence_channels=build_channel_preparation(self.source / legacy_key,'contact-scope','fielddesk',lambda:1794528000.)
+        for channel in ('email','human_call'):
+            assessment=contacts.prepare('contact-scope','sequence-assessment-'+channel,'fielddesk-crm-a',1,channel)
+            recipient_contexts.prepare('contact-scope','sequence-context-'+channel,assessment['assessment_id'],selected,'reviewed-context-a',1)
+            sequence_channels.prepare('contact-scope','sequence-content-'+channel,'fielddesk',('sequence-context-'+channel,),channel)
+        sequences=build_sequence_simulation(self.source / legacy_key,'contact-scope','fielddesk',lambda:1794528000.)
+        proposal=sequences.campaigns.prepare('contact-scope','sequence-proposal',SequenceRequest('fielddesk',
+            'sequence-decision-'+str(seed),'sequence-content-email','sequence-content-human_call','sequence-content-email',
+            1794528000.,1794528000.+7*86400,1000,1,3))
+        simulation=sequences.engagements.start('contact-scope','sequence-start',proposal['proposal_id'])['simulation_id']
+        simulated=sequences.engagements.advance('contact-scope',simulation)
+        self.assertEqual(simulated['totals']['accepted'],1)
         # Seed a paid historical conversation via a fake provider, then seal.
         paid_root = self.parent / 'paid'
         w = Workspace(paid_root, real_clock=lambda: self.now)
@@ -157,6 +178,15 @@ class WorkspaceCheckpointTests(TestCase):
         channel_view = self.command('--db',self.restore / legacy_key,'--organization','contact-scope',
             '--profile','fielddesk','inspect','--request-id','channel-request',module='acquisition.channel_cli')
         self.assertEqual(channel_view['saved'],channel_content['saved'])
+        sequence_view=self.command('--db',self.restore / legacy_key,'--organization','contact-scope',
+            '--profile','fielddesk','inspect','--simulation-id',simulation,module='acquisition.sequence_cli')
+        # Waiting diagnostics reflect current time, while frozen work and observations retain their bytes.
+        for key in ('assignments','observations','totals','enrollments'):self.assertEqual(sequence_view[key],simulated[key])
+        self.assertEqual([{k:v for k,v in s.items() if k!='waiting_on'} for s in sequence_view['steps']],
+                         [{k:v for k,v in s.items() if k!='waiting_on'} for s in simulated['steps']])
+        refused_sequence=self.cli('--db',self.restore / legacy_key,'--organization','contact-scope','--profile','fielddesk',
+            'advance','--simulation-id',simulation,module='acquisition.sequence_cli')
+        self.assertNotEqual(refused_sequence.returncode,0)
         refused_channel = self.cli('--db',self.restore / legacy_key,'--organization','contact-scope','--profile','fielddesk',
             'work','--request-id','channel-request',module='acquisition.channel_cli')
         self.assertNotEqual(refused_channel.returncode,0)

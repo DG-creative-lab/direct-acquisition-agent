@@ -1,5 +1,65 @@
 # Validation and limits
 
+## Multichannel sequence simulation, issue #66
+
+Confirmed boundary: a trusted local agent/operator prepares an immutable
+campaign sequence from current #63 assignments and #65 content, then explicitly
+starts a synthetic engagement simulation. Campaigns owns selection, controls,
+cadences, budgets and proposal identity. Engagements owns pure step/stop policy,
+enrollments, effect observations and operational accounting. Its application
+depends on store/transport ports; bootstrap wires the installed synthetic
+adapters. Runtime and the existing postal approval purpose are unchanged.
+
+| Protected outcome | Independent authority and observable evidence |
+| --- | --- |
+| Frozen experiment membership | The saved audience decision is reconstructed against current contact evidence. Both profiles exercise A/B cadences with two native account units; a separate control case retains enrollment with no step or charge. Consistent account substitution across all content stages is rejected. |
+| Exact complete proposal | All initial email, human task and follow-up content is bound to its recipient/account, source connection, synthetic sender/assignee, schedule, costs and stop scope. Missing/wrong channel material, insufficient budget/capacity and schedules beyond known material validity fail before publication. |
+| Scoped, bounded simulation | Concurrent starts preserve one simulation per proposal and one enrollment per frozen unit. Concurrent claims submit two distinct initial effects, never the same step twice. Changed request inputs or provider configuration cannot reinterpret a saved command or pending effect. |
+| No uncertain repeats | Real SQLite and fresh-process replay preserve effect identities and make no duplicate submissions. Crash after reservation, timeout, partial acceptance and lost acknowledgement after a recorded receipt remain explicit uncertainty. Dependent calls cannot bypass an uncertain email result. |
+| Authority at reservation and commit | Current channel evidence, scope, stops, expiry and the lease are checked before transport and again at result commit. Faults after reservation/result writes expire the lease or add a stop; transition/audit writes roll back. Provider observations survive independently without granting continuation. |
+| Applicable stops | Replies pause the configured account's pending work while another account can continue. Objections stop that native scope and block fresh proposals containing it. Stop, reply and eligibility change during transport preserve acceptance as an observation while the step becomes stopped, paused or blocked. A bounce cannot authorize an ineligible call. |
+| Truthful observations and accounting | Hand calculations establish 208p maximum cost and six steps/two call tasks for two treatments; controls cost zero. Acceptance does not imply delivery, response or completed calling. Exact provider IDs, allowed event kinds and occurrence times are checked. Duplicate events under new keys do not double count. Two replies for one account yield one responding unit and two response observations. |
+| Human execution stays explicit | An accepted task binds a synthetic representative. Follow-up waits for task completion and the read model explains that wait. There is no autonomous voice call, automatic reply or send-time generation. |
+| Immutable identity and history | Step inputs and dispatch inputs/receipts have SQLite immutability guards. Claims and receipts are reconstructed against the immutable proposal. Rewrites and cached proposals confer no approval, and no learning cohort or postal handoff is created. |
+| Migration, restore and isolation | Schema-20 migration failure rolls back DDL/version while preserving channel artifacts and the legacy admission cutoff. Wrong-organization reads fail. Verified-paused and inspection-only stores refuse new simulation work. Cold restore retains a partially submitted sequence and observations while refusing advancement. |
+
+The bounded lifecycle has twelve modeled edges: pending to dispatching/paused/
+stopped/blocked; dispatching to accepted/rejected/partial/unknown/paused/stopped/
+blocked; paused to stopped. The SQLite cases exercise these edges, including
+in-flight reply and source-change schedules. Thirteen selected resurrection
+edges from terminal or paused states are rejected by the public domain policy.
+No claim of exhaustive concurrency, provider or deployment coverage follows.
+
+The failure portfolio covers exact membership, controls, coherent native target
+substitution, missing content, integer money/capacity bounds, due/expired source
+windows, receipt identity/cost substitution, event duplication and contradiction,
+provider configuration drift, concurrent starts/claims, process loss, late
+acceptance, cancellation/reply/objection/source changes and postwrite faults.
+Schema migration/rollback, fresh interpreters and cold backup/restore use real
+SQLite. Model inference and real provider behavior are not part of this slice.
+
+Seventeen artifact/catalogue digest comparisons against merged #65 code retain
+legacy postal, profile, contact, decision, recipient and email/call/rewrite
+content for both companies. Upgrading its schema-20 database preserves all rows
+in the 63 original tables. Frontend files, historical exports, skill catalogues
+and runtime scheduling code are unchanged.
+
+The initial 20-test lifecycle/architecture selection and the 27-test migration/
+checkpoint/database selection passed. All 117 selected mutation probes were
+detected before the final domain-policy extraction. The full backend suite was
+restarted after that extraction; final results and focused reruns will be
+recorded before completion.
+
+Residual limits: synthetic transports and observations only; explicit per-proposal
+budgets/capacity, not a global production quota; no new sequence approval,
+conversation route, real dispatch, authenticated provider ingress, uncertain
+provider reconciliation, production retention/deletion or commercial learning.
+Different proposals are distinct explicitly requested simulations, not an
+implemented production campaign-revision or cumulative-exposure workflow.
+Current stops compose with campaign preparation without rewriting audience or
+content history. Live policy/data truth and commercial effectiveness remain
+unknown.
+
 ## Grounded channel content, issue #65
 
 The confirmed path is a trusted local request with one to six current recipient

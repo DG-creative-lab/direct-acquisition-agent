@@ -133,6 +133,27 @@ def build_channel_preparation(path, organization, profile_key, clock=time.time, 
     return ChannelPreparation(store,worker,tasks,inference)
 
 
+def build_sequence_simulation(path, organization, profile_key, clock=time.time, *,
+                              email_scenario='success', call_scenario='success', read_only=False):
+    """Synthetic proposal and explicit simulation only, without review or outbound authority."""
+    from acquisition.adapters.simulated_engagements import synthetic_sequence_connections, SyntheticEngagementTransport
+    from acquisition.adapters.sqlite.sequence_proposals import SqliteSequenceProposals
+    from acquisition.adapters.sqlite.engagements import SqliteEngagements
+    from acquisition.campaigns import SequenceCampaigns
+    from acquisition.engagements import EngagementSimulator
+    from acquisition.workflows.sequences import SequenceSimulation
+    channels=build_channel_preparation(path,organization,profile_key,clock,read_only=read_only)
+    decisions=build_audience_decisions(path,organization,profile_key,clock=clock,read_only=read_only)
+    with channels.store.database.connect() as db:
+        if db.execute('PRAGMA user_version').fetchone()[0]<21: raise Conflict('Migrate the live store before inspecting sequences')
+    connections=synthetic_sequence_connections(organization,profile_key)
+    proposals=SqliteSequenceProposals(channels.store,decisions.store,connections,clock,read_only=read_only)
+    simulator=EngagementSimulator(SqliteEngagements(proposals),
+        SyntheticEngagementTransport(connections['email'],email_scenario),
+        SyntheticEngagementTransport(connections['human_call'],call_scenario))
+    return SequenceSimulation(SequenceCampaigns(proposals),simulator)
+
+
 def build_profile_preparation(path, organization, profile_key, clock=time.time):
     """Explicit unapproved fixture preparation. No tasks, model or release capabilities."""
     require_live_root(path)

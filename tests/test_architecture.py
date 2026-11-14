@@ -23,9 +23,15 @@ class ArchitectureTests(unittest.TestCase):
             ("acquisition.conversations.application", "from acquisition.reviews import ReviewService"),
             ("acquisition.creative.recipient_application", "from acquisition.audiences.contacts import NativeReference"),
             ("acquisition.runtime.domain", "from acquisition.creative import RecipientTarget"),
+            ("acquisition.runtime.application", "from acquisition.engagements import EngagementSimulator"),
+            ("acquisition.engagements.domain", "import sqlite3"),
+            ("acquisition.engagements.application", "from acquisition.adapters import simulated_engagements"),
+            ("acquisition.campaigns.application", "from acquisition.engagements import EngagementSimulator"),
         ]
         for module, source in examples:
             with self.subTest(module=module, source=source):
                 self.assertTrue(CHECKER.violations(source, module))
         self.assertFalse(CHECKER.violations('from acquisition.audiences import NativeReference',
                                             'acquisition.creative.recipient_context'))
+        self.assertFalse(CHECKER.violations('from acquisition.campaigns import SequenceConnection',
+                                            'acquisition.engagements.domain'))
