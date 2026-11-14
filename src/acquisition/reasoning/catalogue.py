@@ -3,7 +3,7 @@ import json
 
 from acquisition.contracts import canonical, digest
 
-KINDS = {'authored_guidance', 'product_evidence', 'reviewer_preference', 'synthetic_observation', 'audience_summary', 'task_observation'}
+KINDS = {'authored_guidance', 'product_evidence', 'reviewer_preference', 'synthetic_observation', 'audience_summary', 'task_observation', 'recipient_evidence', 'channel_policy'}
 USES = {
     'authored_guidance': {'guide_reasoning'},
     'product_evidence': {'ground_product_copy'},
@@ -11,6 +11,8 @@ USES = {
     'synthetic_observation': {'inform_hypothesis'},
     'audience_summary': {'describe_synthetic_population'},
     'task_observation': {'explain_recorded_state'},
+    'recipient_evidence': {'ground_recipient_copy'},
+    'channel_policy': {'constrain_channel_copy'},
 }
 
 
@@ -21,8 +23,9 @@ def source_manifest(organization, key, kind, payload, version, provenance, fresh
     source = {'key': key, 'kind': kind, 'organization': organization, 'version': version,
               'owner': {'authored_guidance':'project-maintainer', 'product_evidence':'official-source-with-local-review',
                         'reviewer_preference':'local-reviewer', 'synthetic_observation':'local-synthetic-learning',
-                        'audience_summary':'local-synthetic-source', 'task_observation':'local-task-journal'}[kind],
-              'status': 'advisory' if kind != 'product_evidence' else 'recorded_evidence_not_approval',
+                        'audience_summary':'local-synthetic-source', 'task_observation':'local-task-journal',
+                        'recipient_evidence':'reviewed-recipient-source', 'channel_policy':'reviewed-channel-policy'}[kind],
+              'status': 'recorded_evidence_not_approval' if kind in {'product_evidence','recipient_evidence','channel_policy'} else 'advisory',
               'content_hash': digest(payload), 'provenance': provenance, 'freshness': freshness,
               'permitted_uses': sorted(USES[kind])}
     return source | {'id': 'source_' + digest(source)}
