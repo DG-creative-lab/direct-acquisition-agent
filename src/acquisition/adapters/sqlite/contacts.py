@@ -238,12 +238,7 @@ class SqliteContactDirectory:
     def inspect(self, organization, assessment_id):
         with self.database.connect() as db:
             db.execute('BEGIN')
-            row = db.execute('SELECT payload FROM contact_assessments WHERE organization=? AND id=?',
-                             (organization,assessment_id)).fetchone()
-            if row is None: raise NotFound('Assessment is unavailable in this organization')
-            payload = json.loads(row[0])
-            if payload['organization'] != organization or 'contact_assessment_' + digest(payload) != assessment_id:
-                raise Conflict('Stored contact assessment integrity failure')
+            payload = self.assessment(db,organization,assessment_id)
             try:
                 current = self._report(db,organization,payload['connection_key'],payload['report']['channel'],payload['report']['purpose'])
             except NotFound:
@@ -253,3 +248,21 @@ class SqliteContactDirectory:
             return {'assessment_id':assessment_id,'saved':payload,'current':current,
                     'currently_applicable':current==payload['report'],
                     'current_ready_for_proposal':current==payload['report'] and current['ready_for_proposal'], 'authority':'none'}
+
+    def assessment(self, db, organization, assessment_id):
+        """Read a scoped immutable assessment inside the caller's adapter transaction."""
+        row = db.execute('SELECT payload FROM contact_assessments WHERE organization=? AND id=?',
+                         (organization,assessment_id)).fetchone()
+        if row is None: raise NotFound('Assessment is unavailable in this organization')
+        payload = json.loads(row[0])
+        if payload['organization'] != organization or 'contact_assessment_' + digest(payload) != assessment_id:
+            raise Conflict('Stored contact assessment integrity failure')
+        return payload
+
+    def decision_evidence(self, db, organization, assessment_id):
+        """Current source, independent hard checks and profile under the same SQLite snapshot."""
+        payload = self.assessment(db,organization,assessment_id)
+        report = self._report(db,organization,payload['connection_key'],payload['report']['channel'],payload['report']['purpose'])
+        if report != payload['report']:
+            raise Conflict('Contact assessment is no longer applicable; prepare current evidence')
+        return self._current(db,organization,payload['connection_key']), report, self._profile(organization)

@@ -1,5 +1,67 @@
 # Validation and limits
 
+## Frozen audience strategies, issue #63
+
+The evidence inventory for this slice inspected the schema-18 contact journal,
+source attestation/history, campaign eligibility, current review suppressions,
+bootstrap, CLI and checkpoint guards. The confirmed path is: trusted local
+operator/agent request, scoped assessment capture, offline adapter results,
+campaign constraints, atomic journal publication, historical replay/inspection.
+The strategy is an advisory producer, not an authority over eligibility. The
+only durable effect is an audiences-owned command receipt. Calibration, real CRM
+conformance, remote inference and outbound execution remain unknown or absent.
+
+| Protected outcome | Executable evidence | Authority and commit point |
+| --- | --- | --- |
+| Exact evidence determines the required population | Rehashed feature truncation, segment substitution, foreign scope and readiness-digest replacement cannot publish | Independently reconstructed current source/profile/report inside the SQLite publication transaction |
+| Score meanings cannot substitute | Fit is accepted; requests for propensity, expected value and uplift remain explicit incomplete results without inference. Units, horizons and contrasts are validated | Audiences-owned typed request and installed strategy specification; content identities include configuration |
+| Incomplete inference cannot become a selection | Partial categories or scores, duplicate observations, wrong batch/strategy/interpretation, wrong scale, invalid intervals, invented missingness and explicit abstention yield zero allocations | Required batch membership and typed result checks, followed by campaign constraints |
+| Provider failure is observable and bounded | Categorization and decision exceptions each save incomplete diagnostics, omit exception text and replay without another attempt | Offline service attempts each stage at most once per call; exact committed receipt prevents replay inference |
+| Scores and categories cannot override hard policy | Maximum scores and reclassification still exclude permission denial, contact cap, account cap, unsupported country and current business suppression | Existing campaign eligibility independently supplies allowed contacts; no inference eligibility flag is consumed |
+| Budget and assignment stay deterministic | Zero/below-unit/exact-unit budgets, candidate cap and one-person-per-account assertions; swapping strategies changes ranking but preserves account arms | Integer conservative budget and `contact-account-hash/v1` in campaigns; no shared capacity is reserved |
+| Scope and exact requests fence duplicates | Foreign organization, contact-command key reuse and changed budget/cost/cap/seed/strategy fail; a two-writer changed-input schedule commits one complete receipt | Organization/request primary key and exact canonical inputs in the immutable contact command journal |
+| Current evidence is checked at commit | Objection or source refresh during ranking and an objection or expiry after the journal write prevent publication; rollback retains prior history | Current assessment equality and independently rebuilt batch before and after publication |
+| Paused and restored stores cannot gain authority | Sealing during ranking blocks commit. Read-only and restored-marker inspection retain the saved decision while mutations fail without changing database bytes | Existing live-root and verified-store guards, rechecked inside the write transaction |
+| Saved results survive restart without renewing authority | Four profile/strategy combinations replay and reproduce both rule outputs and the constrained plan in new Python processes. Stale inspection preserves the original artifact and separately reports inapplicability | Immutable artifact identity, typed deserialization and saved assessment; current evidence is checked separately |
+| Historical formats retain their contracts | Existing contact, profile and full backend tests; no changes to installed config, examples, legacy audience/campaign domain, creative or review code from merged main | Additive contracts and schema-18 journal command kind; no migration or historical byte rewrite |
+
+The bounded model contains the eleven invariants above. The selected interaction
+clusters are evidence/identity/completeness, score/type/interpretation, hard
+policy/budget/account, and timeline/replay/store mode. The thirteen new tests use
+real SQLite, independent expected account identities and limits, differential
+offline strategies, fresh Python processes, provider fault injection and one
+two-writer schedule. They supplement existing source-history and legacy tests.
+
+Measured within that model: 4/4 installed profile/strategy combinations reproduce
+after restart; 3/3 unsupported predictive metric contracts remain incomplete;
+2/2 inference failure stages and 2/2 partial-result stages produce no allocation;
+3/3 result identity edges (batch, strategy, preceding interpretation) reject
+substitution. Five selected publication interleavings cover objection, refresh
+and sealing during ranking, plus objection and expiry after the write. These
+counts are finite selected cases, not exhaustive concurrency or provider proof.
+
+Verification on 14 November 2026, based on merged main
+`434d7d8046fcf269b6839dd3648c26fb747f991a`:
+
+- `make test`: all 921 backend tests passed on Python 3.14 with loopback access.
+  The 57-test strategy/contact/profile selection also passed on Python 3.11,
+  3.12 and 3.13.
+- `make arch-check` passed.
+- All 43 selected harmful mutation probes were detected: the new strategy probes
+  and existing contact/profile probes. The full declared portfolio was not rerun.
+- A differential run against an isolated export of the merge retained exact
+  artifact digests in 5/5 cases: the legacy campaign (including its snapshot and
+  CSVs), both company profile proposals and both contact assessment receipts.
+  Installed configuration and historical examples have no diff from that merge.
+- Frontend files are unchanged. No real provider, paid inference, recipient or
+  sender was exercised.
+
+Residual scope: no ML quality, calibration, causal uplift, remote call recovery,
+outbound capacity reservation, repeated-contact allocation, learning admission,
+hosted authentication or live sender behavior is claimed. A new uncommitted
+offline attempt may repeat after process loss; paid adapters cannot inherit that
+recovery policy.
+
 The product is tested at pure-rule, persistence, process, HTTP and browser boundaries. This guide describes the current portfolio rather than the chronology of its construction. The portfolio includes frontend regressions, selected mutation probes and backend tests covering the campaign lifecycle, conversational planning and synthetic preparation. Test counts do not measure overall completeness or production readiness.
 
 ## Organization/profile preparation foundation

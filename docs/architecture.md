@@ -33,7 +33,7 @@ The [local checkpoint adapter](workspace-checkpoints.md) uses the same root lock
 | Module | Responsibility | Authority it does not own |
 | --- | --- | --- |
 | `runtime` | Run/task lifecycle, leases, attempts, waiting and result commits | Campaign policy, copy quality, approval or outcomes |
-| `audiences` | Business records, immutable snapshots, versioned source discovery, scoped native account/contact identity, permission/pressure observations and objections | Model-generated eligibility or inferred source completeness |
+| `audiences` | Business records, immutable snapshots, versioned source discovery, scoped native account/contact identity, permission/pressure observations, objections and frozen categorization/decision strategy contracts | Model-generated eligibility or inferred source completeness |
 | `campaigns` | Selection, exclusions, A/B/no-mail assignment, integer money and exact drafts | Reviewer decisions or external dispatch |
 | `creative` | Creative identities, confirmed writing preference lifecycle, frozen editorial context, bounded generation and grounding validation | Approval, targeting policy or outcome counts |
 | `reasoning` | Provider-independent limits, gateway contracts, inference journal and pure versioned reasoning-asset serialization/integrity contracts | Business approval or automatic uncertain-call retries |
@@ -48,6 +48,8 @@ The [local checkpoint adapter](workspace-checkpoints.md) uses the same root lock
 The [organization/profile foundation](organization-profiles.md) adds explicit taxonomy, campaign, product/brand and planning contracts inside the existing modules. `ProfilePreparation` composes their public APIs and a narrow atomic proposal-publication port, reusing campaign calculation without adding marketing dependencies to runtime. The CLI prepares unapproved synthetic proposals for two companies; chat, model execution, review/handoff and learning keep their existing contracts. The [channel expansion plan](channel-expansion-plan.md) describes subsequent proposed work.
 
 The [contact evidence foundation](contact-evidence.md) adds `ContactDirectory`, `ContactSource` and `ContactDirectoryStore` within audiences. `campaigns.contact_eligibility` owns hard preparation checks; SQLite loads current review-owned business suppressions without changing their authority. Native provider types and execution identities stay separate from mapped roles, connection aliases and mapping versions. Source attestations, monotonic versions, known identity coverage, lifecycle history and current evidence are checked during atomic assessment publication. Bootstrap wires only recorded synthetic sources. Runtime and existing postal formats gain no contact dependencies, and these assessments confer no campaign, approval or sending authority.
+
+The [audience strategy slice](audience-strategies.md) adds audiences-owned frozen feature and typed result contracts with separate categorization and decision ports. Two offline ranking adapters share the campaign-owned contact selection policy. SQLite reconstructs current input evidence and rechecks it after atomic publication into the existing audiences-owned contact command journal. No schema migration or historical artifact rewrite is needed. Paid inference, sequence execution and outbound-capacity reservation remain outside this slice.
 
 ```text
 frontend/src/                 React views, API client and presentation styles

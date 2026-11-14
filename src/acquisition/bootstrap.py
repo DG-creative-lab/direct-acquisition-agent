@@ -75,6 +75,22 @@ def build_contact_directory(path, organization, profile_key, clock=time.time, *,
     return ContactDirectory(source,store)
 
 
+def build_audience_decisions(path, organization, profile_key, strategy='taxonomy-order', clock=time.time, *, read_only=False):
+    """Offline advisory strategies and deterministic constraints; no campaign/outbound authority."""
+    from acquisition.adapters.audience_strategies import (DeclaredSegmentCategorizer, TaxonomyOrderDecision,
+                                                         ReverseTaxonomyDecision)
+    from acquisition.adapters.sqlite.audience_decisions import SqliteAudienceDecisions
+    from acquisition.audiences import AudienceDecisions
+    if strategy not in {'taxonomy-order','reverse-taxonomy-test'}:
+        raise ValueError('Select an installed offline audience strategy')
+    contacts = build_contact_directory(path,organization,profile_key,clock,read_only=read_only)
+    profile = contacts.store._profile(organization)
+    categorizer = DeclaredSegmentCategorizer(profile.taxonomy,profile.objective)
+    decision = (TaxonomyOrderDecision if strategy=='taxonomy-order' else ReverseTaxonomyDecision)(profile.taxonomy,profile.objective)
+    store = SqliteAudienceDecisions(contacts.store,categorizer.spec,decision.spec)
+    return AudienceDecisions(categorizer,decision,store)
+
+
 def build_profile_preparation(path, organization, profile_key, clock=time.time):
     """Explicit unapproved fixture preparation. No tasks, model or release capabilities."""
     require_live_root(path)

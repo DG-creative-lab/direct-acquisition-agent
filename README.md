@@ -19,6 +19,8 @@ An additive [organization/profile foundation](docs/organization-profiles.md) pre
 
 The [contact evidence guide](docs/contact-evidence.md) documents the scoped synthetic account/contact API, channel readiness, objections and immutable source history. It prepares non-executable assessments while preserving the existing postal workflow.
 
+The [audience strategy guide](docs/audience-strategies.md) adds replaceable offline categorization and ranking over frozen contact features. Two deterministic strategies share independent eligibility, budget and account-assignment rules, producing saved synthetic proposals without outbound authority.
+
 ## Try it locally
 
 Requires Python 3.11 or later, Node 22.12+ and pnpm 10.33+ on macOS or Linux.
