@@ -17,6 +17,8 @@ The [product overview](docs/product.md) explains the intended users, authority b
 
 An additive [organization/profile foundation](docs/organization-profiles.md) prepares unapproved synthetic postal proposals for iwoca and a fictional B2B company through the same Python services. Its explicit CLI/API grants no model, review or delivery authority. The [multichannel expansion plan](docs/channel-expansion-plan.md) maps later work under epic #60.
 
+The [contact evidence guide](docs/contact-evidence.md) documents the scoped synthetic account/contact API, channel readiness, objections and immutable source history. It prepares non-executable assessments while preserving the existing postal workflow.
+
 ## Try it locally
 
 Requires Python 3.11 or later, Node 22.12+ and pnpm 10.33+ on macOS or Linux.

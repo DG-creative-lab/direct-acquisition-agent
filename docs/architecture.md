@@ -33,7 +33,7 @@ The [local checkpoint adapter](workspace-checkpoints.md) uses the same root lock
 | Module | Responsibility | Authority it does not own |
 | --- | --- | --- |
 | `runtime` | Run/task lifecycle, leases, attempts, waiting and result commits | Campaign policy, copy quality, approval or outcomes |
-| `audiences` | Business records, immutable snapshots, versioned source discovery and exact dataset validation | Model-generated eligibility or inferred source completeness |
+| `audiences` | Business records, immutable snapshots, versioned source discovery, scoped native account/contact identity, permission/pressure observations and objections | Model-generated eligibility or inferred source completeness |
 | `campaigns` | Selection, exclusions, A/B/no-mail assignment, integer money and exact drafts | Reviewer decisions or external dispatch |
 | `creative` | Creative identities, confirmed writing preference lifecycle, frozen editorial context, bounded generation and grounding validation | Approval, targeting policy or outcome counts |
 | `reasoning` | Provider-independent limits, gateway contracts, inference journal and pure versioned reasoning-asset serialization/integrity contracts | Business approval or automatic uncertain-call retries |
@@ -46,6 +46,8 @@ The [local checkpoint adapter](workspace-checkpoints.md) uses the same root lock
 ## Repository map
 
 The [organization/profile foundation](organization-profiles.md) adds explicit taxonomy, campaign, product/brand and planning contracts inside the existing modules. `ProfilePreparation` composes their public APIs and a narrow atomic proposal-publication port, reusing campaign calculation without adding marketing dependencies to runtime. The CLI prepares unapproved synthetic proposals for two companies; chat, model execution, review/handoff and learning keep their existing contracts. The [channel expansion plan](channel-expansion-plan.md) describes subsequent proposed work.
+
+The [contact evidence foundation](contact-evidence.md) adds `ContactDirectory`, `ContactSource` and `ContactDirectoryStore` within audiences. `campaigns.contact_eligibility` owns hard preparation checks; SQLite loads current review-owned business suppressions without changing their authority. Native provider types and execution identities stay separate from mapped roles, connection aliases and mapping versions. Source attestations, monotonic versions, known identity coverage, lifecycle history and current evidence are checked during atomic assessment publication. Bootstrap wires only recorded synthetic sources. Runtime and existing postal formats gain no contact dependencies, and these assessments confer no campaign, approval or sending authority.
 
 ```text
 frontend/src/                 React views, API client and presentation styles
@@ -142,7 +144,9 @@ These are local transport controls. Organization flags and configured actors are
 
 ## Schema and compatibility
 
-The application database is schema v14. Initialization takes a write lock before reading `user_version` and holds it through the entire migration chain. DDL and version changes roll back together. Statements execute individually because `executescript` can commit an outer transaction. WAL activation runs after migration and retries only busy errors on fresh connections with a bounded deadline.
+The application database is schema v18. Initialization takes a write lock before reading `user_version` and holds it through the entire migration chain. DDL and version changes roll back together. Statements execute individually because `executescript` can commit an outer transaction. WAL activation runs after migration and retries only busy errors on fresh connections with a bounded deadline.
+
+Schema v15 added immutable writing preferences, v16 simulated delivery observations, v17 recorded-report monitoring and v18 scoped contact evidence, current source pointers, objections, immutable assessments and exact request receipts. Schema-14 through schema-18 checkpoint readers preserve inspection-only behavior; older binaries reject newer database schemas. These migrations preserve the original legacy admission cutoff and grant no new execution capability.
 
 Schema v3 froze exact legacy task-plan admissions; later migrations preserve that cutoff. Historical v2 workflows resume only with their original admission certificate. New v2 admission and capability/input downgrades are rejected. Repair of the known older stale-marker state preserves the original cutoff rather than certifying later records. Schema v4 added review state; v5 added learning state; v6 adds conversations, messages and planning admissions; v7 adds exact audience selections and their command receipts; v8 adds follow-up actions and amendment-confirmation commands; v9 adds shared conversation execution accounts, scoped run links and exact stop receipts; v10 fences ambiguous historical campaign ancestry before direct worker execution. Older binaries reject newer schemas, and mixed-version rollback is unsupported. Durable timestamps and derived lease/retry deadlines must be finite.
 

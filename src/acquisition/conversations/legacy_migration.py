@@ -110,7 +110,7 @@ def migration_plan(snapshot):
                                  'owner': result['owners'][0], 'task_plan': record['preserve']['task_plan_fingerprint'],
                                  'evidence_fingerprint': digest(record['evidence']), 'dependencies': result['dependencies']})
         output.append(value)
-    applicable = bool(bindings and not snapshot['issues'] and target.get('schema_version') in {14, 15, 16, 17} and sealed)
+    applicable = bool(bindings and not snapshot['issues'] and target.get('schema_version') in {14, 15, 16, 17, 18} and sealed)
     counts = Counter(r['classification'] for r in output)
     plan = {'schema': MIGRATION_PLAN_SCHEMA, 'source_fingerprint': snapshot['fingerprint'],
             'scope': 'canonical-root-and-explicit-journal-or-catalogue-references',
@@ -169,7 +169,7 @@ class LegacyMigrationInventory:
             if plan['plan_id'] != expected_plan:
                 raise Conflict('Migration evidence changed. Stop writers and inspect again.')
             if not plan['apply_available']:
-                raise Conflict('Apply requires a sealed schema-14 through schema-17 conversation store, readable sources and supported legacy bindings.')
+                raise Conflict('Apply requires a sealed schema-14 through schema-18 conversation store, readable sources and supported legacy bindings.')
             receipt = {'schema': MIGRATION_RECEIPT_SCHEMA, 'plan_id': expected_plan,
                        'source_fingerprint': plan['source_fingerprint'], 'execution_activation': False,
                        'status': 'applied', 'bound_records': [binding['record_id'] for binding in bindings],

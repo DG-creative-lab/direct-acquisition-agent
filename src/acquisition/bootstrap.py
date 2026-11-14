@@ -53,6 +53,28 @@ from acquisition.adapters.sqlite.admissions import SqliteAdmissions
 from acquisition.workflows.conversation import validate_planning_assets
 
 
+def build_contact_directory(path, organization, profile_key, clock=time.time, *, read_only=False):
+    """Installed synthetic contact evidence only, without campaign or execution authority."""
+    if not read_only:
+        require_live_root(path)
+    from acquisition.adapters.local_profiles import LocalProfiles
+    from acquisition.adapters.contact_fixtures import RecordedContactSource, synthetic_contact_snapshots
+    from acquisition.adapters.sqlite.contacts import SqliteContactDirectory
+    from acquisition.adapters.sqlite.admission_guard import verified_required
+    from acquisition.audiences import ContactDirectory
+    profiles = LocalProfiles(organization, profile_key, Path(__file__).resolve().parents[2] / 'config/profiles')
+    profile = profiles.campaign_profile(organization,profile_key,'v1')
+    database = Database.existing(path) if read_only else Database(path)
+    with database.connect() as db:
+        if db.execute('PRAGMA user_version').fetchone()[0] < 18:
+            raise Conflict('Migrate the live application store before inspecting contact evidence')
+        if not read_only and verified_required(db):
+            raise Conflict('Contact preparation has no verified execution capability; execution stays paused')
+    source = RecordedContactSource(organization,tuple(synthetic_contact_snapshots(organization,profile)))
+    store = SqliteContactDirectory(database,source,profiles,profile_key,'v1',clock,read_only=read_only)
+    return ContactDirectory(source,store)
+
+
 def build_profile_preparation(path, organization, profile_key, clock=time.time):
     """Explicit unapproved fixture preparation. No tasks, model or release capabilities."""
     require_live_root(path)

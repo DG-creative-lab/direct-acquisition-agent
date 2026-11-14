@@ -40,6 +40,60 @@ Post-review verification on 13 November 2026, against the candidate based on `a0
 - The unchanged conversational corpus passed 12/12 with stable candidate-source fingerprints, zero false acceptances/rejections, zero planner/infrastructure failures and zero live calls.
 - A differential run against an isolated `a0245a6` export retained both companies' exact draft, audience and CSV identities. Historical examples, installed profile configuration and the original fact pack have no diff from that commit.
 
+## Scoped contact evidence foundation
+
+| Protected outcome | Executable evidence | Boundary |
+| --- | --- | --- |
+| The exact native person/account remains scoped | Two companies and two provider accounts reuse native IDs without collision; native object type differs from mapped role. Mapping revisions and connection aliases cannot rename a native subject or erase objections. A known person cannot be reclassified as an account | Recorded synthetic sources only; logical connection key and mapping version retain access/interpretation provenance |
+| A candidate cannot attest its own source or completeness | Rehashed destination replacement fails installed-source checks. Ambiguous/missing associations, incomplete pagination, missing/unknown/expired permission and incomplete/inconsistent pressure cannot claim complete readiness. Complete refreshes retain known identities or explicit tombstones; observation times cannot move backward | Source configuration is trusted local composition. Fixture conformance does not attest real CRM data, law or sender permission |
+| Hard eligibility stays independent of inference | Purpose/channel separation, permission denial, isolated contact cap, account cap and current review-owned business suppression determine eligibility. Known deleted contacts remain excluded without unnecessary retrieval | Campaign-owned preparation policy; no model/strategy or outbound-capacity reservation is installed |
+| Current objections and lifecycle fence new work | Channel-specific and all-channel objections, merge ancestry, deleted accounts, stale alternate connections, newer native permission/shared-pressure evidence and forbidden resurrection invalidate fresh applicability. Saved assessments and receipts retain original bytes | No automatic retargeting, inherited permission, correction/re-consent or release authority |
+| Atomic observations survive races and retries | Fresh-process CLI replay preserves exact request inputs and row counts; new keys reuse identical immutable assessments. Concurrent changed requests publish one complete result. A post-write objection or final-check expiry rolls back sources, current pointer, assessment and receipt | Readiness observations grant no task, campaign, approval or external-effect authority |
+| Migration and restore preserve existing contracts | Real schema-17 failure rolls back DDL/version while retaining original audience bytes and schema-v3 admissions. The existing cold-backup test now retains contact rows, inspects through the CLI and refuses mutations without changing restored bytes | Schema 18 is a forward migration. Older binaries reject it; verified-paused stores gain no contact mutation capability |
+
+See [contact evidence](contact-evidence.md) for owners, ports, operating commands, supported scope and fixed fixture deadlines. Existing v1/v2/v3 artifacts and profile-draft identities remain unchanged; the new snapshot/readiness formats live in separate tables.
+
+Verification on 13 November 2026, in the candidate worktree based on merged main `05ee6351eae14a5ab65ccad3ca0117b09f794bc1`:
+
+- `make test`: 905 backend tests passed on Python 3.14 with loopback access. `make arch-check` passed.
+- The final 61-test focused selection passed, including all 19 contact tests and the existing profile, initialization, architecture and cold-checkpoint boundaries. Contact tests passed on Python 3.11, 3.12, 3.13 and 3.14.
+- All 68 selected harmful mutations were detected, covering the new contact checks, profile authority and affected migration/execution/checkpoint boundaries. The full declared mutation portfolio was not rerun.
+- The unchanged conversational corpus passed 12/12 with stable candidate-source fingerprints, zero false acceptances/rejections, zero planner/infrastructure failures and zero live calls.
+- An isolated merged-main comparison retained exact legacy/profile audience, draft and CSV identities. Historical examples, installed profile files and the original fact pack have no diff. The documented CLI prepared and inspected three synthetic contacts across two account units, with no authority.
+- Old-schema fixture setup now explicitly omits the v18 migration when constructing historical v4/v11 stores; their original migration, rollback and cutoff assertions remain in place and pass. No tests were removed. The complete final run supersedes interrupted development runs.
+
+These are bounded offline observations. There were no frontend changes, live CRM reads, model spending, real recipients or outbound effects; interface checks and live provider/quality evaluation were outside this slice.
+
+### Pressure evidence review remediation
+
+Review of `9ee774c` found that a higher source version could replace a newer pressure observation with an older lower count. Regression probes reproduced both successful backward refresh and restored false readiness before the fix.
+
+Fresh refreshes now reject pressure observations older than any known observation for that source/contact, including after an intervening omission. Conflict evaluation selects pressure evidence by observation time and retains disagreements at equal times. This also fences valid historical v18 rows admitted by the previous writer without rewriting them. A genuinely newer observation can restore readiness, so an old high count does not become a permanent exclusion.
+
+Two real-SQLite regressions cover rejection/rollback, omission, older and equal-time evidence, fresh-process inspection, unchanged source/assessment bytes and recovery with newer evidence. Three mutation probes independently remove the import fence, chronological selection and equal-time retention.
+
+Post-review verification on 13 November 2026, against the candidate based on `9ee774c`:
+
+- `make test`: 907 backend tests passed with loopback access. `make arch-check` passed.
+- The 63-test focused selection passed. All 21 contact tests passed on Python 3.11 through 3.14.
+- All 71 selected harmful mutations were detected, including the three new pressure-evidence probes. The full declared mutation portfolio was not rerun.
+- The unchanged conversational corpus passed 12/12 with stable candidate-source fingerprints, zero false acceptances/rejections, zero planner/infrastructure failures and zero live calls.
+- An isolated comparison against `9ee774c` retained exact receipts and saved assessment payloads for all 12 installed company/version/email-or-call cases. Historical examples and configuration files have no diff. No schema migration or historical data rewrite was introduced.
+
+### Equal-time permission review remediation
+
+Re-review of `57db051` found the parallel permission case: a later source version could replace a same-time denial or differing expiry with a grant and restore false readiness. A real-SQLite regression reproduced that result through the attested source/store API before the fix.
+
+Permission reconciliation now retains every distinct observation at the greatest observed time for each source/contact/channel/purpose. Later versions and omissions cannot erase equal-time disagreement. The regression covers fresh-process inspection, unchanged saved history, channel/provider-account isolation and recovery with genuinely newer evidence. Two mutation probes remove chronological selection or equal-time retention; existing pressure probes now target their specific bucket to keep both boundaries independently testable.
+
+Post-review verification on 13 November 2026, against the candidate based on `57db051`:
+
+- `make test`: 908 backend tests passed with loopback access. `make arch-check` passed.
+- The 64-test focused selection passed. All 22 contact tests passed on Python 3.11 through 3.14.
+- All 73 selected harmful mutations were detected, including the new permission chronology and equal-time conflict probes. The full declared mutation portfolio was not rerun.
+- The unchanged conversational corpus passed 12/12 with stable candidate-source fingerprints, zero false acceptances/rejections, zero planner/infrastructure failures and zero live calls.
+- An isolated `57db051` comparison retained exact receipts and saved payloads for all 12 installed company/version/email-or-call cases. Historical examples and configuration have no diff. The fix introduces no schema migration or historical data rewrite.
+
 ## Reproduce the checks
 
 ```sh
