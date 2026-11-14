@@ -89,9 +89,19 @@ class SequenceTests(unittest.TestCase):
     def prepare(self, app=None, key='proposal', **changes):
         app=app or self.app();return app.campaigns.prepare('one',key,self.request(**changes))
 
+    def approve(self, app, proposal, key='review'):
+        from acquisition.adapters.sqlite.reviews import SqliteReviews
+        from acquisition.adapters.sqlite.simulated_delivery import SqliteSimulatedDelivery
+        roles=SqliteReviews(app.campaigns.store.database,lambda:self.now,SqliteSimulatedDelivery)
+        roles.register_actor('one','operator',('operator',));roles.register_actor('one','reviewer',('reviewer',))
+        subject=app.reviews.open('one',key+'-open',proposal['proposal_id'],'operator')
+        return app.reviews.decide('one',key+'-approve',subject['subject_id'],'reviewer','approve',
+            'Exact synthetic population and sequence reviewed',7*86400)
+
     def start(self, app=None, key='proposal', **changes):
         app=app or self.app();proposal=self.prepare(app,key,**changes)
-        return app,proposal,app.engagements.start('one','start-'+key,proposal['proposal_id'])['simulation_id']
+        approval=self.approve(app,proposal,key)
+        return app,proposal,app.engagements.start('one','start-'+key,proposal['proposal_id'],approval['id'])['simulation_id']
 
     def counts(self):
         with closing(sqlite3.connect(self.path)) as db:
@@ -215,7 +225,7 @@ else:raise AssertionError('Merge ancestry lost after restart')
             if timing=='after':
                 fresh=app.campaigns.prepare('one','before-late-objection',request)
                 self.assertEqual({m['contact_id'] for m in fresh['saved']['population']},{survivor})
-                pending=app.engagements.start('one','surviving-account',fresh['proposal_id'])['simulation_id']
+                pending=app.engagements.start('one','surviving-account',fresh['proposal_id'],self.approve(app,fresh,'survivor')['id'])['simulation_id']
                 self.event(app,simulation,selected,'objected')
                 current=app.engagements.inspect('one',pending)
                 self.assertEqual({s['status'] for s in current['steps']},{'stopped'})
@@ -249,7 +259,7 @@ else:raise AssertionError('Merge ancestry lost after restart')
                 self.assertEqual([s['due_at']-NOW for s in member['steps']],expected)
                 self.assertEqual({s['content']['target']['experiment_unit'] for s in member['steps']},{member['experiment_unit']})
                 self.assertEqual(member['steps'][1]['assignee'],'DEMO ONLY representative '+profile+'-rep-1')
-            simulation=app.engagements.start('one','start',proposal['proposal_id'])['simulation_id']
+            simulation=app.engagements.start('one','start',proposal['proposal_id'],self.approve(app,proposal)['id'])['simulation_id']
             view=app.engagements.advance('one',simulation)
             self.assertEqual(view['totals']['accepted'],2);self.assertEqual(view['totals']['delivered'],0)
             self.assertEqual(view['totals']['responded'],0);self.assertEqual(view['totals']['confirmed_cost_pence'],4)
@@ -335,7 +345,10 @@ with patch('acquisition.adapters.simulated_engagements.SyntheticEngagementTransp
         self.event(app,simulation,target,'objected')
         self.now=NOW+20;view=app.engagements.advance('one',simulation)
         self.assertEqual({s['status'] for s in view['steps'] if s['account_id']==target['account_id'] and s['ordinal']>0},{'stopped'})
-        self.assertEqual(view['totals']['accepted_call_tasks'],1)
+        # The objection invalidates the whole exact reviewed population. Unrelated
+        # pending work now needs a new proposal and review rather than stale authority.
+        self.assertEqual(view['totals']['accepted_call_tasks'],0)
+        self.assertEqual({s['status'] for s in view['steps'] if s['account_id']!=target['account_id'] and s['ordinal']>0},{'blocked'})
         # A new proposal cannot evade an organization-wide native-account objection.
         with self.assertRaises(Conflict):self.prepare(app,'new-proposal')
         self.assertFalse(app.campaigns.inspect('one',proposal['proposal_id'])['currently_applicable'])
@@ -525,14 +538,15 @@ with patch('acquisition.adapters.simulated_engagements.SyntheticEngagementTransp
             self.assertEqual([tuple(r) for r in db.execute('SELECT * FROM channel_artifacts ORDER BY id')],original_bytes)
         Database(self.path)
         with database.connect() as db:
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],21)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],22)
             self.assertEqual([tuple(r) for r in db.execute('SELECT * FROM channel_artifacts ORDER BY id')],original_bytes)
             self.assertEqual(tuple(db.execute('SELECT * FROM legacy_task_admissions').fetchone()),('one','old','old-hash'))
 
     def test_concurrent_start_and_claim_preserve_one_enrollment_and_one_dispatch_per_step(self):
         app=self.app();proposal=self.prepare(app)
+        approval=self.approve(app,proposal)
         with ThreadPoolExecutor(max_workers=2) as pool:
-            results=list(pool.map(lambda key:app.engagements.start('one',key,proposal['proposal_id']),('start-one','start-two')))
+            results=list(pool.map(lambda key:app.engagements.start('one',key,proposal['proposal_id'],approval['id']),('start-one','start-two')))
         self.assertEqual(len({r['simulation_id'] for r in results}),1)
         simulation=results[0]['simulation_id']
         with ThreadPoolExecutor(max_workers=2) as pool:

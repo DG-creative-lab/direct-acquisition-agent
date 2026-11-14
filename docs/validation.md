@@ -1,5 +1,66 @@
 # Validation and limits
 
+## Exact multichannel review, issue #67
+
+Confirmed boundary: the standalone synthetic sequence API now requires a new
+exact approval before new effects. This includes direct store calls, restart and
+continuation. Existing proposal, content, dispatch and observation bytes are not
+rewritten or granted approval. The original postal purpose stays separate.
+See [sequence review](sequence-review.md) for the operational contract.
+
+| Invariant | Independent authority and failure evidence |
+| --- | --- |
+| Complete validation | Reviews declares five required checks. Tests independently enumerate all five and all four nonpassing/omitted states, plus five requirement downgrades. A checker crash must withhold both sequence output and summary and prevent a decision/start. |
+| Exact subjects and permissions | Audience/source contracts, current creative reconstruction and campaign reconstruction attest identities, purpose, both channels, assignments/controls, all payloads, sender/provider account/scope, limits, schedule and stops. Tests reject other proposals, missing approval, praise/confidence/skill/report references, changed sender/account/profile and changed materialized bytes. |
+| Current approval | Real SQLite exercises revocation, later rejection, expiry and reviewer disable/re-enable. A source-pack change and restoration retains a newer evidence epoch, so the original subject and summary remain stale. Fresh review can authorize unchanged work under the new epoch. |
+| Commit fencing | Faults after decision write and enrollment writes leave no partial decisions, bindings, enrollment, event or command receipt. Expiry during approval/reservation rolls back authority. Revocation during transport retains a provider observation while blocking completion and subsequent calls. Existing sequence lease, stop, unknown-effect and concurrent reservation tests remain. |
+| Truthful output | The operator output validator rejects extra praise, invented population/cost facts, omitted counts and another subject. Rehashed content or absent inference observations cannot replace validation. Diagnostics remain available when substantive content is withheld. |
+| History and recovery | Schema-21 migration failure is atomic; successful repeated migration preserves every prior row and the admission cutoff. Schema-21 inspection refuses new effects. Unapproved historical simulations cannot reserve another step. Approved strategies resume in another process without repeating effects; controls receive no steps or charges. |
+
+The evidence model is bounded to installed synthetic sources, recorded offline
+inference, exact local actor administration and a single local SQLite store.
+The causal clusters are subject/evidence/permission identity; reviewer,
+expiry/revocation and effect commit; durable command/receipt/restart; and
+validation/projection truth. There is no distributed-provider oracle or live
+model-quality claim. Organization-wide evidence invalidation is conservative;
+new evidence or an objection can invalidate the full exact population's
+approval, including unaffected pending members.
+
+The 12 new review tests passed on Python 3.11 and Python 3.14. The focused
+Python 3.14 rerun also confirmed explicit cleanup of test inspection connections. The 45-test checkpoint,
+reconciliation and legacy migration selection passed on Python 3.14, as did
+eight historical schema/CLI fixture tests. The broader run first exposed stale
+schema caps in checkpoint and legacy readers, and old-schema fixture builders
+that accidentally applied the new migration. Those readers now accept schema
+22 and validate the new review tables; historical fixture builders still create
+their original schemas and retain their preservation/rollback assertions.
+
+A differential corpus against merged #84 matched all 17 selected artifact and
+catalogue digests across both profiles, including legacy postal content,
+profile proposals, contact assessments, decisions, contexts and channel
+rewrites. A database actually written by the previous sequence binary retained
+every row across all 73 pre-existing tables after upgrade. The new binary read
+its schema-21 sequence before migration; the previous binary rejected schema
+22 without migrating it. CLI preview and historical inspection passed, and CLI
+start without an explicit approval flag was rejected. No frontend files changed.
+
+All 32 selected sequence mutation probes were detected: ten new review probes
+and the 22 existing sequence probes. They exercise step authority, expiry at
+reservation commit, independent required membership, unknown-check handling,
+evidence-epoch restoration, superseding decisions, revocation, exact proposal
+binding, operator truth and the existing synthetic lifecycle boundaries. Early
+probe attempts hit their wall-time bounds under parallel verification; those
+were not counted as detections and the remaining probes were rerun to explicit
+test failures with bounded longer deadlines. The complete mutation portfolio
+was not rerun.
+
+`make test` passed all 990 backend tests on Python 3.14 with loopback access.
+The focused 12-test review rerun passed after the test connection cleanup;
+`make arch-check` and `git diff --check` passed. No live model or provider calls
+were made, and no interface check was required because frontend files are
+unchanged. These results cover the modeled local synthetic boundaries, not
+live-provider or distributed execution.
+
 ## Sequence objection merge-history follow-up
 
 Review of `552a684` found that engagement objections matched exact native IDs,

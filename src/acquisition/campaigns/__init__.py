@@ -17,4 +17,6 @@ from .sequences import SequenceConnection, SequenceRequest, build_sequence_propo
 __all__ += ['SequenceConnection','SequenceRequest','build_sequence_proposal','sequence_text','sequence_time']
 from .ports import SequenceProposalStore
 from .sequence_application import SequenceCampaigns
+from .sequences import validate_sequence_proposal
+__all__ += ['validate_sequence_proposal']
 __all__ += ['SequenceProposalStore','SequenceCampaigns']

@@ -130,3 +130,10 @@ def build_sequence_proposal(organization, request_id, request, decision, materia
             'budget_pence':request.budget_pence,'call_capacity':request.call_capacity,'step_capacity':request.step_capacity},
         'approval':'not_granted','authority':'none','execution':'not_performed'}
     return json.loads(canonical(payload))
+
+
+def validate_sequence_proposal(proposal, decision, materials, connections, identities):
+    """Reconstruct population, controls, costs, capacity, cadence and stop conditions."""
+    expected = build_sequence_proposal(proposal['organization'],proposal['request_id'],
+        SequenceRequest(**proposal['request']),decision,materials,connections,identities)
+    if proposal != expected: raise Conflict('Sequence differs from the complete current campaign contract')

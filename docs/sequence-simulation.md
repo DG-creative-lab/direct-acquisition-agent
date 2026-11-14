@@ -4,8 +4,9 @@ Issue #66 adds an agent-callable API/CLI for a complete synthetic email and
 human-call strategy. It consumes the frozen audience decision from #63 and the
 validated recipient artifacts from #65. It prepares an immutable proposal, then
 runs an explicitly requested offline simulation. It does not grant approval or
-outbound authority. Sequence validation/approval belongs to #67; conversational
-continuation belongs to #68.
+outbound authority. [Exact sequence review](sequence-review.md), added in #67,
+is now required before new simulated effects. Conversational continuation belongs
+to #68.
 
 ## Ownership and authority
 
@@ -134,14 +135,19 @@ request = SequenceRequest(
     expires_at=end_timestamp, budget_pence=10000, call_capacity=6, step_capacity=18,
 )
 proposal = app.campaigns.prepare("example-org", "sequence-v1", request)
-simulation = app.engagements.start("example-org", "simulation-v1", proposal["proposal_id"])
+review = app.reviews.open("example-org", "review-v1", proposal["proposal_id"], "operator")
+# Present app.reviews.view(...) to the accountable local reviewer.
+approval = app.reviews.decide("example-org", "approval-v1", review["subject_id"],
+    "reviewer", "approve", "Exact synthetic sequence reviewed", 7 * 86400)
+simulation = app.engagements.start("example-org", "simulation-v1", proposal["proposal_id"], approval["id"])
 progress = app.engagements.advance("example-org", simulation["simulation_id"])
 ```
 
 The standalone entry point is `PYTHONPATH=src python3 -m acquisition.sequence_cli`.
 It requires `--db`, `--organization` and `--profile`. Commands are `propose`,
 `inspect-proposal`, `start`, `advance`, `inspect`, `observe` and `stop`. Run the
-command's `--help` for its exact inputs. `advance` handles at most eighteen
+command's `--help` for its exact inputs. New `start` calls require `--approval-id`;
+see [sequence review](sequence-review.md) for review and output-validation commands. `advance` handles at most eighteen
 submissions. `observe` accepts synthetic observations, not public webhooks or
 real provider evidence. Organization flags are trusted local scope, not hosted
 authentication. No configuration wizard or new frontend route is added.
@@ -161,13 +167,15 @@ can be recorded once. Migration and version advancement share one transaction.
 
 Existing postal, profile, audience, recipient and channel artifacts retain their
 serialized bytes. The schema-v3 legacy admission cutoff is preserved. Updated
-legacy/checkpoint readers support schema 21 and restored roots remain
-inspection-only. Older binaries reject schema 21, so rollback to older code
+legacy/checkpoint readers support schema 22, including schema-21 sequence
+inspection, and restored roots remain inspection-only. Schema 22 adds exact
+sequence review without rewriting schema-21 artifacts. Older binaries reject
+schema 22, so rollback to older code
 requires a pre-upgrade database backup.
 
 New simulation mutations are refused in verified-paused and restored roots.
 The existing postal simulator and its approval purpose remain unchanged. The
 supported deployment remains local and single-worker; selected concurrency
 tests do not establish distributed dispatch safety. Production authentication,
-retention/deletion, provider event verification, live reconciliation, outbound
+retention/deletion, provider event verification, live reconciliation, live outbound
 approval and commercial learning remain separate work.

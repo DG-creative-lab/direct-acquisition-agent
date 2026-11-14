@@ -100,7 +100,15 @@ class WorkspaceCheckpointTests(TestCase):
         proposal=sequences.campaigns.prepare('contact-scope','sequence-proposal',SequenceRequest('fielddesk',
             'sequence-decision-'+str(seed),'sequence-content-email','sequence-content-human_call','sequence-content-email',
             1794528000.,1794528000.+7*86400,1000,1,3))
-        simulation=sequences.engagements.start('contact-scope','sequence-start',proposal['proposal_id'])['simulation_id']
+        from acquisition.adapters.sqlite.reviews import SqliteReviews
+        from acquisition.adapters.sqlite.simulated_delivery import SqliteSimulatedDelivery
+        roles=SqliteReviews(sequences.campaigns.store.database,lambda:1794528000.,SqliteSimulatedDelivery)
+        roles.register_actor('contact-scope','sequence-operator',('operator',))
+        roles.register_actor('contact-scope','sequence-reviewer',('reviewer',))
+        subject=sequences.reviews.open('contact-scope','sequence-open',proposal['proposal_id'],'sequence-operator')
+        approval=sequences.reviews.decide('contact-scope','sequence-approve',subject['subject_id'],'sequence-reviewer',
+            'approve','Exact synthetic sequence reviewed',7*86400)
+        simulation=sequences.engagements.start('contact-scope','sequence-start',proposal['proposal_id'],approval['id'])['simulation_id']
         simulated=sequences.engagements.advance('contact-scope',simulation)
         self.assertEqual(simulated['totals']['accepted'],1)
         # Seed a paid historical conversation via a fake provider, then seal.

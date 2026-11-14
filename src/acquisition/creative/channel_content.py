@@ -204,3 +204,14 @@ def validate_channel_screen(arguments, rendered):
     for row in rows:
         if row['verdict']!='pass' or row['reason']!='none': raise ValueError('Advisory semantic screen rejected a recipient')
     return arguments
+
+
+def validate_channel_bundle(context, context_id, proposals, bundle):
+    """Revalidate every byte and recipient, independently of a saved status label."""
+    validate_rendered_channel(context,context_id,proposals,bundle['rendered'])
+    validate_channel_screen(bundle['screen'],bundle['rendered'])
+    expected = {'schema':'channel-bundle/v1','mode':'SYNTHETIC_ONLY','organization':context['organization'],
+        'context_id':context_id,'rendered':bundle['rendered'],'screen':bundle['screen'],
+        'screen_status':'passed_advisory_not_approval','status':'validated_unapproved','parent_id':context['command']['parent_id'],
+        'approval':'not_granted','outcome_support':'none','execution':'not_performed','authority':'none'}
+    if bundle != expected: raise Conflict('Channel bundle differs from its grounded content contract')

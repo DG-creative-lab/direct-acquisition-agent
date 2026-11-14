@@ -15,8 +15,8 @@ class EngagementSimulator:
         return {p.connection.channel:{'connection_id':p.connection.id,'configuration_id':p.configuration_id}
                 for p in (self.email,self.calls)}
 
-    def start(self, organization, request_id, proposal_id):
-        return self.store.start(organization,request_id,proposal_id,self.configuration())
+    def start(self, organization, request_id, proposal_id, approval_id=None):
+        return self.store.start(organization,request_id,proposal_id,self.configuration(),approval_id)
 
     def advance(self, organization, simulation_id, *, max_steps=18):
         if type(max_steps) is not int or not 1<=max_steps<=18: raise ValueError('Advance one to eighteen bounded simulated steps')

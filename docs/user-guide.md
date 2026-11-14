@@ -8,7 +8,9 @@ postal preparation, review and simulation contracts.
 The [sequence simulation API/CLI](sequence-simulation.md) adds complete synthetic
 email/call strategies with controls, scheduled human tasks and explicit stop and
 uncertainty behavior. It can be called by an agent without a form-based setup.
-The conversational multichannel route and its approval flow remain later work.
+[Exact sequence review](sequence-review.md) adds one accountable approval for the
+full materialized sequence, with current checks before effects and validated
+operator summaries. The conversational multichannel route remains later work.
 
 Use this guide with the local React workspace. [Local operations](workspace.md) covers installation and recovery. The workflow below uses offline fixtures and spends no provider credit.
 

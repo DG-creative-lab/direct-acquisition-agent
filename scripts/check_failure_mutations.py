@@ -10,6 +10,17 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ('sequence-review-step-authority', 'adapters/sqlite/engagements.py', "            self.authority.authorize_simulation(db,organization,simulation_id,intent['proposal_id'])", '            pass', 'test_sequence_reviews.SequenceReviewTests.test_revocation_during_submission_keeps_observation_but_blocks_completion_and_next_effect'),
+    ('sequence-review-final-reservation-authority', 'adapters/sqlite/engagements.py', '                if self._allowed(db,organization,simulation_id,row,proposal,intent) is not None:', '                if False:', 'test_sequence_reviews.SequenceReviewTests.test_expiry_during_approval_and_reservation_rolls_back_authority'),
+    ('sequence-review-missing-required-check', 'reviews/sequences.py', '    for name in SEQUENCE_CHECKS - indexed.keys():', '    for name in ():', 'test_sequence_reviews.SequenceReviewTests.test_required_membership_and_all_nonpassing_statuses_withhold_substantive_output'),
+    ('sequence-review-nonpassing-required-check', 'reviews/sequences.py', "        'review_ready':all(indexed[name]['status']=='passed' for name in SEQUENCE_CHECKS)}", "        'review_ready':all(indexed[name]['status']!='failed' for name in SEQUENCE_CHECKS)}", 'test_sequence_reviews.SequenceReviewTests.test_required_membership_and_all_nonpassing_statuses_withhold_substantive_output'),
+    ('sequence-review-checker-crash', 'adapters/sqlite/sequence_reviews.py', "                status, detail = 'unknown', 'Checker unavailable. No readiness or execution authority.'", "                status, detail = 'passed', 'Checker unavailable. No readiness or execution authority.'", 'test_sequence_reviews.SequenceReviewTests.test_required_membership_and_all_nonpassing_statuses_withhold_substantive_output'),
+    ('sequence-review-evidence-epoch-restore', 'adapters/sqlite/sequence_reviews.py', "        basis['review_authority'] = dict(authority) if authority else None", "        basis['review_authority'] = {k:v for k,v in dict(authority).items() if k!='evidence_epoch'} if authority else None", 'test_sequence_reviews.SequenceReviewTests.test_evidence_epochs_do_not_resurrect_when_pack_bytes_are_restored'),
+    ('sequence-review-later-decision', 'adapters/sqlite/sequence_reviews.py', "        if latest[0]!=approval_id or db.execute('SELECT 1 FROM sequence_review_revocations WHERE organization=? AND id=?',(organization,approval_id)).fetchone():", "        if db.execute('SELECT 1 FROM sequence_review_revocations WHERE organization=? AND id=?',(organization,approval_id)).fetchone():", 'test_sequence_reviews.SequenceReviewTests.test_reviewer_disable_reenable_and_expiry_block_stale_authority'),
+    ('sequence-review-revocation', 'adapters/sqlite/sequence_reviews.py', "        if latest[0]!=approval_id or db.execute('SELECT 1 FROM sequence_review_revocations WHERE organization=? AND id=?',(organization,approval_id)).fetchone():", '        if latest[0]!=approval_id:', 'test_sequence_reviews.SequenceReviewTests.test_reviewer_disable_reenable_and_expiry_block_stale_authority'),
+    ('sequence-review-output-facts', 'reviews/sequences.py', '    if output != sequence_summary(subject,report):', '    if False:', 'test_sequence_reviews.SequenceReviewTests.test_exact_operator_facts_reject_praise_missing_population_and_stale_subject'),
+    ('sequence-review-proposal-binding', 'adapters/sqlite/sequence_reviews.py', "        if (approval['decision']!='approve' or approval['proposal_id']!=proposal_id\n                or not approval['at']<=now<approval['expires_at']): raise Conflict('Approval does not authorize this exact sequence now')", "        if (approval['decision']!='approve' or not approval['at']<=now<approval['expires_at']): raise Conflict('Approval does not authorize this exact sequence now')", 'test_sequence_reviews.SequenceReviewTests.test_absent_purpose_and_other_proposal_approvals_never_admit_simulation'),
+
     ('sequence-stop-contact-merge-lineage', 'adapters/sqlite/engagement_stops.py',
      '        contact_identities=related_identities(contact_id,history),','        contact_identities=(),',
      'test_sequences.SequenceTests.test_contact_objection_follows_transitive_merges_across_connection_alias_and_restart'),
@@ -1551,7 +1562,7 @@ def run():
             target = test if "." in test else "test_failure_boundaries.FailureBoundaryTests." + test
             result = subprocess.run([sys.executable, "-m", "unittest", target],
                 cwd=directory, env=dict(os.environ, PYTHONPATH=os.pathsep.join(("src", "tests"))),
-                capture_output=True, text=True, timeout=30)
+                capture_output=True, text=True, timeout=300 if label.startswith('sequence-') else 30)
             # Import/syntax failures are invalid experiments, never killed mutants.
             valid = "Ran 1 test" in result.stderr and "Failed to import test module" not in result.stderr
             killed = valid and result.returncode != 0
