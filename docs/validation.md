@@ -1,5 +1,99 @@
 # Validation and limits
 
+## Recipient selected-review provenance follow-up
+
+Review of `76c53ac` found that corroborating observations could select one fact ID
+and citation while retaining the first observation's reviewed-mapping reference.
+The regression failed before the fix with `review-b` instead of the selected
+fact's `review-a`. Selection now reads all output provenance from the chosen
+observation. Both source orders, real SQLite publication and new-process replay
+retain the fact/review/citation relationship.
+
+New context artifacts use v2 so stored v1 bytes retain their original derivation.
+The compatibility test seeds valid prior-writer v1 artifacts independently:
+accurate provenance remains currently applicable, while mismatched provenance
+stays readable/replayable as historical and cannot validate current assertions.
+The same mismatch is rejected in a v2 artifact. No saved row is rewritten and
+neither format grants approval or outbound authority.
+
+The 20 recipient tests and `make arch-check` passed. The 77-test recipient/contact/
+strategy/profile selection passed on Python 3.11, 3.12 and 3.13. All 85 selected
+harmful mutation probes were detected, including the chosen-review regression and
+the separation of legacy reconstruction from v2 validation. The full mutation
+portfolio was not rerun. `make test` passed all 941 backend tests on Python 3.14
+with loopback access. Frontend files and historical campaign artifacts are unchanged.
+
+## Bounded recipient context, issue #64
+
+The confirmed path is a trusted local agent/operator request, current scoped
+contact assessment, one installed offline source read, creative-owned selection,
+atomic SQLite publication and historical replay/inspection. Source adapters
+attest reviewed mappings; raw source prose supplies neither instructions nor
+authority. No new model, copy, campaign, review, delivery or learning workflow is
+admitted. Live source truth, extraction quality and production data handling are
+unknown, not inferred from fixture success.
+
+| Protected outcome | Executable evidence | Independent authority and boundary |
+| --- | --- | --- |
+| Exact native contact/account receives the facts | Both companies and both supported channels retain the requested native references. Foreign organization, another provider account and coordinated target replacement cannot publish or validate | Current attested contact assessment and independently reconstructed association inside the write transaction |
+| A candidate cannot attest its own provenance or population | Rehashed fact replacement, omitted facts and source substitution fail; invalid subject/span packages are rejected. Selected document/excerpt hashes are checked with independent UTF-8 SHA-256 calculations | Frozen installed source manifest, declared package coverage and exact native target; this does not independently establish the semantic truth of a reviewed mapping |
+| Current permitted evidence determines usable specificity | Missing, expired source/fact, unreviewed, incomplete, source-use denial, fact-use denial, withdrawn and unknown partitions omit facts and return explicit missingness | Source and per-fact use/freshness, reviewed-mapping reference and independent campaign eligibility, never source instructions or a model score |
+| Newer restrictions cannot be erased by version or identity presentation | Equal-time conflicting roles survive omission and regrant; newer observations can resolve them. Another person's newer account evidence fences stale account claims while roles stay contact-specific. Profile/mapping changes preserve a newer withdrawal for the same native subject | Scoped native IDs and greatest observation time with all tied conflicts; history constrains candidates but supplies no copied fact or grant |
+| Context stays minimal and bounded | One requested slot does not expose others; fact caps and the exact serialized prompt-data character budget omit whole facts. Reordering permission sets does not create false contradictions | Explicit requested slots and frozen typed guidance, bounded to four facts and 2,000 prompt-data characters |
+| Untrusted content cannot become instructions or retained raw text | Injected instructions and credential sentinels across all five document kinds, including cited spans, appear in neither prompt projections, receipts nor stored manifests. A source URL cannot become a retrieval target | Closed reviewed fact vocabulary and fixed rendering; installed source keys only, no arbitrary HTTP, file, credential or effect capability |
+| Exact replay freezes guidance and source selection | A new Python process recovers the same context; changed guidance does not retrieve or replace it. Changed source/version/slots/contact/cap conflicts; new keys can use new guidance | Organization/request key, exact canonical explicit inputs and immutable artifact bytes; historical derivation uses original manifests, guidance and time |
+| Publication is atomic and current | Objection during retrieval, paused state before commit, objection after write and expiry after write prevent publication. All source, pointer, context and receipt rows roll back; a changed-input two-writer schedule commits one result | Current assessment/source reconstruction and post-write checks under one SQLite writer transaction |
+| Provider failure stays observable and bounded | One failed read produces `retrieval_unavailable`, no raw exception and no retry on exact replay | Offline source contract and durable exact receipt; no paid or uncertain external effect is supported |
+| Migration and restore preserve authority and history | Real schema-18 migration failure rolls back DDL/version and retains audience bytes and the legacy admission cutoff. Cold backup/restore retains recipient rows and refuses new preparation without changing restored bytes | Schema 19 forward migration and existing verified-paused/inspection-only guards; old binaries reject the new schema |
+| Existing artifacts and authority remain separate | Exact factual wording/target checks reject invented statements. Preparation creates no task, model call, campaign, review decision or simulator job. Differential comparisons retain existing campaign/profile/contact/decision artifacts | Separate creative-owned tables and typed contracts; validation and historical receipts confer no approval or execution authority |
+
+The selected interaction clusters are native identity/history/profile lifecycle,
+fact/source/use/freshness, untrusted content/projection/retention, and
+timeline/replay/store mode. Eighteen new tests exercise real SQLite, fresh Python
+processes, a two-writer schedule, controlled source failures and commit-time fault
+injection. The existing checkpoint round-trip test now includes recipient context.
+
+Within that bounded model: 4/4 profile/channel combinations retain exact subjects;
+5/5 supported document kinds contain injected text without source-body leakage;
+9/9 selected unavailable/unsafe-evidence partitions omit specificity; and four
+selected publication interleavings reject stale or paused work. These counts do
+not establish complete concurrency coverage or live provider/model robustness.
+
+The native-history counter-review reproduced a false current role through the
+accepted source/store contracts: an attested profile/mapping change hid a newer
+withdrawal under the previous profile. The regression failed before the fix.
+History now follows exact native subject IDs across those presentation changes;
+neither history collection nor interpretation filters out the earlier constraint.
+This distinction matters even when installed fixtures have distinct provider
+accounts. Both filtering regressions have independent harmful mutation probes.
+
+Verification on 14 November 2026, based on merged main
+`f3c0d5ddee50f583f5f4c5cb7097e3ad0f625ee8`:
+
+- The initial 101-test focused selection and checkpoint round trip passed. The
+  final 28-test recipient/initialization/architecture selection passed after the
+  native-history fix. An earlier full run was superseded by that fix.
+- `make test`: all 939 backend tests passed on Python 3.14 with loopback access.
+  `make arch-check` passed. The final 75-test recipient/contact/strategy/profile
+  selection passed on Python 3.11, 3.12 and 3.13.
+- All 83 selected harmful mutation probes were detected, covering recipient
+  context, the preceding foundations and affected migration/checkpoint boundaries.
+  The full declared mutation portfolio was not rerun. The exact-request probe
+  removes both redundant input-binding checks; removing just one left the other
+  protection intact.
+- Seven differential comparisons against an isolated merge export matched exact
+  digests: the legacy campaign/snapshot/CSVs, both company profile proposals, both
+  contact assessments and both audience decisions. Installed configuration and
+  historical examples have no diff from the merge.
+- Frontend files are unchanged. No real provider, customer data, paid inference,
+  recipient or sender was exercised.
+
+Residual scope: no live CRM extraction, semantic classification quality,
+personalized-message validation, hosted authentication, production retention or
+deletion, provider-side data handling or remote-effect recovery is established.
+See [recipient context](recipient-context.md) for the implemented vocabulary,
+port contract, retention/redaction expectations and later integration boundary.
+
 ## Frozen audience strategies, issue #63
 
 The evidence inventory for this slice inspected the schema-18 contact journal,

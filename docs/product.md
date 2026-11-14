@@ -16,6 +16,8 @@ The supplied audience already has segment and propensity metadata. The applicati
 
 An additive [audience strategy API](audience-strategies.md) categorizes frozen synthetic contact features and ranks them using replaceable offline strategies. Its ordinal fit score is separate from postal propensity. Independent hard checks, integer budgets and account-level assignment produce immutable, non-executable proposals; this API does not yet prepare email campaigns or call tasks in the workspace.
 
+The [recipient context API](recipient-context.md) retrieves minimal reviewed synthetic observations for an exact contact/account. It qualifies factual statements as recorded observations, binds citations and permitted use, and omits stale, contradictory or missing specificity. These context artifacts provide a foundation for later personalized content; the workspace's current copy workflow keeps its existing contracts.
+
 The campaign manifest binds source snapshot, creative identities, experiment assignments, counts, money and exported file hashes. Currency calculations use integer pence. Source population counts reconcile with exclusions, controls and mailing recipients. A high-score selected cohort does not represent all businesses, so observed lift cannot be generalized to a wider market without further evidence.
 
 ## Copy that can be inspected
