@@ -5,6 +5,7 @@ from contextlib import closing
 from concurrent.futures import ThreadPoolExecutor
 import copy
 import json
+import os
 from pathlib import Path
 import sqlite3
 import subprocess
@@ -20,6 +21,10 @@ from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.engagements import SimulationReceipt, validate_step_transition
 from acquisition.runtime import LeaseLost
 from acquisition.adapters.sqlite.database import Database
+from acquisition.adapters.contact_fixtures import RecordedContactSource
+from acquisition.adapters.recipient_fixtures import RecordedRecipientContextSource, synthetic_recipient_evidence
+from acquisition.audiences import ContactDirectory
+from acquisition.creative import RecipientContexts
 
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -98,6 +103,136 @@ class SequenceTests(unittest.TestCase):
     def event(self, app, simulation, step, kind, key=None):
         return app.engagements.observe('one',key or kind+'-'+step['id'],simulation,step['id'],
             step['submission']['provider_effect_id'],kind,self.now)
+
+    def merged_sources(self, original, scope, selected):
+        # Re-keying the connection cannot erase its attested native merge ancestry.
+        connection=replace(original.connection,key='fielddesk-crm-alias',mapping_version='mapping-v2')
+        def ref(value):return replace(value,connection=connection)
+        alias=replace(original,connection=connection,
+            accounts=tuple(replace(a,ref=ref(a.ref)) for a in original.accounts),
+            contacts=tuple(replace(p,ref=ref(p.ref),accounts=tuple(ref(a) for a in p.accounts)) for p in original.contacts),
+            permissions=tuple(replace(p,contact=ref(p.contact)) for p in original.permissions),
+            pressure=tuple(replace(p,contact=ref(p.contact)) for p in original.pressure))
+        if scope=='contact':
+            old=next(p for p in alias.contacts if p.ref.id==selected['contact_id'])
+            peer=next(p for p in alias.contacts if p.ref.id!=old.ref.id and p.accounts==old.accounts)
+            second=replace(alias,version=2,observed_at=alias.observed_at+60,
+                contacts=tuple(replace(p,state='merged',merged_into=peer.ref) if p.ref==old.ref else p for p in alias.contacts))
+            newcomer=replace(peer,ref=replace(peer.ref,native_id='4'))
+            third=replace(second,version=3,observed_at=alias.observed_at+120,declared_contacts=4,
+                contacts=(*tuple(replace(p,state='merged',merged_into=newcomer.ref) if p.ref==peer.ref else p for p in second.contacts),newcomer),
+                permissions=(*second.permissions,*tuple(replace(p,contact=newcomer.ref) for p in second.permissions if p.contact==peer.ref)),
+                pressure=(*second.pressure,*tuple(replace(p,contact=newcomer.ref) for p in second.pressure if p.contact==peer.ref)))
+            return (original,alias,second,third),newcomer.ref.id,old.accounts[0].id
+        old=next(a for a in alias.accounts if a.ref.id==selected['account_id'])
+        survivor=next(a for a in alias.accounts if a.ref.id!=old.ref.id)
+        second=replace(alias,version=2,observed_at=alias.observed_at+60,
+            accounts=tuple(replace(a,state='merged',merged_into=survivor.ref) if a.ref==old.ref else a for a in alias.accounts))
+        person=next(p for p in second.contacts if p.accounts==(survivor.ref,))
+        return (original,alias,second),person.ref.id,survivor.ref.id
+
+    def fresh_merged_request(self, app, snapshots, prefix):
+        store=app.campaigns.store;contacts=store.contacts
+        contacts.source=RecordedContactSource('one',snapshots)
+        directory=ContactDirectory(contacts.source,contacts)
+        for index,snapshot in enumerate(snapshots[1:]):
+            directory.refresh('one',prefix+'-refresh-'+str(index),snapshot.connection.key,snapshot.version)
+        channel=build_channel_preparation(self.path,'one','fielddesk',lambda:self.now)
+        channel.store.recipients.contacts=contacts
+        evidence={}
+        for snapshot in snapshots:
+            for item in synthetic_recipient_evidence(snapshot):evidence.setdefault((item.target.id,item.source_key,item.version),item)
+        source=RecordedRecipientContextSource('one',tuple(evidence.values()))
+        channel.store.recipients.source=source
+        contexts=RecipientContexts(source,channel.store.recipients,channel.store.recipients.guidance)
+        final=snapshots[-1]
+        for kind in ('email','human_call'):
+            assessment=directory.prepare('one',prefix+'-assessment-'+kind,final.connection.key,final.version,kind)
+            if kind=='email':email=assessment
+            keys=[]
+            for i,person in enumerate(assessment['report']['eligible']):
+                key=prefix+'-context-'+kind+str(i);keys.append(key)
+                contexts.prepare('one',key,assessment['assessment_id'],person,'reviewed-context-a',1)
+            result=channel.prepare('one',prefix+'-content-'+kind,'fielddesk',keys,kind)
+            self.assertTrue(result['ready_for_review'])
+        decisions=build_audience_decisions(self.path,'one','fielddesk',clock=lambda:self.now)
+        decisions.store.contacts=contacts
+        units={r['experiment_unit'] for r in email['report']['rows'] if r['eligible_for_preparation']}
+        seed=next(s for s in range(100) if all(int(digest({'algorithm':'contact-account-hash/v1','organization':'one',
+            'profile':final.profile_id,'channel':'email','seed':s,'unit':u}),16)%10!=0 for u in units))
+        decision=decisions.prepare('one',prefix+'-decision',email['assessment_id'],budget_pence=1000,unit_cost_pence=1,max_candidates=6,seed=seed)
+        store.channels=channel.store;store.decisions=decisions.store
+        return self.request(decision_request=prefix+'-decision',initial_content=prefix+'-content-email',
+            call_content=prefix+'-content-human_call',followup_content=prefix+'-content-email'),decision
+
+    def test_contact_objection_follows_transitive_merges_across_connection_alias_and_restart(self):
+        app,proposal,simulation=self.start(stop_scope='contact');view=app.engagements.advance('one',simulation)
+        original=app.campaigns.store.contacts.source.read('one','fielddesk-crm-a',1)
+        account=original.accounts[0].ref.id
+        selected=next(s for s in view['steps'] if s['ordinal']==0 and s['account_id']==account)
+        self.event(app,simulation,selected,'objected')
+        snapshots,survivor,_=self.merged_sources(original,'contact',selected)
+        request,decision=self.fresh_merged_request(app,snapshots,'contact-merge')
+        self.assertIn(survivor,{r['contact_id'] for r in decision['decision']['plan']['allocations']})
+        before=self.counts()
+        with self.assertRaises(Conflict):app.campaigns.prepare('one','after-contact-merge',request)
+        self.assertEqual(self.counts(),before)
+        self.assertEqual(app.campaigns.inspect('one',proposal['proposal_id'])['saved'],proposal['saved'])
+        code='''
+import json,sqlite3,sys
+from contextlib import closing
+from pathlib import Path
+from test_sequences import SequenceTests,NOW
+from acquisition.audiences import contact_snapshot_from
+from acquisition.contracts import Conflict
+h=SequenceTests('test_contact_objection_follows_transitive_merges_across_connection_alias_and_restart')
+h.path=Path(sys.argv[1]);h.now=NOW
+with closing(sqlite3.connect(h.path)) as db:
+ snapshots=[contact_snapshot_from(json.loads(r[0])) for r in db.execute('SELECT payload FROM contact_sources')]
+snapshots.sort(key=lambda s:(s.connection.key!='fielddesk-crm-a',s.version))
+a=h.app();request,_=h.fresh_merged_request(a,tuple(snapshots),'contact-merge')
+try:a.campaigns.prepare('one','after-contact-merge',request)
+except Conflict:print(json.dumps({'blocked':True,'counts':h.counts()}))
+else:raise AssertionError('Merge ancestry lost after restart')
+'''
+        process=subprocess.run([sys.executable,'-c',code,str(self.path)],cwd=ROOT,text=True,capture_output=True,
+            env=dict(os.environ,PYTHONPATH=os.pathsep.join((str(ROOT/'src'),str(ROOT/'tests')))))
+        self.assertEqual(process.returncode,0,process.stderr)
+        self.assertTrue(json.loads(process.stdout)['blocked'])
+        self.assertEqual(json.loads(process.stdout)['counts'],before)
+
+    def test_account_merge_carries_late_objection_to_surviving_pending_sequence_and_new_proposals(self):
+        for timing in ('before','after'):
+            self.path=Path(self.temp.name)/(timing+'.sqlite');self.copy_template()
+            app,proposal,simulation=self.start();view=app.engagements.advance('one',simulation)
+            original=app.campaigns.store.contacts.source.read('one','fielddesk-crm-a',1)
+            unrelated=app.campaigns.store.contacts.source.read('one','fielddesk-crm-b',1)
+            selected=next(s for s in view['steps'] if s['ordinal']==0 and s['account_id']==original.accounts[0].ref.id)
+            if timing=='before':self.event(app,simulation,selected,'objected')
+            snapshots,survivor,account=self.merged_sources(original,'account',selected)
+            request,decision=self.fresh_merged_request(app,snapshots,'account-merge')
+            self.assertIn(survivor,{r['contact_id'] for r in decision['decision']['plan']['allocations']})
+            if timing=='after':
+                fresh=app.campaigns.prepare('one','before-late-objection',request)
+                self.assertEqual({m['contact_id'] for m in fresh['saved']['population']},{survivor})
+                pending=app.engagements.start('one','surviving-account',fresh['proposal_id'])['simulation_id']
+                self.event(app,simulation,selected,'objected')
+                current=app.engagements.inspect('one',pending)
+                self.assertEqual({s['status'] for s in current['steps']},{'stopped'})
+                self.assertEqual(current['totals']['accepted'],0)
+            else:
+                current=app.engagements.advance('one',simulation)
+                self.assertEqual({s['status'] for s in current['steps'] if s['ordinal']>0},{'stopped'})
+                self.assertEqual(current['totals']['accepted_call_tasks'],0)
+            with self.assertRaises(Conflict):app.campaigns.prepare('one','after-account-merge',request)
+            with app.campaigns.store.database.connect() as db:
+                stop=db.execute('SELECT subject_id,payload FROM engagement_stops WHERE organization=?',('one',)).fetchone()
+                self.assertEqual(stop['subject_id'],selected['account_id'])
+                self.assertEqual(json.loads(stop['payload'])['step_id'],selected['id'])
+                from acquisition.adapters.sqlite.engagement_stops import native_engagement_stop
+                self.assertIsNone(native_engagement_stop(db,app.campaigns.store.contacts,'one',None,
+                    unrelated.contacts[0].ref.id,unrelated.accounts[0].ref.id))
+            self.assertEqual(app.campaigns.inspect('one',proposal['proposal_id'])['saved'],proposal['saved'])
 
     def test_two_profiles_full_strategy_keeps_exact_units_arms_costs_capacity_and_distinct_observations(self):
         for profile in ('fielddesk','iwoca'):

@@ -1,5 +1,36 @@
 # Validation and limits
 
+## Sequence objection merge-history follow-up
+
+Review of `552a684` found that engagement objections matched exact native IDs,
+so a surviving contact or account could escape an earlier objection after a
+merge. The regressions failed before the fix: a new proposal was admitted after
+a transitive contact merge, and an account survivor's pending steps remained
+pending after a late objection against the original account.
+
+The SQLite composition now resolves native constraints through audiences'
+public `related_identities` function and organization-scoped immutable contact
+history. Proposal checks, step admission/commit checks and immediate pending-step
+propagation use the same ancestry semantics. Engagements' pure stop policy
+matches against those resolved sets; neither execution targets nor permission
+grants are inherited through a merge. Historical objection subjects, proposals,
+enrollments, intents and accepted observations retain their original bytes.
+No schema or approval-purpose change is required.
+
+Real SQLite cases cover a two-hop contact merge under a new connection alias,
+a fresh interpreter replay, and account objections both before and after the
+merge. They verify that an independently current survivor cannot produce a new
+proposal, that existing work is stopped, that another provider's same local
+native IDs remain unrelated, and that the saved history is unchanged. Four new
+mutation probes separately remove contact ancestry, account ancestry, pending
+propagation and execution admission. All 22 selected sequence probes were
+detected. The 43-test sequence/contact selection passed on Python 3.11, 3.12 and
+3.13. The fresh-interpreter case also passed standard test discovery on Python
+3.11 through 3.14 with explicit application/fixture import paths. `make test`
+passed all 978 backend tests on Python 3.14 with loopback access, after correcting
+that test-harness import setup. `make arch-check` and `git diff --check` passed.
+The full mutation portfolio was not rerun. Frontend files are unchanged.
+
 ## Multichannel sequence simulation, issue #66
 
 Confirmed boundary: a trusted local agent/operator prepares an immutable

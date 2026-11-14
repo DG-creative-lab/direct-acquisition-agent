@@ -102,6 +102,11 @@ rejection grants call permission: the call was already in the proposal and must
 pass its own current channel checks. A follow-up waits for explicit completion
 of an accepted human task. It never assumes a conversation happened.
 
+Native objections follow attested contact/account merge ancestry, including
+transitive merges and connection aliases, during proposal checks, step checks
+and pending-step updates. This carries a constraint to surviving identities;
+it never rewrites historical targets or supplies permission to contact them.
+
 Unknown or partial submissions block dependent steps and retain their maximum
 unresolved cost. An expired reservation without a receipt becomes unknown.
 There is no automatic retry, provider switch, live reconciliation or automatic

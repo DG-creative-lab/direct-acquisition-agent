@@ -7,8 +7,9 @@ import uuid
 from acquisition.campaigns import sequence_text, sequence_time
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.engagements import (DispatchClaim, SimulationReceipt, make_intent,
-    validate_simulation_receipt, validate_observation, simulation_totals, validate_step_transition, applicable_stop, step_wait_reason)
+    validate_simulation_receipt, validate_observation, simulation_totals, validate_step_transition, step_wait_reason)
 from acquisition.runtime import LeaseLost
+from .engagement_stops import native_engagement_stop, native_stop_subjects
 
 
 class SqliteEngagements:
@@ -105,9 +106,7 @@ class SqliteEngagements:
             return result|{'observation':'simulation_started'}
 
     def _stop_action(self, db, organization, simulation_id, row):
-        stops=[dict(r) for r in db.execute('SELECT * FROM engagement_stops WHERE organization=? AND (simulation_id IS NULL OR simulation_id=?)',
-                                          (organization,simulation_id))]
-        return applicable_stop(stops,simulation_id,row['contact_id'],row['account_id'])
+        return native_engagement_stop(db,self.proposals.contacts,organization,simulation_id,row['contact_id'],row['account_id'])
 
     def _allowed(self, db, organization, simulation_id, row, proposal, intent):
         action=self._stop_action(db,organization,simulation_id,row)
@@ -204,9 +203,9 @@ class SqliteEngagements:
         parameters=[organization]; clause=''
         if simulation_id is not None: clause+=' AND simulation_id=?'; parameters.append(simulation_id)
         column={'contact':'contact_id','account':'account_id','simulation':'simulation_id'}[scope]
-        clause+=' AND '+column+'=?'; parameters.append(subject)
+        subjects=native_stop_subjects(db,self.proposals.contacts,organization,scope,subject)
         for row in db.execute("SELECT * FROM engagement_steps WHERE organization=? AND status IN ('pending','paused')"+clause,parameters).fetchall():
-            self._transition(db,row,'stopped' if action=='stop' else 'paused')
+            if row[column] in subjects:self._transition(db,row,'stopped' if action=='stop' else 'paused')
 
     def observe(self, organization, request_id, simulation_id, step_id, provider_effect_id, kind, occurred_at):
         inputs={'kind':'simulate_observation/v1','simulation_id':simulation_id,'step_id':step_id,

@@ -67,14 +67,14 @@ def validate_step_transition(before, after):
     if after not in TRANSITIONS.get(before,()): raise Conflict('Illegal engagement step transition')
 
 
-def applicable_stop(stops, simulation_id, contact_id, account_id):
+def applicable_stop(stops, simulation_id, contact_id, account_id, *, contact_identities=(), account_identities=()):
     actions=[]
     for stop in stops:
         if stop['simulation_id'] is not None and stop['simulation_id']!=simulation_id:continue
         if stop['scope'] not in {'simulation','contact','account'} or stop['action'] not in {'pause','stop'}:
             raise Conflict('Unsupported engagement stop policy')
-        subject={'simulation':simulation_id,'contact':contact_id,'account':account_id}[stop['scope']]
-        if stop['subject_id']==subject:actions.append(stop['action'])
+        subjects={'simulation':{simulation_id},'contact':{contact_id,*contact_identities},'account':{account_id,*account_identities}}[stop['scope']]
+        if stop['subject_id'] in subjects:actions.append(stop['action'])
     return 'stopped' if 'stop' in actions else 'paused' if 'pause' in actions else None
 
 

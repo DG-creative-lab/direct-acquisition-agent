@@ -9,6 +9,7 @@ from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.creative import recipient_target_from
 from .creative import read_context
 from .admission_guard import verified_required
+from .engagement_stops import native_engagement_stop
 
 
 SEQUENCES='''
@@ -158,9 +159,7 @@ class SqliteSequenceProposals:
         for member in decision['plan']['allocations']:
             if member['arm']=='no_contact': continue
             account=identities[member['contact_id']]['account_id']
-            if db.execute("""SELECT 1 FROM engagement_stops WHERE organization=? AND simulation_id IS NULL
-                AND action='stop' AND ((scope='contact' AND subject_id=?) OR (scope='account' AND subject_id=?))""",
-                (organization,member['contact_id'],account)).fetchone():
+            if native_engagement_stop(db,self.contacts,organization,None,member['contact_id'],account)=='stopped':
                 raise Conflict('Frozen treatment population contains an objected native recipient or account')
         materials={stage:self._material(db,organization,key) for stage,key in (
             ('initial',request.initial_content),('call',request.call_content),('followup',request.followup_content))}

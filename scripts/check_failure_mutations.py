@@ -10,6 +10,18 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ('sequence-stop-contact-merge-lineage', 'adapters/sqlite/engagement_stops.py',
+     '        contact_identities=related_identities(contact_id,history),','        contact_identities=(),',
+     'test_sequences.SequenceTests.test_contact_objection_follows_transitive_merges_across_connection_alias_and_restart'),
+    ('sequence-stop-account-merge-lineage', 'adapters/sqlite/engagement_stops.py',
+     '        account_identities=related_identities(account_id,history))','        account_identities=())',
+     'test_sequences.SequenceTests.test_account_merge_carries_late_objection_to_surviving_pending_sequence_and_new_proposals'),
+    ('sequence-stop-merged-pending-propagation', 'adapters/sqlite/engagement_stops.py',
+     '    return related_identities(subject_id,contacts._history(db,organization))','    return {subject_id}',
+     'test_sequences.SequenceTests.test_account_merge_carries_late_objection_to_surviving_pending_sequence_and_new_proposals'),
+    ('sequence-stop-step-lineage-admission', 'adapters/sqlite/engagements.py',
+     "        return native_engagement_stop(db,self.proposals.contacts,organization,simulation_id,row['contact_id'],row['account_id'])",'        return None',
+     'test_sequences.SequenceTests.test_account_merge_carries_late_objection_to_surviving_pending_sequence_and_new_proposals'),
     ('sequence-independent-responding-units', 'engagements/domain.py',
      "        'responded':len({by_id[o['step_id']]['intent']['experiment_unit'] for o in observations if o['kind']=='replied'}),",
      "        'responded':sum(o['kind']=='replied' for o in observations),",
