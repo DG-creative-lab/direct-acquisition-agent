@@ -129,6 +129,7 @@ def native_execution_exists(db, organization, conversation_id, new_run_id):
             OR (capability IN ('conversations.route.v1','conversations.route.v2','conversations.route.v3')
                 AND json_extract(inputs,'$.inputs.conversation_id')=:conversation)))
         OR (:org='local-conversations' AND json_extract(inputs,'$.brief.conversation_id')=:conversation)
+        OR (json_extract(inputs,'$.journey.organization')=:org AND json_extract(inputs,'$.journey.conversation_id')=:conversation)
     LIMIT 1""", {'org': organization, 'conversation': conversation_id, 'new_run': new_run_id}).fetchone() is not None
 
 
@@ -140,6 +141,11 @@ def unreconciled_call_exists(db, organization, conversation_id, *, account_exist
     scope = (organization, conversation_id)
     # Conversation campaigns can run under a different organization. Include
     # their native brief scope even if every link to that campaign was lost.
+    journey_scopes = ("""UNION
+        SELECT json_extract(inputs,'$.native_organization') FROM sequence_journeys
+        WHERE organization=:org AND conversation_id=:conversation
+          AND json_extract(inputs,'$.native_organization') IS NOT NULL
+        """ if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='sequence_journeys'").fetchone() else '')
     receipts = db.execute('''WITH run_organizations AS (
         SELECT :org AS organization
         UNION
@@ -148,7 +154,12 @@ def unreconciled_call_exists(db, organization, conversation_id, *, account_exist
         SELECT r.organization FROM runs r JOIN tasks t ON t.run_id=r.id
         WHERE :org='local-conversations' AND
             json_extract(CASE WHEN json_valid(t.inputs) THEN t.inputs END,'$.brief.conversation_id')=:conversation
-    )
+        UNION
+        SELECT COALESCE(r.organization,c.organization) FROM tasks t
+        LEFT JOIN runs r ON r.id=t.run_id LEFT JOIN model_calls c ON c.task_id=t.id AND c.run_id=t.run_id
+        WHERE json_extract(CASE WHEN json_valid(t.inputs) THEN t.inputs END,'$.journey.organization')=:org
+          AND json_extract(CASE WHEN json_valid(t.inputs) THEN t.inputs END,'$.journey.conversation_id')=:conversation
+    '''+journey_scopes+''')
     SELECT c.organization,c.run_id,r.organization AS run_organization,r.request_hash,
         e.owner_organization,e.conversation_id,e.revision,MIN(t.id IS NOT NULL) AS complete_tasks
         FROM model_calls c
@@ -185,7 +196,7 @@ def unreconciled_call_exists(db, organization, conversation_id, *, account_exist
                 intent = binding(db, run_scope, run_id) if has_admissions else None
                 if intent is None or intent.ownership.kind != 'standalone':
                     return True
-        except (Conflict, KeyError, TypeError, ValueError, AttributeError):
+        except (Conflict, NotFound, KeyError, TypeError, ValueError, AttributeError):
             return True
     return False
 
@@ -264,6 +275,10 @@ def run_origin(db, organization, run_id, ancestors=(), memo=None):
             origin = (organization, inputs['conversation_id'], inputs['revision'])
         elif row['capability'] in {'conversations.route.v1', 'conversations.route.v2', 'conversations.route.v3'}:
             origin = (organization, inputs['inputs']['conversation_id'], inputs['inputs']['revision'])
+        elif inputs.get('journey'):
+            from .sequence_journeys import require_journey_origin
+            require_journey_origin(db,organization,inputs['journey'],current=False)
+            origin=(inputs['journey']['organization'],inputs['journey']['conversation_id'],inputs['journey']['revision'])
         elif inputs.get('brief', {}).get('conversation_id'):
             brief = inputs['brief']
             origin = ('local-conversations', brief['conversation_id'], brief['conversation_revision'])

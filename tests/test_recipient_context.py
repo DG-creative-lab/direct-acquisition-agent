@@ -502,7 +502,7 @@ class RecipientMigrationTests(unittest.TestCase):
                 self.assertEqual(db.execute('SELECT payload FROM audiences').fetchone()[0],saved)
             Database(path)
             with database.connect() as db:
-                self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],22)
+                self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],23)
                 self.assertEqual(tuple(db.execute('SELECT * FROM legacy_task_admissions').fetchone()),('one','old','old-hash'))
                 self.assertEqual(db.execute('SELECT payload FROM audiences').fetchone()[0],saved)
 

@@ -232,6 +232,9 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200,self.server.workspace.comment_artifact(parts[2],**data))
                 if parts[3] == 'stop' and set(data)=={'request_id','expected_revision'}:
                     return self._send(200,self.server.workspace.stop_execution(parts[2],**data))
+                sequence_fields={'sequence-approve':{'subject_id','reason'},'sequence-stop':set(),'sequence-task-completed':{'step_id'}}
+                if parts[3] in sequence_fields and set(data)=={'journey_id','request_id','expected_revision'}|sequence_fields[parts[3]]:
+                    return self._send(202,self.server.workspace.sequence_command(parts[2],parts[3],**data))
                 if parts[3] == 'actions' and set(data)=={'request_id','expected_revision','content','allow_model_copy'}:
                     return self._send(202,self.server.workspace.route_followup(parts[2],**data))
                 if parts[3] == 'confirm-action' and set(data)=={'request_id','action_id','target_id','expected_revision'}:
@@ -242,6 +245,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200,self.server.workspace.confirm_copy_followup(parts[2],**data))
                 if parts[3] == 'budget-replies' and set(data) == {'request_id', 'expected_revision', 'plan_id', 'content'}:
                     return self._send(200, self.server.workspace.reply_budget_conversation(parts[2], **data))
+                if parts[3] == "sequence-messages" and set(data) == {"request_id", "expected_revision", "content"}:
+                    return self._send(202,self.server.workspace.message_conversation(parts[2],**data))
                 if parts[3] == "messages" and set(data) == {"request_id", "expected_revision", "content"}:
                     return self._send(200, self.server.workspace.message_conversation(parts[2], **data))
                 if parts[3] == "plan" and set(data) == {"request_id", "expected_revision"}:

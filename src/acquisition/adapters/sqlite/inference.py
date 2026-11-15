@@ -42,6 +42,9 @@ class SqliteCalls:
                     or task["token"] != scope.lease_token or task["lease_until"] <= now):
                 raise LeaseLost("Inference attempt has no active task lease")
             inputs = json.loads(task["inputs"])
+            if 'journey' in inputs:
+                from .sequence_journeys import require_journey_origin
+                require_journey_origin(connection,scope.organization,inputs['journey'])
             audience_source = None
             if inputs.get("workflow_version") == "copy-revision/v3":
                 try:
@@ -90,6 +93,8 @@ class SqliteCalls:
                 raise LeaseLost("Inference requires a finite clock reading")
             if task["lease_until"] <= reservation_time:
                 raise LeaseLost("Inference attempt expired before reservation")
+            if 'journey' in inputs:
+                require_journey_origin(connection,scope.organization,inputs['journey'])
             if audience_source is not None:
                 try:
                     validate_dataset_freshness(audience_source, datetime.fromtimestamp(reservation_time, timezone.utc).date())

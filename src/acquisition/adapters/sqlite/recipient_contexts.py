@@ -159,7 +159,8 @@ class SqliteRecipientContexts:
                    (organization,request_id,canonical(self._inputs(request)),canonical(receipt)))
 
     def publish(self, organization, request_id, request, basis, guidance, evidence):
-        with self.contacts.database.transaction() as db:
+        from .sequence_journeys import journey_transaction
+        with journey_transaction(self.contacts.database,organization,request_id) as db:
             self._writable(db)
             replay = self._replay(db,organization,request_id,request)
             if replay: return replay

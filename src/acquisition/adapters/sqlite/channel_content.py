@@ -78,6 +78,9 @@ class SqliteChannelContent:
         return result
 
     def _current(self, db, organization, context):
+        if 'journey' in context:
+            from .sequence_journeys import require_journey_origin
+            require_journey_origin(db,organization,context['journey'])
         validate_channel_context(context,organization,self._today())
         command = ChannelContentRequest(**(context['command'] | {'recipient_requests':tuple(context['command']['recipient_requests'])}))
         profile = self.profiles.campaign_profile(organization,command.profile_key,'v1')
@@ -95,10 +98,11 @@ class SqliteChannelContent:
         return value
 
     def admit(self, organization, request_id, command):
+        from .sequence_journeys import journey_transaction, channel_journey_origin
         from acquisition.audiences import bounded
         bounded(request_id)
         inputs = canonical(asdict(command))
-        with self.database.transaction() as db:
+        with journey_transaction(self.database,organization,request_id) as db:
             self._writable(db)
             old = db.execute('SELECT inputs,run_id FROM channel_preparations WHERE organization=? AND request_id=?',
                              (organization,request_id)).fetchone()
@@ -123,6 +127,8 @@ class SqliteChannelContent:
                 'preferences':self.memory.examples_snapshot(organization,tuple(sorted({r['segment'] for r in recipients}))),
                 'model_config':self.config.payload()}
             context = json.loads(canonical(context))
+            origin=channel_journey_origin(db,organization,request_id,command)
+            if origin is not None:context['journey']=origin
             kinds = {'guidance':'authored_guidance','product':'product_evidence','recipients':'recipient_evidence',
                      'policy':'channel_policy','preferences':'reviewer_preference'}
             payloads = channel_source_payloads(context)
@@ -136,7 +142,9 @@ class SqliteChannelContent:
             existing = db.execute('SELECT payload FROM creative_contexts WHERE organization=? AND id=?',(organization,identity)).fetchone()
             if existing is None: db.execute('INSERT INTO creative_contexts VALUES(?,?,?)',(organization,identity,canonical(context)))
             elif existing[0]!=canonical(context): raise Conflict('Channel context identity collision')
-            spec = TaskSpec(CAPABILITY,{'workflow_version':'channel-content/v1','context_id':identity,'model_config':self.config.payload()},max_attempts=3)
+            task_inputs={'workflow_version':'channel-content/v1','context_id':identity,'model_config':self.config.payload()}
+            if origin is not None:task_inputs['journey']=origin
+            spec = TaskSpec(CAPABILITY,task_inputs,max_attempts=3)
             run_id = insert_run(db,organization,'channel:'+request_id,[spec],self._now())
             bind_run(db,organization,run_id,new_run=True)
             db.execute('INSERT INTO channel_preparations VALUES(?,?,?,?,?)',(organization,request_id,inputs,run_id,identity))

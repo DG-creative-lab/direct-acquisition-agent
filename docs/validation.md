@@ -1807,3 +1807,32 @@ Verification for workspace monitoring controls passed with 864 backend tests,
 108 browser tests, the production build, formatting, architecture and all
 385 declared mutation probes. The committed-request rejection assertion also
 passed in its final focused run. Reports and outcomes in these checks are synthetic.
+
+
+## Conversational multichannel authority and recovery
+
+See the [bounded validation model](conversational-sequences.md#validation-model). The new real-SQLite tests cover both installed companies from one objective to unapproved review, one exact confirmation through synthetic completion, explicit human task observations, read-only replay, subprocess recovery, atomic message admission, original consent and keys, stale material revisions, cancellation during a reserved model call, late usage without publication, detached native inputs, reviewer disablement, organization scope, verified-mode rejection and schema-22 history preservation. Cheap interpretation cases cover fuzzy uniqueness, focused ambiguity, unsupported scope and complete replacement objectives. Browser cases exercise the same server authorities through chat. Existing approval, full-basis expiry and transactional acceptance regressions are retained. Verification results and the bounded invariant ledger follow.
+
+
+| Protected invariant | Trigger and independent observable evidence |
+| --- | --- |
+| Installed scope is retained | Pure cases resolve both profiles and a unique typo; ambiguous scope asks one question. Country, provider, company, connection and budget substitutions are rejected rather than replaced. |
+| Preparation and publication retain their source | Material edits and stop during a reserved call retain one recorded usage receipt, produce no artifact and admit no next call. Unknown outcomes retain the original run and reservation. |
+| Conversation allowance cannot reset through native scope | A real prepared journey loses task origin fields, execution links and optionally its account. Immutable journey scope still locates receipts; allowance stays unknown and a new message/admission cannot commit. |
+| Human review binds the exact proposal | Both company journeys reach an unapproved subject. One confirmation completes their bounded simulation; a different subject/reason, source revision, tenant or disabled reviewer cannot acquire authority. Existing full-basis expiry and native acceptance checks remain in force. |
+| Restart reuses original effects and observations | A subprocess resumes original review and simulation keys. Failure after native human-task observation and clock advancement replays its frozen time. A stale tab's second key remains the same logical observation and the journey completes. |
+| History survives schema changes | A real schema-22 store retains original artifact bytes and legacy cutoff. Failure after schema-23 DDL rolls the migration back; successful reopening adds the new tables. Existing checkpoint and v1/v2 compatibility cases remain intact. |
+| Paused formats cannot gain execution | Verified mode rejects sequence admission before message, journey or run commit. Restored roots retain their inspection-only boundary. |
+| Presentation cannot create authority | Browser reload reads progress without inference or repeated acceptance. Exact confirmation freezes the displayed subject/revision. A late response cannot replace a newly opened chat. An email/call objective starts a new revision rather than answering an earlier postal budget question. |
+
+Verification recorded on 2026-11-15 in the isolated #68 worktree:
+
+- `make test`: 1,005 tests passed in 2,089 seconds. This broad run was followed by the final 13-case journey suite and focused changed-surface checks, including the two durability cases added after its discovery.
+- Final journey suite: 13 tests passed. The final human-task recovery/duplicate-observation refinement also passed its complete two-company path separately.
+- Execution regression suite: 58 cases passed in the restricted run; its one loopback case passed when rerun with socket access. The full broad run had loopback access and passed.
+- Database initialization and orphan-receipt checks: 10 cases passed. Two fresh standalone channel-content compatibility/uncertain-call checks passed.
+- `make arch-check`: passed. `git diff --check`: passed.
+- `make interface-check`: production build, formatting and 111 browser cases passed. The subsequently added postal-budget-to-sequence transition regression passed separately. In-app browser inspection also reached completed synthetic simulation after one approval and explicit human task observations.
+- Six selected, valid #68 mutations were detected: company binding, budget binding, detached generation input, cancellation fence, frozen task-observation time and immutable receipt-scope discovery. The full repository mutation suite was not rerun for this slice.
+
+Fault probes cover admission rollback, confirmation acknowledgement loss, stop/edit during a reserved call, unknown provider outcome, native observation/clock commit before continuation progress, and migration interruption after DDL. These are bounded offline control checks, not live-provider, arbitrary-language, multi-worker or commercial-outcome evidence. Local Python verification used 3.14; other versions remain covered by the existing CI matrix when this branch is published.

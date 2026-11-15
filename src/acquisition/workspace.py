@@ -74,6 +74,7 @@ class Workspace:
         self._legacy_preparations = build_preparations(self.root / "workspace.sqlite", self)
         self._owned_preparations = None
         self._authority = None
+        self._sequence_journeys = None
         self.pack = json.loads((Path(__file__).resolve().parents[2] / "config/iwoca-product-facts-v1.json").read_text())
 
     @property
@@ -215,6 +216,42 @@ class Workspace:
         gateway = self._model_gateway(config) if with_model and not verified else None
         return build(self.root / "conversations.sqlite", clock=self.real_clock, gateway=gateway, model_config=config, workspace_organization='local-conversations',verified_admissions=verified)
 
+    @property
+    def sequence_journeys(self):
+        if self._sequence_journeys is None:
+            from acquisition.bootstrap import build_sequence_journeys
+            self._sequence_journeys=build_sequence_journeys(self.root/'conversations.sqlite',self.real_clock)
+        return self._sequence_journeys
+
+    def _sequence_rows(self,conversation_id):
+        return self.sequence_journeys.store.listing('local-conversations',conversation_id)
+
+    def _sequence_message(self,conversation_id,request_id,expected_revision,content,allow_generation=True):
+        from acquisition.adapters.sequence_interpreter import sequence_language
+        rows=self._sequence_rows(conversation_id)
+        if not rows and not sequence_language(content):return None
+        # These exact questions inspect the same proposal. Other text is a material
+        # revision and cannot carry an earlier proposal's confirmation forward.
+        stopping=bool(re.fullmatch(r'(?:stop|cancel)(?: (?:this|the) sequence)?[.! ]*',content.strip(),re.I))
+        if rows and (stopping or re.fullmatch(r"(?:what(?:'s| is) (?:the )?status|status|show(?: me)?(?: the)? (?:proposal|sequence|progress)|inspect|help|approve|approve it)[?.! ]*",content.strip(),re.I)):
+            self.sequence_journeys.store.interaction('local-conversations',conversation_id,rows[-1]['id'],
+                request_id,expected_revision,content,stop=stopping)
+            return self.conversation(conversation_id)
+        row=self.sequence_journeys.send('local-conversations',conversation_id,request_id,expected_revision,content,allow_generation)
+        return self.conversation(conversation_id)|{'message_receipt':{'id':request_id,'revision':row['inputs']['revision']}}
+
+    def sequence_command(self,conversation_id,kind,journey_id,request_id,expected_revision,**fields):
+        row=self.sequence_journeys.store.get('local-conversations',journey_id)
+        if row['inputs']['conversation_id']!=conversation_id:raise NotFound('Sequence belongs to another conversation')
+        if kind=='sequence-approve':
+            self.sequence_journeys.approve('local-conversations',journey_id,request_id,expected_revision,**fields)
+        elif kind=='sequence-stop':
+            self.sequence_journeys.stop('local-conversations',journey_id,request_id,expected_revision)
+        elif kind=='sequence-task-completed':
+            self.sequence_journeys.observe_task('local-conversations',journey_id,request_id,expected_revision,**fields)
+        else:raise ValueError('Unsupported sequence command')
+        return self.conversation(conversation_id)
+
     def conversations(self):
         return {"conversations": self._conversation_app().conversations.store.listing("local-conversations")}
 
@@ -246,7 +283,9 @@ class Workspace:
         # between reads; a terminal preparation must include its saved question.
         preparations = self.preparation_progress(conversation_id)
         view = application.conversations.view("local-conversations", conversation_id)
-        return view | {"typed_action_shortcuts": list(TYPED_ACTION_ALIASES), "writing_preferences": application.memory.preferences('local-conversations'),
+        return view | {"sequence_journeys": self.sequence_journeys.listing("local-conversations",conversation_id),
+                       "sequence_interactions": self.sequence_journeys.store.interactions("local-conversations",conversation_id),
+                       "typed_action_shortcuts": list(TYPED_ACTION_ALIASES), "writing_preferences": application.memory.preferences('local-conversations'),
                        "artifact_comments": comments, "execution":application.execution.view('local-conversations',conversation_id), "actions":self.action_progress(conversation_id), "preparations": preparations, "campaigns": [{"session_id": s["id"], "plan_id": s["conversation_plan"]["id"],
                                       "revision": s["conversation_plan"]["revision"], "case_id": s["case_id"],
                                       "generation": self._generation(s)}
@@ -446,6 +485,9 @@ class Workspace:
         }
 
     def route_followup(self, conversation_id, request_id, expected_revision, content, allow_model_copy):
+        try:sequence=self._sequence_message(conversation_id,request_id,expected_revision,content,allow_generation=True)
+        except (Conflict,ValueError,NotFound) as error:raise ActionNotSaved(str(error)) from error
+        if sequence is not None:return sequence
         app=self._conversation_app();old=app.actions.store.request('local-conversations',conversation_id,request_id)
         try:
             context=old['context'] if old else self.action_context(conversation_id,expected_revision)
@@ -1042,6 +1084,12 @@ class Workspace:
             if row["status"] in ACTIVE_PREPARATION and self.models.matches(row['planning_context'].get('model_config')):
                 self.preparations.step("local-conversations", row["id"])
         self.advance_copy_revisions()
+        for journey_id in self.sequence_journeys.store.pending('local-conversations'):
+            try:self.sequence_journeys.advance('local-conversations',journey_id)
+            except (OSError,sqlite3.Error,NotFound):
+                # Retry the same durable job after storage recovery. One unavailable
+                # job must not prevent unrelated conversations from progressing.
+                continue
 
     def advance_report_monitoring(self):
         with self.lock:
@@ -1158,6 +1206,11 @@ class Workspace:
                     self._set_revision_block(scope, row["id"], blocker)
 
     def message_conversation(self, conversation_id, request_id, expected_revision, content):
+        try:sequence=self._sequence_message(conversation_id,request_id,expected_revision,content)
+        except (Conflict,NotFound,ValueError) as error:
+            kind=MessageRejectedConflict if isinstance(error,Conflict) else MessageRejectedNotFound if isinstance(error,NotFound) else MessageRejectedInvalid
+            raise kind(str(error)) from error
+        if sequence is not None:return sequence
         return self._conversation_app().conversations.message("local-conversations", conversation_id, request_id, expected_revision, content)
 
     def reply_budget_conversation(self, conversation_id, request_id, expected_revision, plan_id, content):

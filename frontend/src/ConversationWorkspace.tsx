@@ -34,6 +34,9 @@ import ConversationCampaignReview, {
   type ArtifactComment,
 } from "./ConversationCampaignReview";
 import { segmentName } from "./ui";
+import ConversationSequence, {
+  type SequenceJourney,
+} from "./ConversationSequence";
 import ConversationExecution, { type Execution } from "./ConversationExecution";
 import WritingPreferences, {
   type SavedCopyComment,
@@ -146,6 +149,13 @@ const activePreparation = (status: string) =>
   ["admitting", "planning", "selecting_audience", "preparing"].includes(status);
 
 type Conversation = {
+  sequence_journeys?: SequenceJourney[];
+  sequence_interactions?: {
+    id: string;
+    revision: number;
+    content: string;
+    response: string;
+  }[];
   typed_action_shortcuts?: string[];
   artifact_comments?: (SavedCopyComment & {
     copy_revision_blocked?: boolean;
@@ -179,6 +189,7 @@ type Conversation = {
 };
 type ConversationSummary = { id: string; title: string; revision: number };
 type PendingMessage = {
+  sequence?: boolean;
   budget_reply_to?: string;
   artifact?: ArtifactComment;
   conversationId: string;
@@ -367,6 +378,12 @@ export default function ConversationWorkspace({
   // Poll saved checkpoint recovery even if its blocker clears after an old
   // progress read. Other missing mappings need matching ready progress.
   const preparing =
+    (conversation?.sequence_journeys?.some(
+      (j) =>
+        j.current &&
+        ["preparing", "approving", "approved", "simulating"].includes(j.status),
+    ) ??
+      false) ||
     (conversation?.execution?.pending_receipts ?? 0) > 0 ||
     (conversation?.campaigns?.some(
       (c) =>
@@ -522,6 +539,13 @@ export default function ConversationWorkspace({
         conversationId: current.id,
         expected_revision: current.revision,
         content: message.trim(),
+        // Routing hint only. The server resolves installed scope and consent.
+        sequence:
+          !commentTarget &&
+          (Boolean(current.sequence_journeys?.length) ||
+            /\b(?:multichannel|multi.channel|e-?mails?|human calls?|call scripts?|phone calls?)\b/i.test(
+              message,
+            )),
         allow_model_copy: allowModelCopy,
         funding,
         route:
@@ -541,7 +565,7 @@ export default function ConversationWorkspace({
       let saved: Conversation;
       try {
         saved = await command<Conversation>(
-          `/api/conversations/${current.id}/${pending.artifact ? "artifact-comments" : pending.budget_reply_to ? "budget-replies" : pending.route ? "actions" : "messages"}`,
+          `/api/conversations/${current.id}/${pending.artifact ? "artifact-comments" : pending.sequence ? "sequence-messages" : pending.budget_reply_to ? "budget-replies" : pending.route ? "actions" : "messages"}`,
           pending.artifact
             ? {
                 expected_revision: pending.expected_revision,
@@ -553,10 +577,10 @@ export default function ConversationWorkspace({
             : {
                 expected_revision: pending.expected_revision,
                 content: pending.content,
-                ...(pending.budget_reply_to
+                ...(pending.budget_reply_to && !pending.sequence
                   ? { plan_id: pending.budget_reply_to }
                   : {}),
-                ...(pending.route
+                ...(pending.route && !pending.sequence
                   ? { allow_model_copy: pending.allow_model_copy === true }
                   : {}),
               },
@@ -580,7 +604,7 @@ export default function ConversationWorkspace({
         }
         throw error;
       }
-      if (pending.route || pending.artifact) {
+      if (pending.route || pending.artifact || pending.sequence) {
         sessionStorage.removeItem(pendingMessageKey);
         setPendingMessage(null);
         setMessage("");
@@ -594,6 +618,17 @@ export default function ConversationWorkspace({
         throw new Error(
           "The original message receipt could not be confirmed. Retry saving the original message.",
         );
+      if (
+        saved.sequence_journeys?.some((j) => j.revision === messageRevision)
+      ) {
+        sessionStorage.removeItem(pendingMessageKey);
+        setPendingMessage(null);
+        setMessage("");
+        setAllowModelCopy(false);
+        accept(saved);
+        await list();
+        return;
+      }
       const intent = {
         conversationId: current.id,
         expected_revision: messageRevision,
@@ -961,6 +996,30 @@ export default function ConversationWorkspace({
                     <span>You</span>
                     <p>{item.content}</p>
                   </div>
+                  {conversation.sequence_journeys
+                    ?.filter((j) => j.revision === item.revision)
+                    .map((j) => (
+                      <ConversationSequence
+                        key={j.id}
+                        journey={j}
+                        conversationId={conversation.id}
+                        disabled={!!busy || !!pendingMessage}
+                        onChanged={accept}
+                      />
+                    ))}
+                  {conversation.sequence_interactions
+                    ?.filter((i) => i.revision === item.revision)
+                    .map((i) => (
+                      <div key={i.id}>
+                        <div className="conversation-user">
+                          <span>You</span>
+                          <p>{i.content}</p>
+                        </div>
+                        <div className="conversation-agent">
+                          <p>{i.response}</p>
+                        </div>
+                      </div>
+                    ))}
                   {preparation && (
                     <>
                       <PreparationProgress preparation={preparation} />
@@ -1285,6 +1344,7 @@ export default function ConversationWorkspace({
             )}
             {!pendingMessage &&
             conversation?.messages.length &&
+            !conversation.sequence_journeys?.length &&
             !busy &&
             !preparing &&
             !loadingConversation &&
@@ -1361,6 +1421,14 @@ export default function ConversationWorkspace({
                 <Send size={18} />
               </button>
             </div>
+            {!commentTarget && (
+              <p className="sequence-compose-help">
+                For email and human call sequences, sending a request permits up
+                to 15 offline generation calls at $0, within the shared
+                conversation allowance. Include Iwoca or Fielddesk and a GBP
+                budget. No model setup is needed. Approval is separate.
+              </p>
+            )}
             {!commentTarget && (
               <section
                 className="composer-settings"

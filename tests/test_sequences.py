@@ -538,7 +538,7 @@ with patch('acquisition.adapters.simulated_engagements.SyntheticEngagementTransp
             self.assertEqual([tuple(r) for r in db.execute('SELECT * FROM channel_artifacts ORDER BY id')],original_bytes)
         Database(self.path)
         with database.connect() as db:
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],22)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],23)
             self.assertEqual([tuple(r) for r in db.execute('SELECT * FROM channel_artifacts ORDER BY id')],original_bytes)
             self.assertEqual(tuple(db.execute('SELECT * FROM legacy_task_admissions').fetchone()),('one','old','old-hash'))
 

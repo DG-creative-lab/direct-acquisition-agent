@@ -181,8 +181,9 @@ class SqliteContactDirectory:
         return report
 
     def refresh(self, organization, request_id, snapshot):
+        from .sequence_journeys import journey_transaction
         inputs = {'kind':'contact-refresh/v1','source_id':snapshot.id}
-        with self.database.transaction() as db:
+        with journey_transaction(self.database,organization,request_id) as db:
             self._writable(db)
             replay = self._replay(db,organization,request_id,inputs)
             if replay: return replay
@@ -194,10 +195,11 @@ class SqliteContactDirectory:
             return result
 
     def prepare(self, organization, request_id, snapshot, channel, purpose):
+        from .sequence_journeys import journey_transaction
         channel_purpose(channel,purpose)
         inputs = {'kind':'contact-prepare/v1','source_id':snapshot.id,'channel':channel,'purpose':purpose,
                   'profile_id':self._profile(organization).id}
-        with self.database.transaction() as db:
+        with journey_transaction(self.database,organization,request_id) as db:
             self._writable(db)
             replay = self._replay(db,organization,request_id,inputs)
             if replay: return replay
