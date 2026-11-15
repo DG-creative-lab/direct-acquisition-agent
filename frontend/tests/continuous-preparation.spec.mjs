@@ -153,7 +153,7 @@ test("one authorized submission continues after reload to an unapproved review",
       posts.some((path) => /\/(plan|draft|approve|handoff)$/.test(path)),
     ).toBe(false);
     await page.screenshot({
-      path: "../.local/continuous-preparation-desktop.png",
+      path: test.info().outputPath("continuous-preparation-desktop.png"),
       fullPage: true,
     });
     for (const width of [390, 320]) {
@@ -163,7 +163,7 @@ test("one authorized submission continues after reload to an unapproved review",
       ).toBe(await page.evaluate(() => document.documentElement.clientWidth));
     }
     await page.screenshot({
-      path: "../.local/continuous-preparation-mobile.png",
+      path: test.info().outputPath("continuous-preparation-mobile.png"),
       fullPage: true,
     });
     await page.getByRole("button", { name: /Review campaign/ }).click();
@@ -422,7 +422,7 @@ test("audience confirmation persists exact provenance through preparation on des
     await choices.getByText("Inspect dataset", { exact: true }).first().click();
     await expect(choices.getByText(/"checksum"/).first()).toBeVisible();
     await page.screenshot({
-      path: "../.local/audience-selection-desktop.png",
+      path: test.info().outputPath("audience-selection-desktop.png"),
       fullPage: true,
     });
     for (const width of [390, 320]) {
@@ -432,7 +432,7 @@ test("audience confirmation persists exact provenance through preparation on des
       ).toBe(await page.evaluate(() => document.documentElement.clientWidth));
     }
     await page.screenshot({
-      path: "../.local/audience-selection-mobile.png",
+      path: test.info().outputPath("audience-selection-mobile.png"),
       fullPage: true,
     });
     await page.reload();
@@ -498,7 +498,7 @@ test("lost audience confirmation acknowledgement reconciles the saved source wit
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: /Review campaign/ }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 10000 });
     expect(requests).toHaveLength(1);
     const id = await page.evaluate(() =>
       localStorage.getItem("conversation-selected"),

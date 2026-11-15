@@ -89,19 +89,25 @@ class SqliteContactDirectory:
         return tuple(self._snapshot(row,organization,connection_key) for row in db.execute(query+' ORDER BY connection_key,version',args))
 
     def _current(self, db, organization, connection_key):
+        return self._current_record(db,organization,connection_key)[0]
+
+    def _current_record(self, db, organization, connection_key, *, candidate=None):
         row = db.execute('''SELECT s.* FROM contact_source_heads h JOIN contact_sources s
             ON s.organization=h.organization AND s.id=h.source_id
             WHERE h.organization=? AND h.connection_key=?''',(organization,connection_key)).fetchone()
         if row is None:
             raise NotFound('No current source in this organization and connection')
-        snapshot = self._snapshot(row, organization, connection_key)
+        # Candidate contains a validated parsed value and its exact stored row,
+        # held only during one decision_evidence invocation. Re-read all fields.
+        snapshot = (candidate[0] if candidate is not None and tuple(row) == candidate[1]
+                    else self._snapshot(row, organization, connection_key))
         latest = db.execute('SELECT max(version) FROM contact_sources WHERE organization=? AND connection_key=?',
                             (organization,connection_key)).fetchone()[0]
         if snapshot.version != latest:
             raise Conflict('A current source head cannot rewind immutable contact history')
-        if snapshot.id != self.source.identity(organization,connection_key,snapshot.version):
+        if row['id'] != self.source.identity(organization,connection_key,snapshot.version):
             raise Conflict('Stored contact source differs from its installed attestation')
-        return snapshot
+        return snapshot, tuple(row)
 
     def _install(self, db, organization, snapshot):
         key = snapshot.connection.key
@@ -158,7 +164,12 @@ class SqliteContactDirectory:
             raise Conflict('Current contact source changed during publication')
 
     def _report(self, db, organization, key, channel, purpose):
-        snapshot = self._current(db,organization,key)
+        return self._report_evidence(db,organization,key,channel,purpose)[1]
+
+    def _report_evidence(self, db, organization, key, channel, purpose):
+        # Reuse only the values reconstructed by this check. Every invocation
+        # still reads current source/history, exclusions, epoch and clock.
+        snapshot, source_row = self._current_record(db,organization,key)
         history = self._history(db,organization)
         blocked = set()
         for row in db.execute('SELECT * FROM contact_objections WHERE organization=?',(organization,)):
@@ -174,11 +185,12 @@ class SqliteContactDirectory:
                    if r.state != 'active' and r.ref.id in relevant}
         blocked &= {r.ref.id for r in snapshot.contacts}
         permission_conflicts, pressure_conflicts = contact_evidence_conflicts(snapshot,history,channel,purpose)
-        report = contact_eligibility(snapshot,self._profile(organization),channel,purpose,self._now(),blocked,suppressed,
+        profile = self._profile(organization)
+        report = contact_eligibility(snapshot,profile,channel,purpose,self._now(),blocked,suppressed,
                                      retired,permission_conflicts,pressure_conflicts)
         authority = db.execute('SELECT audience_epoch FROM review_authorities WHERE organization=?',(organization,)).fetchone()
         report['basis']['review_audience_epoch'] = authority[0] if authority else None
-        return report
+        return snapshot, report, profile, source_row
 
     def refresh(self, organization, request_id, snapshot):
         inputs = {'kind':'contact-refresh/v1','source_id':snapshot.id}
@@ -262,7 +274,7 @@ class SqliteContactDirectory:
     def decision_evidence(self, db, organization, assessment_id):
         """Current source, independent hard checks and profile under the same SQLite snapshot."""
         payload = self.assessment(db,organization,assessment_id)
-        report = self._report(db,organization,payload['connection_key'],payload['report']['channel'],payload['report']['purpose'])
+        source, report, profile, source_row = self._report_evidence(db,organization,payload['connection_key'],payload['report']['channel'],payload['report']['purpose'])
         if report != payload['report']:
             raise Conflict('Contact assessment is no longer applicable; prepare current evidence')
-        return self._current(db,organization,payload['connection_key']), report, self._profile(organization)
+        return self._current_record(db,organization,payload['connection_key'],candidate=(source,source_row))[0], report, self._profile(organization)

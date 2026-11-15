@@ -946,39 +946,6 @@ print(json.dumps(SqliteExecution(Database(sys.argv[1])).view('local-conversation
         with app.calls.database.connect() as db:
             self.assertEqual(json.loads(db.execute('SELECT receipt FROM execution_commands WHERE organization=? AND request_id=?',(scope,'resolution:old-resolution')).fetchone()[0]),receipt)
 
-    def test_invalid_journal_identity_releases_writer_lock_without_garbage_collection(self):
-        import gc
-        import sqlite3
-        from acquisition.adapters.sqlite.workspace_ancestry import workspace_ancestry_guard,initialize_workspace_identity
-        with self.w.control() as db:original=tuple(db.execute('SELECT * FROM workspace_identity').fetchone())
-        errors=[];enabled=gc.isenabled();gc.disable()
-        try:
-            for rows in ([(1,'bad','fresh')],[],[(1,original[1],'invalid-origin')],[(1,None,'fresh')]):
-                with self.subTest(rows=rows):
-                    with self.w.control() as db:
-                        db.execute('DROP TABLE workspace_identity')
-                        db.execute('CREATE TABLE workspace_identity(singleton,journal_id,origin)')
-                        db.executemany('INSERT INTO workspace_identity VALUES(?,?,?)',rows)
-                    try:
-                        with workspace_ancestry_guard(self.root/'conversations.sqlite'):
-                            self.fail('Malformed journal identity was accepted')
-                    except Conflict as error:errors.append(error)  # Retain its traceback and connection frame.
-                    other=sqlite3.connect(self.root/'workspace.sqlite',timeout=0,isolation_level=None)
-                    try:
-                        other.execute('BEGIN IMMEDIATE')
-                        other.execute('UPDATE sessions SET request_hash=request_hash WHERE id=?',(self.sid,))
-                        other.commit()
-                    finally:other.close()
-        finally:
-            errors.clear()
-            if enabled:gc.enable()
-            gc.collect()
-            with self.w.control() as db:
-                db.execute('DROP TABLE workspace_identity')
-                db.execute('CREATE TABLE workspace_identity(singleton,journal_id,origin)')
-                db.execute('INSERT INTO workspace_identity VALUES(?,?,?)',original)
-                initialize_workspace_identity(db)
-
     def test_resolution_fault_rolls_back_receipt_event_and_fence_removal(self):
         import sqlite3
         app,scope,run=self.legacy_cli('atomic-cli','atomic-cli')
@@ -1221,3 +1188,48 @@ print(json.dumps(SqliteExecution(Database(sys.argv[1])).view('local-conversation
         self.assertTrue(calls)
         self.assertEqual(self.usage()['used'],before+len(calls))
         self.assertIn(child['session']['run_id'],{c['run_id'] for c in self.usage()['calls']})
+
+
+class WorkspaceAncestryLockTests(unittest.TestCase):
+    def test_invalid_journal_identity_releases_writer_lock_without_garbage_collection(self):
+        import gc
+        import sqlite3
+        import tempfile
+        from contextlib import closing
+        from pathlib import Path
+        from acquisition.adapters.sqlite.workspace_ancestry import workspace_ancestry_guard
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path = root / 'workspace.sqlite'
+            with closing(sqlite3.connect(path)) as db, db:
+                db.execute('CREATE TABLE sessions(id TEXT, payload TEXT)')
+                db.execute("INSERT INTO sessions VALUES('one', 'original')")
+                db.execute('CREATE TABLE workspace_identity(singleton, journal_id, origin)')
+            errors = []
+            enabled = gc.isenabled()
+            gc.disable()
+            try:
+                for rows in ([(1, 'bad', 'fresh')], [],
+                             [(1, 'journal_' + 'a' * 32, 'invalid-origin')], [(1, None, 'fresh')]):
+                    with self.subTest(rows=rows):
+                        with closing(sqlite3.connect(path)) as db, db:
+                            db.execute('DELETE FROM workspace_identity')
+                            db.executemany('INSERT INTO workspace_identity VALUES(?,?,?)', rows)
+                        try:
+                            with workspace_ancestry_guard(root / 'conversations.sqlite'):
+                                self.fail('Malformed journal identity was accepted')
+                        except Conflict as error:
+                            errors.append(error)  # Keep the traceback and connection alive.
+                        other = sqlite3.connect(path, timeout=0, isolation_level=None)
+                        try:
+                            other.execute('BEGIN IMMEDIATE')
+                            other.execute("UPDATE sessions SET payload='updated' WHERE id='one'")
+                            other.commit()
+                        finally:
+                            other.close()
+            finally:
+                errors.clear()
+                if enabled:
+                    gc.enable()
+                gc.collect()

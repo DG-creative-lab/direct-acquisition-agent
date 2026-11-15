@@ -22,6 +22,7 @@ dist/
 
 
 
+!/docs/ci-performance.md
 !/docs/architecture.md
 !/docs/branding.md
 !/docs/conversations.md

@@ -24,7 +24,10 @@ workspace:
 	pnpm --dir frontend run build
 	PYTHONPATH=src python3 -m acquisition.workspace_server --port $(WORKSPACE_PORT) --root $(WORKSPACE_ROOT)
 
+BROWSER_SHARD ?= 1
+BROWSER_SHARDS ?= 1
+
 interface-check:
 	pnpm --dir frontend run build
 	pnpm --dir frontend run format:check
-	pnpm --dir frontend test
+	BROWSER_SHARD=$(BROWSER_SHARD) BROWSER_SHARDS=$(BROWSER_SHARDS) pnpm --dir frontend test
