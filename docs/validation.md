@@ -1,5 +1,43 @@
 # Validation and limits
 
+## Review-readiness expiry follow-up
+
+Review of `128cf72` found that the last campaign check could pass before expiry
+and return after it, leaving a positive report stamped at an expired time.
+The additional approval checks limited effect admission but did not repair the
+operator-facing report or summary. The new real SQLite regression reproduced
+that false readiness and the stale projection timestamp before the fix.
+
+Campaigns now owns a pure evaluation-time check of the frozen sequence end and
+every materialized payload's known evidence validity bound. Reviews applies it
+at the report's final evaluation timestamp, preserving any earlier failed,
+unknown or unevaluated required check. The operator view refreshes that timestamp
+after approval inspection, then builds or withholds substantive output. A shorter
+approval lifetime is checked at that same timestamp without treating otherwise
+current content as unready for accountable review.
+
+The bounded regression covers both sequence and frozen-evidence expiry, at the
+exact exclusive end, after campaign validation and during the later approval
+lookup, through both `view` and `preview` (eight late-output cases). It also
+checks readiness just before each boundary, rejection of a saved summary when
+validation crosses expiry, and the shorter-approval distinction. Durable row
+counts remain unchanged. No schema, historical subject, approval receipt,
+proposal or content bytes are rewritten. Generic runtime and frontend behavior
+are unchanged.
+
+All 13 sequence-review tests passed, and the focused final regression passed
+with its before-boundary and shorter-approval assertions. All five new expiry
+mutation probes were detected, covering removal of the final window check,
+inclusive sequence/evidence ends, missing projection-time refresh and stale
+approval validity. The prior full mutation portfolio was not rerun. Read-only
+preview checks on the retained historical database preserved every row across
+all 79 tables, verified by identical before/after digests.
+
+`make test` passed all 991 backend tests on Python 3.14 with loopback access,
+including the HTTP tests that could not start in the review sandbox.
+`make arch-check` and `git diff --check` passed. No live provider/model calls
+or frontend changes were introduced.
+
 ## Exact multichannel review, issue #67
 
 Confirmed boundary: the standalone synthetic sequence API now requires a new

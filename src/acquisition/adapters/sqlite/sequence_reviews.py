@@ -290,7 +290,6 @@ class SqliteSequenceReviews:
 
     def _view(self, db, organization, subject):
         report = self._report(db,organization,subject)
-        summary = sequence_summary(subject,report) if report['review_ready'] else None
         latest = db.execute('SELECT id FROM sequence_review_decisions WHERE organization=? AND proposal_id=? ORDER BY rowid DESC LIMIT 1',
             (organization,subject['proposal_id'])).fetchone()
         approval = self._decision(db,organization,latest[0]) if latest else None
@@ -300,6 +299,10 @@ class SqliteSequenceReviews:
                 self.authorize(db,organization,subject['proposal_id'],approval['id'])
                 valid = True
             except (ValueError,NotFound): pass
+        # Approval inspection can itself cross an expiry boundary after _report.
+        report = sequence_validation(subject,report['checks'],self.proposals._now())
+        valid = bool(valid and report['review_ready'] and approval['at']<=report['evaluated_at']<approval['expires_at'])
+        summary = sequence_summary(subject,report) if report['review_ready'] else None
         return {'subject_id':subject['id'],'proposal_id':subject['proposal_id'],'validation':report,
             'sequence':subject['sequence'] if report['review_ready'] else None,'summary':summary,
             'content_withheld':not report['review_ready'],'authority':'none','purpose':SEQUENCE_PURPOSE,

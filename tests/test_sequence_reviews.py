@@ -276,6 +276,59 @@ print(json.dumps(app.engagements.advance('one',sys.argv[2])))'''
             app.engagements.advance('one',simulation)
         self.assertEqual(self.durable_counts(),before)
 
+    def test_readiness_rechecks_sequence_and_evidence_expiry_before_output(self):
+        for boundary in ('sequence','evidence'):
+            self.path=Path(self.temp.name)/(boundary+'-readiness.sqlite');self.copy_template()
+            self.now=fixtures.NOW
+            end=fixtures.NOW+(100 if boundary=='sequence' else 14*86400)
+            app,proposal,approval=self.reviewed(expires_at=end)
+            deadline=end if boundary=='sequence' else min(s['content']['valid_until']
+                for m in proposal['saved']['population'] for s in m['steps'])
+            if boundary=='evidence':self.assertLess(deadline,end)
+            store=app.reviews.store
+            original=app.reviews.view('one',approval['subject_id'])
+            self.assertTrue(original['validation']['review_ready'])
+            self.now=deadline-1
+            self.assertTrue(app.reviews.view('one',approval['subject_id'])['validation']['review_ready'])
+            self.now=fixtures.NOW
+            before=self.durable_counts()
+            for phase in ('_campaign','_decision'):
+                check=getattr(store,phase)
+                def cross_expiry(*args,**kwargs):
+                    value=check(*args,**kwargs)
+                    self.now=deadline
+                    return value
+                for reader in ('view','preview'):
+                    with self.subTest(boundary=boundary,phase=phase,reader=reader):
+                        self.now=fixtures.NOW
+                        identity=approval['subject_id'] if reader=='view' else proposal['proposal_id']
+                        with patch.object(store,phase,side_effect=cross_expiry):
+                            view=getattr(app.reviews,reader)('one',identity)
+                        self.assertEqual(view['validation']['evaluated_at'],deadline)
+                        self.assertFalse(view['validation']['review_ready'])
+                        self.assertTrue(view['content_withheld'])
+                        self.assertIsNone(view['summary']);self.assertIsNone(view['sequence'])
+                        self.assertFalse(view['approval_valid'])
+                        self.assertEqual(next(c for c in view['validation']['checks']
+                            if c['id']=='sequence_contract')['status'],'failed')
+            self.now=fixtures.NOW
+            campaign=store._campaign
+            def expire_after_validation(*args,**kwargs):
+                campaign(*args,**kwargs);self.now=deadline
+            with patch.object(store,'_campaign',side_effect=expire_after_validation),self.assertRaises(Conflict):
+                app.reviews.validate_output('one',approval['subject_id'],original['summary'])
+            if boundary=='evidence':
+                # A shorter approval expiry changes approval validity, not whether
+                # still-current material can be presented for accountable review.
+                self.now=fixtures.NOW;authorize=store.authorize
+                def expire_after_authorization(*args,**kwargs):
+                    value=authorize(*args,**kwargs);self.now=approval['expires_at'];return value
+                with patch.object(store,'authorize',side_effect=expire_after_authorization):
+                    view=app.reviews.view('one',approval['subject_id'])
+                self.assertTrue(view['validation']['review_ready'])
+                self.assertIsNotNone(view['summary']);self.assertFalse(view['approval_valid'])
+            self.assertEqual(self.durable_counts(),before)
+
     def test_admission_and_approval_commit_failure_leave_no_partial_rows(self):
         app=self.app();proposal=self.prepare(app);self.roles(app)
         subject=app.reviews.open('one','open',proposal['proposal_id'],'operator');store=app.reviews.store

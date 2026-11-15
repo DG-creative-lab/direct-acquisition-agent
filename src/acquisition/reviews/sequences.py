@@ -1,6 +1,7 @@
 """Exact sequence review and truthful projections. Reports never grant authority."""
 
 from acquisition.contracts import Conflict, digest
+from acquisition.campaigns import validate_sequence_window
 from .domain import timestamp
 
 
@@ -28,6 +29,12 @@ def sequence_validation(subject, checks, now):
         if (check['status'] not in {'passed','failed','unknown','not_evaluated'}
                 or type(check['required']) is not bool or check['required'] != (name in SEQUENCE_CHECKS)):
             raise ValueError('Validation requirements cannot be downgraded')
+    if indexed['sequence_contract']['status']=='passed':
+        try:
+            validate_sequence_window(subject['sequence'],now)
+        except (ValueError,KeyError,TypeError):
+            indexed['sequence_contract'] = indexed['sequence_contract'] | {'status':'failed',
+                'detail':'Sequence or frozen evidence validity window is invalid or expired at evaluation time.'}
     payload = {'schema':'sequence-validation/v1', 'organization':subject['organization'],
         'subject_id':subject['id'], 'proposal_id':subject['proposal_id'], 'evaluated_at':now,
         'purpose':'review_readiness_only', 'authority':'none',

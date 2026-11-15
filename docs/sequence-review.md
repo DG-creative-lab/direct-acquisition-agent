@@ -48,6 +48,11 @@ not evaluated, downgrading a required check is rejected, and checker exceptions
 become unknown. Only all required passes establish review readiness. Recorded
 semantic screening remains advisory and cannot grant human approval.
 
+Readiness also checks the sequence and frozen payload validity windows at the
+report's final evaluation time. Operator views refresh that time after approval
+inspection before returning substantive content, so expiry during validation or
+inspection withholds the sequence and summary.
+
 `preview` supplies diagnostics before a review is opened. `view` revalidates a
 saved subject. On failed or unknown validation, both withhold substantive
 sequence content and the operator summary while retaining exact subject and
