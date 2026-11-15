@@ -1,5 +1,52 @@
 # Validation and limits
 
+## Complete readiness time basis follow-up
+
+Review of `04587b7` found that the final expiry check covered the sequence and
+selected payloads but omitted indirect evidence used by complete readiness.
+Before this fix, real SQLite regressions reproduced false readiness when a
+non-selected contact's permission, an unused bundle recipient's manifest or an
+omitted fact expired after its checker had passed. Selected payload bounds were
+still valid. The original sequence and selected-payload expiry checks remain.
+
+Campaigns and creative now expose their own pure readiness time boundaries.
+They cover complete contact snapshots, permissions and pressure evidence,
+including the ninety-day pressure-coverage threshold; recipient manifests and
+all their facts; and UTC product review dates. The SQLite composition gathers
+these boundaries within the same conservative organization scope as the frozen
+evidence basis. Reviews binds a validity interval to the exact subject, starting
+before any checker runs and ending at the next future boundary. The report and
+the final operator projection require that interval to remain current. Missing,
+malformed or substituted interval metadata withholds readiness, as does an
+unavailable boundary checker.
+
+The new regression covers non-selected permission and pressure evidence,
+control-only populations, unused bundle recipients and omitted facts. For each
+case it checks readiness immediately before expiry, actual invalidity at the
+exclusive end, and expiry during campaign validation or later approval lookup
+through both `view` and `preview` (twenty late-output cases). Saved summaries
+are rejected when validation crosses the boundary. A separate case proves that
+fresh complete validation can succeed after an irrelevant historical source
+boundary passes. Pure domain checks exercise pressure coverage becoming current
+and inclusive UTC product review dates. Existing tests now require valid
+interval proof and reject missing, malformed, unbound or unavailable proof.
+
+These changes add no schema or persisted artifact fields. Historical proposal,
+subject, approval, content and receipt bytes remain immutable. Runtime and
+frontend behavior are unchanged. Read-only checks on the retained database
+written by the prior sequence implementation preserved every row across all 79
+tables, with identical before/after digests and exact saved proposal bytes.
+Its preview was ready before expiry and withheld substantive content at expiry.
+All seven new mutation probes were detected. They independently remove contact
+evidence, manifest or omitted-fact boundaries, bypass final interval expiry or
+required interval proof, and alter the pressure-coverage or product-calendar
+boundary. The prior mutation portfolio was not rerun.
+
+`make test` passed all 994 backend tests on Python 3.14 with loopback access,
+including all 16 sequence-review tests and the HTTP tests previously blocked by
+the sandbox. `make arch-check` and `git diff --check` passed. No live provider or
+model calls were made, and no frontend files changed.
+
 ## Review-readiness expiry follow-up
 
 Review of `128cf72` found that the last campaign check could pass before expiry

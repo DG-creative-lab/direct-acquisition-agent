@@ -1,7 +1,7 @@
 """Exact approval and truthful output boundaries, exercised through real SQLite."""
 
 import copy
-from contextlib import closing
+from contextlib import closing, contextmanager
 from dataclasses import replace
 import json
 from pathlib import Path
@@ -53,6 +53,154 @@ class SequenceReviewTests(unittest.TestCase):
             names = [r[0] for r in db.execute("SELECT name FROM sqlite_schema WHERE type='table' AND (name LIKE 'sequence_review_%' OR name='sequence_simulation_approvals')")]
             return {name:db.execute('SELECT count(*) FROM '+name).fetchone()[0] for name in names} | self.counts()
 
+    @contextmanager
+    def indirect_fixture(self, kind):
+        """Attested source variants, never edits to immutable saved artifacts."""
+        from acquisition.adapters import contact_fixtures, recipient_fixtures
+        from acquisition.creative import RecipientContexts
+        from acquisition.bootstrap import build_sequence_simulation
+        base=build_sequence_simulation(self.templates['fielddesk'],'one','fielddesk',lambda:fixtures.NOW,read_only=True)
+        snapshot=base.campaigns.store.contacts.source.read('one','fielddesk-crm-a',1)
+        with base.campaigns.store.database.connect() as db:
+            decision=json.loads(db.execute("SELECT receipt FROM contact_commands WHERE organization='one' AND request_id='decision'").fetchone()[0])['decision']
+        selected={r['contact_id'] for r in decision['plan']['allocations']}
+        omitted=next(p.ref.id for p in snapshot.contacts if p.ref.id not in selected)
+        if kind=='pressure':omitted=snapshot.contacts[-1].ref.id
+        pressure_unit=next(p.experiment_unit for p in snapshot.pressure if p.contact.id==omitted)
+        deadline=fixtures.NOW+100
+        contacts,recipients,prepare=(contact_fixtures.synthetic_contact_snapshots,
+            recipient_fixtures.synthetic_recipient_evidence,RecipientContexts.prepare)
+        def contact_sources(organization,profile):
+            for item in contacts(organization,profile):
+                if kind.startswith('population') and profile.key=='fielddesk':
+                    item=replace(item,permissions=tuple(replace(p,expires_at=deadline)
+                        if p.contact.id==omitted and p.channel=='email' else p for p in item.permissions))
+                if kind=='pressure' and profile.key=='fielddesk':
+                    item=replace(item,pressure=tuple(replace(p,expires_at=deadline)
+                        if p.experiment_unit==pressure_unit else p for p in item.pressure))
+                yield item
+        def recipient_sources(source):
+            for item in recipients(source):
+                if source.connection.key.startswith('fielddesk-'):
+                    if kind=='extra_recipient' and item.target.contact.id==omitted:
+                        item=replace(item,expires_at=deadline)
+                    if kind=='history' and item.source_key=='reviewed-context-b':
+                        item=replace(item,expires_at=deadline)
+                    if kind=='omitted_fact':
+                        item=replace(item,facts=tuple(replace(f,expires_at=deadline)
+                            if f.slot=='account_activity' else f for f in item.facts))
+                yield item
+        def prepare_context(service,*args,**kwargs):
+            if kind=='omitted_fact':kwargs['slots']=('contact_role','prior_interaction','account_activity')
+            return prepare(service,*args,**kwargs)
+        class IndirectTemplates(fixtures.SequenceTests): pass
+        with patch.object(contact_fixtures,'synthetic_contact_snapshots',side_effect=contact_sources),\
+                patch.object(recipient_fixtures,'synthetic_recipient_evidence',side_effect=recipient_sources),\
+                patch.object(RecipientContexts,'prepare',prepare_context):
+            IndirectTemplates.setUpClass()
+            try:
+                self.path=Path(self.temp.name)/(kind+'-indirect.sqlite')
+                with closing(sqlite3.connect(IndirectTemplates.templates['fielddesk'])) as source,closing(sqlite3.connect(self.path)) as target:
+                    source.backup(target)
+                if kind=='history':
+                    from acquisition.bootstrap import build_recipient_contexts
+                    contexts=build_recipient_contexts(self.path,'one','fielddesk',lambda:self.now)
+                    with contexts.store.contacts.database.connect() as db:
+                        assessment=json.loads(db.execute("SELECT receipt FROM contact_commands WHERE organization='one' AND request_id='email-assessment'").fetchone()[0])['assessment_id']
+                    contexts.prepare('one','corroborating-history',assessment,next(iter(selected)),'reviewed-context-b',1)
+                yield omitted,deadline
+            finally:IndirectTemplates.tearDownClass()
+
+    def test_full_readiness_basis_expiry_withholds_outputs_even_when_selected_payloads_remain_valid(self):
+        for kind in ('population','population_controls','pressure','extra_recipient','omitted_fact'):
+            self.now=fixtures.NOW
+            with self.subTest(kind=kind),self.indirect_fixture(kind) as (omitted,deadline):
+                changes={}
+                if kind in {'population_controls','pressure'}:
+                    from acquisition.bootstrap import build_audience_decisions
+                    decisions=build_audience_decisions(self.path,'one','fielddesk',clock=lambda:self.now)
+                    with decisions.store.contacts.database.connect() as db:
+                        assessment=json.loads(db.execute("SELECT receipt FROM contact_commands WHERE organization='one' AND request_id='email-assessment'").fetchone()[0])['assessment_id']
+                    snapshot=decisions.store.contacts.source.read('one','fielddesk-crm-a',1)
+                    def buckets(seed):
+                        return [int(digest({'algorithm':'contact-account-hash/v1','organization':'one',
+                            'profile':snapshot.profile_id,'channel':'email','seed':seed,'unit':a.experiment_unit}),16)%10 for a in snapshot.accounts]
+                    seed=next(s for s in range(10000) if (all(b==0 for b in buckets(s))
+                        if kind=='population_controls' else all(b!=0 for b in buckets(s))))
+                    decisions.prepare('one','basis-decision',assessment,budget_pence=1000,unit_cost_pence=1,
+                        max_candidates=1 if kind=='pressure' else 6,seed=seed)
+                    changes['decision_request']='basis-decision'
+                app,proposal,approval=self.reviewed(expires_at=fixtures.NOW+1000,**changes)
+                self.assertNotIn(omitted,{m['contact_id'] for m in proposal['saved']['population']})
+                steps=[s for m in proposal['saved']['population'] for s in m['steps']]
+                if kind=='population_controls':self.assertEqual(steps,[])
+                else:self.assertGreater(min(s['content']['valid_until'] for s in steps),deadline)
+                store=app.reviews.store
+                original=app.reviews.view('one',approval['subject_id'])
+                self.assertTrue(original['validation']['review_ready'])
+                self.now=deadline-1
+                self.assertTrue(app.reviews.view('one',approval['subject_id'])['validation']['review_ready'])
+                self.now=deadline
+                self.assertFalse(app.reviews.view('one',approval['subject_id'])['validation']['review_ready'])
+                before=self.durable_counts()
+                for phase in ('_campaign','_decision'):
+                    checked=getattr(store,phase)
+                    def cross_expiry(*args,**kwargs):
+                        result=checked(*args,**kwargs);self.now=deadline;return result
+                    for reader in ('view','preview'):
+                        self.now=fixtures.NOW
+                        identity=approval['subject_id'] if reader=='view' else proposal['proposal_id']
+                        with self.subTest(phase=phase,reader=reader),patch.object(store,phase,side_effect=cross_expiry):
+                            view=getattr(app.reviews,reader)('one',identity)
+                            self.assertFalse(view['validation']['review_ready'])
+                            self.assertTrue(view['content_withheld'])
+                            self.assertIsNone(view['summary']);self.assertIsNone(view['sequence'])
+                            self.assertFalse(view['approval_valid'])
+                            basis=next(c for c in view['validation']['checks'] if c['id']=='current_epochs')
+                            self.assertEqual(basis['status'],'failed')
+                            self.assertEqual(basis['validity']['until'],deadline)
+                self.now=fixtures.NOW
+                checked=store._campaign
+                def expire_output(*args,**kwargs):
+                    checked(*args,**kwargs);self.now=deadline
+                with patch.object(store,'_campaign',side_effect=expire_output),self.assertRaises(Conflict):
+                    app.reviews.validate_output('one',approval['subject_id'],original['summary'])
+                self.assertEqual(self.durable_counts(),before)
+
+    def test_past_history_boundaries_do_not_prevent_fresh_complete_revalidation(self):
+        with self.indirect_fixture('history') as (_,deadline):
+            app,proposal,approval=self.reviewed(expires_at=fixtures.NOW+1000)
+            before=self.durable_counts();checked=app.reviews.store._campaign
+            def cross_expiry(*args,**kwargs):
+                checked(*args,**kwargs);self.now=deadline
+            with patch.object(app.reviews.store,'_campaign',side_effect=cross_expiry):
+                stale=app.reviews.view('one',approval['subject_id'])
+            self.assertFalse(stale['validation']['review_ready']);self.assertIsNone(stale['summary'])
+            fresh=app.reviews.view('one',approval['subject_id'])
+            self.assertTrue(fresh['validation']['review_ready']);self.assertTrue(fresh['approval_valid'])
+            window=next(c for c in fresh['validation']['checks'] if c['id']=='current_epochs')['validity']
+            self.assertEqual(window['from'],deadline);self.assertGreater(window['until'],deadline)
+            self.assertEqual(self.durable_counts(),before)
+
+    def test_domain_time_boundaries_include_pressure_coverage_and_product_calendar(self):
+        from acquisition.campaigns import contact_eligibility, contact_readiness_boundaries
+        from acquisition.creative import channel_readiness_boundaries
+        from acquisition.reviews import readiness_window
+        app,proposal,approval=self.reviewed()
+        with app.reviews.store.database.connect() as db:
+            subject=app.reviews.store._subject(db,'one',approval['subject_id'])
+        contacts=app.campaigns.store.contacts
+        source=contacts.source.read('one','fielddesk-crm-a',1)
+        shifted=replace(source,pressure=tuple(replace(p,window_start=fixtures.NOW-90*86400+100) for p in source.pressure))
+        for offset,expected in ((99,False),(100,True)):
+            report=contact_eligibility(shifted,contacts._profile('one'),'email','acquisition',
+                fixtures.NOW+offset,set(),set(),set(),set(),set())
+            self.assertEqual(report['ready_for_proposal'],expected)
+        window=readiness_window(subject,contact_readiness_boundaries((shifted,)),fixtures.NOW)
+        self.assertEqual(window['until'],fixtures.NOW+100)
+        dates=channel_readiness_boundaries(({'product_facts':{'checked_on':'2026-11-13','review_by':'2026-11-14'}},))
+        self.assertEqual(readiness_window(subject,dates,fixtures.NOW)['until'],fixtures.NOW+86400)
+
     def test_absent_purpose_and_other_proposal_approvals_never_admit_simulation(self):
         app,proposal,approval=self.reviewed()
         other=self.prepare(app,'other')
@@ -97,6 +245,19 @@ print(json.dumps(app.engagements.advance('one',sys.argv[2])))'''
         store=app.reviews.store
         with store.database.connect() as db: subject=store._subject(db,'one',approval['subject_id'])
         passed=[{'id':name,'required':True,'status':'passed'} for name in sorted(SEQUENCE_CHECKS)]
+        for check in passed:
+            if check['id']=='current_epochs':
+                check['validity']={'subject_id':subject['id'],'from':self.now,'until':self.now+100}
+        self.assertTrue(sequence_validation(subject,passed,self.now)['review_ready'])
+        missing=[{k:v for k,v in c.items() if k!='validity'} for c in passed]
+        incomplete=sequence_validation(subject,missing,self.now)
+        self.assertFalse(incomplete['review_ready'])
+        self.assertEqual(next(c for c in incomplete['checks'] if c['id']=='current_epochs')['status'],'unknown')
+        for window in ({'subject_id':'another','from':self.now,'until':self.now+100},
+                {'subject_id':subject['id'],'from':self.now,'until':float('nan')},
+                {'subject_id':subject['id'],'from':self.now+1,'until':self.now}):
+            changed=[c|{'validity':window} if c['id']=='current_epochs' else c for c in passed]
+            self.assertFalse(sequence_validation(subject,changed,self.now)['review_ready'])
         for name in sorted(SEQUENCE_CHECKS):
             for status in ('failed','unknown','not_evaluated','omitted'):
                 with self.subTest(check=name,status=status):
@@ -117,6 +278,10 @@ print(json.dumps(app.engagements.advance('one',sys.argv[2])))'''
             with self.assertRaises(Conflict):app.reviews.decide('one','crashed',approval['subject_id'],'reviewer','approve','No unchecked approval',100)
             self.assertEqual(self.durable_counts(),before)
             with self.assertRaises(Conflict):app.engagements.start('one','crashed',proposal['proposal_id'],approval['id'])
+        with patch.object(store,'_readiness_window',side_effect=RuntimeError('basis checker crashed')):
+            view=app.reviews.view('one',approval['subject_id'])
+            self.assertFalse(view['validation']['review_ready']);self.assertIsNone(view['summary'])
+            self.assertEqual(next(c for c in view['validation']['checks'] if c['id']=='current_epochs')['status'],'unknown')
 
     def test_exact_operator_facts_reject_praise_missing_population_and_stale_subject(self):
         app,proposal,approval=self.reviewed()

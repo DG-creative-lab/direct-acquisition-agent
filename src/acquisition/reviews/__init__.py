@@ -16,3 +16,5 @@ __all__ += ['SEQUENCE_PURPOSE','SEQUENCE_CHECKS','sequence_subject','sequence_va
 from .ports import SequenceReviewStore
 from .application import SequenceReviews
 __all__ += ['SequenceReviewStore','SequenceReviews']
+from .sequences import readiness_window
+__all__ += ['readiness_window']

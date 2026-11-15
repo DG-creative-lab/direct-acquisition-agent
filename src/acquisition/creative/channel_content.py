@@ -1,6 +1,7 @@
 """Versioned grounded channel artifacts. Finite framing is interpretation, never a fact or authority."""
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from html import escape
 import re
 from urllib.parse import urlparse
@@ -62,6 +63,13 @@ class ChannelContentRequest:
 def channel_source_payloads(context):
     return {'guidance':context['guidance'],'product':context['product_facts'],
         'recipients':context['recipients'],'policy':context['channel_policy'],'preferences':context['preferences']}
+
+
+def channel_readiness_boundaries(contexts):
+    """Product dates apply to every checked context, including unused bundle recipients."""
+    return tuple(point for context in contexts for point in (
+        datetime.fromisoformat(context['product_facts']['checked_on']).replace(tzinfo=timezone.utc).timestamp(),
+        (datetime.fromisoformat(context['product_facts']['review_by']).replace(tzinfo=timezone.utc)+timedelta(days=1)).timestamp()))
 
 
 def synthetic_channel_policy(profile_key, product):

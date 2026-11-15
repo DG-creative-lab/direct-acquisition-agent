@@ -40,7 +40,7 @@ not restore an earlier epoch or approval.
 | `audience_permissions` | Audience-owned decision reconstruction and current source readiness bind the selected native account population, source purpose and email permissions. Human-call permission and current recipient context are additionally checked for every call payload. |
 | `recipient_payloads` | Creative re-renders every payload from its frozen context and recorded proposal, validates the full recipient population and advisory screen, checks completed task/run identity, then rechecks current product/context/contact evidence. A status label or internally rehashed text cannot replace this provenance. |
 | `sequence_contract` | Campaign-owned reconstruction checks exact assignments and controls, provider capabilities, all three materialized stages, sender bytes, costs, capacity, validity windows, ordered distinct cadences and stop conditions. Current native engagement objections are checked independently. |
-| `current_epochs` | Current scoped durable evidence, objection and suppression history must match the reviewed basis. |
+| `current_epochs` | Current scoped durable evidence, objection and suppression history must match the reviewed basis. A subject-bound validity interval must cover the complete checked evidence at the final evaluation time. |
 
 Each check reports `passed`, `failed`, `unknown` or `not_evaluated`. Required
 membership belongs to reviews, not to the submitted report. Missing checks are
@@ -48,10 +48,24 @@ not evaluated, downgrading a required check is rejected, and checker exceptions
 become unknown. Only all required passes establish review readiness. Recorded
 semantic screening remains advisory and cannot grant human approval.
 
-Readiness also checks the sequence and frozen payload validity windows at the
-report's final evaluation time. Operator views refresh that time after approval
-inspection before returning substantive content, so expiry during validation or
-inspection withholds the sequence and summary.
+Readiness checks the complete evidence basis as well as the sequence and frozen
+payload validity windows at the report's final evaluation time. Domain owners
+provide the time boundaries for all checked contact evidence, permissions,
+pressure coverage, recipient manifests and facts, and product review dates.
+This includes non-selected contacts, control populations, unused bundle
+recipients and omitted facts. The evidence scope is deliberately conservative
+across the organization, matching the frozen source-history basis.
+
+The interval starts before the first checker runs and ends at the next known
+boundary. Reviews requires this interval on a passed `current_epochs` check;
+missing, malformed or differently bound proof cannot establish readiness.
+Operator views refresh evaluation time after approval inspection before
+returning substantive content. Crossing a boundary during validation or
+inspection withholds the sequence and summary. A fresh complete validation can
+establish a new interval after an irrelevant historical boundary has passed;
+an elapsed historical timestamp alone does not permanently block readiness.
+Saved reports without this proof remain historical and cannot serve as current
+readiness. Immutable subjects, proposals and approval receipts are unchanged.
 
 `preview` supplies diagnostics before a review is opened. `view` revalidates a
 saved subject. On failed or unknown validation, both withhold substantive

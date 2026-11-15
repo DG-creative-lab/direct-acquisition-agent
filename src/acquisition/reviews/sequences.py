@@ -10,6 +10,16 @@ SEQUENCE_CHECKS = frozenset({'artifact_identity', 'audience_permissions', 'recip
                              'sequence_contract', 'current_epochs'})
 
 
+def readiness_window(subject, boundaries, now):
+    """A conservative interval for the complete checked basis, never execution authority."""
+    timestamp(now)
+    boundaries = tuple(boundaries)
+    for point in boundaries: timestamp(point)
+    future = [point for point in boundaries if point>now]
+    if not future: raise Conflict('The complete readiness basis has no known validity interval')
+    return {'subject_id':subject['id'],'from':now,'until':min(future)}
+
+
 def sequence_subject(organization, proposal_id, proposal, basis):
     if proposal_id != 'sequence_proposal_' + digest(proposal) or proposal['organization'] != organization:
         raise Conflict('Review must bind the exact scoped sequence')
@@ -29,6 +39,20 @@ def sequence_validation(subject, checks, now):
         if (check['status'] not in {'passed','failed','unknown','not_evaluated'}
                 or type(check['required']) is not bool or check['required'] != (name in SEQUENCE_CHECKS)):
             raise ValueError('Validation requirements cannot be downgraded')
+    if indexed['current_epochs']['status']=='passed':
+        window = indexed['current_epochs'].get('validity')
+        try:
+            if (type(window) is not dict or set(window)!={'subject_id','from','until'}
+                    or window['subject_id']!=subject['id']): raise ValueError('Unbound readiness interval')
+            timestamp(window['from']); timestamp(window['until'])
+            if window['from']>=window['until']: raise ValueError('Empty readiness interval')
+        except (ValueError,KeyError,TypeError):
+            indexed['current_epochs'] = {k:v for k,v in indexed['current_epochs'].items() if k!='validity'} | {'status':'unknown',
+                'detail':'Complete readiness time basis is unavailable or invalid.'}
+        else:
+            if not window['from']<=now<window['until']:
+                indexed['current_epochs'] = indexed['current_epochs'] | {'status':'failed',
+                    'detail':'The complete checked readiness basis crossed a time boundary. Revalidate it.'}
     if indexed['sequence_contract']['status']=='passed':
         try:
             validate_sequence_window(subject['sequence'],now)

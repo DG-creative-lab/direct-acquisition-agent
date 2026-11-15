@@ -8,6 +8,20 @@ from .domain import CampaignProfile
 DEFINITIVE_EXCLUSIONS = frozenset({'contact_merged','contact_deleted','contact_retired',
     'account_merged','account_deleted','account_retired','local_business_suppression',
     'current_objection','unsupported_country','unsupported_entity_type','unsupported_segment'})
+PRESSURE_WINDOW_SECONDS = 90*86400
+
+
+def contact_readiness_boundaries(snapshots):
+    """Potential changes to complete readiness, including non-selected contacts."""
+    points = []
+    for source in snapshots:
+        points.extend((source.observed_at,source.expires_at))
+        for permission in source.permissions:
+            points.extend((permission.observed_at,permission.expires_at))
+        for pressure in source.pressure:
+            points.extend((pressure.observed_at,pressure.expires_at,
+                           pressure.window_start+PRESSURE_WINDOW_SECONDS))
+    return tuple(points)
 
 
 def contact_eligibility(snapshot: ContactSnapshot, profile: CampaignProfile, channel, purpose, now,
@@ -52,7 +66,7 @@ def contact_eligibility(snapshot: ContactSnapshot, profile: CampaignProfile, cha
             counts = pressure.get(contact.ref.id)
             if (counts is None or not counts.complete or counts.contact_count is None or counts.account_count is None
                     or account is None or counts.experiment_unit != account.experiment_unit
-                    or not counts.window_start <= now - 90*86400
+                    or not counts.window_start <= now - PRESSURE_WINDOW_SECONDS
                     or not counts.observed_at <= now < counts.expires_at):
                 reasons.append('pressure_unknown')
             else:

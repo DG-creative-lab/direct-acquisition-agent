@@ -3,11 +3,12 @@
 import json
 from uuid import uuid4
 
-from acquisition.campaigns import SequenceRequest, validate_sequence_proposal
+from acquisition.campaigns import SequenceRequest, validate_sequence_proposal, contact_readiness_boundaries
 from acquisition.contracts import Conflict, NotFound, canonical, digest
-from acquisition.creative import validate_channel_bundle, channel_arguments, CHANNEL_CONTENT_CAPABILITY
+from acquisition.creative import (validate_channel_bundle, channel_arguments, CHANNEL_CONTENT_CAPABILITY,
+    recipient_readiness_boundaries, channel_readiness_boundaries)
 from acquisition.reviews import (SEQUENCE_PURPOSE, SEQUENCE_CHECKS, sequence_subject, sequence_validation,
-    sequence_summary, validate_sequence_output, text)
+    sequence_summary, validate_sequence_output, text, readiness_window)
 from .actors import require_actor
 from .creative import read_context
 
@@ -142,24 +143,44 @@ class SqliteSequenceReviews:
         validate_sequence_proposal(proposal,decision,materials,self.proposals.connections,identities)
         self.proposals.current(db,organization,proposal)
 
+    def _readiness_window(self, db, organization, subject, started_at):
+        # Match the conservative organization-wide evidence scope of _basis.
+        snapshots = self.proposals.contacts._history(db,organization)
+        recipients = self.proposals.channels.recipients
+        manifests = [recipients._manifest(row,organization) for row in db.execute(
+            'SELECT * FROM recipient_context_sources WHERE organization=? ORDER BY id',(organization,))]
+        contexts = []
+        for key in ('initial_content','call_content','followup_content'):
+            row = db.execute('SELECT context_id FROM channel_preparations WHERE organization=? AND request_id=?',
+                (organization,subject['sequence']['request'][key])).fetchone()
+            if row is None: raise NotFound('Readiness context is unavailable in this organization')
+            contexts.append(read_context(db,organization,row['context_id']))
+        boundaries = (contact_readiness_boundaries(snapshots)+recipient_readiness_boundaries(manifests)
+            +channel_readiness_boundaries(contexts))
+        return readiness_window(subject,boundaries,started_at)
+
     def _report(self, db, organization, subject):
         proposal = subject['sequence']
+        started_at = self.proposals._now()
         def epochs():
             if self._basis(db,organization)!=subject['basis']: raise Conflict('Evidence or suppression epoch changed')
+            return self._readiness_window(db,organization,subject,started_at)
         checks = []
         validators = {'artifact_identity':lambda:self._identity(db,organization,subject),
             'audience_permissions':lambda:self.proposals._decision(db,organization,proposal['request']['decision_request']),
             'recipient_payloads':lambda:self._payloads(db,organization,proposal),
             'sequence_contract':lambda:self._campaign(db,organization,proposal), 'current_epochs':epochs}
         for name in sorted(SEQUENCE_CHECKS):
+            metadata = {}
             try:
-                validators[name]()
+                result = validators[name]()
+                if name=='current_epochs': metadata['validity'] = result
                 status, detail = 'passed', 'Required domain validation passed.'
             except (Conflict,NotFound,ValueError):
                 status, detail = 'failed', 'Saved inputs failed current domain validation.'
             except Exception:
                 status, detail = 'unknown', 'Checker unavailable. No readiness or execution authority.'
-            checks.append({'id':name,'required':True,'status':status,'detail':detail})
+            checks.append({'id':name,'required':True,'status':status,'detail':detail} | metadata)
         checks.append({'id':'semantic_screen','required':False,'status':'passed' if next(c for c in checks if c['id']=='recipient_payloads')['status']=='passed' else 'not_evaluated',
             'detail':'Recorded semantic screening is advisory, never accountable approval.'})
         return sequence_validation(subject,checks,self.proposals._now())
