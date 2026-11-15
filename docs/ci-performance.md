@@ -110,3 +110,48 @@ Rebased verification passed 998 backend tests, all 108 browser tests, architectu
 build, formatting and 79 relevant mutation probes. The complete 510-probe
 catalogue was retained but was not rerun in this follow-up. Results and experiment
 reruns are recorded in [the validation ledger](validation.md).
+
+## Report-local material reuse
+
+A successful sequence readiness report previously reconstructed the three
+channel materials three times: payload validation, campaign validation and the
+final current-proposal reconstruction. The report now passes the payload
+checker's completed material map to campaign validation. A failed payload
+checker leaves no reusable map, so campaign validation retains its independent
+fallback. The map belongs only to that report and is never stored on the adapter
+or reused by another report, organization, proposal or transaction.
+
+The final `proposals.current()` call still reconstructs every material from
+current sources. Final actor, evidence/suppression epoch, approval expiry,
+readiness-window, lease and acceptance checks retain their original paths.
+The existing checker-failure regression now also changes durable payload bytes
+after payload validation succeeds and verifies that the final current check
+rejects readiness. A mutation that removes that last reconstruction is detected.
+A passing report is bounded to six material reconstructions, down from nine.
+
+Serial local measurements on the same machine and Python used three repetitions
+of each unchanged test method, without concurrent verification workloads:
+
+| Case | Before median | After median | Reduction |
+| --- | ---: | ---: | ---: |
+| Approval, both arms/controls and restart | 16.04 s | 10.83 s | 32.5% |
+| Full readiness basis and final expiry phases | 50.03 s | 35.59 s | 28.9% |
+
+Case timings include per-case setup and cleanup and exclude shared class setup.
+The [raw measurements](evaluations/sequence-review-material-reuse-2026-11-15.json)
+retain all samples, suite elapsed times, Python/platform details, source hashes
+and unchanged benchmark-method AST hashes. These are local case improvements,
+not a measured whole-suite or hosted CI improvement.
+
+The helper was added before collecting the baseline. When reproducing against
+the parent commit, copy the unchanged helper into that checkout first; the
+parent already contains its `TimingResult` dependency. Run each phase from the
+repository root, on the corresponding source:
+
+```sh
+PYTHONPATH=src:tests python3 -m scripts.benchmark_sequence_review \
+  --output .local/benchmarks/sequence-review-before.json
+# Apply the candidate change, then run serially without other test processes.
+PYTHONPATH=src:tests python3 -m scripts.benchmark_sequence_review \
+  --output .local/benchmarks/sequence-review-after.json
+```

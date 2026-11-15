@@ -1938,3 +1938,38 @@ before the correction and then passed. All four CI-tool tests and all four real
 historical-budget cases passed through the timing runner, retaining four timing
 records. Architecture and whitespace checks passed. This changes timing metadata
 only; the fixture and its product assertions are retained.
+
+## Report-local sequence material construction
+
+Sequence report construction can pass completed payload materials to its
+campaign validator within that report. The independent final current-proposal
+reconstruction remains mandatory. No material map, positive readiness report or
+approval authority is retained across reports or transactions. Failed payload
+checks leave the map absent and keep the campaign check's independent fallback.
+
+The existing required-check/checker-failure regression now injects changed
+artifact bytes after the payload checker returns. Payload validation has passed,
+but sequence-contract validation must fail and withhold readiness. A new mutation
+removes the final current-proposal reconstruction and is detected by this fault.
+The same regression first reproduced nine material constructions and now asserts
+six per passing report. Actor, epoch, final clock, expiry, lease and effect-commit
+paths are unchanged; their existing fault and mutation cases are retained.
+
+Three unprofiled serial repetitions of each unchanged benchmark method measured
+median case time reductions from 16.04 to 10.83 seconds (32.5%) for approval and
+restart, and 50.03 to 35.59 seconds (28.9%) for complete evidence-basis expiry.
+Measurements include per-case setup/cleanup; shared setup is recorded separately
+in suite elapsed samples. Source hashes and test-method AST equality bind the
+comparison. See the [raw samples](evaluations/sequence-review-material-reuse-2026-11-15.json).
+No hosted or whole-suite speedup is claimed from these case measurements.
+
+Verification passed all 999 backend tests (`make test`, with loopback access),
+all 80 selected sequence/review, contact and strategy mutations, architecture and
+whitespace checks. The new final-current mutation was also detected separately.
+The full 511-probe catalogue was retained but was not rerun in this slice. The
+full backend run took 1,117.5 seconds while mutation verification overlapped its
+early portion; that elapsed result is verification evidence, not the paired
+performance comparison. No frontend or schema changed and no live model call was
+made. Review of the changed call graph found no removed final authority boundary;
+input reuse is confined to the successful payload-to-campaign handoff in one
+report, with the existing independent current-source reconstruction retained.
