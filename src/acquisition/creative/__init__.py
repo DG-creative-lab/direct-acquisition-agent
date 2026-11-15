@@ -30,8 +30,13 @@ __all__ += ['ChannelContentRequest', 'ChannelContentStore', 'channel_tool_contra
     'validate_channel_context', 'channel_recipient_wording', 'proposal_rows', 'render_channel_rows',
     'validate_rendered_channel', 'validate_channel_screen']
 from .channel_agent import ChannelContentAgent, channel_arguments
+from .channel_content import validate_channel_bundle
+__all__ += ['validate_channel_bundle']
 __all__ += ['ChannelContentAgent', 'channel_arguments']
 from .channel_content import CAPABILITY as CHANNEL_CONTENT_CAPABILITY, FRAMES as CHANNEL_FRAMES
 __all__ += ['CHANNEL_CONTENT_CAPABILITY', 'CHANNEL_FRAMES']
 from .channel_content import synthetic_channel_policy
 __all__ += ['synthetic_channel_policy']
+from .recipient_context import recipient_readiness_boundaries
+from .channel_content import channel_readiness_boundaries
+__all__ += ['recipient_readiness_boundaries','channel_readiness_boundaries']

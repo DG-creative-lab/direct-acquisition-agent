@@ -242,6 +242,17 @@ def recipient_evidence_from(payload):
         'facts':tuple(recipient_fact_from(f) for f in payload['facts'])}))
 
 
+def recipient_readiness_boundaries(manifests):
+    """Selection and omission reasons depend on the full evidence, not only selected facts."""
+    points = []
+    for manifest in manifests:
+        points.extend((manifest['observed_at'],manifest['expires_at']))
+        for item in manifest['facts']:
+            points.extend((item['fact']['observed_at'],item['fact']['expires_at']))
+    for point in points: moment(point)
+    return tuple(points)
+
+
 def select_recipient_context(target, request, guidance, manifest, history, channel, purpose, now, eligible):
     """Missingness and contradictions omit specificity; source prose is never prompt material."""
     selected, omissions = [], []

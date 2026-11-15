@@ -25,7 +25,7 @@ The [recipient context guide](docs/recipient-context.md) adds bounded retrieval 
 
 The [channel content guide](docs/channel-content.md) adds frozen personalized email and human call-script artifacts through a bounded agent API/CLI. It validates every recipient, uses exact reviewed product wording and provides separately versioned skills. The installed proposer and screen are offline fixtures; the artifacts remain unapproved and synthetic.
 
-The [sequence simulation guide](docs/sequence-simulation.md) combines frozen audience assignments and recipient content into bounded email/call strategies. It preserves controls, costs, capacity and exact step identities while simulating submissions, delivery, replies, objections and human task completion. Real outreach and sequence approval remain separate capabilities.
+The [sequence simulation guide](docs/sequence-simulation.md) combines frozen audience assignments and recipient content into bounded email/call strategies. It preserves controls, costs, capacity and exact step identities while simulating submissions, delivery, replies, objections and human task completion. [Exact sequence review](docs/sequence-review.md) now binds one bounded approval to the full materialized sequence and checks current authority before simulated effects. Real outreach remains separate.
 
 ## Try it locally
 

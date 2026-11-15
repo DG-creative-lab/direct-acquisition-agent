@@ -1,6 +1,7 @@
 """Versioned grounded channel artifacts. Finite framing is interpretation, never a fact or authority."""
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from html import escape
 import re
 from urllib.parse import urlparse
@@ -62,6 +63,13 @@ class ChannelContentRequest:
 def channel_source_payloads(context):
     return {'guidance':context['guidance'],'product':context['product_facts'],
         'recipients':context['recipients'],'policy':context['channel_policy'],'preferences':context['preferences']}
+
+
+def channel_readiness_boundaries(contexts):
+    """Product dates apply to every checked context, including unused bundle recipients."""
+    return tuple(point for context in contexts for point in (
+        datetime.fromisoformat(context['product_facts']['checked_on']).replace(tzinfo=timezone.utc).timestamp(),
+        (datetime.fromisoformat(context['product_facts']['review_by']).replace(tzinfo=timezone.utc)+timedelta(days=1)).timestamp()))
 
 
 def synthetic_channel_policy(profile_key, product):
@@ -204,3 +212,14 @@ def validate_channel_screen(arguments, rendered):
     for row in rows:
         if row['verdict']!='pass' or row['reason']!='none': raise ValueError('Advisory semantic screen rejected a recipient')
     return arguments
+
+
+def validate_channel_bundle(context, context_id, proposals, bundle):
+    """Revalidate every byte and recipient, independently of a saved status label."""
+    validate_rendered_channel(context,context_id,proposals,bundle['rendered'])
+    validate_channel_screen(bundle['screen'],bundle['rendered'])
+    expected = {'schema':'channel-bundle/v1','mode':'SYNTHETIC_ONLY','organization':context['organization'],
+        'context_id':context_id,'rendered':bundle['rendered'],'screen':bundle['screen'],
+        'screen_status':'passed_advisory_not_approval','status':'validated_unapproved','parent_id':context['command']['parent_id'],
+        'approval':'not_granted','outcome_support':'none','execution':'not_performed','authority':'none'}
+    if bundle != expected: raise Conflict('Channel bundle differs from its grounded content contract')

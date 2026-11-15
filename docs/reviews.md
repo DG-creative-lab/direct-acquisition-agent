@@ -81,3 +81,11 @@ Schema v16 adds provider records under the existing initialization write lock. O
 ## Verification
 
 See [validation](validation.md) for the current test portfolio and bounded evidence for review identity, expiry, revocation, concurrency, atomicity and replay.
+
+## Multichannel sequence purpose
+
+[Exact sequence review](sequence-review.md) is a separate schema-22 purpose for
+synthetic email/call sequences. It cannot consume postal approvals or authorize
+live outreach. Its required checks, structured operator-output validation and
+transactional engagement authority port are described in that contract. Existing
+postal review subjects and receipt formats remain unchanged.

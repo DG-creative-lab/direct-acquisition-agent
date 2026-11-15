@@ -7,14 +7,15 @@ import uuid
 from acquisition.campaigns import sequence_text, sequence_time
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.engagements import (DispatchClaim, SimulationReceipt, make_intent,
-    validate_simulation_receipt, validate_observation, simulation_totals, validate_step_transition, step_wait_reason)
+    validate_simulation_receipt, validate_observation, simulation_totals, validate_step_transition, step_wait_reason, SequenceEffectAuthority)
 from acquisition.runtime import LeaseLost
 from .engagement_stops import native_engagement_stop, native_stop_subjects
 
 
 class SqliteEngagements:
-    def __init__(self, proposals):
+    def __init__(self, proposals, authority: SequenceEffectAuthority):
         self.proposals,self.database=proposals,proposals.database
+        self.authority = authority
 
     def _now(self): return self.proposals._now()
     def _writable(self, db): self.proposals.writable(db)
@@ -69,8 +70,9 @@ class SqliteEngagements:
         _,proposal=self._simulation(db,organization,simulation_id)
         return row,self._intent(row,proposal)
 
-    def start(self, organization, request_id, proposal_id, configuration):
+    def start(self, organization, request_id, proposal_id, configuration, approval_id=None):
         inputs={'kind':'start_simulation/v1','proposal_id':proposal_id,'configuration':configuration}
+        if approval_id is not None: inputs['approval_id'] = approval_id
         with self.database.transaction() as db:
             self._writable(db)
             replay=self._command(db,organization,request_id,inputs)
@@ -79,15 +81,21 @@ class SqliteEngagements:
             old=db.execute('SELECT * FROM engagement_simulations WHERE organization=? AND proposal_id=?',(organization,proposal_id)).fetchone()
             if old:
                 if old['configuration']!=canonical(configuration): raise Conflict('Resume with the frozen simulation transport configuration')
+                if approval_id is not None:
+                    bound = self.authority.authorize_simulation(db,organization,old['id'],proposal_id)
+                    if bound['id']!=approval_id: raise Conflict('Simulation already binds a different exact approval')
                 result={'simulation_id':old['id'],'proposal_id':proposal_id,'mode':'SYNTHETIC_ONLY','authority':'none'}
                 self._command(db,organization,request_id,inputs,result)
                 return result|{'observation':'historical_receipt'}
+            if approval_id is None: raise Conflict('An exact current multichannel approval is required to start a new simulation')
+            self.authority.authorize(db,organization,proposal_id,approval_id)
             self.proposals.current(db,organization,proposal)
             expected={s['channel']:s['connection_id'] for m in proposal['population'] for s in m['steps']}
             if (set(configuration)!={'email','human_call'} or any(configuration[channel]['connection_id']!=identity for channel,identity in expected.items())):
                 raise Conflict('Simulation transport differs from frozen sequence connections')
             simulation_id='simulation_'+digest({'organization':organization,'proposal_id':proposal_id})
             db.execute('INSERT INTO engagement_simulations VALUES(?,?,?,?)',(organization,simulation_id,proposal_id,canonical(configuration)))
+            self.authority.bind(db,organization,simulation_id,proposal_id,approval_id)
             for member in proposal['population']:
                 enrollment_id='enrollment_'+digest({'simulation_id':simulation_id,'unit':member['experiment_unit']})
                 db.execute('INSERT INTO engagement_enrollments VALUES(?,?,?,?,?,?,?)',
@@ -103,6 +111,7 @@ class SqliteEngagements:
             self._event(db,organization,simulation_id,'simulation_enrolled',counts=proposal['counts'])
             self._command(db,organization,request_id,inputs,result)
             self.proposals.current(db,organization,proposal); self._writable(db)
+            self.authority.authorize_simulation(db,organization,simulation_id,proposal_id)
             return result|{'observation':'simulation_started'}
 
     def _stop_action(self, db, organization, simulation_id, row):
@@ -111,7 +120,9 @@ class SqliteEngagements:
     def _allowed(self, db, organization, simulation_id, row, proposal, intent):
         action=self._stop_action(db,organization,simulation_id,row)
         if action: return action
-        try: self.proposals.current_step(db,organization,proposal,intent['step'])
+        try:
+            self.authority.authorize_simulation(db,organization,simulation_id,intent['proposal_id'])
+            self.proposals.current_step(db,organization,proposal,intent['step'])
         except (Conflict,NotFound,ValueError): return 'blocked'
         return None
 
@@ -287,7 +298,10 @@ class SqliteEngagements:
                 'waiting_for_human_completion' if states['pending'] and all(s['waiting_on']=='human_task_completion' for s in steps if s['status']=='pending') else
                 'scheduled' if states['pending'] else
                 'stopped' if states['stopped'] else 'submissions_complete')
+            review = self.authority.status(db,organization,simulation_id,simulation['proposal_id'])
+            if status=='submissions_complete' and not review['current']: status='historical_submissions_complete'
             return {'simulation_id':simulation_id,'proposal_id':simulation['proposal_id'],'mode':'SYNTHETIC_ONLY',
                 'status':status,'assignments':proposal['population'],'steps':steps,'observations':observations,'totals':totals,
                 'enrollments':[dict(r) for r in db.execute('SELECT * FROM engagement_enrollments WHERE organization=? AND simulation_id=? ORDER BY id',(organization,simulation_id))],
-                'authority':'none','approval':'not_granted'}
+                'authority':'none','approval':'recorded_for_synthetic_sequence' if review['approval_id'] else 'not_granted',
+                'review':review,'projection':'validated_simulation_facts_not_execution_authority'}

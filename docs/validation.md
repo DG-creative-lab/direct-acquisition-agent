@@ -1,5 +1,181 @@
 # Validation and limits
 
+## Final sequence authority time follow-up
+
+Review of `137db62` found that `authorize` discarded the successful readiness
+report, then checked approval lifetime before the final evidence-epoch and
+reviewer lookups. The complete readiness interval could expire after the report
+returned while the approval itself remained within its longer lifetime.
+
+Authorization now retains that exact report, completes the epoch and reviewer
+checks, then evaluates both approval lifetime and the report's complete evidence
+interval at one final authority-check timestamp. It cannot replace a bounded
+report with its earlier positive status. This check remains inside each caller's
+existing transaction, with no schema, subject or approval-receipt changes.
+
+The existing full-basis SQLite regression now also crosses the interval end
+after the report returns, during the final epoch lookup and during the final
+reviewer lookup. It covers all five existing evidence variants, including
+controls, and asserts that authorization fails without durable changes. All
+fifteen added fault cases failed before the fix and passed afterwards. Readiness
+and approval remain valid immediately before each exclusive boundary. No new
+test methods or fixture populations were added for this follow-up.
+
+The CI cost and coverage assessment is recorded separately in
+[test-suite performance](test-suite-performance.md). `make test` passed all 994
+backend tests on Python 3.14 with loopback access, including all sixteen
+sequence-review tests and the HTTP tests. The successful full run took 1,470
+seconds and recorded timings for all 994 cases. The two new authority mutation
+probes were detected; the complete mutation portfolio was not rerun.
+`make arch-check` and `git diff --check` passed. No live provider or model calls
+were made, and no frontend or schema changes were introduced.
+
+## Complete readiness time basis follow-up
+
+Review of `04587b7` found that the final expiry check covered the sequence and
+selected payloads but omitted indirect evidence used by complete readiness.
+Before this fix, real SQLite regressions reproduced false readiness when a
+non-selected contact's permission, an unused bundle recipient's manifest or an
+omitted fact expired after its checker had passed. Selected payload bounds were
+still valid. The original sequence and selected-payload expiry checks remain.
+
+Campaigns and creative now expose their own pure readiness time boundaries.
+They cover complete contact snapshots, permissions and pressure evidence,
+including the ninety-day pressure-coverage threshold; recipient manifests and
+all their facts; and UTC product review dates. The SQLite composition gathers
+these boundaries within the same conservative organization scope as the frozen
+evidence basis. Reviews binds a validity interval to the exact subject, starting
+before any checker runs and ending at the next future boundary. The report and
+the final operator projection require that interval to remain current. Missing,
+malformed or substituted interval metadata withholds readiness, as does an
+unavailable boundary checker.
+
+The new regression covers non-selected permission and pressure evidence,
+control-only populations, unused bundle recipients and omitted facts. For each
+case it checks readiness immediately before expiry, actual invalidity at the
+exclusive end, and expiry during campaign validation or later approval lookup
+through both `view` and `preview` (twenty late-output cases). Saved summaries
+are rejected when validation crosses the boundary. A separate case proves that
+fresh complete validation can succeed after an irrelevant historical source
+boundary passes. Pure domain checks exercise pressure coverage becoming current
+and inclusive UTC product review dates. Existing tests now require valid
+interval proof and reject missing, malformed, unbound or unavailable proof.
+
+These changes add no schema or persisted artifact fields. Historical proposal,
+subject, approval, content and receipt bytes remain immutable. Runtime and
+frontend behavior are unchanged. Read-only checks on the retained database
+written by the prior sequence implementation preserved every row across all 79
+tables, with identical before/after digests and exact saved proposal bytes.
+Its preview was ready before expiry and withheld substantive content at expiry.
+All seven new mutation probes were detected. They independently remove contact
+evidence, manifest or omitted-fact boundaries, bypass final interval expiry or
+required interval proof, and alter the pressure-coverage or product-calendar
+boundary. The prior mutation portfolio was not rerun.
+
+`make test` passed all 994 backend tests on Python 3.14 with loopback access,
+including all 16 sequence-review tests and the HTTP tests previously blocked by
+the sandbox. `make arch-check` and `git diff --check` passed. No live provider or
+model calls were made, and no frontend files changed.
+
+## Review-readiness expiry follow-up
+
+Review of `128cf72` found that the last campaign check could pass before expiry
+and return after it, leaving a positive report stamped at an expired time.
+The additional approval checks limited effect admission but did not repair the
+operator-facing report or summary. The new real SQLite regression reproduced
+that false readiness and the stale projection timestamp before the fix.
+
+Campaigns now owns a pure evaluation-time check of the frozen sequence end and
+every materialized payload's known evidence validity bound. Reviews applies it
+at the report's final evaluation timestamp, preserving any earlier failed,
+unknown or unevaluated required check. The operator view refreshes that timestamp
+after approval inspection, then builds or withholds substantive output. A shorter
+approval lifetime is checked at that same timestamp without treating otherwise
+current content as unready for accountable review.
+
+The bounded regression covers both sequence and frozen-evidence expiry, at the
+exact exclusive end, after campaign validation and during the later approval
+lookup, through both `view` and `preview` (eight late-output cases). It also
+checks readiness just before each boundary, rejection of a saved summary when
+validation crosses expiry, and the shorter-approval distinction. Durable row
+counts remain unchanged. No schema, historical subject, approval receipt,
+proposal or content bytes are rewritten. Generic runtime and frontend behavior
+are unchanged.
+
+All 13 sequence-review tests passed, and the focused final regression passed
+with its before-boundary and shorter-approval assertions. All five new expiry
+mutation probes were detected, covering removal of the final window check,
+inclusive sequence/evidence ends, missing projection-time refresh and stale
+approval validity. The prior full mutation portfolio was not rerun. Read-only
+preview checks on the retained historical database preserved every row across
+all 79 tables, verified by identical before/after digests.
+
+`make test` passed all 991 backend tests on Python 3.14 with loopback access,
+including the HTTP tests that could not start in the review sandbox.
+`make arch-check` and `git diff --check` passed. No live provider/model calls
+or frontend changes were introduced.
+
+## Exact multichannel review, issue #67
+
+Confirmed boundary: the standalone synthetic sequence API now requires a new
+exact approval before new effects. This includes direct store calls, restart and
+continuation. Existing proposal, content, dispatch and observation bytes are not
+rewritten or granted approval. The original postal purpose stays separate.
+See [sequence review](sequence-review.md) for the operational contract.
+
+| Invariant | Independent authority and failure evidence |
+| --- | --- |
+| Complete validation | Reviews declares five required checks. Tests independently enumerate all five and all four nonpassing/omitted states, plus five requirement downgrades. A checker crash must withhold both sequence output and summary and prevent a decision/start. |
+| Exact subjects and permissions | Audience/source contracts, current creative reconstruction and campaign reconstruction attest identities, purpose, both channels, assignments/controls, all payloads, sender/provider account/scope, limits, schedule and stops. Tests reject other proposals, missing approval, praise/confidence/skill/report references, changed sender/account/profile and changed materialized bytes. |
+| Current approval | Real SQLite exercises revocation, later rejection, expiry and reviewer disable/re-enable. A source-pack change and restoration retains a newer evidence epoch, so the original subject and summary remain stale. Fresh review can authorize unchanged work under the new epoch. |
+| Commit fencing | Faults after decision write and enrollment writes leave no partial decisions, bindings, enrollment, event or command receipt. Expiry during approval/reservation rolls back authority. Revocation during transport retains a provider observation while blocking completion and subsequent calls. Existing sequence lease, stop, unknown-effect and concurrent reservation tests remain. |
+| Truthful output | The operator output validator rejects extra praise, invented population/cost facts, omitted counts and another subject. Rehashed content or absent inference observations cannot replace validation. Diagnostics remain available when substantive content is withheld. |
+| History and recovery | Schema-21 migration failure is atomic; successful repeated migration preserves every prior row and the admission cutoff. Schema-21 inspection refuses new effects. Unapproved historical simulations cannot reserve another step. Approved strategies resume in another process without repeating effects; controls receive no steps or charges. |
+
+The evidence model is bounded to installed synthetic sources, recorded offline
+inference, exact local actor administration and a single local SQLite store.
+The causal clusters are subject/evidence/permission identity; reviewer,
+expiry/revocation and effect commit; durable command/receipt/restart; and
+validation/projection truth. There is no distributed-provider oracle or live
+model-quality claim. Organization-wide evidence invalidation is conservative;
+new evidence or an objection can invalidate the full exact population's
+approval, including unaffected pending members.
+
+The 12 new review tests passed on Python 3.11 and Python 3.14. The focused
+Python 3.14 rerun also confirmed explicit cleanup of test inspection connections. The 45-test checkpoint,
+reconciliation and legacy migration selection passed on Python 3.14, as did
+eight historical schema/CLI fixture tests. The broader run first exposed stale
+schema caps in checkpoint and legacy readers, and old-schema fixture builders
+that accidentally applied the new migration. Those readers now accept schema
+22 and validate the new review tables; historical fixture builders still create
+their original schemas and retain their preservation/rollback assertions.
+
+A differential corpus against merged #84 matched all 17 selected artifact and
+catalogue digests across both profiles, including legacy postal content,
+profile proposals, contact assessments, decisions, contexts and channel
+rewrites. A database actually written by the previous sequence binary retained
+every row across all 73 pre-existing tables after upgrade. The new binary read
+its schema-21 sequence before migration; the previous binary rejected schema
+22 without migrating it. CLI preview and historical inspection passed, and CLI
+start without an explicit approval flag was rejected. No frontend files changed.
+
+All 32 selected sequence mutation probes were detected: ten new review probes
+and the 22 existing sequence probes. They exercise step authority, expiry at
+reservation commit, independent required membership, unknown-check handling,
+evidence-epoch restoration, superseding decisions, revocation, exact proposal
+binding, operator truth and the existing synthetic lifecycle boundaries. Early
+probe attempts hit their wall-time bounds under parallel verification; those
+were not counted as detections and the remaining probes were rerun to explicit
+test failures with bounded longer deadlines. The complete mutation portfolio
+was not rerun.
+
+`make test` passed all 990 backend tests on Python 3.14 with loopback access.
+The focused 12-test review rerun passed after the test connection cleanup;
+`make arch-check` and `git diff --check` passed. No live model or provider calls
+were made, and no interface check was required because frontend files are
+unchanged. These results cover the modeled local synthetic boundaries, not
+live-provider or distributed execution.
+
 ## Sequence objection merge-history follow-up
 
 Review of `552a684` found that engagement objections matched exact native IDs,
