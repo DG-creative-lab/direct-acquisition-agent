@@ -27,7 +27,7 @@ Simulation advances an explicitly synthetic, persisted virtual clock to the next
 
 Task-completion intent freezes its observation time before native continuation. A restart after native observation and a synthetic clock advance reuses that exact time and command. A stale tab using another key for the same task also retains the first explicit observation time.
 
-A status question such as `What is the status?`, `show the proposal` or `inspect` is saved separately from material messages. It does not invalidate the proposal, consume inference or grant approval. Text such as `approve it` points back to the exact approval control and grants no authority. Material changes append a new conversation revision, make the earlier proposal historical and require a fresh review. A cancelled request is not revived by a new key for the same revision.
+A status question such as `What is the status?`, `show the proposal` or `inspect` is saved separately from material messages. It does not invalidate the proposal, consume inference or grant approval. Text such as `approve it` points back to the exact approval control and grants no authority. Material changes append a new conversation revision, make the earlier proposal historical and require a fresh review. An explicit, unambiguous postal request returns to the existing postal preparation flow. Historical sequence rows do not capture later postal follow-ups or hide postal resume controls. A saved sequence-routed message that receives a postal message receipt continues with its original funding and consent through postal preparation. A cancelled request is not revived by a new key for the same revision.
 
 ## Ownership and ports
 

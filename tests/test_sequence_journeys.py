@@ -51,12 +51,95 @@ class SequenceIntentTests(unittest.TestCase):
         self.assertEqual(self.interpret(base+' In Germany.',base)['outcome'],'sequence')
         self.assertEqual(self.interpret(base,'Change budget to £200')['budget_pence'],20000)
 
+    def test_postal_routing_requires_an_affirmative_unambiguous_channel(self):
+        from acquisition.conversations import postal_request
+        for body,expected in (
+            ('Prepare a £600 postal response experiment.',True),
+            ('Use direct mail instead.',True),
+            ('Prepare a postal campaign, not email.',True),
+            ('Prepare an email campaign, not postal.',False),
+            ('Prepare postal and email campaigns.',False),
+            ('Prepare postal and emails.',False),
+            ('Prepare postal and human call scripts.',False),
+            ('Prepare postal without emails.',True),
+            ('Prepare an email and human call sequence.',False),
+            ('Fielddesk',False),('status?',False),('Show the postal plan',False),
+            ('What is the postal budget?',False),('Please show the postal plan',False),
+            ('Can you show the postal plan?',False),('Please prepare a postal campaign.',True),
+            ('Now use postal.',True)):
+            with self.subTest(body=body):self.assertEqual(postal_request(body),expected)
+
     def test_interpreter_output_cannot_change_literal_company_source_budget_or_country(self):
         base=OBJECTIVE.format(profile='Fielddesk');proposal=self.interpret(base)
         for changed in (proposal|{'profile_key':'iwoca','connection_key':'iwoca-crm-a'},proposal|{'connection_key':'fielddesk-crm-b'},proposal|{'budget_pence':5000}):
             with self.subTest(changed=changed),self.assertRaises(Conflict):
                 journey_request('one','conv',1,'request',[{'id':'m','content':base}],self.catalogue,changed,True,NOW)
         with self.assertRaises(Conflict):journey_request('one','conv',1,'request',[{'id':'m','content':base+' In Germany.'}],self.catalogue,proposal,True,NOW)
+
+
+class SequenceRoutingTests(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+        self.root=Path(self.temp.name);self.w=Workspace(self.root,real_clock=lambda:NOW)
+
+    def test_postal_request_leaves_current_sequence_and_historical_rows_do_not_capture_followups(self):
+        from acquisition.conversations import FIXTURE_MESSAGE
+        for entry in ('messages','actions'):
+            with self.subTest(entry=entry):
+                c=self.w.create_conversation('conversation-'+entry,'Return to postal')['id']
+                first=self.w.message_conversation(c,'sequence-'+entry,0,OBJECTIVE.format(profile='iwoca'))
+                journey=first['sequence_journeys'][0]['id']
+                frozen=self.w.sequence_journeys.store.get('local-conversations',journey)['inputs']
+                returned=(self.w.message_conversation(c,'postal-'+entry,1,FIXTURE_MESSAGE) if entry=='messages'
+                    else self.w.route_followup(c,'postal-'+entry,1,FIXTURE_MESSAGE,False))
+                self.assertEqual(returned['revision'],2)
+                current=self.w.conversation(c)
+                self.assertEqual(len(current['sequence_journeys']),1)
+                self.assertFalse(current['sequence_journeys'][0]['current'])
+                self.assertEqual(returned['messages'][-1]['content'],FIXTURE_MESSAGE)
+                self.assertEqual(self.w.sequence_journeys.store.get('local-conversations',journey)['inputs'],frozen)
+                reopened=Workspace(self.root,real_clock=lambda:NOW)
+                replay=(reopened.message_conversation(c,'postal-'+entry,1,FIXTURE_MESSAGE) if entry=='messages'
+                    else reopened.route_followup(c,'postal-'+entry,1,FIXTURE_MESSAGE,False))
+                self.assertEqual(replay['revision'],2)
+                self.assertEqual(replay['message_receipt']['revision'],2)
+                status=reopened.route_followup(c,'postal-status-'+entry,2,'status?',False)
+                self.assertEqual(status['revision'],2)
+                self.assertEqual(len(status['actions']),1)
+                self.assertEqual(status['sequence_interactions'],[])
+                self.assertEqual(status['execution']['used'],0)
+                from acquisition.conversations import ActionNotSaved
+                with self.assertRaises(ActionNotSaved):reopened.route_followup(c,'empty-'+entry,2,'',False)
+                # The original bare clarification can still replay after switching.
+                replay_sequence=reopened.message_conversation(c,'sequence-'+entry,0,OBJECTIVE.format(profile='iwoca'))
+                self.assertEqual(replay_sequence['revision'],2)
+                self.assertEqual(replay_sequence['message_receipt']['revision'],1)
+
+    def test_postal_preparation_uses_existing_services_after_channel_change(self):
+        from acquisition.conversations import FIXTURE_MESSAGE
+        from test_preparations import CombinedModel
+        from test_conversations import proposal
+        c=self.w.create_conversation('conversation','Sequence then postal')['id']
+        first=self.w.message_conversation(c,'sequence',0,OBJECTIVE.format(profile='iwoca'))
+        self.w.message_conversation(c,'postal',1,FIXTURE_MESSAGE)
+        model=CombinedModel(proposal())
+        with patch('acquisition.workspace.openrouter_key',return_value='fixture'),patch('acquisition.workspace.OpenRouter',return_value=model):
+            self.w.start_preparation(c,'postal-preparation',2,False,False)
+            for _ in range(8):
+                self.w.advance_preparations()
+                view=self.w.conversation(c)
+                if view['preparations'][0]['status']=='review_ready':break
+        self.assertEqual(view['preparations'][0]['status'],'review_ready')
+        self.assertEqual(len(view['sequence_journeys']),1)
+        self.assertFalse(view['sequence_journeys'][0]['current'])
+        self.assertEqual(view['campaigns'][0]['revision'],2)
+        self.assertEqual(view['execution']['used'],1)
+        review=self.w.view(view['campaigns'][0]['session_id'])['review']
+        self.assertFalse(review['approval_valid'])
+        self.assertIsNone(review['handoff'])
+        before=view['execution']['used']
+        self.w.sequence_journeys.advance('local-conversations',first['sequence_journeys'][0]['id'])
+        self.assertEqual(self.w.conversation(c)['execution']['used'],before)
 
 
 class SequenceJourneyTests(unittest.TestCase):

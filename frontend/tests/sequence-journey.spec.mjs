@@ -13,6 +13,15 @@ from acquisition.workspace_server import WorkspaceServer
 from pathlib import Path
 import sys
 w=Workspace(sys.argv[1],real_clock=lambda:1792972800. if sys.argv[2]=='postal-budget' else 1794700800.)
+if sys.argv[2]=='return-postal':
+ from unittest.mock import patch
+ from test_preparations import CombinedModel
+ from test_conversations import proposal
+ model=CombinedModel(proposal())
+ patch('acquisition.workspace.openrouter_key',return_value='fixture').start()
+ patch('acquisition.workspace.OpenRouter',return_value=model).start()
+ c=w.create_conversation('sequence','Return to postal')['id']
+ w.message_conversation(c,'sequence-message',0,'Prepare an email sequence with a £100 budget.')
 if sys.argv[2]=='postal-budget':
  from unittest.mock import patch
  from test_preparations import CombinedModel
@@ -366,3 +375,75 @@ test("a channel change starts its own revision instead of answering an earlier p
     expect(posts.some((p) => p.path.endsWith("/budget-replies"))).toBe(false);
   }, "postal-budget");
 });
+
+for (const legacyPending of [false, true])
+  test(`a sequence conversation returns to unapproved postal review, saved sequence route=${legacyPending}`, async ({
+    page,
+  }) => {
+    test.setTimeout(90000);
+    await isolated(async (url) => {
+      await page.goto(url);
+      await page
+        .getByRole("button", { name: "Return to postal", exact: true })
+        .click();
+      await expect(
+        page.getByRole("heading", { name: "One detail needed", exact: true }),
+      ).toBeVisible();
+      const text =
+        "Prepare a £600 direct-mail response experiment for UK contractors. Use offline copy fixtures.";
+      if (legacyPending) {
+        await page.evaluate((content) => {
+          sessionStorage.setItem(
+            "conversation-pending-message",
+            JSON.stringify({
+              conversationId: localStorage.getItem("conversation-selected"),
+              expected_revision: 1,
+              content,
+              allow_model_copy: false,
+              funding: { browser: null },
+              route: true,
+              sequence: true,
+            }),
+          );
+        }, text);
+        await page.reload();
+        await page
+          .getByRole("button", { name: "Retry saving message", exact: true })
+          .click();
+      } else {
+        await page.getByLabel("Message Direct Acquisition").fill(text);
+        await page
+          .getByRole("button", { name: "Send to agent", exact: true })
+          .click();
+      }
+      const choice = page.getByRole("region", {
+        name: "Choose campaign audience",
+      });
+      await expect(choice).toBeVisible({ timeout: 20000 });
+      await page.reload();
+      await expect(choice).toBeVisible();
+      await choice.getByRole("button", { name: "Use v1", exact: true }).click();
+      await expect(
+        page.getByRole("button", { name: /Review campaign/ }),
+      ).toBeVisible({ timeout: 20000 });
+      await expect(page.locator(".sequence-proposal")).toHaveCount(1);
+      await expect(
+        page.getByText(
+          "This revision is historical. Send a new objective to prepare a current proposal.",
+          { exact: true },
+        ),
+      ).toBeVisible();
+      await page.getByLabel("Message Direct Acquisition").fill("status?");
+      await page
+        .getByRole("button", { name: "Send to agent", exact: true })
+        .click();
+      await expect(
+        page.getByRole("region", { name: "Saved follow-up" }),
+      ).toBeVisible();
+      await expect(page.locator(".sequence-proposal")).toHaveCount(1);
+      await page.screenshot({
+        path: `/tmp/iwoca-postal-return-${legacyPending}.png`,
+        fullPage: true,
+      });
+    }, "return-postal");
+  });

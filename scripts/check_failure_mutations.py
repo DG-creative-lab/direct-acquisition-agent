@@ -10,6 +10,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ('sequence-journey-postal-return', 'workspace.py',
+     "        if postal_request(content) or (not rows and not sequence_language(content)):return None",
+     "        if not rows and not sequence_language(content):return None",
+     'test_sequence_journeys.SequenceRoutingTests.test_postal_request_leaves_current_sequence_and_historical_rows_do_not_capture_followups'),
+    ('sequence-journey-historical-routing', 'workspace.py',
+     "        rows=[row for row in self._sequence_rows(conversation_id) if row['inputs']['revision']==expected_revision]",
+     '        rows=self._sequence_rows(conversation_id)',
+     'test_sequence_journeys.SequenceRoutingTests.test_postal_request_leaves_current_sequence_and_historical_rows_do_not_capture_followups'),
     ('sequence-journey-frozen-receipt-scope', 'adapters/sqlite/execution.py',
      "+journey_scopes+", "+''+",
      'test_sequence_journeys.SequenceJourneyTests.test_frozen_journey_finds_receipts_after_task_origin_index_and_account_loss'),

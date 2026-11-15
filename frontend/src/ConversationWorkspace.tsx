@@ -535,6 +535,19 @@ export default function ConversationWorkspace({
           .replace(/[.!?]+$/, "")
           .replace(/\s+/g, " "),
       );
+      const currentRevision = current.revision;
+      const sequenceContext =
+        current.sequence_journeys?.some(
+          (j) => j.revision === currentRevision,
+        ) ?? false;
+      const sequenceWords =
+        /\b(?:multichannel|multi.channel|e-?mails?|human calls?|call scripts?|phone calls?)\b/i.test(
+          message,
+        );
+      const postalTransition =
+        sequenceContext &&
+        !sequenceWords &&
+        /\b(?:postal|direct[- ]mail|postcards?)\b/i.test(message);
       const pending = pendingMessage ?? {
         conversationId: current.id,
         expected_revision: current.revision,
@@ -542,14 +555,13 @@ export default function ConversationWorkspace({
         // Routing hint only. The server resolves installed scope and consent.
         sequence:
           !commentTarget &&
-          (Boolean(current.sequence_journeys?.length) ||
-            /\b(?:multichannel|multi.channel|e-?mails?|human calls?|call scripts?|phone calls?)\b/i.test(
-              message,
-            )),
+          !postalTransition &&
+          (sequenceContext || sequenceWords),
         allow_model_copy: allowModelCopy,
         funding,
         route:
           current.revision > 0 &&
+          !postalTransition &&
           (typedShortcut || (!current.execution?.stopped && !budgetQuestion)),
         ...(budgetQuestion && !commentTarget && !typedShortcut
           ? { budget_reply_to: budgetQuestion }
@@ -604,7 +616,11 @@ export default function ConversationWorkspace({
         }
         throw error;
       }
-      if (pending.route || pending.artifact || pending.sequence) {
+      if (
+        pending.artifact ||
+        (pending.route && !pending.sequence) ||
+        (pending.sequence && !saved.message_receipt)
+      ) {
         sessionStorage.removeItem(pendingMessageKey);
         setPendingMessage(null);
         setMessage("");
@@ -1344,7 +1360,9 @@ export default function ConversationWorkspace({
             )}
             {!pendingMessage &&
             conversation?.messages.length &&
-            !conversation.sequence_journeys?.length &&
+            !conversation.sequence_journeys?.some(
+              (j) => j.revision === conversation.revision,
+            ) &&
             !busy &&
             !preparing &&
             !loadingConversation &&

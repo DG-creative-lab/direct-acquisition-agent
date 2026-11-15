@@ -1836,3 +1836,13 @@ Verification recorded on 2026-11-15 in the isolated #68 worktree:
 - Six selected, valid #68 mutations were detected: company binding, budget binding, detached generation input, cancellation fence, frozen task-observation time and immutable receipt-scope discovery. The full repository mutation suite was not rerun for this slice.
 
 Fault probes cover admission rollback, confirmation acknowledgement loss, stop/edit during a reserved call, unknown provider outcome, native observation/clock commit before continuation progress, and migration interruption after DDL. These are bounded offline control checks, not live-provider, arbitrary-language, multi-worker or commercial-outcome evidence. Local Python verification used 3.14; other versions remain covered by the existing CI matrix when this branch is published.
+
+
+## Returning a sequence conversation to postal preparation
+
+The `d37c43a` review found that any historical sequence row permanently selected sequence routing in the server and browser. Routing now considers only the request's source revision, and an affirmative, unambiguous postal objective goes through native message admission and existing postal preparation. The literal-scope v1 resolver and all immutable historical inputs remain unchanged. Read-only questions and mixed channel requests cannot select postal preparation through this shortcut.
+
+Cheap real-SQLite routing tests reproduce the original failure, then verify both message/action entry points, original command replay after restart, preserved sequence inputs, historical presentation, native postal status routing, and existing postal preparation reaching fresh unapproved review with its shared call accounting. Pure cases cover affirmative, negated, mixed and read-only channel wording. Browser cases exercise fresh submission and a recovered sequence-routed command, reload at audience confirmation, unapproved postal review and subsequent native postal follow-ups. Two selected mutations remove the postal escape and current-revision filter independently.
+
+
+Postal-return fix verification on 2026-11-15: `make test` passed all 1,010 backend cases; `make interface-check` passed build, formatting and all 114 browser cases. The six focused scope/routing checks also passed after the final request-validation refinement. Both postal-return mutation probes were detected, and `make arch-check` and `git diff --check` passed. No native binding, execution-account, approval or historical artifact format changed.

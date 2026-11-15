@@ -13,7 +13,7 @@ from pathlib import Path
 
 from acquisition.bootstrap import build, build_admissions, build_preparations, build_workspace_state, verified_admission_mode, agent_catalogue
 from acquisition.conversations import ACTIVE_PREPARATION, AudienceSelectionRejected, ActionNotSaved, pending_copy_clarification, EnvironmentIntent, FIXTURE_MESSAGE, TYPED_ACTION_ALIASES, action_alias
-from acquisition.conversations import MessageRejectedConflict, MessageRejectedInvalid, MessageRejectedNotFound
+from acquisition.conversations import MessageRejectedConflict, MessageRejectedInvalid, MessageRejectedNotFound, postal_request
 from acquisition.adapters.environment import openrouter_key
 from acquisition.adapters.openrouter import OpenRouter
 from acquisition.adapters.sqlite.workspace_ancestry import initialize_workspace_identity
@@ -228,8 +228,8 @@ class Workspace:
 
     def _sequence_message(self,conversation_id,request_id,expected_revision,content,allow_generation=True):
         from acquisition.adapters.sequence_interpreter import sequence_language
-        rows=self._sequence_rows(conversation_id)
-        if not rows and not sequence_language(content):return None
+        rows=[row for row in self._sequence_rows(conversation_id) if row['inputs']['revision']==expected_revision]
+        if postal_request(content) or (not rows and not sequence_language(content)):return None
         # These exact questions inspect the same proposal. Other text is a material
         # revision and cannot carry an earlier proposal's confirmation forward.
         stopping=bool(re.fullmatch(r'(?:stop|cancel)(?: (?:this|the) sequence)?[.! ]*',content.strip(),re.I))
@@ -485,8 +485,11 @@ class Workspace:
         }
 
     def route_followup(self, conversation_id, request_id, expected_revision, content, allow_model_copy):
-        try:sequence=self._sequence_message(conversation_id,request_id,expected_revision,content,allow_generation=True)
+        try:
+            postal_transition=postal_request(content) and any(row['inputs']['revision']==expected_revision for row in self._sequence_rows(conversation_id))
+            sequence=None if postal_transition else self._sequence_message(conversation_id,request_id,expected_revision,content,allow_generation=True)
         except (Conflict,ValueError,NotFound) as error:raise ActionNotSaved(str(error)) from error
+        if postal_transition:return self.message_conversation(conversation_id,request_id,expected_revision,content)
         if sequence is not None:return sequence
         app=self._conversation_app();old=app.actions.store.request('local-conversations',conversation_id,request_id)
         try:

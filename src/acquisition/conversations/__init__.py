@@ -27,3 +27,6 @@ __all__ += ['SequenceJourneys','journey_request','journey_commands','JOURNEY_SCH
 from .sequence_journey import mentioned_profiles, effective_sequence_messages, sequence_literal_issue
 
 __all__ += ['mentioned_profiles','effective_sequence_messages','sequence_literal_issue']
+
+from .scope import postal_request
+__all__ += ['postal_request']
