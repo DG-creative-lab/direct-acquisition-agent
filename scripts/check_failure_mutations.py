@@ -10,6 +10,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ('sequence-authority-final-readiness-window', 'adapters/sqlite/sequence_reviews.py',
+     "                or not sequence_validation(subject,report['checks'],now)['review_ready']):", '                or False):',
+     'test_sequence_reviews.SequenceReviewTests.test_full_readiness_basis_expiry_withholds_outputs_even_when_selected_payloads_remain_valid'),
+    ('sequence-authority-final-clock', 'adapters/sqlite/sequence_reviews.py',
+     "        now = self.proposals._now()\n        if (not approval['at']<=now<approval['expires_at']", "        now = report['evaluated_at']\n        if (not approval['at']<=now<approval['expires_at']",
+     'test_sequence_reviews.SequenceReviewTests.test_full_readiness_basis_expiry_withholds_outputs_even_when_selected_payloads_remain_valid'),
     ('sequence-readiness-basis-contacts', 'adapters/sqlite/sequence_reviews.py', '        boundaries = (contact_readiness_boundaries(snapshots)+recipient_readiness_boundaries(manifests)', '        boundaries = (() +recipient_readiness_boundaries(manifests)', 'test_sequence_reviews.SequenceReviewTests.test_full_readiness_basis_expiry_withholds_outputs_even_when_selected_payloads_remain_valid'),
     ('sequence-readiness-basis-manifests', 'creative/recipient_context.py', "        points.extend((manifest['observed_at'],manifest['expires_at']))", '        pass', 'test_sequence_reviews.SequenceReviewTests.test_full_readiness_basis_expiry_withholds_outputs_even_when_selected_payloads_remain_valid'),
     ('sequence-readiness-basis-omitted-facts', 'creative/recipient_context.py', "            points.extend((item['fact']['observed_at'],item['fact']['expires_at']))", '            pass', 'test_sequence_reviews.SequenceReviewTests.test_full_readiness_basis_expiry_withholds_outputs_even_when_selected_payloads_remain_valid'),

@@ -88,6 +88,10 @@ New simulation enrollment requires the explicit exact approval ID. Its durable
 binding, enrollment population, steps, event and command receipt commit together.
 Every effect reservation and completion rechecks the current approval and
 required validation inside the writer transaction, including after writes.
+After the final evidence-epoch and reviewer lookups, authority rechecks the
+retained readiness report's complete interval and approval lifetime at the same
+final timestamp. A report that was ready earlier cannot authorize a later return
+after its evidence interval ends.
 Lease and stop checks remain in force. An exception, changed authority or
 expired lease rolls back authoritative transitions.
 

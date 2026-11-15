@@ -271,11 +271,16 @@ class SqliteSequenceReviews:
         if latest[0]!=approval_id or db.execute('SELECT 1 FROM sequence_review_revocations WHERE organization=? AND id=?',(organization,approval_id)).fetchone():
             raise Conflict('Sequence approval revoked or superseded')
         subject = self._subject(db,organization,approval['subject_id'])
-        self._ready(db,organization,subject)
-        if (not approval['at']<=self.proposals._now()<approval['expires_at']
-                or self._basis(db,organization)!=subject['basis']
+        report = self._ready(db,organization,subject)
+        if (self._basis(db,organization)!=subject['basis']
                 or require_actor(db,organization,approval['actor'],'reviewer')['generation']!=approval['actor_generation']):
             raise Conflict('Sequence authority changed while validation was running')
+        # Epoch and reviewer lookups can outlive the complete checked evidence.
+        # Evaluate both approval and report at the final authority-check time.
+        now = self.proposals._now()
+        if (not approval['at']<=now<approval['expires_at']
+                or not sequence_validation(subject,report['checks'],now)['review_ready']):
+            raise Conflict('Sequence authority expired while validation was running')
         return approval
 
     def authorize_simulation(self, db, organization, simulation_id, proposal_id):

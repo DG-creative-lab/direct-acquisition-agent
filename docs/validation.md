@@ -1,5 +1,35 @@
 # Validation and limits
 
+## Final sequence authority time follow-up
+
+Review of `137db62` found that `authorize` discarded the successful readiness
+report, then checked approval lifetime before the final evidence-epoch and
+reviewer lookups. The complete readiness interval could expire after the report
+returned while the approval itself remained within its longer lifetime.
+
+Authorization now retains that exact report, completes the epoch and reviewer
+checks, then evaluates both approval lifetime and the report's complete evidence
+interval at one final authority-check timestamp. It cannot replace a bounded
+report with its earlier positive status. This check remains inside each caller's
+existing transaction, with no schema, subject or approval-receipt changes.
+
+The existing full-basis SQLite regression now also crosses the interval end
+after the report returns, during the final epoch lookup and during the final
+reviewer lookup. It covers all five existing evidence variants, including
+controls, and asserts that authorization fails without durable changes. All
+fifteen added fault cases failed before the fix and passed afterwards. Readiness
+and approval remain valid immediately before each exclusive boundary. No new
+test methods or fixture populations were added for this follow-up.
+
+The CI cost and coverage assessment is recorded separately in
+[test-suite performance](test-suite-performance.md). `make test` passed all 994
+backend tests on Python 3.14 with loopback access, including all sixteen
+sequence-review tests and the HTTP tests. The successful full run took 1,470
+seconds and recorded timings for all 994 cases. The two new authority mutation
+probes were detected; the complete mutation portfolio was not rerun.
+`make arch-check` and `git diff --check` passed. No live provider or model calls
+were made, and no frontend or schema changes were introduced.
+
 ## Complete readiness time basis follow-up
 
 Review of `04587b7` found that the final expiry check covered the sequence and

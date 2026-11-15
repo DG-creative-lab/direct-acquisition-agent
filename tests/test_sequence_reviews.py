@@ -139,10 +139,39 @@ class SequenceReviewTests(unittest.TestCase):
                 original=app.reviews.view('one',approval['subject_id'])
                 self.assertTrue(original['validation']['review_ready'])
                 self.now=deadline-1
-                self.assertTrue(app.reviews.view('one',approval['subject_id'])['validation']['review_ready'])
+                before_expiry=app.reviews.view('one',approval['subject_id'])
+                self.assertTrue(before_expiry['validation']['review_ready'])
+                self.assertTrue(before_expiry['approval_valid'])
                 self.now=deadline
                 self.assertFalse(app.reviews.view('one',approval['subject_id'])['validation']['review_ready'])
                 before=self.durable_counts()
+                # A passed report is time-bounded evidence, not authority to return
+                # approval after a later epoch or reviewer lookup crosses its end.
+                import acquisition.adapters.sqlite.sequence_reviews as review_adapter
+                ready,basis,actor=store._ready,store._basis,review_adapter.require_actor
+                for phase in ('report','epochs','reviewer'):
+                    self.now=fixtures.NOW;completed=[False]
+                    def checked_ready(*args,**kwargs):
+                        result=ready(*args,**kwargs)
+                        self.assertTrue(result['review_ready']);completed[0]=True
+                        if phase=='report':self.now=deadline
+                        return result
+                    def checked_basis(*args,**kwargs):
+                        result=basis(*args,**kwargs)
+                        if completed[0] and phase=='epochs':self.now=deadline
+                        return result
+                    def checked_actor(*args,**kwargs):
+                        result=actor(*args,**kwargs)
+                        if completed[0] and phase=='reviewer':self.now=deadline
+                        return result
+                    with self.subTest(authority_phase=phase),patch.object(store,'_ready',side_effect=checked_ready),\
+                            patch.object(store,'_basis',side_effect=checked_basis),\
+                            patch.object(review_adapter,'require_actor',side_effect=checked_actor),\
+                            store.database.connect() as db:
+                        db.execute('BEGIN')
+                        with self.assertRaises(Conflict):
+                            store.authorize(db,'one',proposal['proposal_id'],approval['id'])
+                    self.assertEqual(self.durable_counts(),before)
                 for phase in ('_campaign','_decision'):
                     checked=getattr(store,phase)
                     def cross_expiry(*args,**kwargs):

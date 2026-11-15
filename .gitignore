@@ -39,6 +39,7 @@ dist/
 !/docs/channel-content.md
 !/docs/sequence-simulation.md
 !/docs/sequence-review.md
+!/docs/test-suite-performance.md
 !/docs/user-guide.md
 !/docs/validation.md
 !/docs/workspace.md
