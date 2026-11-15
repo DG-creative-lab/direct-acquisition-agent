@@ -192,7 +192,7 @@ test("chat copy editing keeps exact consent and fresh approval on desktop and mo
       (await backend(page, `/api/sessions/${sid}`)).review.approval_valid,
     ).toBe(true);
     await page.screenshot({
-      path: "../.local/chat-copy-desktop.png",
+      path: test.info().outputPath("chat-copy-desktop.png"),
       fullPage: true,
     });
     for (const width of [390, 320]) {
@@ -202,7 +202,7 @@ test("chat copy editing keeps exact consent and fresh approval on desktop and mo
       ).toBe(await page.evaluate(() => document.documentElement.clientWidth));
     }
     await page.screenshot({
-      path: "../.local/chat-copy-mobile.png",
+      path: test.info().outputPath("chat-copy-mobile.png"),
       fullPage: true,
     });
     await page.reload();
@@ -623,12 +623,12 @@ test("stopping an active revision reconciles a lost response and retains account
     await controls.getByText("Inspect model usage", { exact: true }).click();
     await expect(controls).toContainText("not a verified bill");
     await page.screenshot({
-      path: "../.local/execution-controls-mobile.png",
+      path: test.info().outputPath("execution-controls-mobile.png"),
       fullPage: true,
     });
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.screenshot({
-      path: "../.local/execution-controls-desktop.png",
+      path: test.info().outputPath("execution-controls-desktop.png"),
       fullPage: true,
     });
   });
@@ -637,7 +637,7 @@ test("stopping an active revision reconciles a lost response and retains account
 test("a new brief after stopping keeps the shared allowance and needs a new audience", async ({
   page,
 }) => {
-  await workspace("delayed", async (url) => {
+  await workspace("held-until-stopped", async (url, root) => {
     await open(page, url);
     await ask(page, "Make variant B more direct.");
     await consent(page).check();
@@ -646,6 +646,7 @@ test("a new brief after stopping keeps the shared allowance and needs a new audi
       .poll(async () => (await current(page)).execution.counts.in_progress)
       .toBe(1);
     await page.getByRole("button", { name: "Stop work", exact: true }).click();
+    await writeFile(join(root, "release-model-response"), "release");
     await expect
       .poll(async () => (await current(page)).execution.pending_receipts)
       .toBe(0);

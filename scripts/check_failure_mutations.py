@@ -1,5 +1,7 @@
 """Run selected harmful mutations in temporary copies, never in the checkout."""
 
+import argparse
+import json
 import os
 import shutil
 import subprocess
@@ -10,6 +12,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ('contact-history-reuse-exact-row', 'adapters/sqlite/contacts.py',
+     'candidate is not None and tuple(row)==candidate[1]', 'candidate is not None',
+     'test_contacts.ContactTests.test_equal_time_permission_conflicts_survive_regrant_omission_and_restart'),
     ('sequence-authority-final-readiness-window', 'adapters/sqlite/sequence_reviews.py',
      "                or not sequence_validation(subject,report['checks'],now)['review_ready']):", '                or False):',
      'test_sequence_reviews.SequenceReviewTests.test_full_readiness_basis_expiry_withholds_outputs_even_when_selected_payloads_remain_valid'),
@@ -21,8 +26,8 @@ CASES = [
     ('sequence-readiness-basis-omitted-facts', 'creative/recipient_context.py', "            points.extend((item['fact']['observed_at'],item['fact']['expires_at']))", '            pass', 'test_sequence_reviews.SequenceReviewTests.test_full_readiness_basis_expiry_withholds_outputs_even_when_selected_payloads_remain_valid'),
     ('sequence-readiness-basis-expiry', 'reviews/sequences.py', "            if not window['from']<=now<window['until']:", "            if now<window['from']:", 'test_sequence_reviews.SequenceReviewTests.test_full_readiness_basis_expiry_withholds_outputs_even_when_selected_payloads_remain_valid'),
     ('sequence-readiness-basis-required-proof', 'reviews/sequences.py', "            indexed['current_epochs'] = {k:v for k,v in indexed['current_epochs'].items() if k!='validity'} | {'status':'unknown',", "            indexed['current_epochs'] = {k:v for k,v in indexed['current_epochs'].items() if k!='validity'} | {'status':'passed',", 'test_sequence_reviews.SequenceReviewTests.test_required_membership_and_all_nonpassing_statuses_withhold_substantive_output'),
-    ('sequence-readiness-basis-pressure-age', 'campaigns/contact_eligibility.py', '                           pressure.window_start+PRESSURE_WINDOW_SECONDS))', '                           pressure.window_start))', 'test_sequence_reviews.SequenceReviewTests.test_domain_time_boundaries_include_pressure_coverage_and_product_calendar'),
-    ('sequence-readiness-basis-calendar', 'creative/channel_content.py', "(datetime.fromisoformat(context['product_facts']['review_by']).replace(tzinfo=timezone.utc)+timedelta(days=1)).timestamp()", "datetime.fromisoformat(context['product_facts']['review_by']).replace(tzinfo=timezone.utc).timestamp()", 'test_sequence_reviews.SequenceReviewTests.test_domain_time_boundaries_include_pressure_coverage_and_product_calendar'),
+    ('sequence-readiness-basis-pressure-age', 'campaigns/contact_eligibility.py', '                           pressure.window_start+PRESSURE_WINDOW_SECONDS))', '                           pressure.window_start))', 'test_sequence_reviews.SequenceReadinessDomainTests.test_domain_time_boundaries_include_pressure_coverage_and_product_calendar'),
+    ('sequence-readiness-basis-calendar', 'creative/channel_content.py', "(datetime.fromisoformat(context['product_facts']['review_by']).replace(tzinfo=timezone.utc)+timedelta(days=1)).timestamp()", "datetime.fromisoformat(context['product_facts']['review_by']).replace(tzinfo=timezone.utc).timestamp()", 'test_sequence_reviews.SequenceReadinessDomainTests.test_domain_time_boundaries_include_pressure_coverage_and_product_calendar'),
 
     ('sequence-review-report-evaluation-window', 'reviews/sequences.py', "    if indexed['sequence_contract']['status']=='passed':", '    if False:', 'test_sequence_reviews.SequenceReviewTests.test_readiness_rechecks_sequence_and_evidence_expiry_before_output'),
     ('sequence-review-report-sequence-expiry', 'campaigns/sequences.py', "    if now>=proposal['request']['expires_at']: raise Conflict('Sequence schedule has expired')", "    if now>proposal['request']['expires_at']: raise Conflict('Sequence schedule has expired')", 'test_sequence_reviews.SequenceReviewTests.test_readiness_rechecks_sequence_and_evidence_expiry_before_output'),
@@ -41,6 +46,10 @@ CASES = [
     ('sequence-review-output-facts', 'reviews/sequences.py', '    if output != sequence_summary(subject,report):', '    if False:', 'test_sequence_reviews.SequenceReviewTests.test_exact_operator_facts_reject_praise_missing_population_and_stale_subject'),
     ('sequence-review-proposal-binding', 'adapters/sqlite/sequence_reviews.py', "        if (approval['decision']!='approve' or approval['proposal_id']!=proposal_id\n                or not approval['at']<=now<approval['expires_at']): raise Conflict('Approval does not authorize this exact sequence now')", "        if (approval['decision']!='approve' or not approval['at']<=now<approval['expires_at']): raise Conflict('Approval does not authorize this exact sequence now')", 'test_sequence_reviews.SequenceReviewTests.test_absent_purpose_and_other_proposal_approvals_never_admit_simulation'),
 
+    ('contact-reused-source-final-attestation', 'adapters/sqlite/contacts.py',
+     "return self._current_record(db,organization,payload['connection_key'],candidate=(source,source_row))[0], report, self._profile(organization)",
+     'return source, report, self._profile(organization)',
+     'test_contacts.ContactTests.test_reused_evidence_rechecks_attestation_after_report_clock'),
     ('sequence-stop-contact-merge-lineage', 'adapters/sqlite/engagement_stops.py',
      '        contact_identities=related_identities(contact_id,history),','        contact_identities=(),',
      'test_sequences.SequenceTests.test_contact_objection_follows_transitive_merges_across_connection_alias_and_restart'),
@@ -1158,7 +1167,7 @@ CASES = [
      "if count >= a['call_limit']:", 'if False:',
      'test_execution_authority_model.ExecutionAuthorityModelTests.test_shared_last_slot_and_completed_replay_at_the_limit'),
     ('recovery-journal-completeness-qualification', 'adapters/sqlite/workspace_ancestry.py', "and inputs.get('basis')=='before_first_run' and inputs.get('witness') is None", 'and True', 'test_execution_controls.ExecutionFollowupTests.test_old_weak_binding_receipt_is_not_current_independence_authority'),
-    ('recovery-journal-validation-cleanup', 'adapters/sqlite/workspace_ancestry.py', 'if connection is not None:', 'if connection is not None and not connection.in_transaction:', 'test_execution_controls.ExecutionFollowupTests.test_invalid_journal_identity_releases_writer_lock_without_garbage_collection'),
+    ('recovery-journal-validation-cleanup', 'adapters/sqlite/workspace_ancestry.py', 'if connection is not None:', 'if connection is not None and not connection.in_transaction:', 'test_execution_controls.WorkspaceAncestryLockTests.test_invalid_journal_identity_releases_writer_lock_without_garbage_collection'),
     ('recovery-historical-independence-not-authority', 'adapters/sqlite/execution.py', 'if not pre_history_binding(db,organization):', 'if False:', 'test_execution_controls.ExecutionFollowupTests.test_old_weak_binding_receipt_is_not_current_independence_authority'),
     ('recovery-weak-independence-fence', 'adapters/sqlite/execution.py', "db.execute('INSERT OR IGNORE INTO execution_pending_origins VALUES(?,?)',(row['organization'],run_id))", 'pass', 'test_execution_controls.ExecutionFollowupTests.test_old_weak_binding_receipt_is_not_current_independence_authority'),
     ('recovery-journal-bound-identity', 'adapters/sqlite/workspace_ancestry.py', "inputs.get('journal_id')!=journal['journal_id']", 'False', 'test_execution_controls.ExecutionFollowupTests.test_recreated_empty_journal_cannot_release_a_legacy_workspace_child'),
@@ -1565,9 +1574,25 @@ CASES = [
 ]
 
 
-def run():
+def partition(cases, count):
+    """Distribute all probes deterministically, approximating their target costs."""
+    estimates = {'test_sequences': 8.0, 'test_sequence_reviews': 8.0,
+                 'test_execution_controls': 4.0, 'test_conversation_actions': 3.0,
+                 'test_copy_revisions': 3.0, 'test_followups': 3.0}
+    groups = [[] for _ in range(count)]
+    weights = [0.0] * count
+    ranked = sorted(enumerate(cases), key=lambda item: (
+        -estimates.get(item[1][4].split('.')[0], 1.0), item[0]))
+    for index, case in ranked:
+        group = min(range(count), key=weights.__getitem__)
+        groups[group].append((index, case))
+        weights[group] += estimates.get(case[4].split('.')[0], 1.0)
+    return [[case for _, case in sorted(group)] for group in groups]
+
+
+def run(cases=CASES):
     detected = 0
-    for label, relative, before, after, test in CASES:
+    for label, relative, before, after, test in cases:
         with tempfile.TemporaryDirectory(prefix="acquisition-mutation-") as temporary:
             directory = Path(temporary)
             for name in ("src", "tests", "config", "scripts"):
@@ -1580,17 +1605,27 @@ def run():
             compile(mutated, str(path), "exec")
             path.write_text(mutated)
             target = test if "." in test else "test_failure_boundaries.FailureBoundaryTests." + test
-            result = subprocess.run([sys.executable, "-m", "unittest", target],
+            result = subprocess.run([sys.executable, "-m", "scripts.mutation_target", target],
                 cwd=directory, env=dict(os.environ, PYTHONPATH=os.pathsep.join(("src", "tests"))),
                 capture_output=True, text=True, timeout=300 if label.startswith('sequence-') else 30)
-            # Import/syntax failures are invalid experiments, never killed mutants.
-            valid = "Ran 1 test" in result.stderr and "Failed to import test module" not in result.stderr
-            killed = valid and result.returncode != 0
-            print(label + ": " + ("detected" if killed else "SURVIVED OR INVALID"))
+            try:
+                outcome = json.loads(result.stdout)
+                killed = result.returncode == 0 and outcome['detected'] is True
+            except (ValueError, KeyError, TypeError):
+                killed = False
+            print(label + ": " + ("detected" if killed else "SURVIVED OR INVALID"), flush=True)
+            if not killed:
+                print(result.stderr, flush=True)
             detected += killed
-    print(f"Detected {detected}/{len(CASES)} declared harmful mutations")
-    return 0 if detected == len(CASES) else 1
+    print(f"Detected {detected}/{len(cases)} declared harmful mutations")
+    return 0 if detected == len(cases) else 1
 
 
 if __name__ == "__main__":
-    raise SystemExit(run())
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--shard', type=int, default=1)
+    parser.add_argument('--shards', type=int, default=1)
+    args = parser.parse_args()
+    if args.shards < 1 or not 1 <= args.shard <= args.shards or args.shards > len(CASES):
+        parser.error('shard must be between 1 and shards, and shards must not exceed the catalogue size')
+    raise SystemExit(run(partition(CASES, args.shards)[args.shard - 1]))

@@ -495,7 +495,10 @@ test("conversation navigation opens a new chat and returns to recent work", asyn
     page.getByRole("button", { name: "New conversation", exact: true }),
   ).toBeVisible();
   await expect(page.getByLabel("Message Direct Acquisition")).toBeInViewport();
-  await page.screenshot({ path: "../.local/chat-desktop.png", fullPage: true });
+  await page.screenshot({
+    path: test.info().outputPath("chat-desktop.png"),
+    fullPage: true,
+  });
   await page.getByRole("button", { name: /Try the offline example/ }).click();
   await page
     .getByRole("region", { name: "Choose campaign audience" })
@@ -522,7 +525,10 @@ test("conversation navigation opens a new chat and returns to recent work", asyn
   ).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByLabel("Message Direct Acquisition")).toBeInViewport();
-  await page.screenshot({ path: "../.local/chat-mobile.png", fullPage: true });
+  await page.screenshot({
+    path: test.info().outputPath("chat-mobile.png"),
+    fullPage: true,
+  });
   await expect(
     page.getByRole("button", { name: "New conversation", exact: true }),
   ).toBeVisible();
@@ -774,7 +780,9 @@ test("validation shows exact checks and blocks review after a real suppression",
     ).toBe(await page.evaluate(() => document.documentElement.clientWidth));
   }
   expect((await panel.boundingBox()).width).toBeGreaterThanOrEqual(220);
-  await panel.screenshot({ path: "../.local/validation-report-mobile.png" });
+  await panel.screenshot({
+    path: test.info().outputPath("validation-report-mobile.png"),
+  });
   const recipient = state.audience.find((row) => ["A", "B"].includes(row.arm));
   await command(`/api/sessions/${state.session.id}/suppress`, {
     business_id: recipient.id,

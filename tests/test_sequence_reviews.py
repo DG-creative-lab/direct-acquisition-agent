@@ -22,11 +22,17 @@ from acquisition.reviews import sequence_validation, SEQUENCE_CHECKS, validate_s
 class SequenceReviewTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        fixtures.SequenceTests.setUpClass()
-        cls.templates = fixtures.SequenceTests.templates
+        class ReviewTemplates(fixtures.SequenceTests):
+            profiles = ('fielddesk',)
+        ReviewTemplates.setUpClass()
+        cls.base_templates = ReviewTemplates
+        cls.templates = ReviewTemplates.templates
+        cls.indirect_templates = {}
 
     @classmethod
-    def tearDownClass(cls): fixtures.SequenceTests.tearDownClass()
+    def tearDownClass(cls):
+        for template in cls.indirect_templates.values(): template.tearDownClass()
+        cls.base_templates.tearDownClass()
 
     setUp = fixtures.SequenceTests.setUp
     copy_template = fixtures.SequenceTests.copy_template
@@ -93,23 +99,30 @@ class SequenceReviewTests(unittest.TestCase):
         def prepare_context(service,*args,**kwargs):
             if kind=='omitted_fact':kwargs['slots']=('contact_role','prior_interaction','account_activity')
             return prepare(service,*args,**kwargs)
-        class IndirectTemplates(fixtures.SequenceTests): pass
+        class IndirectTemplates(fixtures.SequenceTests):
+            profiles = ('fielddesk',)
         with patch.object(contact_fixtures,'synthetic_contact_snapshots',side_effect=contact_sources),\
                 patch.object(recipient_fixtures,'synthetic_recipient_evidence',side_effect=recipient_sources),\
                 patch.object(RecipientContexts,'prepare',prepare_context):
-            IndirectTemplates.setUpClass()
-            try:
-                self.path=Path(self.temp.name)/(kind+'-indirect.sqlite')
-                with closing(sqlite3.connect(IndirectTemplates.templates['fielddesk'])) as source,closing(sqlite3.connect(self.path)) as target:
-                    source.backup(target)
-                if kind=='history':
-                    from acquisition.bootstrap import build_recipient_contexts
-                    contexts=build_recipient_contexts(self.path,'one','fielddesk',lambda:self.now)
-                    with contexts.store.contacts.database.connect() as db:
-                        assessment=json.loads(db.execute("SELECT receipt FROM contact_commands WHERE organization='one' AND request_id='email-assessment'").fetchone()[0])['assessment_id']
-                    contexts.prepare('one','corroborating-history',assessment,next(iter(selected)),'reviewed-context-b',1)
-                yield omitted,deadline
-            finally:IndirectTemplates.tearDownClass()
+            variant = 'population' if kind.startswith('population') else kind
+            if variant not in self.indirect_templates:
+                try:
+                    IndirectTemplates.setUpClass()
+                except BaseException:
+                    IndirectTemplates.tearDownClass()
+                    raise
+                self.indirect_templates[variant] = IndirectTemplates
+            template = self.indirect_templates[variant]
+            self.path=Path(self.temp.name)/(kind+'-indirect.sqlite')
+            with closing(sqlite3.connect(template.templates['fielddesk'])) as source,closing(sqlite3.connect(self.path)) as target:
+                source.backup(target)
+            if kind=='history':
+                from acquisition.bootstrap import build_recipient_contexts
+                contexts=build_recipient_contexts(self.path,'one','fielddesk',lambda:self.now)
+                with contexts.store.contacts.database.connect() as db:
+                    assessment=json.loads(db.execute("SELECT receipt FROM contact_commands WHERE organization='one' AND request_id='email-assessment'").fetchone()[0])['assessment_id']
+                contexts.prepare('one','corroborating-history',assessment,next(iter(selected)),'reviewed-context-b',1)
+            yield omitted,deadline
 
     def test_full_readiness_basis_expiry_withholds_outputs_even_when_selected_payloads_remain_valid(self):
         for kind in ('population','population_controls','pressure','extra_recipient','omitted_fact'):
@@ -195,6 +208,11 @@ class SequenceReviewTests(unittest.TestCase):
                 with patch.object(store,'_campaign',side_effect=expire_output),self.assertRaises(Conflict):
                     app.reviews.validate_output('one',approval['subject_id'],original['summary'])
                 self.assertEqual(self.durable_counts(),before)
+                variant = 'population' if kind.startswith('population') else kind
+                template = self.indirect_templates[variant].templates['fielddesk']
+                with closing(sqlite3.connect(template)) as db:
+                    for table in ('sequence_proposals','sequence_review_decisions','engagement_simulations'):
+                        self.assertEqual(db.execute('SELECT count(*) FROM '+table).fetchone()[0],0)
 
     def test_past_history_boundaries_do_not_prevent_fresh_complete_revalidation(self):
         with self.indirect_fixture('history') as (_,deadline):
@@ -210,25 +228,6 @@ class SequenceReviewTests(unittest.TestCase):
             window=next(c for c in fresh['validation']['checks'] if c['id']=='current_epochs')['validity']
             self.assertEqual(window['from'],deadline);self.assertGreater(window['until'],deadline)
             self.assertEqual(self.durable_counts(),before)
-
-    def test_domain_time_boundaries_include_pressure_coverage_and_product_calendar(self):
-        from acquisition.campaigns import contact_eligibility, contact_readiness_boundaries
-        from acquisition.creative import channel_readiness_boundaries
-        from acquisition.reviews import readiness_window
-        app,proposal,approval=self.reviewed()
-        with app.reviews.store.database.connect() as db:
-            subject=app.reviews.store._subject(db,'one',approval['subject_id'])
-        contacts=app.campaigns.store.contacts
-        source=contacts.source.read('one','fielddesk-crm-a',1)
-        shifted=replace(source,pressure=tuple(replace(p,window_start=fixtures.NOW-90*86400+100) for p in source.pressure))
-        for offset,expected in ((99,False),(100,True)):
-            report=contact_eligibility(shifted,contacts._profile('one'),'email','acquisition',
-                fixtures.NOW+offset,set(),set(),set(),set(),set())
-            self.assertEqual(report['ready_for_proposal'],expected)
-        window=readiness_window(subject,contact_readiness_boundaries((shifted,)),fixtures.NOW)
-        self.assertEqual(window['until'],fixtures.NOW+100)
-        dates=channel_readiness_boundaries(({'product_facts':{'checked_on':'2026-11-13','review_by':'2026-11-14'}},))
-        self.assertEqual(readiness_window(subject,dates,fixtures.NOW)['until'],fixtures.NOW+86400)
 
     def test_absent_purpose_and_other_proposal_approvals_never_admit_simulation(self):
         app,proposal,approval=self.reviewed()
@@ -574,6 +573,27 @@ print(json.dumps(app.engagements.advance('one',sys.argv[2])))'''
         result=self.app().engagements.advance('one',simulation)
         self.assertEqual(result['totals']['states']['blocked'],6)
         self.assertEqual(self.counts()['engagement_dispatches'],0)
+
+
+class SequenceReadinessDomainTests(unittest.TestCase):
+    def test_domain_time_boundaries_include_pressure_coverage_and_product_calendar(self):
+        from acquisition.campaigns import contact_eligibility, contact_readiness_boundaries
+        from acquisition.creative import channel_readiness_boundaries
+        from acquisition.reviews import readiness_window
+        from acquisition.adapters.local_profiles import LocalProfiles
+        from acquisition.adapters.contact_fixtures import synthetic_contact_snapshots
+        profile=LocalProfiles('one','fielddesk',fixtures.ROOT/'config/profiles').campaign_profile('one','fielddesk','v1')
+        source=next(synthetic_contact_snapshots('one',profile))
+        subject={'id':'pure-window-subject'}
+        shifted=replace(source,pressure=tuple(replace(p,window_start=fixtures.NOW-90*86400+100) for p in source.pressure))
+        for offset,expected in ((99,False),(100,True)):
+            report=contact_eligibility(shifted,profile,'email','acquisition',
+                fixtures.NOW+offset,set(),set(),set(),set(),set())
+            self.assertEqual(report['ready_for_proposal'],expected)
+        window=readiness_window(subject,contact_readiness_boundaries((shifted,)),fixtures.NOW)
+        self.assertEqual(window['until'],fixtures.NOW+100)
+        dates=channel_readiness_boundaries(({'product_facts':{'checked_on':'2026-11-13','review_by':'2026-11-14'}},))
+        self.assertEqual(readiness_window(subject,dates,fixtures.NOW)['until'],fixtures.NOW+86400)
 
 
 if __name__=='__main__':unittest.main()

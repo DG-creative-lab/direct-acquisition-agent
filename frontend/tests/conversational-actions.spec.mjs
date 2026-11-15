@@ -276,7 +276,7 @@ test("read-only follow-ups preserve the selected audience and approval on deskto
       campaign.review.manifest.brief.audience_source,
     );
     await page.screenshot({
-      path: "../.local/routing-desktop.png",
+      path: test.info().outputPath("routing-desktop.png"),
       fullPage: true,
     });
     for (const width of [390, 320]) {
@@ -286,7 +286,7 @@ test("read-only follow-ups preserve the selected audience and approval on deskto
       ).toBe(await page.evaluate(() => document.documentElement.clientWidth));
     }
     await page.screenshot({
-      path: "../.local/routing-mobile.png",
+      path: test.info().outputPath("routing-mobile.png"),
       fullPage: true,
     });
     await page.reload();

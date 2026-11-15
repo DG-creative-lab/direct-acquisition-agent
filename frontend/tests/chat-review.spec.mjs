@@ -224,7 +224,7 @@ test("writing preferences need confirmation, survive a lost response and retain 
       dialog.scrollTop = 0;
     });
     await page.screenshot({
-      path: "../.local/writing-preference-desktop.png",
+      path: test.info().outputPath("writing-preference-desktop.png"),
     });
     const attempts = [];
     let drop = true;
@@ -283,7 +283,7 @@ test("writing preferences need confirmation, survive a lost response and retain 
       dialog.scrollTop = 0;
     });
     await page.screenshot({
-      path: "../.local/writing-preference-mobile.png",
+      path: test.info().outputPath("writing-preference-mobile.png"),
     });
     await page
       .getByRole("button", { name: "Confirm writing preference", exact: true })
@@ -542,7 +542,9 @@ test("chat reviews, revises and approves the exact new subject on desktop and mo
         name: "When might project invoices fall due?",
       }),
     ).toBeVisible();
-    await region.screenshot({ path: "../.local/chat-review-desktop.png" });
+    await region.screenshot({
+      path: test.info().outputPath("chat-review-desktop.png"),
+    });
     for (const width of [390, 320]) {
       await page.setViewportSize({ width, height: 844 });
       expect(
@@ -554,7 +556,9 @@ test("chat reviews, revises and approves the exact new subject on desktop and mo
         expect(bounds.height).toBeLessThan(40);
       }
     }
-    await region.screenshot({ path: "../.local/chat-review-mobile.png" });
+    await region.screenshot({
+      path: test.info().outputPath("chat-review-mobile.png"),
+    });
     await approve(
       page,
       region,
@@ -594,7 +598,7 @@ test("artifact selection survives reload and a variant comment replays once befo
     await region.getByRole("tab", { name: "Creative copy" }).click();
     await expect(variant).toHaveValue(target.id);
     await page.screenshot({
-      path: "../.local/artifact-pane-desktop.png",
+      path: test.info().outputPath("artifact-pane-desktop.png"),
       fullPage: true,
     });
 
@@ -603,7 +607,7 @@ test("artifact selection survives reload and a variant comment replays once befo
       page.getByRole("button", { name: "Artifacts", exact: true }),
     ).toBeVisible();
     await page.screenshot({
-      path: "../.local/artifact-pane-mobile.png",
+      path: test.info().outputPath("artifact-pane-mobile.png"),
       fullPage: true,
     });
     await region.getByRole("button", { name: "Comment in chat" }).click();
@@ -713,7 +717,7 @@ test("artifact selection survives reload and a variant comment replays once befo
       page.getByRole("region", { name: "Saved artifact comment" }),
     ).toContainText("Variant B");
     await page.screenshot({
-      path: "../.local/artifact-chat-mobile.png",
+      path: test.info().outputPath("artifact-chat-mobile.png"),
       fullPage: true,
     });
   });
@@ -1079,7 +1083,9 @@ test("offline chat confirms handoff, shows historical receipt and downloads exac
         await page.evaluate(() => document.documentElement.scrollWidth),
       ).toBe(await page.evaluate(() => document.documentElement.clientWidth));
     }
-    await region.screenshot({ path: "../.local/chat-handoff-mobile.png" });
+    await region.screenshot({
+      path: test.info().outputPath("chat-handoff-mobile.png"),
+    });
     expect(errors).toEqual([]);
   });
 });
@@ -1286,7 +1292,7 @@ test("offline conversational learning preserves unknown results then shows compl
       ).toBe(await page.evaluate(() => document.documentElement.clientWidth));
     }
     await learning.screenshot({
-      path: "../.local/conversation-learning-mobile.png",
+      path: test.info().outputPath("conversation-learning-mobile.png"),
     });
     await page.reload();
     await expect(
@@ -1437,14 +1443,14 @@ test("finalized chat proposes a frozen disjoint next campaign requiring fresh ap
       .getByText(/Evidence and uncertainty for/)
       .scrollIntoViewIfNeeded();
     await page.screenshot({
-      path: "../.local/evidence-followup-desktop.png",
+      path: test.info().outputPath("evidence-followup-desktop.png"),
     });
     await page.setViewportSize({ width: 390, height: 844 });
     await evidenceRegion
       .getByText(/Evidence and uncertainty for/)
       .scrollIntoViewIfNeeded();
     await page.screenshot({
-      path: "../.local/evidence-followup-mobile.png",
+      path: test.info().outputPath("evidence-followup-mobile.png"),
     });
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),
@@ -1497,7 +1503,9 @@ test("finalized chat proposes a frozen disjoint next campaign requiring fresh ap
         await page.evaluate(() => document.documentElement.scrollWidth),
       ).toBe(await page.evaluate(() => document.documentElement.clientWidth));
     }
-    await followup.screenshot({ path: "../.local/followup-mobile.png" });
+    await followup.screenshot({
+      path: test.info().outputPath("followup-mobile.png"),
+    });
     await page.reload();
     await followup
       .getByRole("button", { name: "Inspect or resume follow-up", exact: true })
