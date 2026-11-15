@@ -222,6 +222,51 @@ class SequenceJourneyTests(unittest.TestCase):
                 with closing(sqlite3.connect(self.path)) as db:
                     self.assertEqual(db.execute("SELECT count(*) FROM engagement_observations WHERE json_extract(payload,'$.kind') IN ('replied','objected')").fetchone()[0],0)
 
+    def test_unfinished_call_only_holds_its_own_followup_across_restart(self):
+        self.copy_template('iwoca')
+        subject=self.app.view('one',self.journey)['review']['subject_id']
+        self.app.approve('one',self.journey,'approval',1,subject,'Reviewed exact proposal.')
+        for _ in range(10):
+            row=self.app.advance('one',self.journey)
+            simulation=self.app.view('one',self.journey)['simulation']
+            if simulation and any(s['channel']=='human_call' and s['status']=='accepted' for s in simulation['steps']):break
+        calls=sorted((s for s in simulation['steps'] if s['channel']=='human_call'),key=lambda s:s['due_at'])
+        self.assertEqual(len(calls),2)
+        first,second=calls
+        self.assertLess(first['due_at'],second['due_at'])
+        self.assertEqual(first['status'],'accepted')
+        self.assertEqual(second['status'],'pending')
+        self.assertEqual(row['status'],'simulating','An unfinished call must not stop an independent scheduled call')
+        self.app=build_sequence_journeys(self.path,lambda:self.now)
+        for _ in range(10):
+            row=self.app.advance('one',self.journey)
+            if row['status']=='awaiting_human':break
+        simulation=self.app.view('one',self.journey)['simulation']
+        self.assertEqual(row['status'],'awaiting_human')
+        self.assertTrue(all(s['status']=='accepted' for s in simulation['steps'] if s['channel']=='human_call'))
+        self.assertEqual(simulation['observations'],[])
+        self.assertEqual(self.app.store.simulation_time('one',self.journey),second['due_at'])
+        self.app.observe_task('one',self.journey,'second-call-complete',1,second['id'])
+        self.app=build_sequence_journeys(self.path,lambda:self.now)
+        for _ in range(10):
+            row=self.app.advance('one',self.journey)
+            if row['status']=='awaiting_human':break
+        simulation=self.app.view('one',self.journey)['simulation']
+        followups={s['enrollment_id']:s for s in simulation['steps'] if s['ordinal']==2}
+        self.assertEqual(row['status'],'awaiting_human')
+        self.assertEqual(followups[first['enrollment_id']]['status'],'pending')
+        self.assertEqual(followups[first['enrollment_id']]['waiting_on'],'human_task_completion')
+        self.assertEqual(followups[second['enrollment_id']]['status'],'accepted')
+        self.assertEqual([(o['step_id'],o['kind']) for o in simulation['observations']],[(second['id'],'task_completed')])
+        before=self.counts()
+        self.app.advance('one',self.journey);self.app.view('one',self.journey)
+        self.assertEqual(before,self.counts(),'Waiting and inspection must not repeat submissions or fabricate completion')
+        self.app.observe_task('one',self.journey,'first-call-complete',1,first['id'])
+        self.assertEqual(self.app.advance('one',self.journey)['status'],'complete')
+        self.assertEqual(self.counts()['engagement_dispatches'],6)
+        self.assertEqual(self.counts()['engagement_observations'],2)
+        self.assertEqual(self.counts()['model_calls'],before['model_calls'])
+
     def test_lost_acknowledgement_restart_uses_original_approval_and_simulation_commands(self):
         subject=self.app.view('one',self.journey)['review']['subject_id']
         self.app.approve('one',self.journey,'approval',1,subject,'Reviewed exact proposal.')

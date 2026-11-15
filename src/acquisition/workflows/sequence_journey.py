@@ -136,9 +136,9 @@ class SequenceJourneyWorkflow:
             return {'status':'blocked','outputs':outputs,'detail':'The native simulation is '+view['status']+'. Inspect its saved state before any continuation.'}
         if any(s['status'] in {'unknown','partial','blocked'} for s in view['steps']):
             return {'status':'blocked','outputs':outputs,'detail':'The simulation is blocked or uncertain; no automatic repeat is permitted.'}
-        done={o['step_id'] for o in view['observations'] if o['kind']=='task_completed'}
-        waiting=[s for s in view['steps'] if s['channel']=='human_call' and s['status']=='accepted' and s['id'] not in done]
-        if waiting:return {'status':'awaiting_human','outputs':outputs,'detail':'Accepted synthetic human call tasks need an explicit completion observation.'}
+        # Native dependency rules determine when every remaining step needs a human observation.
+        if view['status']=='waiting_for_human_completion':
+            return {'status':'awaiting_human','outputs':outputs,'detail':'Accepted synthetic human call tasks need an explicit completion observation.'}
         self.store.advance_time(organization,row['id'])
         return {'status':'simulating','outputs':outputs,'detail':None}
 

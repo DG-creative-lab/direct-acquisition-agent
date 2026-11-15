@@ -10,6 +10,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ('sequence-journey-independent-schedules', 'workflows/sequence_journey.py',
+     "        if view['status']=='waiting_for_human_completion':",
+     "        if any(s['channel']=='human_call' and s['status']=='accepted' and not any(o['step_id']==s['id'] and o['kind']=='task_completed' for o in view['observations']) for s in view['steps']):",
+     'test_sequence_journeys.SequenceJourneyTests.test_unfinished_call_only_holds_its_own_followup_across_restart'),
     ('sequence-journey-postal-return', 'workspace.py',
      "        if postal_request(content) or (not rows and not sequence_language(content)):return None",
      "        if not rows and not sequence_language(content):return None",
