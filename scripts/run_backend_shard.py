@@ -7,10 +7,12 @@ import time
 import unittest
 
 
-# Approximate Python 3.11 wall seconds. Sequence uses Actions run 43639063387;
-# the other named modules use run 42200956130. New modules use a per-case estimate.
+# Initial sequence/review weights use the local review measurements recorded in
+# docs/test-suite-performance.md. Other modules use Actions run 42200956130.
+# Refresh from CI timing artifacts; mixed-machine estimates are approximate.
 SLOW_MODULE_SECONDS = {
-    'test_sequences': 143.0,
+    'test_sequences': 423.0,
+    'test_sequence_reviews': 273.0,
     'test_execution_controls': 134.2,
     'test_conversation_actions': 76.9,
     'test_copy_revisions': 72.8,

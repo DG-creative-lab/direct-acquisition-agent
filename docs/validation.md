@@ -1886,3 +1886,44 @@ This slice was implemented and measured on merged baseline `0ffba90` (PR #84).
 During verification, origin/main advanced through `b88e632` (PR #85), adding the
 sequence-review path from the original assessment. That integration is not part
 of these verification results; the local CI branch has not been rebased onto it.
+
+## CI follow-up on exact sequence review
+
+`fix/ci-review` was rebased onto fetched main `b88e632` (PR #85). The mutation
+conflict retained all new review probes, the 300-second sequence timeout and
+strict fixture/loader classification. The pressure/calendar test moved to a pure
+class with the same asserted thresholds, synthetic source values and product
+dates. Both existing mutation targets follow its new identity. Review templates
+now build only fielddesk, reuse each distinct source variant once per class and
+copy SQLite stores per case. The full evidence-basis test asserts that these
+copies leave templates free of proposals, approvals and simulations.
+
+Contact history parsing may reuse a current source only if the history query
+returns every identical stored field. Independent historical rows and all final
+source, attestation, profile, reviewer, epoch, clock and commit checks remain.
+The added mutation substitutes the current source for unrelated history; the
+existing equal-time permission conflict regression detects it. The profiled
+review case retained 3,308 evidence and 6,622 current-source checks while reducing
+source parses from 6,697 to 3,385. Concurrent local timings do not establish an
+elapsed speedup. Sequence/review shard estimates now cover both slow modules.
+
+Verification for this follow-up completed the production build,
+frontend formatting, architecture, whitespace and CI-tool checks. Both isolated
+browser partitions passed all 108 tests on the rebased backend. Backend discovery
+found 998 distinct IDs without duplicates or loader errors. All 79 selected
+sequence/review, contact and strategy mutations were detected across two
+partitions and targeted reruns. Two initial experiments had invalid loader
+targets after the pure test moved; those targets were updated and both mutations
+were detected by the relocated pure test. The added history-row mutation passed
+separately. The complete 510-probe catalogue is not claimed as rerun here.
+Two mutations targeting the original two-profile scenario were rerun after
+correcting a fixture-refactor loop typo; both were detected on the corrected
+scenario. The final 79-probe result uses those corrected runs.
+
+Final `make test` verification passed all 998 backend tests with loopback access
+in 1,459.8 seconds. This includes all sequence-review, two-profile, SQLite restart,
+expiry and migration cases on the corrected final source. The full basis and
+history regressions also passed separately with cached-template isolation checks.
+`make arch-check` and whitespace checks passed. Browser partitions passed 49/59
+cases without skips or flaky retries, alongside build and formatting. No live
+model calls were made and no hosted CI speedup is claimed.

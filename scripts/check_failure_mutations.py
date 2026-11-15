@@ -12,6 +12,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ('contact-history-reuse-exact-row', 'adapters/sqlite/contacts.py',
+     'candidate is not None and tuple(row)==candidate[1]', 'candidate is not None',
+     'test_contacts.ContactTests.test_equal_time_permission_conflicts_survive_regrant_omission_and_restart'),
     ('sequence-authority-final-readiness-window', 'adapters/sqlite/sequence_reviews.py',
      "                or not sequence_validation(subject,report['checks'],now)['review_ready']):", '                or False):',
      'test_sequence_reviews.SequenceReviewTests.test_full_readiness_basis_expiry_withholds_outputs_even_when_selected_payloads_remain_valid'),
@@ -23,8 +26,8 @@ CASES = [
     ('sequence-readiness-basis-omitted-facts', 'creative/recipient_context.py', "            points.extend((item['fact']['observed_at'],item['fact']['expires_at']))", '            pass', 'test_sequence_reviews.SequenceReviewTests.test_full_readiness_basis_expiry_withholds_outputs_even_when_selected_payloads_remain_valid'),
     ('sequence-readiness-basis-expiry', 'reviews/sequences.py', "            if not window['from']<=now<window['until']:", "            if now<window['from']:", 'test_sequence_reviews.SequenceReviewTests.test_full_readiness_basis_expiry_withholds_outputs_even_when_selected_payloads_remain_valid'),
     ('sequence-readiness-basis-required-proof', 'reviews/sequences.py', "            indexed['current_epochs'] = {k:v for k,v in indexed['current_epochs'].items() if k!='validity'} | {'status':'unknown',", "            indexed['current_epochs'] = {k:v for k,v in indexed['current_epochs'].items() if k!='validity'} | {'status':'passed',", 'test_sequence_reviews.SequenceReviewTests.test_required_membership_and_all_nonpassing_statuses_withhold_substantive_output'),
-    ('sequence-readiness-basis-pressure-age', 'campaigns/contact_eligibility.py', '                           pressure.window_start+PRESSURE_WINDOW_SECONDS))', '                           pressure.window_start))', 'test_sequence_reviews.SequenceReviewTests.test_domain_time_boundaries_include_pressure_coverage_and_product_calendar'),
-    ('sequence-readiness-basis-calendar', 'creative/channel_content.py', "(datetime.fromisoformat(context['product_facts']['review_by']).replace(tzinfo=timezone.utc)+timedelta(days=1)).timestamp()", "datetime.fromisoformat(context['product_facts']['review_by']).replace(tzinfo=timezone.utc).timestamp()", 'test_sequence_reviews.SequenceReviewTests.test_domain_time_boundaries_include_pressure_coverage_and_product_calendar'),
+    ('sequence-readiness-basis-pressure-age', 'campaigns/contact_eligibility.py', '                           pressure.window_start+PRESSURE_WINDOW_SECONDS))', '                           pressure.window_start))', 'test_sequence_reviews.SequenceReadinessDomainTests.test_domain_time_boundaries_include_pressure_coverage_and_product_calendar'),
+    ('sequence-readiness-basis-calendar', 'creative/channel_content.py', "(datetime.fromisoformat(context['product_facts']['review_by']).replace(tzinfo=timezone.utc)+timedelta(days=1)).timestamp()", "datetime.fromisoformat(context['product_facts']['review_by']).replace(tzinfo=timezone.utc).timestamp()", 'test_sequence_reviews.SequenceReadinessDomainTests.test_domain_time_boundaries_include_pressure_coverage_and_product_calendar'),
 
     ('sequence-review-report-evaluation-window', 'reviews/sequences.py', "    if indexed['sequence_contract']['status']=='passed':", '    if False:', 'test_sequence_reviews.SequenceReviewTests.test_readiness_rechecks_sequence_and_evidence_expiry_before_output'),
     ('sequence-review-report-sequence-expiry', 'campaigns/sequences.py', "    if now>=proposal['request']['expires_at']: raise Conflict('Sequence schedule has expired')", "    if now>proposal['request']['expires_at']: raise Conflict('Sequence schedule has expired')", 'test_sequence_reviews.SequenceReviewTests.test_readiness_rechecks_sequence_and_evidence_expiry_before_output'),

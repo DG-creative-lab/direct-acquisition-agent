@@ -81,12 +81,14 @@ class SqliteContactDirectory:
             raise Conflict('Stored contact source integrity failure')
         return snapshot
 
-    def _history(self, db, organization, connection_key=None):
+    def _history(self, db, organization, connection_key=None, *, candidate=None):
         query = 'SELECT * FROM contact_sources WHERE organization=?'
         args = (organization,)
         if connection_key is not None:
             query += ' AND connection_key=?'; args += (connection_key,)
-        return tuple(self._snapshot(row,organization,connection_key) for row in db.execute(query+' ORDER BY connection_key,version',args))
+        return tuple(candidate[0] if candidate is not None and tuple(row)==candidate[1]
+                     else self._snapshot(row,organization,connection_key)
+                     for row in db.execute(query+' ORDER BY connection_key,version',args))
 
     def _current(self, db, organization, connection_key):
         return self._current_record(db,organization,connection_key)[0]
@@ -170,7 +172,7 @@ class SqliteContactDirectory:
         # Reuse only the values reconstructed by this check. Every invocation
         # still reads current source/history, exclusions, epoch and clock.
         snapshot, source_row = self._current_record(db,organization,key)
-        history = self._history(db,organization)
+        history = self._history(db,organization,candidate=(snapshot,source_row))
         blocked = set()
         for row in db.execute('SELECT * FROM contact_objections WHERE organization=?',(organization,)):
             value = json.loads(row['payload'])

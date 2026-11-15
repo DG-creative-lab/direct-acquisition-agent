@@ -1,7 +1,7 @@
 # CI execution cost
 
-Implementation and measurements below use baseline `0ffba90` (PR #84).
-PR #85 reached origin/main during verification and has not been integrated here.
+Initial measurements below use baseline `0ffba90` (PR #84). The CI branch is
+now rebased onto `b88e632` (PR #85), including exact sequence review.
 
 CI retains the full Python 3.11–3.14 matrix. Backend shards keep modules together,
 record case and class setup durations and report estimated versus actual time.
@@ -74,8 +74,39 @@ The contact regression changes installed attestation after report time and
 corrupts stored source bytes within the transaction. Both must reject reuse.
 A mutation which skips the final source check must be detected.
 
-The sequence-review module and named pure pressure/calendar test from the
-assessment are absent from this merged baseline. Their fixture separation and
-further reconstruction work require the branch that contains them. Wider reuse
+## Exact sequence review follow-up
+
+The pure pressure/calendar test now lives in `SequenceReadinessDomainTests`.
+It constructs the same recorded synthetic contact values directly and checks
+identical pressure thresholds and calendar boundaries. It does not create a
+SQLite application, prepare content or grant approval. Its two existing mutation
+targets follow the relocated test and must still be detected.
+
+Sequence review templates build only fielddesk. Indirect fixture variants build
+one fielddesk template per distinct source variant and keep it for the class.
+Population and population-control cases share their identical source template.
+Each use copies the template through SQLite backup before any writes. The full
+basis regression verifies the cached template has no sequence proposals,
+approvals or simulations after exercising a copied store. Migration and
+initialization cases retain their own historical database fixtures.
+
+A profile of `test_one_approval_covers_both_arms_and_controls_across_restart`
+recorded 3,308 contact-evidence checks and 6,622 current-source checks before and
+after the history reuse refinement. Source parsing fell from 6,697 to 3,385 calls.
+The history query reuses the already-validated current source only for an exact
+stored-row match inside that invocation. All other history rows are parsed and
+validated independently. The existing equal-time permission-history regression
+also detects a mutation that substitutes the current parsed source for unrelated
+history rows. These profiles ran alongside other verification, so their elapsed
+times are not a controlled speed comparison.
+
+The new review module has an explicit shard weight rather than the cheap per-case
+fallback. Sequence weights initially use the assessment's local module timings;
+CI artifacts remain the source for later hosted-run calibration. Wider reuse
 across operations or transactions remains deferred until independently profiled
-and covered at its final authority boundaries.
+and covered at final authority boundaries.
+
+Rebased verification passed 998 backend tests, all 108 browser tests, architecture,
+build, formatting and 79 relevant mutation probes. The complete 510-probe
+catalogue was retained but was not rerun in this follow-up. Results and experiment
+reruns are recorded in [the validation ledger](validation.md).
