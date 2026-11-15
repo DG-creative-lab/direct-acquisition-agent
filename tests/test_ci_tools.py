@@ -1,5 +1,6 @@
 """CI sharding must retain coverage and mutation kills must reach a test assertion."""
 
+import io
 import os
 from pathlib import Path
 import subprocess
@@ -8,7 +9,7 @@ import tempfile
 import unittest
 
 from scripts.check_failure_mutations import CASES, partition
-from scripts.run_backend_shard import cases, split_suite
+from scripts.run_backend_shard import TimingResult, cases, split_suite
 
 
 class CIToolTests(unittest.TestCase):
@@ -25,6 +26,21 @@ class CIToolTests(unittest.TestCase):
         groups, _ = split_suite(discovered)
         self.assertTrue(all(group.countTestCases() for group in groups))
         self.assertCountEqual([test.id() for group in groups for test in cases(group)], expected)
+
+    def test_timing_preserves_test_identity_when_fixture_assigns_id(self):
+        class UsesSubjectId(unittest.TestCase):
+            def setUp(self):
+                self.id = 'fixture-subject'
+
+            def runTest(self):
+                self.assertEqual(self.id, 'fixture-subject')
+
+        case = UsesSubjectId()
+        expected = unittest.TestCase.id(case)
+        result = unittest.TextTestRunner(stream=io.StringIO(), resultclass=TimingResult).run(case)
+        self.assertTrue(result.wasSuccessful())
+        self.assertEqual([entry['id'] for entry in result.timings], [expected])
+        self.assertGreaterEqual(result.timings[0]['seconds'], 0)
 
     def test_mutation_target_rejects_fixture_and_harness_failures(self):
         root = Path(__file__).resolve().parents[1]

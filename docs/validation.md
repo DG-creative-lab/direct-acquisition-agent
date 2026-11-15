@@ -1927,3 +1927,14 @@ history regressions also passed separately with cached-template isolation checks
 `make arch-check` and whitespace checks passed. Browser partitions passed 49/59
 cases without skips or flaky retries, alongside build and formatting. No live
 model calls were made and no hosted CI speedup is claimed.
+
+## CI timing collector compatibility
+
+PR #86 exposed a telemetry failure across every Python version: a historical
+budget fixture assigns a string to `self.id`, shadowing `TestCase.id` after
+setup. The timing collector now captures the base unittest identity before setup
+and uses that saved value at completion. A regression reproduced the runner crash
+before the correction and then passed. All four CI-tool tests and all four real
+historical-budget cases passed through the timing runner, retaining four timing
+records. Architecture and whitespace checks passed. This changes timing metadata
+only; the fixture and its product assertions are retained.

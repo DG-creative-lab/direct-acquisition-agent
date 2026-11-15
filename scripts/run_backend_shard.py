@@ -59,10 +59,11 @@ class TimingResult(unittest.TextTestResult):
 
     def startTest(self, test):
         self.started = time.monotonic()
+        self.test_id = unittest.TestCase.id(test)
         super().startTest(test)
 
     def stopTest(self, test):
-        self.timings.append({'id': test.id(), 'seconds': time.monotonic() - self.started})
+        self.timings.append({'id': self.test_id, 'seconds': time.monotonic() - self.started})
         super().stopTest(test)
 
 
