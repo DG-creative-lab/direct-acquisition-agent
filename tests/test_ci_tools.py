@@ -25,9 +25,12 @@ class CIToolTests(unittest.TestCase):
         discovered = loader.discover('tests')
         self.assertFalse(loader.errors, loader.errors)
         expected = [test.id() for test in cases(discovered)]
-        groups, _ = split_suite(discovered)
-        self.assertTrue(all(group.countTestCases() for group in groups))
-        self.assertCountEqual([test.id() for group in groups for test in cases(group)], expected)
+        for shards in (2, 4):
+            with self.subTest(shards=shards):
+                groups, _ = split_suite(discovered, shards)
+                self.assertEqual(len(groups), shards)
+                self.assertTrue(all(group.countTestCases() for group in groups))
+                self.assertCountEqual([test.id() for group in groups for test in cases(group)], expected)
 
     def test_timing_preserves_test_identity_when_fixture_assigns_id(self):
         class UsesSubjectId(unittest.TestCase):

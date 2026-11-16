@@ -1,0 +1,190 @@
+{
+  "before": {
+    "python": "3.14.3 (main, Feb  3 2026, 15:32:20) [Clang 17.0.0 (clang-1700.6.3.2)]",
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "revision": "08b7b456382fc9d484cff4826967c02b61bd7a9a",
+    "source_sha256": {
+      "src/acquisition/audiences/contacts.py": "c666b08e185b381379f24295bd13ea3ece93d8e57be0a6c123038dcd6f8eaff3",
+      "src/acquisition/adapters/sqlite/sequence_reviews.py": "bc460b751dc22e96ebf98a3bf6249e2d694a82efec61281f60b5a6534a3a9e05",
+      "src/acquisition/adapters/sqlite/sequence_proposals.py": "98696c7b38980151f2857f3ed1bcbbca816f35801ac2366360e0ef21e1ca1f92",
+      "src/acquisition/adapters/sqlite/contacts.py": "b3a6be119806937a3dedf7bb1ef000726949bc04fa79bee59b1cf4db1ce38014",
+      "tests/test_sequence_reviews.py": "acd0e9152286afb078b1ffc503cddb13663b63f009be81e24be8c470d26f7f89",
+      "src/acquisition/adapters/contact_fixtures.py": "a3ad0e06dc50c39660f025d3cf78b5f05394af17dac62ab70c5b69ff667fb80e"
+    },
+    "samples": [
+      {
+        "repeat": 1,
+        "id": "test_sequence_reviews.SequenceReviewTests.test_one_approval_covers_both_arms_and_controls_across_restart",
+        "case_seconds": 9.31240875000367,
+        "suite_seconds": 10.174005500011845
+      },
+      {
+        "repeat": 1,
+        "id": "test_sequence_reviews.SequenceReviewTests.test_full_readiness_basis_expiry_withholds_outputs_even_when_selected_payloads_remain_valid",
+        "case_seconds": 30.20720070900279,
+        "suite_seconds": 31.10139504200197
+      },
+      {
+        "repeat": 2,
+        "id": "test_sequence_reviews.SequenceReviewTests.test_one_approval_covers_both_arms_and_controls_across_restart",
+        "case_seconds": 9.296656332997372,
+        "suite_seconds": 10.249737291014753
+      },
+      {
+        "repeat": 2,
+        "id": "test_sequence_reviews.SequenceReviewTests.test_full_readiness_basis_expiry_withholds_outputs_even_when_selected_payloads_remain_valid",
+        "case_seconds": 36.19312379101757,
+        "suite_seconds": 37.05527599999914
+      },
+      {
+        "repeat": 3,
+        "id": "test_sequence_reviews.SequenceReviewTests.test_one_approval_covers_both_arms_and_controls_across_restart",
+        "case_seconds": 10.312924541998655,
+        "suite_seconds": 11.177926750009647
+      },
+      {
+        "repeat": 3,
+        "id": "test_sequence_reviews.SequenceReviewTests.test_full_readiness_basis_expiry_withholds_outputs_even_when_selected_payloads_remain_valid",
+        "case_seconds": 31.060890082997503,
+        "suite_seconds": 31.91298762502265
+      }
+    ],
+    "summary": [
+      {
+        "id": "test_sequence_reviews.SequenceReviewTests.test_one_approval_covers_both_arms_and_controls_across_restart",
+        "median_seconds": 9.31240875000367,
+        "min_seconds": 9.296656332997372,
+        "max_seconds": 10.312924541998655
+      },
+      {
+        "id": "test_sequence_reviews.SequenceReviewTests.test_full_readiness_basis_expiry_withholds_outputs_even_when_selected_payloads_remain_valid",
+        "median_seconds": 31.060890082997503,
+        "min_seconds": 30.20720070900279,
+        "max_seconds": 36.19312379101757
+      }
+    ],
+    "measurement": "Unprofiled serial runs. Case includes per-case setup/cleanup; suite includes class setup/cleanup."
+  },
+  "after": {
+    "python": "3.14.3 (main, Feb  3 2026, 15:32:20) [Clang 17.0.0 (clang-1700.6.3.2)]",
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "revision": "08b7b456382fc9d484cff4826967c02b61bd7a9a",
+    "source_sha256": {
+      "src/acquisition/audiences/contacts.py": "c666b08e185b381379f24295bd13ea3ece93d8e57be0a6c123038dcd6f8eaff3",
+      "src/acquisition/adapters/sqlite/sequence_reviews.py": "bc460b751dc22e96ebf98a3bf6249e2d694a82efec61281f60b5a6534a3a9e05",
+      "src/acquisition/adapters/sqlite/sequence_proposals.py": "98696c7b38980151f2857f3ed1bcbbca816f35801ac2366360e0ef21e1ca1f92",
+      "src/acquisition/adapters/sqlite/contacts.py": "b3a6be119806937a3dedf7bb1ef000726949bc04fa79bee59b1cf4db1ce38014",
+      "tests/test_sequence_reviews.py": "acd0e9152286afb078b1ffc503cddb13663b63f009be81e24be8c470d26f7f89",
+      "src/acquisition/adapters/contact_fixtures.py": "83d0b375011019fa54853472f7591936c14fb69ae5a4d2f8dac52babbf00056b"
+    },
+    "samples": [
+      {
+        "repeat": 1,
+        "id": "test_sequence_reviews.SequenceReviewTests.test_one_approval_covers_both_arms_and_controls_across_restart",
+        "case_seconds": 7.285734290984692,
+        "suite_seconds": 7.985238624998601
+      },
+      {
+        "repeat": 1,
+        "id": "test_sequence_reviews.SequenceReviewTests.test_full_readiness_basis_expiry_withholds_outputs_even_when_selected_payloads_remain_valid",
+        "case_seconds": 24.084328291995917,
+        "suite_seconds": 24.77819733301294
+      },
+      {
+        "repeat": 2,
+        "id": "test_sequence_reviews.SequenceReviewTests.test_one_approval_covers_both_arms_and_controls_across_restart",
+        "case_seconds": 7.405195166997146,
+        "suite_seconds": 8.105221874982817
+      },
+      {
+        "repeat": 2,
+        "id": "test_sequence_reviews.SequenceReviewTests.test_full_readiness_basis_expiry_withholds_outputs_even_when_selected_payloads_remain_valid",
+        "case_seconds": 24.280488999997033,
+        "suite_seconds": 24.984388541983208
+      },
+      {
+        "repeat": 3,
+        "id": "test_sequence_reviews.SequenceReviewTests.test_one_approval_covers_both_arms_and_controls_across_restart",
+        "case_seconds": 8.213536499999464,
+        "suite_seconds": 9.010190791013883
+      },
+      {
+        "repeat": 3,
+        "id": "test_sequence_reviews.SequenceReviewTests.test_full_readiness_basis_expiry_withholds_outputs_even_when_selected_payloads_remain_valid",
+        "case_seconds": 24.008735082985368,
+        "suite_seconds": 24.795206000009784
+      }
+    ],
+    "summary": [
+      {
+        "id": "test_sequence_reviews.SequenceReviewTests.test_one_approval_covers_both_arms_and_controls_across_restart",
+        "median_seconds": 7.405195166997146,
+        "min_seconds": 7.285734290984692,
+        "max_seconds": 8.213536499999464
+      },
+      {
+        "id": "test_sequence_reviews.SequenceReviewTests.test_full_readiness_basis_expiry_withholds_outputs_even_when_selected_payloads_remain_valid",
+        "median_seconds": 24.084328291995917,
+        "min_seconds": 24.008735082985368,
+        "max_seconds": 24.280488999997033
+      }
+    ],
+    "measurement": "Unprofiled serial runs. Case includes per-case setup/cleanup; suite includes class setup/cleanup."
+  },
+  "unchanged_test_method_ast_sha256": {
+    "test_full_readiness_basis_expiry_withholds_outputs_even_when_selected_payloads_remain_valid": "c068c4bca89f40b98ba0304419ebc2c2ce254cd898d73f734176d75d0e982f86",
+    "test_one_approval_covers_both_arms_and_controls_across_restart": "a1197bc6a7defd5f97eb0290cc84603f91bce9136335d62c2ebbf9f29add3262"
+  },
+  "note": "Serial unprofiled runs with no concurrent verification workloads. contact_fixtures.py hashes were added after collection from the baseline revision and candidate bytes. All source and test hash comparisons other than contact_fixtures.py are equal.",
+  "profile_counts": {
+    "baseline_retained_post_contact_identity_profile": {
+      "contact_fixtures.py:identity": 4824,
+      "contact_fixtures.py:read": 4839,
+      "sequence_reviews.py:_ready": 25,
+      "sequence_proposals.py:current": 29,
+      "contacts.py:contact_snapshot_from": 7324,
+      "contacts.py:decision_evidence": 2408,
+      "sequence_proposals.py:_material": 180,
+      "sequence_reviews.py:authorize": 22
+    },
+    "candidate": {
+      "contact_fixtures.py:identity": 4824,
+      "sequence_reviews.py:_ready": 25,
+      "sequence_proposals.py:current": 29,
+      "contacts.py:contact_snapshot_from": 2499,
+      "contact_fixtures.py:read": 4839,
+      "contacts.py:decision_evidence": 2408,
+      "sequence_proposals.py:_material": 180,
+      "sequence_reviews.py:authorize": 22
+    },
+    "note": "Same unchanged approval/restart case. The retained baseline predates this branch. Counts include shared setup. Candidate was profiled during verification, so no profile elapsed comparison is made."
+  },
+  "local_four_partition_verification": {
+    "summary": [
+      {
+        "shard": 1,
+        "tests": 176,
+        "seconds": 266.40034529200057
+      },
+      {
+        "shard": 2,
+        "tests": 277,
+        "seconds": 313.0723804589943
+      },
+      {
+        "shard": 3,
+        "tests": 314,
+        "seconds": 367.005734958977
+      },
+      {
+        "shard": 4,
+        "tests": 252,
+        "seconds": 360.447900500003
+      }
+    ],
+    "discovered_ids": 1019,
+    "executed_ids": 1019,
+    "distinct_ids": 1019,
+    "note": "Four concurrent local processes, not hosted CI. All four runners exited successfully. Full ID multiplicity was compared against fresh discovery."
+  }
+}

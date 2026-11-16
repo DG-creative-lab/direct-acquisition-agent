@@ -1,7 +1,7 @@
 """Contact identity, source authority, permission and immutable history boundaries."""
 
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import asdict, replace
+from dataclasses import FrozenInstanceError, asdict, replace
 from datetime import datetime, timezone
 import json
 from pathlib import Path
@@ -110,6 +110,37 @@ class ContactTests(unittest.TestCase):
             service.inspect('other',result['assessment_id'])
         with self.assertRaises(NotFound):
             service.object('other','foreign',snapshot.contacts[0].ref.id,'all','all','An explicit objection.')
+
+    def test_installed_source_reuse_is_immutable_scoped_and_bound_to_exact_payload(self):
+        source = self.service().source
+        snapshot = source.read('one', 'fielddesk-crm-a', 1)
+        from acquisition.adapters import contact_fixtures
+        with patch.object(contact_fixtures, 'contact_snapshot_from',
+                          wraps=contact_fixtures.contact_snapshot_from) as decode:
+            self.assertEqual(source.read('one', 'fielddesk-crm-a', 1), snapshot)
+            self.assertEqual(source.identity('one', 'fielddesk-crm-a', 1), snapshot.id)
+            decode.assert_not_called()
+        with self.assertRaises(FrozenInstanceError):
+            snapshot.contacts[0].email = 'changed@example.invalid'
+        with self.assertRaises(FrozenInstanceError):
+            snapshot.permissions[0].status = 'denied'
+        for organization, key, version in (('other', 'fielddesk-crm-a', 1),
+                                           ('one', 'unknown', 1), ('one', 'fielddesk-crm-a', True)):
+            with self.subTest(organization=organization, key=key, version=version), self.assertRaises(NotFound):
+                source.read(organization, key, version)
+        self.assertNotEqual(source.read('one', 'fielddesk-crm-a', 2).id, snapshot.id)
+        self.assertNotEqual(source.read('one', 'fielddesk-crm-b', 1).id, snapshot.id)
+        changed = replace(snapshot, contacts=(replace(snapshot.contacts[0], email='changed@example.invalid'),
+                                             *snapshot.contacts[1:]))
+        source._payloads[('fielddesk-crm-a', 1)] = canonical(asdict(changed))
+        self.assertEqual(source.read('one', 'fielddesk-crm-a', 1), changed)
+        self.assertEqual(source.identity('one', 'fielddesk-crm-a', 1), changed.id)
+        source._payloads[('fielddesk-crm-a', 1)] = canonical(asdict(changed) | {'mode': 'INVALID'})
+        with self.assertRaises(ValueError):
+            source.read('one', 'fielddesk-crm-a', 1)
+        del source._payloads[('fielddesk-crm-a', 1)]
+        with self.assertRaises(NotFound):
+            source.read('one', 'fielddesk-crm-a', 1)
 
     def test_new_request_for_identical_frozen_evidence_reuses_immutable_assessment(self):
         service = self.service()

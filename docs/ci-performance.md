@@ -195,3 +195,59 @@ evidence checks, 4,822 current-source reads, 29 current-proposal reconstructions
 25 readiness reports and 22 authorizations. Profile timings overlap and are not
 a separate elapsed comparison. Final source, reviewer, epoch, expiry, lease and
 acceptance checks stay in their original paths.
+
+
+## Backend critical path, 16 November 2026
+
+The completed Python 3.14 run [43849270917](https://github.com/DG-creative-lab/direct-acquisition-agent/actions/runs/43849270917)
+finished in a 12m23s job window. The backend jobs took 11m54s and 12m23s;
+the test runners themselves took 703.72s and 734.30s. Sequence cases used
+281.08s and review cases 167.90s, excluding class setup. The longest mutation
+job took 6m45s; the longest browser job took 5m33s.
+
+CI now distributes backend modules across four partitions using refreshed
+Python 3.14 weights from that run. Every test and class fixture runs once,
+and each module stays intact. Local callers retain the two-partition default;
+CI passes `BACKEND_SHARDS=4`. The existing coverage check verifies both layouts
+against complete discovery, including test multiplicity. Replaying that run's
+case and class setup durations against the four new groups gives 353.23,
+363.59, 364.28 and 356.83 seconds. This is a partition estimate, excluding runner
+setup and the production improvement below. It is not a new hosted timing.
+The mutation job could become the next critical path. Two extra runner setups
+add overhead; four partitions do not reduce total test work by themselves.
+
+`RecordedContactSource` now retains one decoded, validated immutable snapshot
+per installed key/version. Each read first resolves organization, version and
+installed payload. Reuse requires exact payload bytes; replacement bytes are
+decoded and validated again, and missing sources still fail. Nested domain
+values and tuples are immutable. Decoded values stay within that adapter
+instance. Source identity is still recomputed, and SQLite source integrity,
+objections, evidence freshness, reviewer, epoch, expiry, lease and final
+acceptance checks retain their existing paths. This optimization applies to
+the installed synthetic source adapter, not to future live source readers.
+
+Three serial unprofiled local repetitions on Python 3.14.3 used unchanged
+review test methods, including their original assertions and expiry phases:
+
+| Case | Before samples (s) | After samples (s) | Median reduction |
+| --- | --- | --- | --- |
+| Approval/restart | 9.312, 9.297, 10.313 | 7.286, 7.405, 8.214 | 9.312 → 7.405 (20.5%) |
+| Full readiness expiry | 30.207, 36.193, 31.061 | 24.084, 24.280, 24.009 | 31.061 → 24.084 (22.5%) |
+
+[Raw samples, environment, source and test hashes](evaluations/ci-critical-path-2026-11-16.json)
+record the comparison. Case times include case setup/cleanup and exclude shared
+class setup. Three samples on one local machine do not establish a whole-suite
+or hosted CI speedup. No concurrent verification ran during either measurement.
+
+Against the retained post-contact-identity profile of the same approval/restart
+case, snapshot deserializations fell from 7,324 to 2,499. Both profiles record
+4,839 installed source reads, 4,824 source identity calls, 2,408 contact evidence
+checks, 180 material reconstructions, 29 current-proposal reconstructions,
+25 readiness reports and 22 authorizations, including shared setup. These are
+operation counts, not another elapsed-time comparison.
+
+Full local verification passed all 1,019 backend tests across four concurrent
+partitions, with 176, 277, 314 and 252 cases. Runner times were 266.40, 313.07,
+367.01 and 360.45 seconds. Fresh discovery matched every executed ID exactly
+once. The longest local runner took 6m07s; this measures the candidate on one
+shared machine and does not establish a hosted before/after speedup.

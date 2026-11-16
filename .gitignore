@@ -75,3 +75,5 @@ dist/
 !/docs/evaluations/sequence-review-material-reuse-2026-11-15.json
 
 !/docs/ci-gate-audit.md
+
+!/docs/evaluations/ci-critical-path-2026-11-16.json
