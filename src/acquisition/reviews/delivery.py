@@ -1,7 +1,7 @@
 """The approved plan and provider evidence for local postal delivery simulation."""
 
 import csv
-import io
+from io import StringIO
 
 from acquisition.contracts import Conflict, digest
 
@@ -12,7 +12,7 @@ DELIVERY_DESTINATION = "local_simulated_agency"
 
 
 def delivery_plan(organization, proposal, approval_id, draft):
-    recipients = sorted(row["business_id"] for row in csv.DictReader(io.StringIO(draft.mailing_csv)))
+    recipients = sorted(row["business_id"] for row in csv.DictReader(StringIO(draft.mailing_csv)))
     counts = draft.manifest["counts"]
     if len(recipients) != counts["mailed"] or len(set(recipients)) != len(recipients):
         raise Conflict("Delivery recipients differ from the approved mailing")

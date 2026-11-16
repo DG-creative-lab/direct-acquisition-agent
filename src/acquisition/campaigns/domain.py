@@ -1,6 +1,6 @@
 import csv
 import hashlib
-import io
+from io import StringIO
 from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import date
@@ -220,7 +220,7 @@ class Draft:
 
 
 def _csv(headers: tuple[str, ...], rows: list[tuple]) -> str:
-    stream = io.StringIO(newline="")
+    stream = StringIO(newline="")
     writer = csv.writer(stream, lineterminator="\n")
     writer.writerow(headers)
     writer.writerows(rows)
@@ -360,7 +360,7 @@ def validate_copy_revision(base: Draft, candidate: Draft, target_id: str) -> Non
             for field in ("id", "headline", "opening", "locked_block", "hypothesis"):
                 if old[key].get(field) != new[key].get(field):
                     raise Conflict("Copy revision changed an untargeted letter")
-    before = list(csv.DictReader(io.StringIO(base.assignments_csv)))
-    after = list(csv.DictReader(io.StringIO(candidate.assignments_csv)))
+    before = list(csv.DictReader(StringIO(base.assignments_csv)))
+    after = list(csv.DictReader(StringIO(candidate.assignments_csv)))
     if [(r["business_id"], r["segment"], r["arm"]) for r in before] != [(r["business_id"], r["segment"], r["arm"]) for r in after]:
         raise Conflict("Copy revision reassigned the audience")
