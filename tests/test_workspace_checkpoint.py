@@ -20,7 +20,7 @@ from acquisition.contracts import Conflict, canonical
 from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.learning_demo import run_learning_demo
 from acquisition.reasoning import CallScope
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from test_conversations import PlannerModel
 from test_workspace_projection import records
 
@@ -117,8 +117,8 @@ class WorkspaceCheckpointTests(TestCase):
         w = Workspace(paid_root, real_clock=lambda: self.now)
         cid = w.create_conversation('chat', 'Scoped history')['id']
         w.message_conversation(cid, 'brief', 0, FIXTURE_MESSAGE)
-        with patch('acquisition.workspace.openrouter_key', return_value='fake'), \
-             patch('acquisition.workspace.OpenRouter', return_value=PlannerModel()):
+        with patch('acquisition.bootstrap.workspace_key', return_value='fake'), \
+             patch('acquisition.bootstrap.workspace_gateway', return_value=PlannerModel()):
             w.plan_conversation(cid, 'original-paid-plan', 1)
         w.stop_execution(cid, 'stop', 1)
         paid_app = w._conversation_app()

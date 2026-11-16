@@ -14,7 +14,7 @@ from prepared_workspace_fixture import prepared_workspace
 
 from acquisition.contracts import Conflict, NotFound
 from acquisition.reasoning import ModelError
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from test_copy_revisions import RevisionModel
 from test_model_copy import reply
 
@@ -38,8 +38,8 @@ def _set_up_workspace(self, template=None):
     if template:
         copytree(template['root'], self.root, dirs_exist_ok=True)
     self.model=copy.deepcopy(template['model']) if template else CopyRoutingModel()
-    for p in (patch('acquisition.workspace.openrouter_key',return_value='fixture'),
-              patch('acquisition.workspace.OpenRouter',return_value=self.model)):
+    for p in (patch('acquisition.bootstrap.workspace_key',return_value='fixture'),
+              patch('acquisition.bootstrap.workspace_gateway',return_value=self.model)):
         p.start();self.addCleanup(p.stop)
     self.w=Workspace(self.root,real_clock=lambda:self.now)
 
@@ -329,7 +329,7 @@ class ConversationalCopyRevisionTests(unittest.TestCase):
         self.w=Workspace(self.root,real_clock=lambda:self.now)
         for _ in range(5):self.w.advance_preparations()
         before=len(self.model.revision_calls)
-        with patch('acquisition.workspace.openrouter_key',side_effect=ValueError('key removed')):
+        with patch('acquisition.bootstrap.workspace_key',side_effect=ValueError('key removed')):
             replay=self.confirm(action)
             alias=self.confirm(action,request='another-observation')
         self.assertEqual(replay['actions'][-1]['confirmed'],alias['actions'][-1]['confirmed'])
@@ -349,7 +349,7 @@ class ConversationalCopyRevisionTests(unittest.TestCase):
 
     def test_missing_key_blocks_the_saved_revision_and_restoration_resumes_it(self):
         action=self.route()
-        with patch('acquisition.workspace.openrouter_key',side_effect=ValueError('key missing')):
+        with patch('acquisition.bootstrap.workspace_key',side_effect=ValueError('key missing')):
             self.confirm(action)
             self.w.advance_copy_revisions()
             progress=self.w.conversation(self.c)['actions'][-1]['copy_revision_progress']

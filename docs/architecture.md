@@ -11,7 +11,10 @@ flowchart LR
     UI[React workspace] --> HTTP[Loopback API]
     HTTP --> FACADE[Workspace facade]
     CLI[Python CLI] --> ROOT[Composition root]
-    FACADE --> ROOT
+    ROOT --> FACADE
+    FACADE --> MODELS[Model session port]
+    MODELS --> SESSIONS[Ephemeral OpenRouter sessions]
+    SESSIONS --> OR
     FACADE --> CONTROL[Workspace control port]
     CONTROL --> SQL
     ROOT --> WF[Explicit workflows]
@@ -51,7 +54,7 @@ The [local checkpoint adapter](workspace-checkpoints.md) uses the same root lock
 `make arch-check` statically inspects every Python file under `src/acquisition`,
 without importing product code. `scripts/architecture_policy.json` is the reviewed,
 exact module-to-role inventory and temporary exception ledger. It currently
-classifies 175 modules, including workspace control ports, engagements, profile/contact/sequence supporting
+classifies 181 modules, including workspace control/model ports, startup/transport separation, engagements and supporting
 files and every root utility. An added file needs an explicit classification;
 removed files must lose their classifications. A file/package name collision is
 rejected. Tests and scripts are outside this production inventory and cannot be
@@ -132,8 +135,8 @@ rejected. A transport role is not a general adapter exemption.
 
 ### Temporary exception ledger
 
-The initial #89 inventory recorded **31 exact dependency exceptions**. After #90,
-**28 remain**, with module,
+The initial #89 inventory recorded **31 exact dependency exceptions**. After #90 and #91,
+**12 remain**, with module,
 rule, target, occurrence count, reason and removal issue in the JSON ledger.
 These make existing debt visible; they are not permissions for additional imports.
 A new/substituted target, increased occurrence count, removed violation with a
@@ -144,16 +147,16 @@ command. Changes to inventory, roles or exceptions require explicit review.
 | Removal issue | Count | Existing dependency to extract |
 | --- | --- | --- |
 | #90 | 0 | Extracted into consumer-owned workspace ports and the SQLite control adapter |
-| #91 | 15 | Workspace/bootstrap/provider wiring, model sessions, CLI provider construction and filesystem configuration loading |
-| #92 | 13 | Root command/report/storage-error infrastructure, workspace root guard, contact adapter's private policy-module import and review validators from mixed creative application code |
+| #91 | 0 | Workspace, CLI and provider construction now flows through bootstrap; ephemeral sessions are adapter-owned |
+| #92 | 12 | Remaining root command/report/storage-error infrastructure, the contact adapter's private policy-module import and review validators from mixed creative application code |
 
 The last group includes three domain imports of `fact_pack_id`,
 `validate_fact_pack` and `validate_grounded_catalogue`. These pure functions share
 `creative.grounding` with inference/application imports. #92 must separate their
 pure owner and expose the required contact-policy functions through the public
 campaign API. Do not relabel mixed application code as domain to clear a check.
-#93 requires zero temporary exceptions. These extractions are proposed; #89
-implements enforcement and inventory, not the new workspace directory layout.
+#93 requires zero temporary exceptions. #90 and #91 implement the workspace extractions. #92 owns the remaining root
+utilities and mixed policy owners; #93 requires the final zero-exception check.
 
 ## Repository map
 
@@ -217,6 +220,51 @@ The workspace has a separate `workspace.sqlite` control store for session metada
 
 Unsealed compatibility stores still keep preparation intent, routing and sandbox time in `workspace.sqlite`. In schema 14, explicitly selected `verified-paused/v1` stores move new preparation intent and consent to `conversations.sqlite`, and new sandbox environments, clocks, command identities and run/case/cohort mappings to the campaign's application database. The root application store contains a server-owned location catalogue bound to each application's immutable store identity. This catalogue locates records; it cannot grant consent, advance time or authorize execution. Owned records override workspace projections, including after the projection database is lost. Legacy workspace records are never silently enrolled as authoritative environments.
 
+### Workspace composition and model sessions, issue 91
+
+`bootstrap.build_workspace` constructs the facade with its control/state ports,
+model-session interface, reviewed asset loaders, scoped application factory and
+preparation coordinators. `workspace.py` contains no bootstrap imports, provider
+construction, credential reads or filesystem configuration loading. The factory
+keeps existing authoritative environment routing, lazy verified-store selection
+and compatibility-store behavior. Construction does not dispatch a model or
+silently seal a store before the server's root lock is acquired.
+
+| Location | Responsibility |
+| --- | --- |
+| `application/workspace/ports.py` | Consumer-owned model-session and bounded scoped-construction interfaces, alongside the control-store ports |
+| `adapters/models/workspace_sessions.py` | OpenRouter catalogue caching, key validation, opaque tab handles, five-minute idle expiry, the 32-connection bound, frozen model matching and provider price-tier checks |
+| `workflows/preparation_host.py` | Implements the preparation host over injected conversation APIs and narrow campaign/generation continuations; preserves the existing consent, admission and stop rules in their owners |
+| `workflows/campaign_application.py` | Campaign creation/replay, frozen copy context preparation and export use cases over injected stores, population generation, reviewed assets and an export effect |
+| `application/cli_commands.py` | Executes CLI commands using the supplied application and explicit legacy review/learning delegates |
+| `transport/workspace_http.py` | The unchanged loopback request guards and server/worker lifecycle |
+| `workspace_server.py`, `__main__.py`, `conversation_cli.py` | Startup argument parsing, composition through bootstrap and presentation of results |
+
+`ScopedWorkspaceApplications` is bound to one server-owned root and constructs
+only campaign or fixed conversation applications. It accepts explicit resolved
+organization/store scope, clock and frozen model settings. It has no arbitrary
+service names, registration mechanism or caller-provided database path. New
+verified preparation construction is deferred only until that store scope is
+selected. The preparation coordinator receives `WorkspacePreparationHost`, not
+the workspace facade; bootstrap composes its narrow callbacks before exposing
+the completed facade. The facade retains thin method delegates for existing
+presentation/recovery callers, without selecting implementations.
+
+The model-session interface preserves OpenRouter-specific catalogue and price
+semantics. It does not claim that every provider supports the same catalogue,
+key validation or price tiers. Credentials stay in the adapter/composition
+boundary and never enter durable records or model inputs. Browser sessions remain
+ephemeral, scoped to their original tab/key binding, and unusable after expiry or
+restart until explicit reconnection. A restored binding can continue the frozen
+request; a new model selection does not rewrite that request's settings.
+
+Asset loaders are lazy. Historical admissions and receipts can be observed or
+resumed using their frozen inputs when current skill files are unavailable.
+New work still performs the existing freshness/configuration checks. Moving
+`bootstrap.Application` methods into the campaign workflow changes no schema,
+authority, task plan, reservation or legacy cutover rule. `bootstrap.Application`
+remains a compatibility export of that workflow owner.
+
 ### Workspace control storage, issue 90
 
 `application/workspace/ports.py` owns the control-store contract and recoverable
@@ -226,8 +274,8 @@ error translation and a lazy factory for the existing `conversations.WorkspaceSt
 service. Startup initializes the compatibility journal without opening or
 silently enrolling an authoritative application store. The workspace facade
 passes session candidates and receives plain records; it contains no SQLite
-imports, SQL or connection accessor. It still has the explicitly recorded
-composition/provider dependencies scheduled for #91.
+imports, SQL or connection accessor. Its construction and provider dependencies
+are now supplied by `build_workspace`, as described above.
 
 The complete control-store inventory is:
 

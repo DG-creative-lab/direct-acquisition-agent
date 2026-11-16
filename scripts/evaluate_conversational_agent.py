@@ -70,7 +70,7 @@ except subprocess.CalledProcessError:
 from acquisition.contracts import Conflict, canonical
 from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.reasoning import ModelError
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace
 from acquisition.bootstrap import initialize_fixture_workspace
 from test_conversations import proposal
 from test_conversational_copy_revision import CopyRoutingModel
@@ -101,8 +101,8 @@ class RecordedFake:
 
 
 def fake_provider(stack, model):
-    stack.enter_context(patch('acquisition.workspace.openrouter_key', return_value='offline-sentinel'))
-    stack.enter_context(patch('acquisition.workspace.OpenRouter', return_value=model))
+    stack.enter_context(patch('acquisition.bootstrap.workspace_key', return_value='offline-sentinel'))
+    stack.enter_context(patch('acquisition.bootstrap.workspace_gateway', return_value=model))
     # Fail closed if a future refactor bypasses the injected provider. These
     # direct-workspace scenarios need neither remote nor loopback connections.
     stack.enter_context(patch.object(socket.socket, 'connect', side_effect=AssertionError('Network disabled in evaluation')))
@@ -255,7 +255,7 @@ def complete_journey(w, cid, state, model):
             'Retired preference remained active')
     for s, identity in p['contexts'].items():
         require(app.memory.get_context(session['organization'], identity) == frozen[s], 'Retirement rewrote a frozen context')
-    replay = Workspace(w.root, real_clock=lambda: NOW).propose_followup(sid, 'next-experiment', cohort)
+    replay = build_workspace(w.root, real_clock=lambda: NOW).propose_followup(sid, 'next-experiment', cohort)
     require(replay == p, 'Restart or lost-response retry changed the proposal')
     require(w.conversation(cid)['execution']['used'] == len(model.trace), 'Trace and shared reservations disagree')
     before_edit = len(model.trace)
@@ -294,7 +294,7 @@ def run_case(case):
     try:
         with tempfile.TemporaryDirectory(prefix='issue25-offline-') as root, ExitStack() as stack:
             fake_provider(stack, model)
-            w = Workspace(root, real_clock=lambda: NOW)
+            w = build_workspace(root, real_clock=lambda: NOW)
             cid = w.create_conversation('chat', case['id'])['id']
             for revision, message in enumerate(case['messages']):
                 w.message_conversation(cid, 'message-' + str(revision), revision, message)
@@ -329,7 +329,7 @@ def verified_boundary():
         fake_provider(stack, model)
         root = Path(parent) / 'fresh'
         initialize_fixture_workspace(root, clock=lambda: NOW)
-        w = Workspace(root, real_clock=lambda: NOW)
+        w = build_workspace(root, real_clock=lambda: NOW)
         cid = w.create_conversation('chat', 'Verified offline journey')['id']
         w.message_conversation(cid, 'brief', 0, FIXTURE_MESSAGE)
         w.start_preparation(cid, 'prepare', 1, True, False, True)
@@ -353,7 +353,7 @@ def verified_boundary():
         inspection = build(restored / 'conversations.sqlite', clock=lambda: NOW)
         inspection.tasks.inspect('local-conversations', run)
         try:
-            Workspace(restored, real_clock=lambda: NOW).message_conversation(cid, 'forbidden', 1, 'Use £700 instead.')
+            build_workspace(restored, real_clock=lambda: NOW).message_conversation(cid, 'forbidden', 1, 'Use £700 instead.')
         except Conflict:
             pass
         else:
@@ -370,7 +370,7 @@ def uncertain_restart():
     model.uncertain = True
     with tempfile.TemporaryDirectory(prefix='issue25-uncertain-') as root, ExitStack() as stack:
         fake_provider(stack, model)
-        w = Workspace(root, real_clock=lambda: NOW)
+        w = build_workspace(root, real_clock=lambda: NOW)
         cid = w.create_conversation('chat', 'Unknown planner response')['id']
         w.message_conversation(cid, 'brief', 0, 'Prepare a £553 UK contractor postal response experiment.')
         w.start_preparation(cid, 'prepare', 1, False, False, True)
@@ -379,7 +379,7 @@ def uncertain_restart():
         require(not state['campaigns'] and len(model.trace) == 1, 'Uncertain inference continued or retried')
         used = state['execution']['used']
         w.stop_execution(cid, 'stop', 1)
-        w = Workspace(root, real_clock=lambda: NOW)
+        w = build_workspace(root, real_clock=lambda: NOW)
         w.start_preparation(cid, 'prepare', 1, False, False, True)
         w.recover_execution()
         w.advance_preparations()

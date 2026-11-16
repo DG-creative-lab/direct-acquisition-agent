@@ -50,7 +50,8 @@ class ConversationalEvaluationTests(unittest.TestCase):
         self.assertFalse(evaluation.assess_outcome(expected, dirty)['passed'])
 
     def test_unrelated_preparation_failure_does_not_pass_a_negative_case(self):
-        original = evaluation.Workspace.start_preparation
+        from acquisition.workspace import Workspace as WorkspaceFacade
+        original = WorkspaceFacade.start_preparation
 
         def fail_before_dispatch(workspace, cid, *args, **kwargs):
             original(workspace, cid, *args, **kwargs)
@@ -58,7 +59,7 @@ class ConversationalEvaluationTests(unittest.TestCase):
             workspace.preparations.store.update('local-conversations', row, 'failed', 'Injected infrastructure failure')
             return workspace.conversation(cid)
 
-        with patch.object(evaluation.Workspace, 'start_preparation', fail_before_dispatch):
+        with patch.object(WorkspaceFacade, 'start_preparation', fail_before_dispatch):
             result = evaluation.run_case(self.case('unsupported-email'))
         self.assertFalse(result['passed'])
         self.assertEqual(result['fake_provider_calls'], 0)

@@ -19,7 +19,7 @@ from acquisition.creative.grounding import product_suffix
 from acquisition.reasoning import ModelError
 from acquisition.reviews import ReviewPolicy
 from acquisition.runtime import LeaseLost, TaskSpec
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from test_preparations import CombinedModel
 from test_model_copy import reply
 
@@ -62,7 +62,7 @@ def _set_up_workspace(self):
     self.root = Path(self.temp.name)
     self.now = 1792972800.0
     self.model = RevisionModel()
-    for p in (patch("acquisition.workspace.openrouter_key", return_value="fake"), patch("acquisition.workspace.OpenRouter", return_value=self.model)):
+    for p in (patch("acquisition.bootstrap.workspace_key", return_value="fake"), patch("acquisition.bootstrap.workspace_gateway", return_value=self.model)):
         p.start(); self.addCleanup(p.stop)
     self.w = Workspace(self.root, real_clock=lambda: self.now)
 
@@ -163,7 +163,7 @@ class CopyRevisionTests(unittest.TestCase):
     def test_replay_uses_original_receipt_without_keys_calls_or_another_subject(self):
         self.admit(); result = self.finish()
         before = len(self.model.revision_calls)
-        with patch("acquisition.workspace.OpenRouter", side_effect=AssertionError("No model adapter is needed on replay")):
+        with patch("acquisition.bootstrap.workspace_gateway", side_effect=AssertionError("No model adapter is needed on replay")):
             replay = self.admit()
         self.assertTrue(replay["command_replayed"])
         self.assertEqual(replay["review"]["subject"], result["review"]["subject"])
@@ -238,7 +238,7 @@ class CopyRevisionTests(unittest.TestCase):
         from acquisition.adapters.openrouter import OpenRouter
         self.admit()
         receipt = self.app.reviews.store.revision_request(self.scope, "revision")
-        with patch("acquisition.workspace.openrouter_key", return_value=""), patch("acquisition.workspace.OpenRouter", side_effect=OpenRouter):
+        with patch("acquisition.bootstrap.workspace_key", return_value=""), patch("acquisition.bootstrap.workspace_gateway", side_effect=OpenRouter):
             self.w.advance_copy_revisions()
             self.w.advance_copy_revisions()
         reopened = Workspace(self.root, real_clock=lambda: self.now)
@@ -259,7 +259,7 @@ class CopyRevisionTests(unittest.TestCase):
 
     def test_restored_configuration_exposes_running_progress_during_a_delayed_provider_call(self):
         self.admit()
-        with patch("acquisition.workspace.openrouter_key", side_effect=ModelError("missing-key")):
+        with patch("acquisition.bootstrap.workspace_key", side_effect=ModelError("missing-key")):
             self.w.advance_copy_revisions()
         blocked = self.w.view(self.sid)["copy_revisions"][0]
         self.assertEqual(blocked["status"], "blocked")
@@ -419,9 +419,9 @@ class CopyRevisionTests(unittest.TestCase):
         code = '''
 import sys
 from unittest.mock import patch
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from test_copy_revisions import RevisionModel
-with patch('acquisition.workspace.openrouter_key', return_value='fake'), patch('acquisition.workspace.OpenRouter', return_value=RevisionModel()):
+with patch('acquisition.bootstrap.workspace_key', return_value='fake'), patch('acquisition.bootstrap.workspace_gateway', return_value=RevisionModel()):
     w=Workspace(sys.argv[1], real_clock=lambda:1792972800.0)
     [w.advance_copy_revisions() for _ in range(3)]
 '''

@@ -154,9 +154,10 @@ class LearningTests(unittest.TestCase):
         path.write_text(json.dumps(report))
         script = '''import sys
 import acquisition.__main__ as cli
+import acquisition.bootstrap as composition
 from functools import partial
 now = float(sys.argv.pop(1))
-cli.build = partial(cli.build, clock=lambda: now)
+composition.build = partial(composition.build, clock=lambda: now)
 cli.main()
 '''
         child = subprocess.run([sys.executable, "-c", script, str(self.now), "--db", str(self.path),
@@ -220,16 +221,17 @@ import os
 import sys
 from unittest.mock import patch
 import acquisition.__main__ as cli
+import acquisition.bootstrap as composition
 from acquisition.adapters.sqlite.report_monitoring import SqliteReportMonitoring
 
 now, lease_time, crash = sys.argv[1:4]
 del sys.argv[1:4]
-real_build = cli.build
+real_build = composition.build
 def build(*args, **kwargs):
     app = real_build(*args, **kwargs, clock=lambda: float(now))
     app.learning.monitoring.lease_clock = lambda: float(lease_time)
     return app
-cli.build = build
+composition.build = build
 if crash == 'True':
     # The normal importer has already returned from its committed transaction.
     with patch.object(SqliteReportMonitoring, 'finish', lambda *args: os._exit(91)):

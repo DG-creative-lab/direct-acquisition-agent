@@ -14,7 +14,7 @@ from unittest.mock import patch
 
 from acquisition.bootstrap import build_workspace_projection
 from acquisition.contracts import Conflict, canonical
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.reasoning import ModelConfig, ModelError
 from acquisition.adapters.sqlite.database import Database
@@ -72,7 +72,7 @@ class WorkspaceProjectionTests(TestCase):
         self.create();self.prepare()
         before=self.facts();control=records(self.root/'workspace.sqlite')
         with patch.object(Database,'transaction',side_effect=AssertionError('Authority write')), \
-             patch('acquisition.workspace.OpenRouter',side_effect=AssertionError('Provider loaded')), \
+             patch('acquisition.bootstrap.workspace_gateway',side_effect=AssertionError('Provider loaded')), \
              patch('acquisition.bootstrap.agent_catalogue',side_effect=AssertionError('Current guidance loaded')):
             a=self.rebuild();b=self.rebuild()
         self.assertEqual(a,b);self.assertEqual(a['status'],'inspected');self.assertFalse(a['legacy_migration'])

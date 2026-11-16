@@ -19,7 +19,7 @@ from acquisition.bootstrap import build, build_legacy_migration_inventory
 from acquisition.contracts import Conflict, canonical, digest
 from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.reasoning import ModelConfig, ModelError
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from test_conversations import PlannerModel
 from test_legacy_inventory import rows
 
@@ -597,8 +597,8 @@ class LegacyMigrationTests(unittest.TestCase):
         model = ActionGateway()
         cid = self.workspace.create_conversation('route-history', 'Routing history')['id']
         self.workspace.message_conversation(cid, 'brief', 0, FIXTURE_MESSAGE)
-        with patch('acquisition.workspace.openrouter_key', return_value='fixture'), \
-             patch('acquisition.workspace.OpenRouter', return_value=model):
+        with patch('acquisition.bootstrap.workspace_key', return_value='fixture'), \
+             patch('acquisition.bootstrap.workspace_gateway', return_value=model):
             self.workspace.route_followup(cid, 'route', 1, 'Please use £500 instead.', False)
             self.workspace.advance_actions()
         self.assertEqual(len(model.routing_requests), 1)

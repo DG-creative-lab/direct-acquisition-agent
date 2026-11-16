@@ -11,15 +11,8 @@ from uuid import UUID
 
 from acquisition.adapters.openrouter import OpenRouter, WORKSPACE_PRICE_TIERS, workspace_models
 from acquisition.contracts import Conflict, digest
+from acquisition.application.workspace import ModelSessionExpired, ModelSelectionRejected
 from acquisition.reasoning import ModelConfig
-
-
-class ModelSessionExpired(Conflict):
-    pass
-
-
-class ModelSelectionRejected(ValueError):
-    pass
 
 
 @dataclass
@@ -30,11 +23,16 @@ class Connection:
     expires: float
 
 
-class WorkspaceModels:
+class WorkspaceSessions:
     idle_seconds = 300
     max_connections = 32
 
-    def __init__(self):
+    def __init__(self, legacy_gateway, *, legacy_available=lambda: True, gateway_factory=None, catalogue_source=None, clock=None):
+        self._clock = clock or time.monotonic
+        self._legacy_gateway = legacy_gateway
+        self._legacy_available = legacy_available
+        self._gateway_factory = gateway_factory
+        self._catalogue_source = catalogue_source
         self._browser = ContextVar("workspace_browser_model", default=None)
         self._connections = {}
         self._connection_lock = Lock()
@@ -44,9 +42,9 @@ class WorkspaceModels:
 
     def catalogue(self):
         with self._catalogue_lock:
-            if time.monotonic() >= self._refresh_at:
-                self._catalogue = workspace_models()
-                self._refresh_at = time.monotonic() + 300
+            if self._clock() >= self._refresh_at:
+                self._catalogue = (self._catalogue_source or workspace_models)()
+                self._refresh_at = self._clock() + 300
             return self._catalogue
 
     def connect(self, key, session, previous=None):
@@ -58,11 +56,11 @@ class WorkspaceModels:
         except ValueError:
             raise ValueError("Reload the workspace to establish a browser model session.") from None
         binding = digest({"purpose": "openrouter-browser/v1", "session": session, "key": key})
-        gateway = OpenRouter(key)
+        gateway = (self._gateway_factory or OpenRouter)(key)
         gateway.validate_key()
         handle = secrets.token_urlsafe(32)
         with self._connection_lock:
-            now = time.monotonic()
+            now = self._clock()
             self._prune(now)
             prior = self._connections.get(previous)
             if prior and prior.tab != session:
@@ -83,7 +81,7 @@ class WorkspaceModels:
 
     def expire(self):
         with self._connection_lock:
-            self._prune(time.monotonic())
+            self._prune(self._clock())
 
     def disconnect(self, handle, tab):
         with self._connection_lock:
@@ -94,7 +92,7 @@ class WorkspaceModels:
     @contextmanager
     def browser(self, handle, tab, model=None, tier=None):
         with self._connection_lock:
-            now = time.monotonic()
+            now = self._clock()
             self._prune(now)
             current = self._connections.get(handle)
             if current is None or current.tab != tab:
@@ -110,6 +108,9 @@ class WorkspaceModels:
     def binding(self):
         current = self._browser.get()
         return current[0].binding if current else None
+
+    def legacy_available(self):
+        return self._legacy_available()
 
     def selected(self, max_calls):
         current = self._browser.get()
@@ -137,6 +138,8 @@ class WorkspaceModels:
         return replace(config, max_calls=max_calls) if max_calls is not None else config
 
     def gateway(self, config):
+        if not config.browser_binding:
+            return self._legacy_gateway()
         if config.browser_binding != self.binding:
             raise Conflict("Continue this request from its original OpenRouter session.")
         return self._browser.get()[0].gateway

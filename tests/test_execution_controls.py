@@ -13,7 +13,7 @@ from unittest.mock import patch
 from acquisition.adapters.sqlite.database import Database, EXECUTION, EXECUTION_RECOVERY
 from acquisition.contracts import Conflict, NotFound
 from acquisition.reasoning import ModelError
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 import test_conversational_copy_revision as copy_tests
 import test_conversation_handoff as handoff_tests
 
@@ -162,7 +162,7 @@ class ExecutionTests(unittest.TestCase):
         with self.w._conversation_app().calls.database.connect() as db:
             self.assertEqual([tuple(r) for r in db.execute('SELECT * FROM model_calls ORDER BY rowid')],old)
             self.assertEqual([tuple(r) for r in db.execute('SELECT * FROM legacy_task_admissions')],cutoff)
-        code="from acquisition.workspace import Workspace;import json,sys;print(json.dumps(Workspace(sys.argv[1]).conversation(sys.argv[2])['execution']))"
+        code="from acquisition.bootstrap import build_workspace as Workspace;import json,sys;print(json.dumps(Workspace(sys.argv[1]).conversation(sys.argv[2])['execution']))"
         result=subprocess.run([sys.executable,'-c',code,str(self.root),self.c],env=dict(os.environ,PYTHONPATH='src'),capture_output=True,text=True,check=True)
         self.assertEqual(json.loads(result.stdout)['used'],before['used'])
 
@@ -303,7 +303,7 @@ class ExecutionFollowupTests(unittest.TestCase):
         self.finalized_parent();model=copy_tests.CopyRoutingModel();calls=[];original=model.complete
         def observed(request):
             calls.append(request);return original(request)
-        with patch('acquisition.workspace.openrouter_key',return_value='fixture'),patch('acquisition.workspace.OpenRouter',return_value=model),patch.object(model,'complete',side_effect=observed):
+        with patch('acquisition.bootstrap.workspace_key',return_value='fixture'),patch('acquisition.bootstrap.workspace_gateway',return_value=model),patch.object(model,'complete',side_effect=observed):
             try:
                 child=self.w.create('manual','model',self.sid)
             except Conflict as exc:
@@ -328,7 +328,7 @@ class ExecutionFollowupTests(unittest.TestCase):
     def test_admitted_manual_descendant_cannot_dispatch_after_parent_stop(self):
         from acquisition.runtime import Worker
         self.finalized_parent();model=copy_tests.CopyRoutingModel();child=self.manual_child()
-        with patch('acquisition.workspace.openrouter_key',return_value='fixture'),patch('acquisition.workspace.OpenRouter',return_value=model):
+        with patch('acquisition.bootstrap.workspace_key',return_value='fixture'),patch('acquisition.bootstrap.workspace_gateway',return_value=model):
             with patch.object(Worker,'drain',return_value=0),self.assertRaises(Conflict):self.w.prepare(child)
             session=self.w._session(child);app=self.w._app(session)
             self.assertEqual(app.tasks.inspect(session['organization'],session['run_id'])['run']['status'],'queued')
@@ -345,14 +345,14 @@ class ExecutionFollowupTests(unittest.TestCase):
 
     def test_manual_descendant_created_after_stop_cannot_make_a_model_call(self):
         self.finalized_parent();self.w.stop_execution(self.c,'stop-before-child',1)
-        with patch('acquisition.workspace.openrouter_key',return_value='fixture'),patch('acquisition.workspace.OpenRouter') as provider:
+        with patch('acquisition.bootstrap.workspace_key',return_value='fixture'),patch('acquisition.bootstrap.workspace_gateway') as provider:
             with self.assertRaises(ModelError):self.w.create('late-manual','model',self.sid)
             self.assertEqual(provider.return_value.complete.call_count,0)
         self.assertEqual(self.usage()['used'],0)
 
     def test_manual_descendant_must_reserve_the_shared_last_slot(self):
         self.finalized_parent();self.lower_limit(1);model=copy_tests.CopyRoutingModel()
-        with patch('acquisition.workspace.openrouter_key',return_value='fixture'),patch('acquisition.workspace.OpenRouter',return_value=model),patch.object(model,'complete',wraps=model.complete) as provider:
+        with patch('acquisition.bootstrap.workspace_key',return_value='fixture'),patch('acquisition.bootstrap.workspace_gateway',return_value=model),patch.object(model,'complete',wraps=model.complete) as provider:
             with self.assertRaises(Conflict):self.w.create('limited-manual','model',self.sid)
             self.assertEqual(provider.call_count,1)
         self.assertEqual(self.usage()['used'],1)
@@ -360,7 +360,7 @@ class ExecutionFollowupTests(unittest.TestCase):
 
     def test_old_manual_descendants_are_backfilled_without_rewriting_receipts(self):
         self.finalized_parent();model=copy_tests.CopyRoutingModel()
-        with patch('acquisition.workspace.openrouter_key',return_value='fixture'),patch('acquisition.workspace.OpenRouter',return_value=model):
+        with patch('acquisition.bootstrap.workspace_key',return_value='fixture'),patch('acquisition.bootstrap.workspace_gateway',return_value=model):
             child=self.w.create('old-manual','model',self.sid)
         session=self.w._session(child['session']['id']);app=self.w._app(session)
         with app.calls.database.transaction() as db:
@@ -369,7 +369,7 @@ class ExecutionFollowupTests(unittest.TestCase):
             db.execute('DELETE FROM execution_runs WHERE organization=? AND run_id=?',(session['organization'],session['run_id']))
             db.execute('DELETE FROM execution_commands WHERE organization=? AND request_id=?',(session['organization'],'descendant:'+session['id']))
         self.w=Workspace(self.root,real_clock=lambda:1792972800.)
-        with patch('acquisition.workspace.OpenRouter',side_effect=AssertionError('recovery requested provider')):
+        with patch('acquisition.bootstrap.workspace_gateway',side_effect=AssertionError('recovery requested provider')):
             self.w.recover_execution()
             self.assertEqual(self.usage()['used'],6)
         with app.calls.database.connect() as db:
@@ -385,7 +385,7 @@ class ExecutionFollowupTests(unittest.TestCase):
                 c=self.w.create_conversation('checkpoint-'+str(fixture),'Checkpoint before case')['id']
                 content=FIXTURE_MESSAGE if fixture else 'Prepare a £600 contractor campaign with model copy.'
                 self.w.message_conversation(c,'m',0,content)
-                with patch('acquisition.workspace.openrouter_key',return_value='fixture'),patch('acquisition.workspace.OpenRouter',return_value=model):
+                with patch('acquisition.bootstrap.workspace_key',return_value='fixture'),patch('acquisition.bootstrap.workspace_gateway',return_value=model):
                     self.w.start_preparation(c,'checkpoint-prepare-'+str(fixture),1,fixture,not fixture)
                     with patch.object(SqliteReviews,'open_case',side_effect=OSError('case write interrupted')):
                         for _ in range(8):self.w.advance_preparations()
@@ -393,7 +393,7 @@ class ExecutionFollowupTests(unittest.TestCase):
                 self.assertIsNone(session['case_id'])
                 self.assertEqual(app.tasks.inspect(session['organization'],session['run_id'])['run']['status'],'waiting')
                 used=before['execution']['used']
-                with patch('acquisition.workspace.OpenRouter',side_effect=AssertionError('stop generated copy')):
+                with patch('acquisition.bootstrap.workspace_gateway',side_effect=AssertionError('stop generated copy')):
                     stopped=self.w.stop_execution(c,'checkpoint-stop-'+str(fixture),1)
                 self.assertNotIn(session['run_id'],stopped['execution_receipt']['run_ids'])
                 self.assertEqual(app.tasks.inspect(session['organization'],session['run_id'])['run']['status'],'waiting')
@@ -417,7 +417,7 @@ class ExecutionFollowupTests(unittest.TestCase):
         sid=self.w.conversation(c)['campaigns'][0]['session_id']
         self.assertIsNone(self.w._session(sid)['case_id'])
         self.w=Workspace(self.root,real_clock=lambda:1792972800.)
-        with patch('acquisition.workspace.OpenRouter',side_effect=AssertionError('recovery generated copy')):
+        with patch('acquisition.bootstrap.workspace_gateway',side_effect=AssertionError('recovery generated copy')):
             self.w.recover_execution();self.w.preparations.recover('local-conversations')
             self.w.recover_execution()
         view=self.w.view(sid)
@@ -454,7 +454,7 @@ class ExecutionFollowupTests(unittest.TestCase):
 
     def test_migrated_manual_descendant_cannot_be_claimed_before_workspace_recovery(self):
         model=copy_tests.CopyRoutingModel()
-        with patch('acquisition.workspace.openrouter_key',return_value='fixture'),patch('acquisition.workspace.OpenRouter',return_value=model),patch.object(model,'complete',wraps=model.complete) as provider:
+        with patch('acquisition.bootstrap.workspace_key',return_value='fixture'),patch('acquisition.bootstrap.workspace_gateway',return_value=model),patch.object(model,'complete',wraps=model.complete) as provider:
             session,_=self.legacy_manual(model)
             direct=self.w._app(session,with_model=True)  # Migration only, no workspace ancestry repair.
             self.assertTrue(direct.execution.pending(session['organization'],session['run_id']))
@@ -477,7 +477,7 @@ class ExecutionFollowupTests(unittest.TestCase):
     def test_migrated_live_lease_cannot_bypass_ancestry_reservation_guard(self):
         from acquisition.reasoning import CallScope
         model=copy_tests.CopyRoutingModel()
-        with patch('acquisition.workspace.openrouter_key',return_value='fixture'),patch('acquisition.workspace.OpenRouter',return_value=model),patch.object(model,'complete',wraps=model.complete) as provider:
+        with patch('acquisition.bootstrap.workspace_key',return_value='fixture'),patch('acquisition.bootstrap.workspace_gateway',return_value=model),patch.object(model,'complete',wraps=model.complete) as provider:
             session,claim=self.legacy_manual(model,claim=True)
             direct=self.w._app(session,with_model=True)
             scope=CallScope(claim.organization,claim.run_id,claim.task_id,claim.token)
@@ -489,7 +489,7 @@ class ExecutionFollowupTests(unittest.TestCase):
 
     def test_unrelated_standalone_worker_is_not_blocked_by_legacy_ancestry(self):
         model=copy_tests.CopyRoutingModel()
-        with patch('acquisition.workspace.openrouter_key',return_value='fixture'),patch('acquisition.workspace.OpenRouter',return_value=model),patch.object(model,'complete',wraps=model.complete) as provider:
+        with patch('acquisition.bootstrap.workspace_key',return_value='fixture'),patch('acquisition.bootstrap.workspace_gateway',return_value=model),patch.object(model,'complete',wraps=model.complete) as provider:
             session,_=self.legacy_manual(model)
             direct=self.w._app(session,with_model=True)
             run=direct.start_model('unrelated-organization','standalone',as_of='2026-10-26')
@@ -634,7 +634,7 @@ print(json.dumps(SqliteExecution(Database(sys.argv[1])).view('local-conversation
 
     def test_workspace_parent_rejects_incorrect_independence_before_recovery(self):
         model=copy_tests.CopyRoutingModel()
-        with patch('acquisition.workspace.openrouter_key',return_value='fixture'),patch('acquisition.workspace.OpenRouter',return_value=model):
+        with patch('acquisition.bootstrap.workspace_key',return_value='fixture'),patch('acquisition.bootstrap.workspace_gateway',return_value=model):
             session,_=self.legacy_manual(model)
             app=self.w._app(session,with_model=True)  # Migrate without workspace recovery.
         scope,run=session['organization'],session['run_id']
@@ -664,7 +664,7 @@ print(json.dumps(SqliteExecution(Database(sys.argv[1])).view('local-conversation
 
     def test_completed_workspace_child_cannot_exclude_its_six_calls_by_attestation(self):
         self.finalized_parent();model=copy_tests.CopyRoutingModel()
-        with patch('acquisition.workspace.openrouter_key',return_value='fixture'),patch('acquisition.workspace.OpenRouter',return_value=model):
+        with patch('acquisition.bootstrap.workspace_key',return_value='fixture'),patch('acquisition.bootstrap.workspace_gateway',return_value=model):
             child=self.w.create('completed-unrecovered','model',self.sid)
         session=self.w._session(child['session']['id']);scope,run=session['organization'],session['run_id'];app=self.w._app(session)
         calls=app.calls.inspect(scope,run)
@@ -750,7 +750,7 @@ print(json.dumps(SqliteExecution(Database(sys.argv[1])).view('local-conversation
 
     def test_recreated_empty_journal_cannot_release_a_legacy_workspace_child(self):
         model=copy_tests.CopyRoutingModel()
-        with patch('acquisition.workspace.openrouter_key',return_value='fixture'),patch('acquisition.workspace.OpenRouter',return_value=model):
+        with patch('acquisition.bootstrap.workspace_key',return_value='fixture'),patch('acquisition.bootstrap.workspace_gateway',return_value=model):
             session,_=self.legacy_manual(model)
             app=self.w._app(session,with_model=True)
         scope,run=session['organization'],session['run_id']
@@ -893,7 +893,7 @@ print(json.dumps(SqliteExecution(Database(sys.argv[1])).view('local-conversation
         finally:source.close();target.close()
         child=self.manual_child('after-backup');model=copy_tests.CopyRoutingModel()
         from acquisition.runtime import Worker
-        with patch('acquisition.workspace.openrouter_key',return_value='fixture'),patch('acquisition.workspace.OpenRouter',return_value=model):
+        with patch('acquisition.bootstrap.workspace_key',return_value='fixture'),patch('acquisition.bootstrap.workspace_gateway',return_value=model):
             # This fixture represents admission by the pre-identity application.
             from acquisition.adapters.sqlite.workspace_ancestry import initialize_workspace_identity
             with control_connection(self.w) as db:initialize_workspace_identity(db)
@@ -927,7 +927,7 @@ print(json.dumps(SqliteExecution(Database(sys.argv[1])).view('local-conversation
     def test_old_weak_binding_receipt_is_not_current_independence_authority(self):
         from acquisition.adapters.sqlite.workspace_ancestry import JOURNAL_BINDING_KEY
         model=copy_tests.CopyRoutingModel()
-        with patch('acquisition.workspace.openrouter_key',return_value='fixture'),patch('acquisition.workspace.OpenRouter',return_value=model):
+        with patch('acquisition.bootstrap.workspace_key',return_value='fixture'),patch('acquisition.bootstrap.workspace_gateway',return_value=model):
             session,_=self.legacy_manual(model)
             app=self.w._app(session)
         scope,run=session['organization'],session['run_id']
@@ -1057,7 +1057,7 @@ print(json.dumps(SqliteExecution(Database(sys.argv[1])).view('local-conversation
         import sqlite3
         import acquisition.adapters.sqlite.execution as execution_adapter
         model=copy_tests.CopyRoutingModel()
-        with patch('acquisition.workspace.openrouter_key',return_value='fixture'),patch('acquisition.workspace.OpenRouter',return_value=model):
+        with patch('acquisition.bootstrap.workspace_key',return_value='fixture'),patch('acquisition.bootstrap.workspace_gateway',return_value=model):
             session,_=self.legacy_manual(model)
         path=self.root/'conversations.sqlite'
         original=execution_adapter.quarantine_old_origins
@@ -1138,7 +1138,7 @@ print(json.dumps(SqliteExecution(Database(sys.argv[1])).view('local-conversation
         self.assertEqual(self.w.preparations.store.for_revision('local-conversations',c,1)['status'],'cancelled')
         self.assertEqual(stopped['preparations'][0]['checkpoint_recovery']['code'],'checkpoint_storage_unavailable')
         reopened=Workspace(self.root,real_clock=lambda:1792972800.)
-        with patch('acquisition.workspace.OpenRouter',side_effect=AssertionError('recovery dispatched inference')):
+        with patch('acquisition.bootstrap.workspace_gateway',side_effect=AssertionError('recovery dispatched inference')):
             reopened.recover_execution()
             row=reopened.preparations.store.for_revision('local-conversations',c,1)
             self.assertEqual(row['status'],'review_ready')
@@ -1168,7 +1168,7 @@ print(json.dumps(SqliteExecution(Database(sys.argv[1])).view('local-conversation
                 self.w.recover_execution()
             return original(organization,row)
         with patch.object(self.w,'preparation_generation',side_effect=recover_after_progress_snapshot), \
-                patch('acquisition.workspace.OpenRouter',side_effect=AssertionError('projection recovery dispatched inference')):
+                patch('acquisition.bootstrap.workspace_gateway',side_effect=AssertionError('projection recovery dispatched inference')):
             packet=self.w.conversation(c)
         self.assertEqual(interleaved,[True])
         self.assertEqual(packet['preparations'][0]['status'],'cancelled')
@@ -1197,7 +1197,7 @@ print(json.dumps(SqliteExecution(Database(sys.argv[1])).view('local-conversation
         def observed(request):
             calls.append(request)
             return original(request)
-        with patch('acquisition.workspace.openrouter_key',return_value='fixture'), patch('acquisition.workspace.OpenRouter',return_value=self.model), patch.object(self.model,'complete',side_effect=observed):
+        with patch('acquisition.bootstrap.workspace_key',return_value='fixture'), patch('acquisition.bootstrap.workspace_gateway',return_value=self.model), patch.object(self.model,'complete',side_effect=observed):
             child=self.w.prepare_followup(self.sid,'prepare-next',proposal['id'],'model',True)
         self.assertTrue(calls)
         self.assertEqual(self.usage()['used'],before+len(calls))

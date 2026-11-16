@@ -18,7 +18,7 @@ from acquisition.adapters.synthetic import generate
 from acquisition.campaigns import Brief
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.conversations import FIXTURE_MESSAGE, EnvironmentIntent
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from acquisition.reviews import ActorUnavailable
 from acquisition.reasoning import ModelConfig
 from test_legacy_action_replay import durable_rows
@@ -57,7 +57,7 @@ class WorkspaceAuthorityTests(unittest.TestCase):
         with self.assertRaises(Conflict):self.w.authority.save(session|{'run_id':run})
         self.assertEqual(durable_rows(app),before)
         reopened=Workspace(self.root,real_clock=lambda:self.now)
-        with patch('acquisition.workspace.OpenRouter',side_effect=AssertionError('Provider loaded')):
+        with patch('acquisition.bootstrap.workspace_gateway',side_effect=AssertionError('Provider loaded')):
             with self.assertRaises(Conflict):reopened.prepare(sid)
         self.assertIsNone(reopened.authority.get(sid)['run_id'])
         self.assertEqual(app.calls.inspect(org,run),[])
@@ -218,7 +218,7 @@ class WorkspaceAuthorityTests(unittest.TestCase):
                               'clock':self.now+90*86400,'clock_mode':'SIMULATED','run_id':'wrong-run','case_id':'wrong-case','name':'Poisoned'}
                 with control_connection(self.w) as db:db.execute('UPDATE sessions SET payload=? WHERE id=?',(canonical(fake),session['id']))
                 self.assertEqual(self.w._session(session['id']),session)
-                with patch('acquisition.workspace.OpenRouter',side_effect=AssertionError('Loaded provider')):
+                with patch('acquisition.bootstrap.workspace_gateway',side_effect=AssertionError('Loaded provider')):
                     routed=self.w._app(fake,with_model=True)
                 self.assertEqual(routed.tasks.database.path,app.tasks.database.path)
                 self.assertEqual(routed.clock(),max(self.now,session['clock']) if mode=='model' else session['clock'])
@@ -289,13 +289,13 @@ class WorkspaceAuthorityTests(unittest.TestCase):
     def test_preparation_commits_frozen_consent_before_plan_and_survives_restart(self):
         cid=self.w.create_conversation('chat','Recover intent')['id']
         self.w.message_conversation(cid,'message',0,FIXTURE_MESSAGE)
-        with patch.object(self.w,'admit_preparation_plan',side_effect=OSError('Plan admission unavailable')):
+        with patch.object(self.w.preparation_host, 'admit_preparation_plan',side_effect=OSError('Plan admission unavailable')):
             with self.assertRaises(OSError):self.w.start_preparation(cid,'original',1,False,False)
         saved=self.w.preparations.store.for_revision('local-conversations',cid,1)
         self.assertEqual(saved['status'],'admitting');self.assertFalse(saved['inputs']['allow_model_copy'])
         with control_connection(self.w) as db:self.assertEqual(db.execute('SELECT COUNT(*) FROM preparations').fetchone()[0],0)
         reopened=Workspace(self.root,real_clock=lambda:self.now)
-        with patch.object(reopened,'freeze_preparation_plan',side_effect=AssertionError('Rebuilt frozen context')):
+        with patch.object(reopened.preparation_host, 'freeze_preparation_plan',side_effect=AssertionError('Rebuilt frozen context')):
             reopened.start_preparation(cid,'original',1,False,False)
             reopened.advance_preparations()
         actual=reopened.preparations.store.for_revision('local-conversations',cid,1)
@@ -452,7 +452,7 @@ class WorkspaceAuthorityTests(unittest.TestCase):
         session=self.create();cid,prep=self.prepare();app=self.app(session);before=durable_rows(app)
         (self.root/'workspace.sqlite').unlink()
         code='''import json,sys
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 w=Workspace(sys.argv[1],real_clock=lambda:1792972800.)
 print(json.dumps({'session':w._session(sys.argv[2]),'preparation':w.preparations.store.get('local-conversations',sys.argv[3])}))'''
         result=subprocess.run([sys.executable,'-c',code,str(self.root),session['id'],prep['id']],capture_output=True,text=True,timeout=20)

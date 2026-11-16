@@ -80,9 +80,9 @@ class ReviewRegressions(unittest.TestCase):
             with patch("sys.argv", ["acquisition", "--db", path, *args]), redirect_stdout(StringIO()) as output:
                 main()
             return json.loads(output.getvalue())
-        with patch("acquisition.__main__.OpenRouter", return_value=model), \
-             patch("acquisition.__main__.openrouter_key", return_value="fixture-not-a-key"), \
-             patch("acquisition.__main__.build", side_effect=lambda path, **kwargs: build(path, clock=lambda: self.now, **kwargs)):
+        with patch("acquisition.bootstrap.workspace_gateway", return_value=model), \
+             patch("acquisition.bootstrap.workspace_key", return_value="fixture-not-a-key"), \
+             patch("acquisition.bootstrap.build", side_effect=lambda path, **kwargs: build(path, clock=lambda: self.now, **kwargs)):
             run = cli("create-model", "--size", "100")["run_id"]
             self.assertEqual(cli("work")["worker_ticks"], 0)
             state = cli("status", "--run", run)

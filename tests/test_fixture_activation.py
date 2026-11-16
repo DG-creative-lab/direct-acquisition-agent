@@ -19,7 +19,7 @@ from acquisition.creative import fixture_catalog
 from acquisition.reasoning import CallScope, ModelConfig, ModelError
 from acquisition.reviews import ActorUnavailable
 from acquisition.runtime import LeaseLost, Outcome
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from test_workspace_checkpoint import tree
 
 
@@ -36,7 +36,7 @@ class FixtureActivationTests(unittest.TestCase):
         result = self.process('-m', 'acquisition.workspace_fixture', '--root', self.root)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.w = self.workspace()
-        gateway = patch('acquisition.workspace.OpenRouter', side_effect=AssertionError('Provider initialized'))
+        gateway = patch('acquisition.bootstrap.workspace_gateway', side_effect=AssertionError('Provider initialized'))
         gateway.start()
         self.addCleanup(gateway.stop)
 
@@ -69,7 +69,7 @@ class FixtureActivationTests(unittest.TestCase):
         interrupted = self.process('-c', """
 import os,sys
 from unittest.mock import patch
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from acquisition.adapters.sqlite.tasks import SqliteTasks
 
 def exit_after_draft(self, claim, outcome, now):
@@ -475,7 +475,7 @@ with patch.object(SqliteTasks, 'settle', exit_after_draft):
         self.assertEqual(reopened.comment_artifact(cid, **inputs)['artifact_comments'], [comment])
         observed = self.process('-c', """
 import sys
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 comments = Workspace(sys.argv[1]).conversation(sys.argv[2])['artifact_comments']
 assert len(comments) == 1 and comments[0]['request_id'] == 'copy-comment'
 """, self.root, cid)
@@ -580,7 +580,7 @@ assert len(comments) == 1 and comments[0]['request_id'] == 'copy-comment'
                 db.execute('DELETE FROM writing_preference_versions')
         observed = self.process('-c', """
 import sys
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 p, = Workspace(sys.argv[1]).conversation(sys.argv[2])['writing_preferences']
 assert p['status'] == 'retired' and len(p['history']) == 3
 """, self.root, cid)

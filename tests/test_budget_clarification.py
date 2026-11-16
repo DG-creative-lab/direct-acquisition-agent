@@ -13,7 +13,7 @@ from acquisition.adapters.sqlite.conversations import SqliteConversations
 
 from acquisition.contracts import Conflict, canonical
 from acquisition.conversations import BUDGET_POLICY, budget_clarification, budget_response, validate_result
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 import test_conversations as conversations
 import test_preparations as preparations
 
@@ -205,11 +205,11 @@ class BudgetReplyTests(unittest.TestCase):
         pending = self.w.start_preparation(self.c, 'reply-prepare', 3, False, False)['preparations'][-1]
         code = """import json,sys
 from unittest.mock import patch
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from test_preparations import CombinedModel
 from test_conversations import proposal
 model=CombinedModel(proposal(budget_pence=40000))
-with patch('acquisition.workspace.openrouter_key',return_value='offline-fake'),patch('acquisition.workspace.OpenRouter',return_value=model):
+with patch('acquisition.bootstrap.workspace_key',return_value='offline-fake'),patch('acquisition.bootstrap.workspace_gateway',return_value=model):
  w=Workspace(sys.argv[1],real_clock=lambda:1792972800.)
  replay=w.reply_budget_conversation(sys.argv[2],'answer',2,sys.argv[3],'The total budget is £400.')
  assert replay['message_receipt']['replayed']

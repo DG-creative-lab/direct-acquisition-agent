@@ -14,7 +14,7 @@ from acquisition.bootstrap import build
 from acquisition.contracts import Conflict
 from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.reasoning import ModelConfig
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 import test_admission_workflow_coverage as coverage
 import test_copy_revisions as revisions
 

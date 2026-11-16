@@ -11,7 +11,7 @@ async function workspace(scenario, run) {
 import json,sys,time
 from pathlib import Path
 from unittest.mock import patch
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from acquisition.workspace_server import WorkspaceServer
 from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.reasoning import ModelError
@@ -33,8 +33,8 @@ class Gateway(ActionGateway):
             return reply(name,{'action':'amend_brief' if 'Change' in content else 'explain_exclusions'})
         if name=='submit_campaign_brief':return reply(name,proposal(budget_pence=40000,copy_mode='fixture'))
         return super().complete(request)
-patch('acquisition.workspace.openrouter_key',return_value='fixture').start()
-patch('acquisition.workspace.OpenRouter',return_value=Gateway()).start()
+patch('acquisition.bootstrap.workspace_key',return_value='fixture').start()
+patch('acquisition.bootstrap.workspace_gateway',return_value=Gateway()).start()
 w=Workspace(root,real_clock=lambda:1793404800.)
 c=w.create_conversation('c','Routing example')['id'];w.message_conversation(c,'m',0,FIXTURE_MESSAGE)
 if scenario == 'typed-saved-prepare':
