@@ -32,11 +32,12 @@ NOW=1794614400.
 
 
 class SequenceTests(unittest.TestCase):
+    profiles = ('fielddesk','iwoca')
     @classmethod
     def setUpClass(cls):
         cls.fixture=tempfile.TemporaryDirectory()
         cls.templates={}
-        for profile in ('fielddesk','iwoca'):
+        for profile in cls.profiles:
             path=Path(cls.fixture.name)/(profile+'.sqlite');clock=lambda:NOW;org='one'
             contacts=build_contact_directory(path,org,profile,clock)
             contexts=build_recipient_contexts(path,org,profile,clock)

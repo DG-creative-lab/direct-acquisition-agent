@@ -487,6 +487,37 @@ print(json.dumps(directory.inspect('one',sys.argv[3])))
             self.prepare(service)
         self.assertEqual(self.counts(service),before)
 
+    def test_reused_evidence_rechecks_attestation_after_report_clock(self):
+        service = self.service()
+        assessment = self.prepare(service)['assessment_id']
+        identity = service.source.identity
+        changed = False
+
+        def clock():
+            nonlocal changed
+            changed = True
+            return NOW
+
+        def attestation(*args):
+            return 'changed-after-report' if changed else identity(*args)
+
+        with service.store.database.transaction() as db:
+            with patch.object(service.source, 'identity', side_effect=attestation), patch.object(service.store, 'clock', clock):
+                with self.assertRaisesRegex(Conflict, 'installed attestation'):
+                    service.store.decision_evidence(db, 'one', assessment)
+
+        # A changed row must be parsed and validated again, even within the
+        # same transaction and the same evidence invocation.
+        with service.store.database.transaction() as db:
+            def corrupt_row():
+                db.execute('DROP TRIGGER contact_sources_immutable_update')
+                db.execute("UPDATE contact_sources SET payload=json_set(payload,'$.profile_id','changed') WHERE organization='one'")
+                return NOW
+
+            with patch.object(service.store, 'clock', corrupt_row):
+                with self.assertRaisesRegex(Conflict, 'integrity failure'):
+                    service.store.decision_evidence(db, 'one', assessment)
+
     def test_competing_changed_requests_publish_one_whole_original_assessment(self):
         services = [self.service(),self.service()]
         def prepare(index):

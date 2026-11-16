@@ -1853,3 +1853,133 @@ Postal-return fix verification on 2026-11-15: `make test` passed all 1,010 backe
 The conversation workflow now waits only when the native simulator reports that every remaining pending step needs human task completion. Another account's scheduled call and follow-up can proceed while an unfinished call continues to hold its own follow-up. Dependency rules, exact native acceptance checks, synthetic clock persistence and historical artifact formats remain in their existing modules.
 
 Verification on 2026-11-15: all 17 focused journey tests passed. `make test` passed all 1,011 backend cases in 2,043 seconds, including all 19 workspace HTTP cases with loopback access enabled. `make arch-check` and `git diff --check` passed. The selected `sequence-journey-independent-schedules` mutation restored the original global pause and was detected by the new real-SQLite restart regression. No frontend files changed; the browser suite was not rerun for this fix.
+## CI performance and mutation experiment boundaries
+
+Backend discovery remains partitioned by module, so class fixtures and isolated
+SQLite roots stay together. The sequence estimate now uses the approximately
+143 seconds observed in the Python 3.11 run 43639063387; other estimates remain
+approximate. Each shard reports estimated and elapsed time and uploads individual
+test and class setup timings. These measurements can guide later rebalancing;
+they do not predict the performance of a different Python version or machine.
+
+The mutation catalogue is distributed deterministically across four CI jobs.
+Every declared probe still gets a fresh source copy and interpreter. Estimates
+are initial scheduling weights, not measured per-probe durations. Execution
+stops on the first test failure. A failure or unexpected exception from the test
+body detects a mutation; loader, setup, teardown, cleanup, skipped and timed-out
+experiments cannot count as detections. Regression checks exercise these
+classifications and verify that both sharding schemes retain every case once.
+Superseded pull request runs are cancelled. The Python version matrix and the
+single browser worker remain unchanged. No production authority or SQLite
+reconstruction is cached by these changes.
+
+The journal cleanup regression now creates a minimal real SQLite journal and
+retains the invalid identity and open writer-lock checks. This keeps the same
+observable boundary without preparing a campaign first. The previous mutation
+changed normal preparation itself and failed in that fixture, so it never
+reached the lock-release check; the isolated target now reaches and detects it.
+
+Verification: `make test` passed 981 tests with loopback access and
+`make arch-check` passed. The full run loaded the original lock fixture before
+it was isolated; the final isolated test and its mutation passed separately.
+All 484 declared mutations were detected across four shard runs and targeted
+reruns. Three probes were rerun after result classification changed, one after
+isolating its fixture, and three with loopback access after sandbox setup errors.
+The timing artifact was also checked with a small two-shard smoke suite. These
+local checks do not establish a CI speedup.
+
+## Reconstruction reuse and isolated browser partitions
+
+Current-source parsing can be reused only inside one evidence invocation after
+comparing every stored field with a freshly queried row. Current head, latest
+version, installed attestation and final profile reads remain in place. Each
+invocation still rebuilds readiness, history, objections, suppression, epochs and
+time. The extended contact regression rejects an attestation change after the
+report clock and changed source bytes within the transaction. The new mutation
+probe removes that final check. The 23-test contact module and 54 selected
+contact, strategy and sequence mutation probes passed.
+
+Browser CI now partitions by file into two jobs. Each job retains one worker,
+its own server root, fixed shard-specific port and separate test evidence and
+JSON report paths. Explicit screenshots use per-test paths. Discovery verified
+108 distinct IDs across the 63/45 split without omissions or overlap. A shared
+three-second test delay was replaced by the existing explicit release marker
+when concurrent runs exposed its race. The test still stops actual in-progress
+work and verifies receipt settlement before starting a new brief.
+
+See [CI execution cost](ci-performance.md) for reproduction, profile counts,
+isolation details and remaining scope. Profile counts show fewer parses with
+the same number of evidence and final source checks; no hosted CI speedup is
+claimed. Python compatibility policy remains unchanged.
+
+The measured browser file weights replaced the initial 63/45 built-in split.
+The final explicit whole-file partitions passed 49 and 59 tests concurrently,
+with no skips, flaky retries or unexpected results. JSON reports verified distinct
+ports 8770/8771 and durations of 267.8/310.6 seconds on this machine. Both builds
+and frontend formatting passed. These local timings are not hosted CI timings.
+
+Final verification for this slice: `make test` passed 982 cases with loopback
+access, architecture and whitespace checks passed, and all 54 selected contact,
+strategy and sequence mutations were detected on the settled implementation.
+The final 23-test contact module also passed separately after extending the
+source-byte regression and retaining the final profile read. Frontend production
+build, formatting and both complete browser partitions passed (108 total).
+The complete 485-probe catalogue was not rerun for this slice. No live provider
+or billing behavior was exercised.
+
+This slice was implemented and measured on merged baseline `0ffba90` (PR #84).
+During verification, origin/main advanced through `b88e632` (PR #85), adding the
+sequence-review path from the original assessment. That integration is not part
+of these verification results; the local CI branch has not been rebased onto it.
+
+## CI follow-up on exact sequence review
+
+`fix/ci-review` was rebased onto fetched main `b88e632` (PR #85). The mutation
+conflict retained all new review probes, the 300-second sequence timeout and
+strict fixture/loader classification. The pressure/calendar test moved to a pure
+class with the same asserted thresholds, synthetic source values and product
+dates. Both existing mutation targets follow its new identity. Review templates
+now build only fielddesk, reuse each distinct source variant once per class and
+copy SQLite stores per case. The full evidence-basis test asserts that these
+copies leave templates free of proposals, approvals and simulations.
+
+Contact history parsing may reuse a current source only if the history query
+returns every identical stored field. Independent historical rows and all final
+source, attestation, profile, reviewer, epoch, clock and commit checks remain.
+The added mutation substitutes the current source for unrelated history; the
+existing equal-time permission conflict regression detects it. The profiled
+review case retained 3,308 evidence and 6,622 current-source checks while reducing
+source parses from 6,697 to 3,385. Concurrent local timings do not establish an
+elapsed speedup. Sequence/review shard estimates now cover both slow modules.
+
+Verification for this follow-up completed the production build,
+frontend formatting, architecture, whitespace and CI-tool checks. Both isolated
+browser partitions passed all 108 tests on the rebased backend. Backend discovery
+found 998 distinct IDs without duplicates or loader errors. All 79 selected
+sequence/review, contact and strategy mutations were detected across two
+partitions and targeted reruns. Two initial experiments had invalid loader
+targets after the pure test moved; those targets were updated and both mutations
+were detected by the relocated pure test. The added history-row mutation passed
+separately. The complete 510-probe catalogue is not claimed as rerun here.
+Two mutations targeting the original two-profile scenario were rerun after
+correcting a fixture-refactor loop typo; both were detected on the corrected
+scenario. The final 79-probe result uses those corrected runs.
+
+Final `make test` verification passed all 998 backend tests with loopback access
+in 1,459.8 seconds. This includes all sequence-review, two-profile, SQLite restart,
+expiry and migration cases on the corrected final source. The full basis and
+history regressions also passed separately with cached-template isolation checks.
+`make arch-check` and whitespace checks passed. Browser partitions passed 49/59
+cases without skips or flaky retries, alongside build and formatting. No live
+model calls were made and no hosted CI speedup is claimed.
+
+## CI timing collector compatibility
+
+PR #86 exposed a telemetry failure across every Python version: a historical
+budget fixture assigns a string to `self.id`, shadowing `TestCase.id` after
+setup. The timing collector now captures the base unittest identity before setup
+and uses that saved value at completion. A regression reproduced the runner crash
+before the correction and then passed. All four CI-tool tests and all four real
+historical-budget cases passed through the timing runner, retaining four timing
+records. Architecture and whitespace checks passed. This changes timing metadata
+only; the fixture and its product assertions are retained.

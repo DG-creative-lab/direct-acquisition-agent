@@ -3,6 +3,9 @@ on:
   push:
     branches: [main]
   pull_request:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
 jobs:
@@ -23,10 +26,22 @@ jobs:
       - run: make test-shard
         env:
           SHARD: ${{ matrix.shard }}
+          BACKEND_TIMINGS: backend-timings.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-timings-${{ matrix.python }}-${{ matrix.shard }}
+          path: backend-timings.json
+          if-no-files-found: ignore
+          retention-days: 14
       - run: make arch-check
         if: matrix.shard == 1
   mutation:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -34,9 +49,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: make mutation-check
+      - run: python3 scripts/check_failure_mutations.py --shard "${{ matrix.shard }}" --shards 4
   interface:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -55,10 +74,15 @@ jobs:
       - run: pnpm --dir frontend install --frozen-lockfile
       - run: pnpm --dir frontend exec playwright install --with-deps chromium
       - run: make interface-check
+        env:
+          BROWSER_SHARD: ${{ matrix.shard }}
+          BROWSER_SHARDS: 2
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: always()
         with:
-          name: browser-failure-evidence
-          path: .local/browser-test-results
+          name: browser-evidence-${{ matrix.shard }}
+          path: |
+            .local/browser-test-results
+            .local/browser-reports
           include-hidden-files: true
           retention-days: 7
