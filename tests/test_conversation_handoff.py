@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.contracts import Conflict
 from acquisition.workspace import Workspace
@@ -48,9 +49,11 @@ class ConversationHandoffTests(unittest.TestCase):
     def test_fresh_process_replays_one_acceptance_after_partial_control_acknowledgement(self):
         approval = self.approve()
         payload = {'request_id': 'handoff', 'approval_id': approval}
-        accepted = self.w.action(self.sid, 'handoff', payload)['review']['handoff']
-        with self.w.control() as db:
-            db.execute('UPDATE commands SET done=0 WHERE session_id=? AND request_id=?', (self.sid, 'handoff'))
+        with patch.object(self.w.control_store, 'complete_command', side_effect=OSError('Lost acknowledgement')):
+            with self.assertRaises(OSError):
+                self.w.action(self.sid, 'handoff', payload)
+        accepted = self.w.view(self.sid)['review']['handoff']
+        self.assertFalse(self.w.control_store.command(self.w._session(self.sid)['organization'], self.sid, 'handoff')['done'])
         self.w.message_conversation(self.c, 'edit', 1, 'Use £300 instead.')
         code = """import sys,json
 from acquisition.workspace import Workspace

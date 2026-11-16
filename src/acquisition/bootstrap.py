@@ -243,7 +243,16 @@ def build_preparations(path, host, *, authoritative=False):
     return PreparationCoordinator(SqlitePreparations(path), host)
 
 
-def build_workspace_state(root,clock=time.time):
+def build_workspace_state(root, clock=time.time):
+    """Compose compatibility storage now and authoritative state only on demand."""
+    from acquisition.application.workspace import WorkspaceStateAccess
+    from acquisition.adapters.sqlite.workspace_control import SqliteWorkspaceControl, SqliteWorkspaceFaults
+    faults = SqliteWorkspaceFaults()
+    return WorkspaceStateAccess(SqliteWorkspaceControl(root, faults),
+                                lambda: _build_workspace_authority(root, clock), faults)
+
+
+def _build_workspace_authority(root,clock=time.time):
     from acquisition.adapters.sqlite.workspace_state import SqliteWorkspaceState
     from acquisition.adapters.sqlite.workspace_sources import environment_source
     from acquisition.workflows.workspace_state import validate_environment, validate_environment_run

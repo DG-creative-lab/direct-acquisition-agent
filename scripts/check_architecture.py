@@ -44,7 +44,7 @@ VALUE_IMPORTS = {
     'json': {'loads', 'dumps', 'load', 'dump', 'JSONDecodeError'},
     'math': {'isfinite', 'isclose', 'ceil', 'floor'}, 'random': {'Random'},
     're': {'compile', 'match', 'search', 'fullmatch', 'sub'},
-    'typing': {'Any', 'Protocol'}, 'unicodedata': {'normalize'},
+    'typing': {'Any', 'ContextManager', 'Protocol'}, 'unicodedata': {'normalize'},
     'urllib.parse': {'urlparse', 'urlsplit', 'parse_qs'},
 }
 COORDINATION_IMPORTS = {
