@@ -12,6 +12,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ('contact-source-reuse-exact-payload', 'adapters/contact_fixtures.py',
+     'decoded is None or decoded[0] != payload', 'decoded is None',
+     'test_contacts.ContactTests.test_installed_source_reuse_is_immutable_scoped_and_bound_to_exact_payload'),
     ('sequence-review-reused-material-final-current', 'adapters/sqlite/sequence_reviews.py',
      '        self.proposals.current(db,organization,proposal)', '        pass',
      'test_sequence_reviews.SequenceReviewTests.test_required_membership_and_all_nonpassing_statuses_withhold_substantive_output'),

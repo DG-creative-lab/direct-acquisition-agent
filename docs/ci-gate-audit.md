@@ -8,7 +8,7 @@ are in [validation.md](validation.md).
 
 | Check | Protection | Decision |
 | --- | --- | --- |
-| Backend on 3.14 | Domain behavior, scoped SQLite transactions, restart/replay, approval and final authority, inference budgets and synthetic learning | Keep the full suite in two shards on the selected runtime. Other Python versions are not checked. |
+| Backend on 3.14 | Domain behavior, scoped SQLite transactions, restart/replay, approval and final authority, inference budgets and synthetic learning | Keep the full suite in four module partitions on the selected runtime. Other Python versions are not checked. |
 | Architecture | Module boundaries, private imports and cycles | Keep once, before backend tests. |
 | Mutation catalogue | Measures whether selected tests fail for declared harmful changes | Keep, but an assertion failure is evidence of the asserted contract, not proof of complete coverage. |
 | Build and type check | Broken frontend types, imports and production assets | Keep for each isolated browser runner. |

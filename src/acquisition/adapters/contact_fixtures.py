@@ -13,6 +13,7 @@ class RecordedContactSource:
     def __init__(self, organization, snapshots):
         self.organization = organization
         self._payloads = {}
+        self._decoded = {}
         for snapshot in snapshots:
             if snapshot.connection.organization != organization:
                 raise ValueError('Installed source belongs to another organization')
@@ -27,7 +28,14 @@ class RecordedContactSource:
         payload = self._payloads.get((connection_key, version))
         if payload is None:
             raise NotFound('Unknown installed contact source version')
-        return contact_snapshot_from(json.loads(payload))
+        key = (connection_key, version)
+        decoded = self._decoded.get(key)
+        # Reuse only a fully validated immutable value of these exact bytes.
+        # Resolve the installed payload on every read, including final attestation.
+        if decoded is None or decoded[0] != payload:
+            decoded = (payload, contact_snapshot_from(json.loads(payload)))
+            self._decoded[key] = decoded
+        return decoded[1]
 
     def identity(self, organization, connection_key, version):
         return self.read(organization, connection_key, version).id

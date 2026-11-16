@@ -2279,3 +2279,35 @@ readiness window. All 511 mutation definitions still match one source location
 and compile; the full mutation catalogue was not rerun. Full-suite elapsed time
 included overlapping focused verification and is not a before/after benchmark.
 No live model calls were made.
+
+
+## Exact installed snapshot reuse and four backend partitions, 16 November 2026
+
+Installed synthetic contact snapshots may be reused only after a scoped source
+lookup finds exactly the same serialized payload. The new contact regression
+warms reuse, checks nested immutability and organization/key/version separation,
+then replaces, corrupts and removes the installed payload. Replacement is
+revalidated; invalid or absent evidence cannot fall back to the old value.
+Source identities are still recalculated and final SQLite source, objection,
+reviewer, epoch, expiry, lease and acceptance checks retain their existing paths.
+
+The existing CI discovery regression now checks both two and four partitions
+against every discovered test ID with multiplicity. Modules stay intact, so
+class setup is not multiplied. Invalid partition selections are rejected.
+Architecture and focused CI/contact checks passed. All six selected harmful
+mutations were detected, including removal of exact-payload reuse binding,
+final installed attestation, exact durable row binding, final proposal
+reconstruction, final authority clock and complete readiness-window validation.
+The complete 512-probe catalogue is retained and was not rerun locally.
+
+Three serial repetitions of unchanged review methods measured median case
+reductions of 20.5% and 22.5%, without concurrent verification workloads.
+[Performance evidence and measurement limits](ci-performance.md#backend-critical-path-16-november-2026)
+separate those local case measurements from the four-partition replay estimate.
+
+Full backend verification passed all 1,019 discovered tests across the four
+proposed CI partitions. Recorded IDs matched fresh discovery exactly once,
+including real SQLite, process restart and authority tests. The initially
+started serial `make test` was intentionally stopped in favor of this complete
+four-partition verification; it is not recorded as a successful serial run.
+No browser or frontend code changed. No live model calls were made.

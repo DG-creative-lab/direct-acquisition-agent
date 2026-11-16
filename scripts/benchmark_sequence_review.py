@@ -49,7 +49,8 @@ def main():
         summary.append({'id':target, 'median_seconds':statistics.median(values),
                         'min_seconds':min(values), 'max_seconds':max(values)})
     hashes = {}
-    for relative in ('src/acquisition/audiences/contacts.py',
+    for relative in ('src/acquisition/adapters/contact_fixtures.py',
+                     'src/acquisition/audiences/contacts.py',
                      'src/acquisition/adapters/sqlite/sequence_reviews.py',
                      'src/acquisition/adapters/sqlite/sequence_proposals.py',
                      'src/acquisition/adapters/sqlite/contacts.py', 'tests/test_sequence_reviews.py'):

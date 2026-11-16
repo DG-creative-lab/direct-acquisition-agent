@@ -1,4 +1,4 @@
-"""Run one of two module-level shards of the standard backend discovery suite."""
+"""Run a module-level shard of the standard backend discovery suite."""
 
 import argparse
 import json
@@ -7,31 +7,31 @@ import time
 import unittest
 
 
-# Median module case + class setup durations across Python 3.12/3.13/3.14
-# in Actions run 43738876446, after report-local material reuse (PR #87).
-# Source and measurement limits: docs/ci-gate-audit.md.
+# Module case + class setup durations on Python 3.14 in Actions run
+# 43849270917 (PR #96). Source and limits: docs/ci-performance.md.
 # These guide partitioning, not performance assertions; new modules use fallback.
 MODULE_SECONDS = {
-    'test_admission_entrypoints': 14.2,
-    'test_admission_workflow_coverage': 19.2,
-    'test_budget_clarification': 25.2,
-    'test_channel_content': 17.0,
-    'test_conversation_actions': 101.3,
-    'test_conversation_audiences': 44.7,
-    'test_conversational_copy_revision': 79.6,
-    'test_copy_revisions': 70.7,
-    'test_execution_controls': 133.7,
-    'test_fixture_activation': 54.7,
-    'test_followups': 51.9,
-    'test_learning': 29.8,
-    'test_legacy_inventory': 17.7,
-    'test_preparations': 27.0,
-    'test_sequence_reviews': 178.6,
-    'test_sequences': 311.7,
-    'test_typed_chat_routing': 25.4,
-    'test_workspace': 29.4,
-    'test_workspace_authority': 23.0,
-    'test_workspace_checkpoint': 15.0,
+    'test_admission_workflow_coverage': 20.9,
+    'test_architecture': 14.6,
+    'test_budget_clarification': 26.4,
+    'test_channel_content': 15.4,
+    'test_conversation_actions': 104.6,
+    'test_conversation_audiences': 45.5,
+    'test_conversation_campaign': 15.5,
+    'test_conversational_copy_revision': 85.6,
+    'test_copy_revisions': 69.4,
+    'test_execution_controls': 144.6,
+    'test_fixture_activation': 58.3,
+    'test_followups': 55.0,
+    'test_learning': 30.4,
+    'test_legacy_inventory': 16.9,
+    'test_preparations': 28.3,
+    'test_sequence_reviews': 169.2,
+    'test_sequences': 283.5,
+    'test_typed_chat_routing': 24.6,
+    'test_workspace': 29.7,
+    'test_workspace_authority': 20.7,
+    'test_workspace_checkpoint': 15.9,
 }
 SECONDS_PER_CASE = 0.43
 
@@ -44,7 +44,7 @@ def cases(suite):
             yield item
 
 
-def split_suite(discovered):
+def split_suite(discovered, shards=2):
     weighted = []
     for index, suite in enumerate(discovered):
         count = suite.countTestCases()
@@ -53,8 +53,8 @@ def split_suite(discovered):
             weight = MODULE_SECONDS.get(module, count * SECONDS_PER_CASE)
             weighted.append((weight, index, suite))
 
-    groups = [[], []]
-    weights = [0, 0]
+    groups = [[] for _ in range(shards)]
+    weights = [0] * shards
     # Place the largest modules first, then run each group in discovery order.
     for weight, index, suite in sorted(weighted, key=lambda entry: (-entry[0], entry[1])):
         group = min(range(len(groups)), key=weights.__getitem__)
@@ -80,18 +80,21 @@ class TimingResult(unittest.TextTestResult):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('shard', type=int, choices=(1, 2))
+    parser.add_argument('shard', type=int)
+    parser.add_argument('--shards', type=int, default=2, choices=(2, 4))
     args = parser.parse_args()
+    if not 1 <= args.shard <= args.shards:
+        parser.error('shard must be between 1 and --shards')
     loader = unittest.TestLoader()
     discovered = loader.discover('tests')
     if loader.errors:
         parser.exit(1, '\n'.join(loader.errors) + '\n')
-    groups, weights = split_suite(discovered)
+    groups, weights = split_suite(discovered, args.shards)
     if any(not group.countTestCases() for group in groups):
-        parser.exit(1, 'Backend discovery must produce two non-empty shards.\n')
+        parser.exit(1, 'Backend discovery must produce non-empty shards.\n')
     selected = groups[args.shard - 1]
     predicted = weights[args.shard - 1]
-    print(f'Backend shard {args.shard}/2: {selected.countTestCases()} tests, estimated {predicted:.1f}s', flush=True)
+    print(f'Backend shard {args.shard}/{args.shards}: {selected.countTestCases()} tests, estimated {predicted:.1f}s', flush=True)
     fixture_timings = []
     original_setup = unittest.TestSuite._handleClassSetUp
 
