@@ -1,7 +1,7 @@
 """Scripted synthetic reviewer decisions, never represented as a real person."""
 
 import csv
-import io
+from io import StringIO
 import json
 from pathlib import Path
 
@@ -45,7 +45,7 @@ def run_review_demo(app, organization: str, request_id: str, output: Path, datab
                              "Scripted demonstration: first review.")
     first_subject = next(s for s in store.view(scope, case_id)["revisions"] if s["id"] == first["subject_id"])
     draft = app.drafts.get(scope, first_subject["draft_id"])
-    business = next(csv.DictReader(io.StringIO(draft.mailing_csv)))["business_id"]
+    business = next(csv.DictReader(StringIO(draft.mailing_csv)))["business_id"]
     store.suppress(scope, "demo-operator", "late-suppression", business, "Synthetic late suppression for the demonstration.")
     blocked = store.view(scope, case_id)
     write_review(blocked, database_path, output / "suppression-blocked.html")

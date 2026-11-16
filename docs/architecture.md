@@ -44,6 +44,114 @@ The [local checkpoint adapter](workspace-checkpoints.md) uses the same root lock
 
 `workflows` composes public module APIs. Cross-module imports use the provider's `__init__.py`; domain code uses pure standard-library values, declared domain contracts and technical serialization helpers. The conversation application uses the campaign module's public, pure `CampaignScope` capability contract when recording requested requirements. Literal source resolution belongs to conversations; campaign construction and supported delivery values belong to campaigns. Runtime has no dependency on business modules. Adapters keep SQL private. The architecture checker rejects prohibited dependencies, private imports and cycles.
 
+## Enforced dependency contract
+
+`make arch-check` statically inspects every Python file under `src/acquisition`,
+without importing product code. `scripts/architecture_policy.json` is the reviewed,
+exact module-to-role inventory and temporary exception ledger. It currently
+classifies 170 modules, including engagements, profile/contact/sequence supporting
+files and every root utility. An added file needs an explicit classification;
+removed files must lose their classifications. A file/package name collision is
+rejected. Tests and scripts are outside this production inventory and cannot be
+imported by production code. Existing CI runs this gate and discovers its tests
+through the backend suite.
+
+| Role | Permitted production dependencies |
+| --- | --- |
+| Domain and technical contracts | Pure domain values/rules and technical contracts; technical contracts cannot depend on business modules |
+| Ports | Domain values, other narrow ports and technical contracts |
+| Business application | Own domain, ports and services; declared public provider-module APIs |
+| Workspace application | Public module APIs, application collaborators and workflow composition |
+| Public API | Explicit exports from the owning module's domain, ports and application code |
+| Workflows | Public business APIs, other workflow composition and technical contracts |
+| Adapters | Public business contracts/validators, adapter helpers, infrastructure and technical contracts |
+| Infrastructure helpers | Other infrastructure helpers and technical contracts |
+| Bootstrap composition | Concrete adapters, services, workflows and transport; no entry-point dependencies |
+| Entry points | Bootstrap, public APIs, application/transport and startup helpers; delegate provider/SQLite I/O |
+| HTTP transport | Application/public APIs, infrastructure helpers and technical contracts; no bootstrap or concrete provider/store wiring |
+
+Business dependency directions remain explicitly declared in the checker:
+campaigns uses audiences/creative; creative uses reasoning/audiences; reviews uses
+audiences/campaigns/creative/runtime; conversations uses reasoning/runtime/audiences/
+campaigns; engagements uses campaigns. Runtime, audiences, reasoning and learning
+have no outbound business-module dependencies. Cross-module imports use named,
+non-private exports from the provider's `__init__.py`. Namespace and wildcard
+imports cannot hide which public contract a consumer uses.
+
+Purity applies to supporting domain files, not only files named `domain.py`.
+For example contacts, strategies, sequences, profiles and recipient-context values
+have explicit domain roles. Grounding, channel-generation and action files that
+coordinate services have application roles. Domain and port imports through a
+public facade are resolved to their defining modules, including relative imports
+and simple re-export aliases. Exporting a service beside a value does not make
+that service a domain dependency. Conditional, cyclic or computed exports that
+cannot be resolved are rejected as public dependencies. Tuple, list, nested and
+starred unpacking invalidate every reassigned export; an earlier pure alias
+cannot survive an unresolved replacement. Simple aliases capture their binding
+at assignment time; rebinding the source name cannot retarget a previously
+exported value or local declaration.
+
+Core/application imports use explicit value and coordination allowances, rather
+than allowing the standard library by default. This rejects alternate native
+SQLite/socket/process modules, foreign-function loaders, filesystem APIs,
+undeclared submodules and provider clients regardless of their stdlib status.
+Ports may use `pathlib.Path` as a value type. `asyncio` is treated as infrastructure because it exposes network and
+subprocess effects, including through aliased and submodule imports. It remains
+adapter-side, behind ports; HTTP transport has its own explicit protocol allowance. Pure code has a bounded
+standard-library import set with exact module paths and named exports; pure URL
+parsing is permitted separately from URL retrieval. Mixed modules require named values:
+`io.StringIO`/`io.BytesIO` and `uuid.UUID` are allowed, while namespace imports and
+file-opening or UUID-discovery APIs are not. Existing memory-buffer use imports
+`StringIO` directly. Ports and entry points may import the named `Path` type;
+entry points additionally admit `argparse`. The reviewed coordination allowance
+is limited to contextlib, contextvars, copy, secrets, threading and time. Package
+from-imports resolve only declared child modules, so `from json import tool`
+cannot bypass the module allowance. New standard-library dependencies or
+export names require an explicit policy review. Explicit dynamic import/code
+mechanisms are rejected across production roles. The checker also rejects eager module
+initialization cycles and package dependency cycles, including imports deferred
+inside functions. Module-level conditional imports are conservatively treated
+as initialization dependencies. Submodule imports also add edges to parent
+package initializers outside the importing module's already-entered ancestor
+chain. This catches initialization cycles hidden behind nested packages without
+adding false back edges for ordinary sibling imports. Deferred imports within
+an adapter package are allowed: they are not an eager initialization cycle. They
+still receive all ordinary import checks. This is a static dependency contract, not a sandbox, a call-graph analysis
+or proof that arbitrary Python code cannot perform I/O through an injected object.
+Transactions, current authority and real recovery remain behavioral test concerns.
+
+Transport is subject to the same explicit external-import checks. Its additional
+allowances cover the named `http.server.BaseHTTPRequestHandler` and
+`ThreadingHTTPServer` classes, named `Path` for confined static assets,
+`mimetypes.guess_type`, legacy startup argument parsing, `ExitStack`, and worker
+`Thread`/`Event` lifecycle helpers. HTTP server namespaces, client HTTP libraries,
+SQLite/native storage, provider SDKs and other undeclared infrastructure are
+rejected. A transport role is not a general adapter exemption.
+
+### Temporary exception ledger
+
+The initial #89 inventory records **31 exact dependency exceptions**, with module,
+rule, target, occurrence count, reason and removal issue in the JSON ledger.
+These make existing debt visible; they are not permissions for additional imports.
+A new/substituted target, increased occurrence count, removed violation with a
+stale exception, duplicate entry or wildcard fails the check. Classification and
+unknown-target failures cannot be excepted. The checker has no baseline-refresh
+command. Changes to inventory, roles or exceptions require explicit review.
+
+| Removal issue | Count | Existing dependency to extract |
+| --- | --- | --- |
+| #90 | 3 | Workspace SQLite access and control-store initialization |
+| #91 | 15 | Workspace/bootstrap/provider wiring, model sessions, CLI provider construction and filesystem configuration loading |
+| #92 | 13 | Root command/report/storage-error infrastructure, workspace root guard, contact adapter's private policy-module import and review validators from mixed creative application code |
+
+The last group includes three domain imports of `fact_pack_id`,
+`validate_fact_pack` and `validate_grounded_catalogue`. These pure functions share
+`creative.grounding` with inference/application imports. #92 must separate their
+pure owner and expose the required contact-policy functions through the public
+campaign API. Do not relabel mixed application code as domain to clear a check.
+#93 requires zero temporary exceptions. These extractions are proposed; #89
+implements enforcement and inventory, not the new workspace directory layout.
+
 ## Repository map
 
 The [organization/profile foundation](organization-profiles.md) adds explicit taxonomy, campaign, product/brand and planning contracts inside the existing modules. `ProfilePreparation` composes their public APIs and a narrow atomic proposal-publication port, reusing campaign calculation without adding marketing dependencies to runtime. The CLI prepares unapproved synthetic proposals for two companies; chat, model execution, review/handoff and learning keep their existing contracts. The [channel expansion plan](channel-expansion-plan.md) describes subsequent proposed work.

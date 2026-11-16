@@ -1,7 +1,7 @@
 """Synthetic response evidence, independent of preferences and model scores."""
 
 import csv
-import io
+from io import StringIO
 import math
 from collections import Counter
 
@@ -35,7 +35,7 @@ def cohort_proposal(organization, receipt, draft):
     finite(receipt["accepted_at"])
     end = receipt["accepted_at"] + WINDOW_SECONDS
     finite(end)
-    members = list(csv.DictReader(io.StringIO(draft.assignments_csv)))
+    members = list(csv.DictReader(StringIO(draft.assignments_csv)))
     expected = draft.manifest["arm_counts"]
     counts = Counter(r["segment"] + ":" + r["arm"] for r in members)
     if (not members or len(members) > 400_000 or len({r["business_id"] for r in members}) != len(members)

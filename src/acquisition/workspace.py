@@ -1,7 +1,7 @@
 """Local interactive sandbox facade. Domain services retain decision authority."""
 
 import csv
-import io
+from io import StringIO
 import json
 import re
 import sqlite3
@@ -1315,7 +1315,7 @@ class Workspace:
             p = {"parent_id":identity, "source_cohort":cohort_id, "learning":source,
                 "model_config":ModelConfig("openai/gpt-oss-120b",max_calls=10,force_tool_choice=True).payload(), "memory":memory, "brief":{"budget_pence":budget,"unit_cost_pence":85,"max_candidates":1000,"policy_version":"demo-marketing/v1","segments":list(segments)},
                 "hypothesis":hypothesis, "hypotheses":hypotheses, "snapshot_id":app.audiences.put(snapshot),
-                "population":sorted({r["business_id"] for r in csv.DictReader(io.StringIO(preview.assignments_csv))}),
+                "population":sorted({r["business_id"] for r in csv.DictReader(StringIO(preview.assignments_csv))}),
                 "contexts":app.followup_contexts(scope,snapshot,segments,memory,{h['segment']: h for h in hypotheses}),
                 "epochs":[view["authority"]["evidence_epoch"],view["authority"]["audience_epoch"]],
                 "counts":preview.manifest["counts"], "cost_pence":preview.manifest["variable_cost_pence"],
@@ -1514,7 +1514,7 @@ class Workspace:
         review = app.reviews.store.view(session["organization"], session["case_id"])
         draft = app.drafts.get(session["organization"], review["subject"]["draft_id"])
         snapshot = app.audiences.get(scope, review["subject"]["snapshot_id"])
-        assignments = {r["business_id"]: r for r in csv.DictReader(io.StringIO(draft.assignments_csv))}
+        assignments = {r["business_id"]: r for r in csv.DictReader(StringIO(draft.assignments_csv))}
         population = [{"id": r.business_id, "segment": r.segment, "country": r.country,
             "entity_type": r.entity_type, "suppressed": r.suppressed or r.business_id in review["suppressions"],
             "arm": assignments.get(r.business_id, {}).get("arm", "excluded"),

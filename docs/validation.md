@@ -1,5 +1,136 @@
 # Validation and limits
 
+## Architecture review follow-up: transport imports and current main (#89)
+
+The transport role previously escaped external infrastructure checks. Extending
+the independent import matrices reproduced 24 failures: three asyncio cases,
+thirteen alternate infrastructure spellings and eight protocol-specific negative
+controls. These include native storage, provider SDKs, client HTTP imports and
+whole-server-module or helper-module re-exports. Legitimate named HTTP server
+classes, static-asset helpers, URL parsing and lifecycle coordination remain
+accepted. Transport now uses the same external-import gate with only its explicit
+protocol/startup allowances. The inventory and 31 temporary exceptions are unchanged.
+No transport implementation or business rules were changed for this follow-up.
+
+The feature branch was fast-forwarded from `cc61aa8` to `cd3d638`, incorporating
+the four reviewed-later commits, including sequence-review material reuse and
+CI support/gate changes. A named stash backup preserved the uncommitted work;
+applying it restored the six production import-normalization edits and untracked
+policy byte-for-byte. All current-main validation ledger lines were retained.
+Compatibility evidence below covers this combined updated-base worktree, not
+only the earlier branch base. The updated CI still runs the architecture gate
+and discovers its regression tests on supported Python versions.
+
+Verification on 16 November 2026: all 20 focused architecture tests passed.
+The required full `make test` run on base `cd3d638` plus the restored feature
+changes passed all 1,018 backend tests on Python 3.14 with loopback access in
+1,176.192 seconds. This includes the newer sequence-review and CI-tool regression
+cases, real SQLite, fresh processes and HTTP transport behavior. `make arch-check`
+and `git diff --check` passed with 170 classifications and the same 31 temporary
+exceptions. The frontend interface suite was not rerun because no frontend or
+transport implementation changed. No live model/provider calls were made.
+
+## Architecture review follow-up: unpacking and alternate imports (#89)
+
+The second review's two gaps reproduced independently. Six tuple/list, nested,
+starred and chained unpacking cases rebind a previously pure public export to a
+service in fresh Python processes, while the old checker still accepts the pure
+consumer. Sixty alternate infrastructure imports also passed: twelve native
+socket/SQLite, OS/process, foreign-function, filesystem, worker, logging,
+command-submodule and deserialization spellings across five restricted roles.
+The corrected pre-fix regression run reported all sixty-six failures.
+
+A related alias-retargeting probe also passed the old checker even though the
+export retained a service after its source name was rebound to a pure value.
+The converse pure-value control was falsely rejected. The independent fresh-
+process assertions distinguish the actual retained objects.
+
+Unpacking now invalidates every stored name in the target. Simple assignments
+capture bindings, including local declarations, at assignment time; subsequent
+source-name reassignments cannot change the recorded origin. Unaffected exports
+still resolve normally. Standard-library membership no longer grants access:
+core and entry-point roles use explicit exact-module and named-value allowances.
+This rejects low-level aliases and undeclared submodules without adding another
+denylist. Package from-imports cannot load undeclared children such as json.tool;
+five extra spelling probes reproduced that bypass before named-export checks.
+Mixed io/uuid namespaces require named value imports. Six existing
+StringIO callers now use the identical named class; campaign rules, storage,
+approval, learning and historical artifact formats are unchanged. The production
+inventory remains 170 modules with the same 31 temporary exceptions.
+
+Verification on 16 November 2026: the required full `make test` run passed all
+1,017 backend tests on Python 3.14 with loopback access in 1,336.121 seconds,
+including real SQLite, fresh-process, historical-artifact and HTTP checks. The
+final captured-binding refinement separately passed all 19 focused architecture
+tests. AST comparison against the branch base confirmed that the six production
+files differ only in equivalent StringIO import/name normalization. `make
+arch-check` and `git diff --check` passed with the same 170 classifications and
+31 dependency exceptions. No frontend or transport behavior was changed; the
+frontend interface suite was not rerun. No live model/provider calls were made.
+
+## Architecture review follow-up: package initialization and asyncio (#89)
+
+Both reported gaps reproduced before the fix. Three nested-submodule import
+forms passed the checker although fresh Python processes failed with a partially
+initialized module error: absolute import, relative symbol import and import
+from the parent package. Fifteen asyncio import cases passed across application,
+workflow, port, public-API and entry-point roles, including aliases and subprocess
+submodules. The regression run reported all eighteen failures before the fix.
+
+The initialization graph now includes target parent packages that Python must
+initialize outside the importer's already-entered ancestor chain. Existing parent
+packages are not given artificial back edges. A positive fixture proves that a
+package initializer can import a child that imports a sibling, both through the
+checker and in a fresh Python process. Asyncio is classified as infrastructure;
+core/application imports are rejected while the same adapter imports remain
+permitted. The production inventory and its 31 temporary exceptions are unchanged.
+No domain behavior, data schema, authority or provider call was changed.
+
+Verification on 16 November 2026: all 17 focused architecture tests passed.
+The required full `make test` run then passed all 1,015 backend tests on Python
+3.14 with loopback access in 1,926.800 seconds, including real SQLite, fresh-process
+and HTTP regressions. `make arch-check` and `git diff --check` passed with the
+same 170 production classifications and 31 recorded dependency exceptions.
+No frontend implementation changed, so `make interface-check` was not required.
+No live model/provider calls were made.
+
+## Complete production architecture inventory (#89)
+
+The static architecture gate now covers all 170 production modules through an
+explicit role inventory, including supporting pure files and all root utilities.
+Named public export origins, declared business dependencies, layer direction,
+infrastructure imports, eager module initialization cycles and all package
+cycles are checked without executing product code. New/unclassified or removed
+files, unknown targets and ambiguous file/package names fail classification.
+
+The independent regression fixtures exercise pure public values beside services,
+relative/re-export aliases and cycles, supporting-domain imports, forbidden
+SQLite/provider/bootstrap/entry-point dependencies, allowed adapter validators,
+and exact exception counts. A subprocess check proves a forbidden dependency
+returns a nonzero command status and its removal returns success. Production
+source and authority/storage behavior are unchanged by this tooling slice.
+
+The reviewed baseline has 31 temporary dependency exceptions: three assigned to
+#90, fifteen to #91 and thirteen to #92. An exception binds one module, rule,
+target and exact occurrence count, with a reason/removal issue. With the reviewed
+ledger, new/substituted dependencies, increased occurrence counts, duplicate or
+wildcard entries and stale exceptions are rejected. No baseline is silently
+regenerated. #93 owns their complete removal. Inventory/policy changes
+remain reviewable inputs, not self-proving architecture evidence.
+
+This gate does not prove transaction atomicity, effect authority or arbitrary
+Python behavior. Deferred intra-adapter imports are not eager initialization
+cycles. Real SQLite, process-restart and HTTP regressions remain the behavioral
+oracles.
+
+Verification: the required `make test` run passed all 1,011 discovered backend
+cases on Python 3.14 with loopback access in 1,470.701 seconds. The final focused
+architecture rerun passed all 14 tests, including 33 forbidden-dependency examples
+and the fresh-process CLI check, after checker/schema refinements. `make arch-check`
+and `git diff --check` passed. Existing CI already runs these checks; no new CI
+job is needed. No frontend/HTTP implementation changed, so `make interface-check`
+was not required. No live model/provider behavior is claimed.
+
 ## Final sequence authority time follow-up
 
 Review of `137db62` found that `authorize` discarded the successful readiness
