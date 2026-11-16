@@ -1,4 +1,5 @@
 """Migration planning observes history without granting or repairing authority."""
+from workspace_control_fixture import control_connection
 import fcntl
 import json
 import os
@@ -95,7 +96,7 @@ class LegacyInventoryTests(unittest.TestCase):
         cid=self.w.create_conversation('chat','Owned brief')['id']
         self.w.message_conversation(cid,'message',0,FIXTURE_MESSAGE)
         self.w.start_preparation(cid,'prepare',1,True,False)
-        with self.w.control() as db:
+        with control_connection(self.w) as db:
             db.execute('UPDATE sessions SET payload=? WHERE id=?',('{bad projection',session['id']))
         before=self.facts();report=self.inspect()
         item=self.run_record(report,session['run_id'])
@@ -195,7 +196,7 @@ class LegacyInventoryTests(unittest.TestCase):
                 self.assertTrue(app.tasks.inspect(session['organization'],run)['admission']['binding_valid'])
                 with app.tasks.database.transaction() as db:
                     db.execute('UPDATE campaign_environments SET run_id=? WHERE organization=? AND id=?',(run,session['organization'],sid))
-                with self.w.control() as db:
+                with control_connection(self.w) as db:
                     db.execute('INSERT INTO sessions VALUES(?,?,?)',(sid,'projection',canonical(session|{'run_id':run})))
                 self.assert_environment_conflict_is_read_only(session)
 
@@ -203,13 +204,13 @@ class LegacyInventoryTests(unittest.TestCase):
         cid=self.w.create_conversation('choices','Old choices')['id']
         self.w.message_conversation(cid,'message',0,FIXTURE_MESSAGE)
         self.w.start_preparation(cid,'prepare',1,True,False)
-        with self.w.control() as db:original=json.loads(db.execute('SELECT payload FROM preparations').fetchone()[0])
+        with control_connection(self.w) as db:original=json.loads(db.execute('SELECT payload FROM preparations').fetchone()[0])
         marker='private-credential-shaped-value'
         for key in ('fixture','allow_model_copy','use_audience_catalogue'):
             for value in (marker,{'private':marker},[marker],1,None):
                 with self.subTest(key=key,value=value):
                     payload=original|{'inputs':original['inputs']|{key:value}}
-                    with self.w.control() as db:db.execute('UPDATE preparations SET payload=?',(canonical(payload),))
+                    with control_connection(self.w) as db:db.execute('UPDATE preparations SET payload=?',(canonical(payload),))
                     before=self.facts();binary=self.byte_facts();report=self.inspect()
                     item=next(r for r in report['records'] if r['kind']=='preparation')
                     self.assertEqual(item['classification'],'conflicting',item)
@@ -224,11 +225,11 @@ class LegacyInventoryTests(unittest.TestCase):
         cid=self.w.create_conversation('boolean-choices','Old choices')['id']
         self.w.message_conversation(cid,'message',0,FIXTURE_MESSAGE)
         self.w.start_preparation(cid,'prepare',1,True,False)
-        with self.w.control() as db:original=json.loads(db.execute('SELECT payload FROM preparations').fetchone()[0])
+        with control_connection(self.w) as db:original=json.loads(db.execute('SELECT payload FROM preparations').fetchone()[0])
         for value in (True,False):
             with self.subTest(value=value):
                 payload=original|{'inputs':original['inputs']|{'use_audience_catalogue':value}}
-                with self.w.control() as db:db.execute('UPDATE preparations SET payload=?',(canonical(payload),))
+                with control_connection(self.w) as db:db.execute('UPDATE preparations SET payload=?',(canonical(payload),))
                 before=self.facts();item=next(r for r in self.inspect()['records'] if r['kind']=='preparation')
                 self.assertEqual(item['classification'],'incomplete',item)
                 self.assertIs(item['preserve']['generation_choices_observed']['use_audience_catalogue'],value)
@@ -240,7 +241,7 @@ class LegacyInventoryTests(unittest.TestCase):
                 'clock_mode':'SIMULATED','run_id':run,'case_id':None,'cohort_id':None,'parent_id':None}
 
     def put_legacy_session(self,payload,key='legacy-session'):
-        with self.w.control() as db:
+        with control_connection(self.w) as db:
             db.execute('DELETE FROM sessions')
             db.execute('INSERT INTO sessions VALUES(?,?,?)',(key,'original-fingerprint',json.dumps(payload)))
 
@@ -548,7 +549,7 @@ class LegacyInventoryTests(unittest.TestCase):
 
     def test_missing_or_different_bound_journal_is_reported_without_creation(self):
         cid,app,run=self.planner()
-        with self.w.control() as db:identity=dict(db.execute('SELECT * FROM workspace_identity').fetchone())
+        with control_connection(self.w) as db:identity=dict(db.execute('SELECT * FROM workspace_identity').fetchone())
         receipt={'kind':'workspace_journal_binding','journal_id':identity['journal_id'],'database_kind':'conversations.sqlite','basis':'before_first_run','witness':None}
         with app.tasks.database.transaction() as db:
             db.execute('INSERT OR REPLACE INTO execution_commands VALUES(?,?,?,?)',('local-conversations','workspace:journal:v1',canonical(receipt),canonical(receipt)))
@@ -565,7 +566,7 @@ class LegacyInventoryTests(unittest.TestCase):
         cid,app,planner=self.planner()
         backup=self.root/'old.saved';shutil.copyfile(self.root/'workspace.sqlite',backup)
         independent=app.start('old-org','later-cli',size=20)
-        with self.w.control() as db:
+        with control_connection(self.w) as db:
             db.execute('INSERT INTO sessions VALUES(?,?,?)',('later','hash','{"parent_id":"known-parent"}'))
         shutil.copyfile(backup,self.root/'workspace.sqlite')
         item=self.run_record(self.inspect(),independent)
@@ -574,7 +575,7 @@ class LegacyInventoryTests(unittest.TestCase):
 
     def test_malformed_legacy_projection_and_binary_data_are_preserved_and_isolated(self):
         cid,app,run=self.planner()
-        with self.w.control() as db:
+        with control_connection(self.w) as db:
             db.execute('INSERT INTO sessions VALUES(?,?,?)',('opaque','hash','{secret-bad-json'))
             db.execute('INSERT INTO preparations VALUES(?,?,?,?,?,?,?)',('old','opaque','request','chat',1,0,'secret-invalid-consent'))
             db.execute('CREATE TABLE opaque_binary(value BLOB)')
@@ -612,7 +613,7 @@ class LegacyInventoryTests(unittest.TestCase):
         path.unlink();shutil.copyfile(self.root/'conversations.sqlite',path)
         report=self.inspect()
         self.assertTrue(any(i['code']=='registered_store_identity_mismatch' for i in report['issues']))
-        with self.w.control() as db:
+        with control_connection(self.w) as db:
             db.execute('INSERT INTO sessions VALUES(?,?,?)',('unsafe','hash',canonical({'id':'unsafe','organization':'../outside','mode':'fixture','clock':self.now})))
         self.assertTrue(any('legacy_session_or_route_is_invalid' in r['reasons'] for r in self.inspect()['records']))
 
@@ -664,7 +665,7 @@ class LegacyInventoryTests(unittest.TestCase):
         child=app.start('local-conversations','child',size=20)
         session={'id':'child','organization':'local-conversations','mode':'fixture','clock':self.now,
                  'run_id':None,'parent_id':'alleged-parent','database_scope':'conversations'}
-        with self.w.control() as db:db.execute('INSERT INTO sessions VALUES(?,?,?)',('child','hash',canonical(session)))
+        with control_connection(self.w) as db:db.execute('INSERT INTO sessions VALUES(?,?,?)',('child','hash',canonical(session)))
         item=self.run_record(self.inspect(),child)
         self.assertEqual(item['classification'],'incomplete',item)
         self.assertIn('workspace_parent_claim_requires_domain_evidence',item['reasons'])
@@ -729,7 +730,7 @@ os._exit(17)
         cid=self.w.create_conversation('prepare','Old coordinator')['id']
         self.w.message_conversation(cid,'message',0,FIXTURE_MESSAGE)
         self.w.start_preparation(cid,'prepare',1,True,False)
-        with self.w.control() as db:
+        with control_connection(self.w) as db:
             raw=db.execute('SELECT * FROM preparations').fetchone();payload=json.loads(raw['payload'])
             payload['inputs']['private_note']='private-credential-do-not-export'
             db.execute('UPDATE preparations SET payload=?',(canonical(payload),))

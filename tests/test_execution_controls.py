@@ -1,4 +1,5 @@
 """Shared resources and cancellation tested at actual SQLite effect boundaries."""
+from workspace_control_fixture import control_connection
 
 import json
 import os
@@ -682,13 +683,13 @@ print(json.dumps(SqliteExecution(Database(sys.argv[1])).view('local-conversation
         from contextlib import contextmanager
         app,scope,run=self.legacy_cli('concurrent-parent','concurrent-parent')
         session={'id':'concurrent-parent','organization':scope,'run_id':run,'database_scope':'conversations','parent_id':None}
-        with self.w.control() as db:db.execute('INSERT INTO sessions VALUES(?,?,?)',(session['id'],'test-only',json.dumps(session)))
+        with control_connection(self.w) as db:db.execute('INSERT INTO sessions VALUES(?,?,?)',(session['id'],'test-only',json.dumps(session)))
         item=app.execution.unresolved(scope)[0];entered=Event();original=execution.workspace_ancestry_guard
         @contextmanager
         def observed(path):
             entered.set()
             with original(path) as guard:yield guard
-        with self.w.control() as control:
+        with control_connection(self.w) as control:
             control.execute('BEGIN IMMEDIATE')
             session['parent_id']=self.sid
             control.execute('UPDATE sessions SET payload=? WHERE id=?',(json.dumps(session),session['id']))
@@ -717,10 +718,10 @@ print(json.dumps(SqliteExecution(Database(sys.argv[1])).view('local-conversation
     def test_workspace_inspection_changes_require_a_new_fingerprint(self):
         app,scope,run=self.legacy_cli('workspace-inspection','workspace-inspection')
         session={'id':'workspace-inspection','organization':scope,'run_id':None,'database_scope':'conversations','parent_id':None}
-        with self.w.control() as db:db.execute('INSERT INTO sessions VALUES(?,?,?)',(session['id'],'test-only',json.dumps(session)))
+        with control_connection(self.w) as db:db.execute('INSERT INTO sessions VALUES(?,?,?)',(session['id'],'test-only',json.dumps(session)))
         item=app.execution.unresolved(scope)[0]
         session['run_id']=run
-        with self.w.control() as db:db.execute('UPDATE sessions SET payload=? WHERE id=?',(json.dumps(session),session['id']))
+        with control_connection(self.w) as db:db.execute('UPDATE sessions SET payload=? WHERE id=?',(json.dumps(session),session['id']))
         with self.assertRaisesRegex(Conflict,'changed'):self.resolve_legacy(app,scope,run,fingerprint=item['fingerprint'])
         self.resolve_legacy(app,scope,run)
 
@@ -728,7 +729,7 @@ print(json.dumps(SqliteExecution(Database(sys.argv[1])).view('local-conversation
         app,scope,run=self.legacy_cli('foreign-workspace-parent','foreign-workspace-parent')
         session={'id':'foreign-workspace-parent','organization':'different-organization','run_id':run,
                  'database_scope':'conversations','parent_id':self.sid}
-        with self.w.control() as db:db.execute('INSERT INTO sessions VALUES(?,?,?)',(session['id'],'test-only',json.dumps(session)))
+        with control_connection(self.w) as db:db.execute('INSERT INTO sessions VALUES(?,?,?)',(session['id'],'test-only',json.dumps(session)))
         self.assertEqual(app.execution.unresolved(scope)[0]['workspace_ancestry'],[])
         self.resolve_legacy(app,scope,run)
 
@@ -803,7 +804,7 @@ print(json.dumps(SqliteExecution(Database(sys.argv[1])).view('local-conversation
         from acquisition.adapters.sqlite.workspace_ancestry import JOURNAL_BINDING_KEY
         app,scope,run=self.legacy_cli('pre-identity-cli','pre-identity-cli')
         with app.calls.database.transaction() as db:db.execute('DELETE FROM execution_commands WHERE request_id=?',(JOURNAL_BINDING_KEY,))
-        with self.w.control() as db:db.execute('DROP TABLE workspace_identity')
+        with control_connection(self.w) as db:db.execute('DROP TABLE workspace_identity')
         self.w=Workspace(self.root,real_clock=lambda:1792972800.)
         self.w._app(self.w._session(self.sid))
         with self.assertRaisesRegex(Conflict,'not bound'):app.execution.unresolved(scope)
@@ -821,7 +822,7 @@ print(json.dumps(SqliteExecution(Database(sys.argv[1])).view('local-conversation
         journal=self.root/'workspace.sqlite';saved=self.root/'original-workspace.saved';journal.rename(saved)
         try:
             replacement=Workspace(self.root,real_clock=lambda:1792972800.)
-            with replacement.control() as db:db.execute('INSERT INTO sessions VALUES(?,?,?)',(self.sid,'recreated-record',json.dumps(root_session)))
+            with control_connection(replacement) as db:db.execute('INSERT INTO sessions VALUES(?,?,?)',(self.sid,'recreated-record',json.dumps(root_session)))
             replacement._app(root_session)
             with self.assertRaisesRegex(Conflict,'not bound'):app.execution.unresolved(scope)
             with app.calls.database.connect() as db:
@@ -831,9 +832,9 @@ print(json.dumps(SqliteExecution(Database(sys.argv[1])).view('local-conversation
 
     def test_journal_identity_persists_and_cannot_be_reassigned(self):
         import sqlite3
-        with self.w.control() as db:identity=tuple(db.execute('SELECT * FROM workspace_identity').fetchone())
+        with control_connection(self.w) as db:identity=tuple(db.execute('SELECT * FROM workspace_identity').fetchone())
         Workspace(self.root,real_clock=lambda:1792972800.)
-        with self.w.control() as db:
+        with control_connection(self.w) as db:
             self.assertEqual(tuple(db.execute('SELECT * FROM workspace_identity').fetchone()),identity)
             with self.assertRaisesRegex(sqlite3.IntegrityError,'immutable'):db.execute("UPDATE workspace_identity SET journal_id='different'")
             with self.assertRaisesRegex(sqlite3.IntegrityError,'immutable'):db.execute('DELETE FROM workspace_identity')
@@ -848,7 +849,7 @@ print(json.dumps(SqliteExecution(Database(sys.argv[1])).view('local-conversation
         self.assertEqual(other.sid,self.sid)
         self.assertNotEqual(other.w._session(other.sid)['run_id'],original_session['run_id'])
         for workspace in (self.w,other.w):
-            with workspace.control() as db:db.execute('DROP TABLE workspace_identity')
+            with control_connection(workspace) as db:db.execute('DROP TABLE workspace_identity')
         with app.calls.database.transaction() as db:db.execute('DELETE FROM execution_commands WHERE request_id=?',(JOURNAL_BINDING_KEY,))
         Workspace(other.root)  # Pin this unrelated, populated legacy journal.
         journal=self.root/'workspace.sqlite';saved=self.root/'original-legacy.saved';journal.rename(saved)
@@ -885,7 +886,7 @@ print(json.dumps(SqliteExecution(Database(sys.argv[1])).view('local-conversation
         import sqlite3
         from acquisition.adapters.sqlite.workspace_ancestry import JOURNAL_BINDING_KEY
         self.finalized_parent()
-        with self.w.control() as db:db.execute('DROP TABLE workspace_identity')
+        with control_connection(self.w) as db:db.execute('DROP TABLE workspace_identity')
         backup=self.root/'stale-populated.sqlite'
         source=sqlite3.connect(self.root/'workspace.sqlite');target=sqlite3.connect(backup)
         try:source.backup(target)
@@ -895,7 +896,7 @@ print(json.dumps(SqliteExecution(Database(sys.argv[1])).view('local-conversation
         with patch('acquisition.workspace.openrouter_key',return_value='fixture'),patch('acquisition.workspace.OpenRouter',return_value=model):
             # This fixture represents admission by the pre-identity application.
             from acquisition.adapters.sqlite.workspace_ancestry import initialize_workspace_identity
-            with self.w.control() as db:initialize_workspace_identity(db)
+            with control_connection(self.w) as db:initialize_workspace_identity(db)
             with patch.object(Worker,'drain',return_value=0),self.assertRaises(Conflict):self.w.prepare(child)
         session=self.w._session(child);app=self.w._app(session);scope,run=session['organization'],session['run_id']
         with app.calls.database.transaction() as db:
@@ -1090,15 +1091,18 @@ print(json.dumps(SqliteExecution(Database(sys.argv[1])).view('local-conversation
         from acquisition.adapters.sqlite.reviews import SqliteReviews
         from acquisition.workspace_server import WorkspaceServer
         import urllib.request
+        import sqlite3
         bad,bad_sid=self.checkpoint('disabled-checkpoint')
         healthy,healthy_sid=self.checkpoint('healthy-checkpoint')
-        with patch.object(SqliteReviews,'open_case',side_effect=OSError('case storage unavailable')):
+        with patch.object(SqliteReviews,'open_case',side_effect=sqlite3.OperationalError('case storage unavailable')):
             try:
                 self.w.stop_execution(bad,'stop-bad',1)
                 self.w.stop_execution(healthy,'stop-healthy',1)
             except OSError as exc:
                 self.fail(f'Unavailable case storage must not prevent stopping work: {exc}')
         session=self.w._session(bad_sid);app=self.w._app(session)
+        self.assertEqual(self.w._checkpoint_block(session['organization'], session['run_id'])['code'],
+                         'checkpoint_storage_unavailable')
         app.reviews.store.register_actor(session['organization'],'local-operator',('operator',),False)
         reopened=Workspace(self.root,real_clock=lambda:1792972800.)
         assets=self.root/'server-assets';assets.mkdir();(assets/'index.html').write_text('<meta name="workspace-token" content="__WORKSPACE_TOKEN__">')

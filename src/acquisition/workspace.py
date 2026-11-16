@@ -4,10 +4,8 @@ import csv
 from io import StringIO
 import json
 import re
-import sqlite3
 import threading
 import time
-from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -16,8 +14,7 @@ from acquisition.conversations import ACTIVE_PREPARATION, AudienceSelectionRejec
 from acquisition.conversations import MessageRejectedConflict, MessageRejectedInvalid, MessageRejectedNotFound
 from acquisition.adapters.environment import openrouter_key
 from acquisition.adapters.openrouter import OpenRouter
-from acquisition.adapters.sqlite.workspace_ancestry import initialize_workspace_identity
-from acquisition.adapters.sqlite.workspace_projection import initialize_control_tables
+from acquisition.application.workspace import WorkspaceStorageUnavailable
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.local_root import require_live_root
 from acquisition.learning import finite, identifier
@@ -68,9 +65,9 @@ class Workspace:
         self.lock = threading.RLock()
         self.models = WorkspaceModels()
         self._browser_tick = threading.Lock()
-        with self.control() as db:
-            initialize_control_tables(db)
-            initialize_workspace_identity(db)
+        self._state_access = build_workspace_state(self.root, self.real_clock)
+        self.control_store = self._state_access.control
+        self._storage_faults = self._state_access.storage_faults
         self._legacy_preparations = build_preparations(self.root / "workspace.sqlite", self)
         self._owned_preparations = None
         self._authority = None
@@ -80,7 +77,7 @@ class Workspace:
     def authority(self):
         if self._authority is None:
             if self._requested_verified:self._verified_mode()
-            self._authority=build_workspace_state(self.root,self.real_clock)
+            self._authority=self._state_access.authority()
         return self._authority
 
     @property
@@ -93,8 +90,7 @@ class Workspace:
     def _sessions(self,*,reverse=False):
         verified=self._verified_mode()
         owned={s['id']:s for s in self.authority.listing()} if verified else {}
-        with self.control() as db:
-            rows=db.execute('SELECT id,payload FROM sessions ORDER BY rowid'+(' DESC' if reverse else '')).fetchall()
+        rows = self.control_store.sessions(reverse=reverse)
         sessions=[]
         for row in rows:
             if row['id'] in owned:continue
@@ -124,45 +120,29 @@ class Workspace:
             sessions=sorted(rows.values(),key=lambda s:(s['created_at'],s['id']),reverse=reverse)
         return sessions
 
-    def _project_session(self,session):
-        with self.control() as db:
-            db.execute('INSERT INTO sessions VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload',
-                       (session['id'],digest({'projection':session['id']}),canonical(session)))
+    def _project_session(self, session):
+        self.control_store.project_session(session)
 
-    def _legacy_collision(self,identity):
-        if self.authority.get(identity) is None:
-            with self.control() as db:
-                if db.execute('SELECT 1 FROM sessions WHERE id=?',(identity,)).fetchone():
-                    raise Conflict('Legacy sandbox intent requires explicit migration before verified creation')
-
-    @contextmanager
-    def control(self):
-        require_live_root(self.root)
-        db = sqlite3.connect(self.root / "workspace.sqlite", timeout=10, isolation_level=None)
-        db.row_factory = sqlite3.Row
-        try:
-            yield db
-        finally:
-            db.close()
+    def _legacy_collision(self, identity):
+        if self.authority.get(identity) is None and self.control_store.session(identity) is not None:
+            raise Conflict('Legacy sandbox intent requires explicit migration before verified creation')
 
     def _save(self, session):
         if self._verified_mode() and self.authority.get(session['id']) is not None:
             current=self.authority.save(session)
             self._project_session(current)
             return
-        with self.control() as db:
-            db.execute("UPDATE sessions SET payload=? WHERE id=?", (canonical(session), session["id"]))
+        self.control_store.save_session(session)
 
     def _session(self, identity):
         identifier(identity)
         if self._verified_mode():
             current=self.authority.get(identity)
             if current is not None:return current
-        with self.control() as db:
-            row = db.execute("SELECT payload FROM sessions WHERE id=?", (identity,)).fetchone()
+        row = self.control_store.session(identity)
         if row is None:
             raise NotFound("Campaign not found in this workspace")
-        return json.loads(row[0])
+        return json.loads(row["payload"])
 
     def _model_gateway(self, config):
         if config.browser_binding:
@@ -837,16 +817,11 @@ class Workspace:
                 continue
 
     def _checkpoint_block(self, organization, run_id):
-        with self.control() as db:
-            row=db.execute('SELECT code FROM checkpoint_recovery_blocks WHERE organization=? AND run_id=?',(organization,run_id)).fetchone()
-        return {'code':row[0],'detail':CHECKPOINT_BLOCKS[row[0]]} if row and row[0] in CHECKPOINT_BLOCKS else None
+        code = self.control_store.checkpoint_block(organization, run_id)
+        return {'code': code, 'detail': CHECKPOINT_BLOCKS[code]} if code in CHECKPOINT_BLOCKS else None
 
     def _set_checkpoint_block(self, organization, run_id, code):
-        with self.control() as db:
-            if code is None:
-                db.execute('DELETE FROM checkpoint_recovery_blocks WHERE organization=? AND run_id=?',(organization,run_id))
-            else:
-                db.execute('INSERT INTO checkpoint_recovery_blocks VALUES(?,?,?) ON CONFLICT(organization,run_id) DO UPDATE SET code=excluded.code WHERE code<>excluded.code',(organization,run_id,code))
+        self.control_store.set_checkpoint_block(organization, run_id, code)
 
     def _restore_checkpoint_reviews(self, receipt):
         checkpoints={(r['organization'],r['run_id']) for r in receipt.get('checkpoint_runs',[])}
@@ -856,17 +831,18 @@ class Workspace:
         for session in sessions:
             scope=session['organization'];run=session['run_id']
             try:
-                app=self._app(session)
-                run=run or app.tasks.find_run(scope,session['id'])
-                if (scope,run) not in checkpoints:
-                    continue
-                self._restore_checkpoint_case(session,app,run)
-                self._set_checkpoint_block(scope,run,None)
+                with self._storage_faults.guard():
+                    app=self._app(session)
+                    run=run or app.tasks.find_run(scope,session['id'])
+                    if (scope,run) not in checkpoints:
+                        continue
+                    self._restore_checkpoint_case(session,app,run)
+                    self._set_checkpoint_block(scope,run,None)
             except Exception as error:
                 if (scope,run) not in checkpoints:
                     continue
                 code=('checkpoint_authority_unavailable' if isinstance(error,(Conflict,ActorUnavailable)) else
-                      'checkpoint_storage_unavailable' if isinstance(error,(OSError,sqlite3.Error)) else
+                      'checkpoint_storage_unavailable' if isinstance(error,OSError) else
                       'checkpoint_validation_unavailable' if isinstance(error,ValueError) else 'checkpoint_recovery_unavailable')
                 try:self._set_checkpoint_block(scope,run,code)
                 except Exception:pass  # The original domain stop remains discoverable.
@@ -885,14 +861,7 @@ class Workspace:
                 raise Conflict('Checkpoint sandbox already refers to another case')
             self._save(current|{'run_id':run,'case_id':case['case_id']})
         else:
-            with self.control() as db:
-                db.execute('BEGIN IMMEDIATE')
-                current=json.loads(db.execute('SELECT payload FROM sessions WHERE id=?',(session['id'],)).fetchone()[0])
-                if current['case_id'] and current['case_id']!=case['case_id']:
-                    raise Conflict('Checkpoint session already refers to another case')
-                current |= {'run_id':run,'case_id':case['case_id']}
-                db.execute('UPDATE sessions SET payload=? WHERE id=?',(canonical(current),session['id']))
-                db.commit()
+            self.control_store.restore_case_links(scope, session['id'], run, case['case_id'])
         source=session.get('conversation_plan')
         if source:
             row=self.preparations.store.for_revision('local-conversations',source['conversation_id'],source['revision'])
@@ -952,10 +921,8 @@ class Workspace:
         if self._verified_mode():
             row=self.authority.request('conversation',conversation_id,request_id)
             return row['session_id'] if row else None
-        with self.control() as db:
-            row=db.execute('SELECT session_id FROM conversation_draft_requests WHERE conversation_id=? AND request_id=?',
-                           (conversation_id,request_id)).fetchone()
-            return row[0] if row else None
+        row = self.control_store.draft_request(conversation_id, request_id)
+        return row['session_id'] if row else None
 
     def preparation_generation(self, organization, row):
         self._preparation_scope(organization)
@@ -1051,12 +1018,13 @@ class Workspace:
                 if not cohort:
                     continue
                 try:
-                    app = self._app(session)
-                    scope = session["organization"]
-                    plan = app.learning.monitoring.status(scope, cohort)
-                    if plan and plan["status"] == "scheduled" and plan["next_due"] <= app.clock():
-                        app.learning.check_reports(scope, cohort)
-                except (ValueError, NotFound, sqlite3.Error):
+                    with self._storage_faults.guard():
+                        app = self._app(session)
+                        scope = session["organization"]
+                        plan = app.learning.monitoring.status(scope, cohort)
+                        if plan and plan["status"] == "scheduled" and plan["next_due"] <= app.clock():
+                            app.learning.check_reports(scope, cohort)
+                except (ValueError, NotFound, WorkspaceStorageUnavailable):
                     # A store interruption leaves the check reclaimable when its lease expires.
                     continue
 
@@ -1082,9 +1050,8 @@ class Workspace:
         for row in rows:
             generation = self._run_generation(app, scope, row["run_id"]) if row["run_id"] else None
             row["generation"] = generation
-            with self.control() as db:
-                block = db.execute("SELECT code FROM copy_revision_blocks WHERE organization=? AND revision_id=?", (scope, row["id"])).fetchone()
-            code = block[0] if block and block[0] in REVISION_BLOCKS else None
+            block = self.control_store.revision_block(scope, row['id'])
+            code = block if block in REVISION_BLOCKS else None
             row["block"] = {"code": code, "detail": REVISION_BLOCKS[code]} if code else None
             if code and row["status"] in {"admitted", "queued", "running"}:
                 row["status"] = "blocked"
@@ -1099,13 +1066,9 @@ class Workspace:
         return rows
 
     def _set_revision_block(self, scope, revision_id, code):
-        with self.control() as db:
-            if code is None:
-                db.execute("DELETE FROM copy_revision_blocks WHERE organization=? AND revision_id=?", (scope, revision_id))
-            else:
-                if code not in REVISION_BLOCKS:
-                    raise ValueError("Use a public revision blocker code")
-                db.execute("INSERT INTO copy_revision_blocks VALUES(?,?,?) ON CONFLICT(organization,revision_id) DO UPDATE SET code=excluded.code WHERE code<>excluded.code", (scope, revision_id, code))
+        if code is not None and code not in REVISION_BLOCKS:
+            raise ValueError("Use a public revision blocker code")
+        self.control_store.set_revision_block(scope, revision_id, code)
 
     def recover_copy_revisions(self):
         sessions=self._sessions()
@@ -1204,13 +1167,12 @@ class Workspace:
                     if old['inputs']!={'conversation_id':conversation_id,'revision':expected_revision,'plan_id':plan_id}:
                         raise Conflict('Draft request already binds different proposal inputs')
                     return self.prepare(old['session_id'],partial=partial)
-            with self.control() as db:
-                prior_draft = db.execute("SELECT * FROM conversation_draft_requests WHERE conversation_id=? AND request_id=?", (conversation_id, request_id)).fetchone()
-                if prior_draft:
-                    if self._verified_mode():raise Conflict('Legacy draft request requires explicit migration')
-                    if prior_draft["request_hash"] != fingerprint:
-                        raise Conflict("Draft request already binds different proposal inputs")
-                    return self.prepare(prior_draft["session_id"], partial=partial)
+            prior_draft = self.control_store.draft_request(conversation_id, request_id)
+            if prior_draft:
+                if self._verified_mode():raise Conflict('Legacy draft request requires explicit migration')
+                if prior_draft["request_hash"] != fingerprint:
+                    raise Conflict("Draft request already binds different proposal inputs")
+                return self.prepare(prior_draft["session_id"], partial=partial)
             app = self._conversation_app()
             view = app.conversations.view("local-conversations", conversation_id)
             current = view["current_plan"]
@@ -1245,23 +1207,8 @@ class Workspace:
                     {'conversation_id':conversation_id,'revision':expected_revision,'plan_id':plan_id})
                 self._project_session(current)
                 return self.prepare(session_id,partial=partial)
-            with app.actions.store.fence_campaign_creation('local-conversations', plan, selection, request_id), self.control() as db:
-                db.execute("BEGIN IMMEDIATE")
-                try:
-                    replay = db.execute("SELECT * FROM conversation_draft_requests WHERE conversation_id=? AND request_id=?", (conversation_id, request_id)).fetchone()
-                    if replay is not None and (replay["request_hash"] != fingerprint or replay["session_id"] != session_id):
-                        raise Conflict("Draft request already binds different proposal inputs")
-                    existing = db.execute("SELECT * FROM sessions WHERE id=?", (session_id,)).fetchone()
-                    if existing is not None and existing["request_hash"] != fingerprint:
-                        raise Conflict("Campaign identity already binds different proposal inputs")
-                    if existing is None:
-                        db.execute("INSERT INTO sessions VALUES(?,?,?)", (session_id, fingerprint, canonical(session)))
-                    if replay is None:
-                        db.execute("INSERT INTO conversation_draft_requests VALUES(?,?,?,?)", (conversation_id, request_id, fingerprint, session_id))
-                    db.commit()
-                except BaseException:
-                    db.rollback()
-                    raise
+            with app.actions.store.fence_campaign_creation('local-conversations', plan, selection, request_id):
+                self.control_store.admit_draft(conversation_id, request_id, fingerprint, session)
             return self.prepare(session_id, partial=partial)
 
     def _followup_progress(self, app, scope, identity):
@@ -1354,28 +1301,15 @@ class Workspace:
                 current=self.authority.create(child,'followup','followup-prepare',request_id,inputs)
                 self._project_session(current)
                 return self.prepare(sid)
-            with self.control() as db:
-                db.execute("BEGIN IMMEDIATE")
-                try:
-                    request = db.execute("SELECT * FROM followup_prepare_requests WHERE organization=? AND request_id=?",(parent["organization"],request_id)).fetchone()
-                    if request and (request["request_hash"] != fingerprint or request["session_id"] != sid):
-                        raise Conflict("Follow-up preparation request already binds different inputs")
-                    old = db.execute("SELECT * FROM sessions WHERE id=?",(sid,)).fetchone()
-                    if old and old["request_hash"] != session_fingerprint:
-                        raise Conflict("Follow-up already binds its original copy mode and permission")
-                    if not old:
-                        app.followups.check(parent["organization"],p,sid)
-                        child = {"id":sid,"name":"Follow-up experiment","mode":mode,"organization":parent["organization"],
-                            "clock":max(parent["clock"],self.real_clock()),"clock_mode":"SIMULATED","created_at":self.real_clock(),
-                            "parent_id":identity,"database_scope":parent.get("database_scope","campaign"),
-                            "run_id":None,"case_id":None,"cohort_id":None,"followup_id":proposal_id}
-                        db.execute("INSERT INTO sessions VALUES(?,?,?)",(sid,session_fingerprint,canonical(child)))
-                    if not request:
-                        db.execute("INSERT INTO followup_prepare_requests VALUES(?,?,?,?)",(parent["organization"],request_id,fingerprint,sid))
-                    db.commit()
-                except BaseException:
-                    db.rollback()
-                    raise
+            child = None
+            if self.control_store.session(sid) is None:
+                app.followups.check(parent["organization"],p,sid)
+                child = {"id":sid,"name":"Follow-up experiment","mode":mode,"organization":parent["organization"],
+                    "clock":max(parent["clock"],self.real_clock()),"clock_mode":"SIMULATED","created_at":self.real_clock(),
+                    "parent_id":identity,"database_scope":parent.get("database_scope","campaign"),
+                    "run_id":None,"case_id":None,"cohort_id":None,"followup_id":proposal_id}
+            self.control_store.admit_followup(parent['organization'], request_id, fingerprint,
+                                               sid, session_fingerprint, child)
             return self.prepare(sid)
 
     def create(self, request_id, mode, parent_id=None):
@@ -1399,23 +1333,20 @@ class Workspace:
                 self._project_session(current)
                 return self.prepare(identity)
         with self.lock:
-            with self.control() as db:
-                old = db.execute("SELECT * FROM sessions WHERE id=?", (identity,)).fetchone()
-                if old and old["request_hash"] != fingerprint:
-                    raise Conflict("Campaign request already binds another copy mode")
-                if old is None:
-                    parent = self._session(parent_id) if parent_id else None
-                    if parent and (not parent["cohort_id"] or self._app(parent).learning.store.view(parent["organization"], parent["cohort_id"])["status"] != "finalized"):
-                        raise Conflict("Only finalized learning can seed the next experiment")
-                    start = (datetime.fromisoformat(self.pack["checked_on"]).replace(tzinfo=timezone.utc).timestamp() + 43200
-                             if mode == "fixture" else self.real_clock())
-                    if parent:
-                        start = max(start, parent["clock"])
-                    session = {"id": identity, "name": "Working capital / " + ("model copy" if mode == "model" else "offline demo"),
-                        "mode": mode, "organization": parent["organization"] if parent else identity, "clock": start,
-                        "parent_id": parent_id, "database_scope": (parent.get("database_scope") or ("conversations" if parent.get("conversation_plan") or parent["organization"] == "local-conversations" else "campaign")) if parent else "campaign", "clock_mode": "SIMULATED" if parent or mode == "fixture" else "REAL", "created_at": self.real_clock(), "run_id": None,
-                        "case_id": None, "cohort_id": None}
-                    db.execute("INSERT INTO sessions VALUES(?,?,?)", (identity, fingerprint, canonical(session)))
+            session = None
+            if self.control_store.session(identity) is None:
+                parent = self._session(parent_id) if parent_id else None
+                if parent and (not parent["cohort_id"] or self._app(parent).learning.store.view(parent["organization"], parent["cohort_id"])["status"] != "finalized"):
+                    raise Conflict("Only finalized learning can seed the next experiment")
+                start = (datetime.fromisoformat(self.pack["checked_on"]).replace(tzinfo=timezone.utc).timestamp() + 43200
+                         if mode == "fixture" else self.real_clock())
+                if parent:
+                    start = max(start, parent["clock"])
+                session = {"id": identity, "name": "Working capital / " + ("model copy" if mode == "model" else "offline demo"),
+                    "mode": mode, "organization": parent["organization"] if parent else identity, "clock": start,
+                    "parent_id": parent_id, "database_scope": (parent.get("database_scope") or ("conversations" if parent.get("conversation_plan") or parent["organization"] == "local-conversations" else "campaign")) if parent else "campaign", "clock_mode": "SIMULATED" if parent or mode == "fixture" else "REAL", "created_at": self.real_clock(), "run_id": None,
+                    "case_id": None, "cohort_id": None}
+            self.control_store.create_session(identity, fingerprint, session)
             return self.prepare(identity)
 
     def _planning_copy_config(self, app, run_id):
@@ -1629,24 +1560,25 @@ class Workspace:
             if owned:
                 if self.authority.begin(identity,action,payload):return self.view(identity)|{'command_replayed':True}
                 session=self.authority.get(identity);app=self._app(session)
-            with self.control() as db:
-                old = None if owned else db.execute("SELECT * FROM commands WHERE session_id=? AND request_id=?", (identity, request_id)).fetchone()
+            if not owned:
+                old = self.control_store.command(scope, identity, request_id)
                 if old:
-                    if old["request_hash"] != fingerprint:
+                    if old['request_hash'] != fingerprint:
                         raise Conflict("Workspace request already binds different action inputs")
-                    if old["done"]:
+                    if old['done']:
                         return self.view(identity) | {"command_replayed": True}
-                elif not owned:
-                    if action == "advance-report-check":
-                        with app.learning.monitoring.fixture_check(scope, "local-operator", session["cohort_id"], case,
-                                                                  payload["handoff_id"], payload["position"], payload["next_due"]):
-                            db.execute("BEGIN IMMEDIATE")
-                            session["clock"] = max(session["clock"], payload["next_due"])
-                            db.execute("UPDATE sessions SET payload=? WHERE id=?", (canonical(session), identity))
-                            db.execute("INSERT INTO commands VALUES(?,?,?,0)", (identity, request_id, fingerprint))
-                            db.commit()
-                    else:
-                        db.execute("INSERT INTO commands VALUES(?,?,?,0)", (identity, request_id, fingerprint))
+                elif action == 'advance-report-check':
+                    with app.learning.monitoring.fixture_check(scope, "local-operator", session["cohort_id"], case,
+                                                              payload["handoff_id"], payload["position"], payload["next_due"]):
+                        admitted = self.control_store.begin_command(scope, identity, request_id, fingerprint,
+                                                                    next_due=payload['next_due'])
+                        session['clock'] = admitted['clock']
+                    if admitted['done']:
+                        return self.view(identity) | {"command_replayed": True}
+                else:
+                    admitted = self.control_store.begin_command(scope, identity, request_id, fingerprint)
+                    if admitted['done']:
+                        return self.view(identity) | {"command_replayed": True}
             store = app.reviews.store
             if action in {"approve", "reject"}:
                 store.decide(scope, case, payload["subject_id"], "local-reviewer", action, request_id, payload["reason"], 86400)
@@ -1699,8 +1631,7 @@ class Workspace:
                 raise ValueError("Unknown workspace action")
             if owned:self.authority.complete(identity,request_id)
             else:
-                with self.control() as db:
-                    db.execute("UPDATE commands SET done=1 WHERE session_id=? AND request_id=?", (identity, request_id))
+                self.control_store.complete_command(scope, identity, request_id)
             return self.view(identity)
 
     def artifact(self, identity, kind, expected_subject):

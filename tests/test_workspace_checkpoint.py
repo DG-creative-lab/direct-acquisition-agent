@@ -1,4 +1,5 @@
 """Checkpoint publication preserves history without carrying forward authority."""
+from workspace_control_fixture import control_connection
 import hashlib
 import json
 import os
@@ -133,7 +134,7 @@ class WorkspaceCheckpointTests(TestCase):
         self.workspace.message_conversation(conversation, 'brief', 0, FIXTURE_MESSAGE)
         self.workspace.start_preparation(conversation, 'plan', 1, False, True)
         self.workspace.stop_execution(conversation, 'stop', 1)
-        with self.workspace.control() as db:
+        with control_connection(self.workspace) as db:
             db.execute('CREATE TABLE opaque_history (value BLOB)')
             db.execute('INSERT INTO opaque_history VALUES(?)', (b'\x00\xff original',))
         (self.source / '.env.local').write_text('EXAMPLE_NON_DATABASE_FILE')

@@ -12,6 +12,8 @@ flowchart LR
     HTTP --> FACADE[Workspace facade]
     CLI[Python CLI] --> ROOT[Composition root]
     FACADE --> ROOT
+    FACADE --> CONTROL[Workspace control port]
+    CONTROL --> SQL
     ROOT --> WF[Explicit workflows]
     ROOT --> RT[Custom runtime]
     RT --> TASKS[Task store port]
@@ -49,7 +51,7 @@ The [local checkpoint adapter](workspace-checkpoints.md) uses the same root lock
 `make arch-check` statically inspects every Python file under `src/acquisition`,
 without importing product code. `scripts/architecture_policy.json` is the reviewed,
 exact module-to-role inventory and temporary exception ledger. It currently
-classifies 170 modules, including engagements, profile/contact/sequence supporting
+classifies 175 modules, including workspace control ports, engagements, profile/contact/sequence supporting
 files and every root utility. An added file needs an explicit classification;
 removed files must lose their classifications. A file/package name collision is
 rejected. Tests and scripts are outside this production inventory and cannot be
@@ -130,7 +132,8 @@ rejected. A transport role is not a general adapter exemption.
 
 ### Temporary exception ledger
 
-The initial #89 inventory records **31 exact dependency exceptions**, with module,
+The initial #89 inventory recorded **31 exact dependency exceptions**. After #90,
+**28 remain**, with module,
 rule, target, occurrence count, reason and removal issue in the JSON ledger.
 These make existing debt visible; they are not permissions for additional imports.
 A new/substituted target, increased occurrence count, removed violation with a
@@ -140,7 +143,7 @@ command. Changes to inventory, roles or exceptions require explicit review.
 
 | Removal issue | Count | Existing dependency to extract |
 | --- | --- | --- |
-| #90 | 3 | Workspace SQLite access and control-store initialization |
+| #90 | 0 | Extracted into consumer-owned workspace ports and the SQLite control adapter |
 | #91 | 15 | Workspace/bootstrap/provider wiring, model sessions, CLI provider construction and filesystem configuration loading |
 | #92 | 13 | Root command/report/storage-error infrastructure, workspace root guard, contact adapter's private policy-module import and review validators from mixed creative application code |
 
@@ -213,6 +216,54 @@ Domain artifacts and runtime receipts are separate commits under stable operatio
 The workspace has a separate `workspace.sqlite` control store for session metadata, command fingerprints, scoped preparation records and scoped copy-revision blocker codes. Blocker metadata is a recoverable projection and grants no task, model or review authority. Each sandbox owns its application database; descendant experiments share their parent's organization/database to reuse learning. Paths and organizations resolve from server-owned metadata. The control and domain stores do not share a distributed transaction. Durable command admission precedes execution; after a lost metadata write, the same request reconciles through original domain receipts. Browser session storage preserves pending identity per command signature after uncertain responses.
 
 Unsealed compatibility stores still keep preparation intent, routing and sandbox time in `workspace.sqlite`. In schema 14, explicitly selected `verified-paused/v1` stores move new preparation intent and consent to `conversations.sqlite`, and new sandbox environments, clocks, command identities and run/case/cohort mappings to the campaign's application database. The root application store contains a server-owned location catalogue bound to each application's immutable store identity. This catalogue locates records; it cannot grant consent, advance time or authorize execution. Owned records override workspace projections, including after the projection database is lost. Legacy workspace records are never silently enrolled as authoritative environments.
+
+### Workspace control storage, issue 90
+
+`application/workspace/ports.py` owns the control-store contract and recoverable
+storage failure. `adapters/sqlite/workspace_control.py` implements its named
+operations. `bootstrap.build_workspace_state` composes that adapter, storage
+error translation and a lazy factory for the existing `conversations.WorkspaceState`
+service. Startup initializes the compatibility journal without opening or
+silently enrolling an authoritative application store. The workspace facade
+passes session candidates and receives plain records; it contains no SQLite
+imports, SQL or connection accessor. It still has the explicitly recorded
+composition/provider dependencies scheduled for #91.
+
+The complete control-store inventory is:
+
+| Records | Ownership and readers | Writers and commit boundary |
+| --- | --- | --- |
+| `sessions` | Compatibility intent, routing, time and domain links for unsealed legacy roots; disposable navigation payloads for owned environments. Workspace listing, lookup, ancestry/recovery and command flows read through the control port. Offline checkpoint and legacy inventory adapters also inspect these records as evidence. | Control adapter session creation, save and case-link restoration; owned-state projection upsert. Creation rechecks fingerprints under a writer transaction. Projection updates preserve historical request hashes. Offline projection repair also writes this table. |
+| `commands` | Legacy command fingerprint and completion journal, read by workspace action replay. Owned commands instead use `WorkspaceStateStore` in application storage. | Control adapter admission and completion. A report-check clock update and pending command insert commit together. Domain execution occurs after this transaction closes. Offline projection repair can reconstruct owned command projections. |
+| `conversation_draft_requests` | Compatibility mapping for the fixed server-owned `local-conversations` scope. Draft replay and preparation generation read it through the port. | Session plus mapping admission is one control-store transaction, inside the existing conversation creation fence. Owned request mappings stay in application storage; offline repair can rebuild their projections. |
+| `followup_prepare_requests` | Organization-scoped legacy follow-up request mapping, read when admitting a continuation. | Session plus mapping admission commits together, with both original request and session fingerprints checked. Owned mappings remain in application storage; offline repair can reconstruct their projections. |
+| `copy_revision_blocks` | Organization/revision-scoped recoverable presentation metadata read by revision progress. It grants no inference permission. | Control adapter set/clear operations from revision recovery; offline projection repair clears diagnostics for positively owned keys. |
+| `checkpoint_recovery_blocks` | Organization/run-scoped recoverable presentation metadata read by checkpoint recovery/status. It grants no review or execution authority. | Control adapter set/clear operations after case recovery; offline projection repair clears diagnostics for positively owned keys. |
+| `preparations` | Existing organization-scoped legacy preparation intent/progress, consumed by `PreparationCoordinator` through `PreparationStore`. | Existing `SqlitePreparations` adapter, unchanged by this extraction. Authoritative preparation intents remain in `SqlitePreparationIntents`. |
+| `workspace_identity` | Immutable ancestry witness, read by existing ancestry, inventory and checkpoint adapters. It does not enroll a domain history or authorize execution. | Control adapter initialization establishes identity in the same initialization transaction as the existing control tables. Ancestry and offline repair keep their existing identity checks. |
+
+Global session IDs and legacy conversation mappings are confined to the
+server-owned root; they are not a caller-selected organization catalogue.
+Session mutations and commands check the stored organization, follow-up
+mappings and blockers include organization in their keys, and paths never enter
+from browser or model input. Authoritative environment ownership, clocks,
+consent and run/case/cohort integrity still belong to the existing
+`conversations.WorkspaceStateStore` implementation. Projection loss or poisoned
+legacy rows cannot promote themselves into that authority.
+
+Each multiwrite port operation owns its whole SQLite transaction. Conversation
+creation and report-clock validation keep their existing domain guards held
+through the control commit. New legacy session candidates and follow-up checks
+are prepared before admission; the adapter rechecks request/session identity
+inside the write transaction. No caller callback, connection or generic SQL
+operation crosses the port, and no provider call occurs under a control-store
+transaction. Domain receipts still reconcile lost command acknowledgements;
+there is no distributed transaction between the compatibility and domain stores.
+Storage faults become `WorkspaceStorageUnavailable`; existing checkpoint and
+monitoring recovery policies retain their narrow failure handling. Corrupt
+projection payloads remain readable as raw records for the existing tolerant
+filter, rather than being promoted or silently repaired during lookup.
+
 
 `conversations` owns the environment contract and narrow storage port; `workflows` verifies campaign source relationships; SQLite adapters verify scoped facts and implement transactions; `bootstrap.py` wires them together. A simulation clock advance and its exact command admission commit together in the same application database. Review, acceptance and learning still make their own current-authority decisions. No environment or command record grants approval.
 

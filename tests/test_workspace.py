@@ -3,13 +3,14 @@ import io
 import json
 import http.client
 import tempfile
+import sqlite3
 import threading
 import unittest
 import urllib.request
 import urllib.error
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlencode
-from contextlib import redirect_stderr
+from contextlib import closing, redirect_stderr
 from pathlib import Path
 from unittest.mock import patch
 from uuid import uuid4
@@ -203,7 +204,13 @@ class WorkspaceTests(unittest.TestCase):
         self.assertEqual(len([e for e in recovered["learning"]["events"] if e["kind"] == "cohort_opened"]), 1)
 
     def test_model_preparation_uses_existing_agent_and_checks_without_paid_calls(self):
-        model = FakeModel()
+        root = self.root
+        class UnlockedModel(FakeModel):
+            def complete(self, request):
+                with closing(sqlite3.connect(root / 'workspace.sqlite', timeout=0)) as db:
+                    db.execute('BEGIN IMMEDIATE')
+                return super().complete(request)
+        model = UnlockedModel()
         real_build = build
         def model_build(path, clock, gateway, model_config, workspace_organization=None, *, verified_admissions=False, preference_organization=None):
             return real_build(path, clock, model if gateway else None, model_config,

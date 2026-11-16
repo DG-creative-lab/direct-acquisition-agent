@@ -1,4 +1,5 @@
 """Application authority survives missing or adversarial workspace projections."""
+from workspace_control_fixture import control_connection
 import json
 import math
 import shutil
@@ -177,7 +178,7 @@ class WorkspaceAuthorityTests(unittest.TestCase):
                    canonical(session|{'id':'bad-clock','created_at':None}),
                    canonical(session|{'id':'bad-plan','conversation_plan':[]}),
                    canonical(session|{'id':'null-plan','conversation_plan':None}), '['*1100+']'*1100)
-        with self.w.control() as db:
+        with control_connection(self.w) as db:
             db.execute("UPDATE sessions SET payload='{broken' WHERE id=?",(session['id'],))
             for i,payload in enumerate(malformed):
                 if 5<=i<=7:payload=canonical(json.loads(payload)|{'id':'broken-'+str(i)})
@@ -215,7 +216,7 @@ class WorkspaceAuthorityTests(unittest.TestCase):
                 session=self.create(mode,mode);app=self.app(session);before=durable_rows(app)
                 fake=session|{'organization':'some-other-org','database_scope':'conversations','mode':'model' if mode=='fixture' else 'fixture',
                               'clock':self.now+90*86400,'clock_mode':'SIMULATED','run_id':'wrong-run','case_id':'wrong-case','name':'Poisoned'}
-                with self.w.control() as db:db.execute('UPDATE sessions SET payload=? WHERE id=?',(canonical(fake),session['id']))
+                with control_connection(self.w) as db:db.execute('UPDATE sessions SET payload=? WHERE id=?',(canonical(fake),session['id']))
                 self.assertEqual(self.w._session(session['id']),session)
                 with patch('acquisition.workspace.OpenRouter',side_effect=AssertionError('Loaded provider')):
                     routed=self.w._app(fake,with_model=True)
@@ -292,7 +293,7 @@ class WorkspaceAuthorityTests(unittest.TestCase):
             with self.assertRaises(OSError):self.w.start_preparation(cid,'original',1,False,False)
         saved=self.w.preparations.store.for_revision('local-conversations',cid,1)
         self.assertEqual(saved['status'],'admitting');self.assertFalse(saved['inputs']['allow_model_copy'])
-        with self.w.control() as db:self.assertEqual(db.execute('SELECT COUNT(*) FROM preparations').fetchone()[0],0)
+        with control_connection(self.w) as db:self.assertEqual(db.execute('SELECT COUNT(*) FROM preparations').fetchone()[0],0)
         reopened=Workspace(self.root,real_clock=lambda:self.now)
         with patch.object(reopened,'freeze_preparation_plan',side_effect=AssertionError('Rebuilt frozen context')):
             reopened.start_preparation(cid,'original',1,False,False)
@@ -307,7 +308,7 @@ class WorkspaceAuthorityTests(unittest.TestCase):
     def test_preparation_projection_cannot_replace_intent_or_redirect_a_run(self):
         cid,saved=self.prepare();other=self.create()
         forged=saved|{'inputs':saved['inputs']|{'allow_model_copy':True},'run_id':other['run_id']}
-        with self.w.control() as db:
+        with control_connection(self.w) as db:
             db.execute('INSERT INTO preparations VALUES(?,?,?,?,?,?,?)',('local-conversations',saved['id'],saved['request_id'],cid,1,0,canonical(forged)))
         self.assertEqual(self.w.preparations.store.get('local-conversations',saved['id']),saved)
         app=self.w._conversation_app()
@@ -434,7 +435,7 @@ class WorkspaceAuthorityTests(unittest.TestCase):
         parent=self.create();app,_=self.seed_clock_source(parent)
         self.w.authority.begin(parent['id'],'finalize',{'request_id':'mature'})
         parent=self.w.authority.get(parent['id'])
-        with self.w.control() as db:db.execute('DELETE FROM sessions')
+        with control_connection(self.w) as db:db.execute('DELETE FROM sessions')
         child=self.w.create('child','fixture',parent['id'])['session']
         actual=self.w._session(child['id']);routed=self.w._app(actual)
         self.assertEqual(routed.tasks.database.path,app.tasks.database.path)
@@ -507,7 +508,7 @@ print(json.dumps({'session':w._session(sys.argv[2]),'preparation':w.preparations
         shown=selected.view(session['id'])['session']
         self.assertEqual(shown,session|{'clock':self.now})
         owned=selected.create('owned','fixture')['session']
-        with selected.control() as db:db.execute("INSERT INTO sessions VALUES('broken','unused','{}')")
+        with control_connection(selected) as db:db.execute("INSERT INTO sessions VALUES('broken','unused','{}')")
         self.assertEqual({s['id'] for s in selected.listing()['sessions']},{session['id'],owned['id']})
         with self.assertRaisesRegex(Conflict,'migration'):selected.create('legacy','fixture')
         with self.assertRaises(Conflict):selected.action(session['id'],'approve',{'request_id':'new','subject_id':selected.view(session['id'])['review']['subject']['id'],'reason':'Cannot use projected clock as authority.'})

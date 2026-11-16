@@ -1,4 +1,5 @@
 """Copy-only scope, immutable admission, paid-call fencing and exact publication."""
+from workspace_control_fixture import control_connection
 
 import csv
 import io
@@ -346,7 +347,7 @@ class CopyRevisionTests(unittest.TestCase):
         self.assertEqual(self.app.reviews.store.revision_request(self.scope, "revision"), receipt)
         self.assertEqual(self.w.view(later)["copy_revisions"][0]["status"], "complete")
         later_scope = self.w._session(later)["organization"]
-        with self.w.control() as db:
+        with control_connection(self.w) as db:
             self.assertIsNone(db.execute("SELECT code FROM copy_revision_blocks WHERE organization=? AND revision_id=?", (later_scope, blocked["id"])).fetchone())
 
     def test_expired_publication_lease_cannot_publish(self):

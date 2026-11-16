@@ -60,11 +60,16 @@
     "acquisition.adapters.sqlite.tasks": "adapter",
     "acquisition.adapters.sqlite.workspace_ancestry": "adapter",
     "acquisition.adapters.sqlite.workspace_checkpoint": "adapter",
+    "acquisition.adapters.sqlite.workspace_control": "adapter",
     "acquisition.adapters.sqlite.workspace_projection": "adapter",
     "acquisition.adapters.sqlite.workspace_sources": "adapter",
     "acquisition.adapters.sqlite.workspace_state": "adapter",
     "acquisition.adapters.sqlite.writing_preferences": "adapter",
     "acquisition.adapters.synthetic": "adapter",
+    "acquisition.application": "public_api",
+    "acquisition.application.workspace": "public_api",
+    "acquisition.application.workspace.ports": "ports",
+    "acquisition.application.workspace.state": "application",
     "acquisition.audiences": "public_api",
     "acquisition.audiences.application": "application",
     "acquisition.audiences.contact_application": "application",
@@ -279,14 +284,6 @@
     },
     {
       "module": "acquisition.workspace",
-      "rule": "infrastructure",
-      "target": "sqlite3",
-      "occurrences": 1,
-      "reason": "Workspace still opens and initializes its compatibility/control store; extract complete operations behind workspace ports.",
-      "issue": 90
-    },
-    {
-      "module": "acquisition.workspace",
       "rule": "layer",
       "target": "acquisition.adapters.environment.openrouter_key",
       "occurrences": 1,
@@ -300,22 +297,6 @@
       "occurrences": 1,
       "reason": "Workspace/CLI still selects concrete service or provider implementations; inject collaborators through bootstrap.",
       "issue": 91
-    },
-    {
-      "module": "acquisition.workspace",
-      "rule": "layer",
-      "target": "acquisition.adapters.sqlite.workspace_ancestry.initialize_workspace_identity",
-      "occurrences": 1,
-      "reason": "Workspace still opens and initializes its compatibility/control store; extract complete operations behind workspace ports.",
-      "issue": 90
-    },
-    {
-      "module": "acquisition.workspace",
-      "rule": "layer",
-      "target": "acquisition.adapters.sqlite.workspace_projection.initialize_control_tables",
-      "occurrences": 1,
-      "reason": "Workspace still opens and initializes its compatibility/control store; extract complete operations behind workspace ports.",
-      "issue": 90
     },
     {
       "module": "acquisition.workspace",

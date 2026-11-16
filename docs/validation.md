@@ -110,8 +110,8 @@ and exact exception counts. A subprocess check proves a forbidden dependency
 returns a nonzero command status and its removal returns success. Production
 source and authority/storage behavior are unchanged by this tooling slice.
 
-The reviewed baseline has 31 temporary dependency exceptions: three assigned to
-#90, fifteen to #91 and thirteen to #92. An exception binds one module, rule,
+The initial reviewed baseline had 31 temporary dependency exceptions. After the
+#90 extraction, 28 remain: fifteen assigned to #91 and thirteen to #92. An exception binds one module, rule,
 target and exact occurrence count, with a reason/removal issue. With the reviewed
 ledger, new/substituted dependencies, increased occurrence counts, duplicate or
 wildcard entries and stale exceptions are rejected. No baseline is silently
@@ -130,6 +130,66 @@ and the fresh-process CLI check, after checker/schema refinements. `make arch-ch
 and `git diff --check` passed. Existing CI already runs these checks; no new CI
 job is needed. No frontend/HTTP implementation changed, so `make interface-check`
 was not required. No live model/provider behavior is claimed.
+
+## Workspace control-store boundary, issue 90
+
+The control-store extraction leaves schema and ownership unchanged. The facade
+uses `WorkspaceControlStore`; only its SQLite adapter opens connections or
+executes compatibility-journal SQL. Bootstrap provides that port and preserves
+lazy construction of the existing application-owned environment service. The
+three #90 architecture exceptions are removed, with no replacement exceptions.
+`ContextManager` is admitted as a pure typing contract for storage-error
+translation; this admits no effectful contextlib infrastructure.
+
+| Invariant | Behavioral regression evidence | Limit |
+| --- | --- | --- |
+| Draft and follow-up admission are all-or-nothing | `test_workspace_control.py` injects a trigger failure on each request-mapping insert and asserts that neither mapping nor session survives; exact retries retain the original session. | Compatibility and domain stores still have independent commits. |
+| Report-clock advancement binds command admission | A command-insert trigger fault leaves the stored clock unchanged and no pending request. Exact replay after completion does not advance time; changed fingerprints and foreign organizations are rejected. | This port stores legacy metadata; verified clock authority stays in the application store. |
+| Concurrent admission binds one exact input | Two independent connections race different fingerprints for the same session/request; one session and matching mapping survive and the other request conflicts. | The HTTP server still intentionally has one worker per root. |
+| Lost control acknowledgement does not repeat acceptance | The existing conversation handoff test now injects failure in the extracted completion operation after domain acceptance. A fresh process replays the original receipt after a later conversation edit, with one acceptance event. | Replay reconciles through domain receipts; metadata alone is not current approval. |
+| Historical identities and projections stay separate | Adapter replay preserves original creation time and journal identity across a fresh process. Projection upserts preserve request hashes and expose corrupt payloads to the existing tolerant filter. Existing authority/projection tests cover loss, poisoning and interrupted projection writes. | No authority/schema migration is introduced. |
+| Storage failure remains recoverable and scoped | Trigger/storage faults become `WorkspaceStorageUnavailable`; value/authority errors and interrupts propagate unchanged. A restored table yields the original record. Foreign-scope case/session/command writes fail; blocker keys remain organization-scoped. | Existing domain adapters retain their own recovery contracts. |
+| Control transactions end before provider work | The existing mocked-model workspace test opens a real immediate SQLite writer during every provider call. It completes six calls and leaves generated copy unreviewed. | This is an offline effect-boundary probe, not evidence of live provider behavior. |
+
+Raw SQL corruption fixtures moved to a test-only helper, preserving existing
+legacy, projection, ancestry, checkpoint, revision and execution regressions.
+The saved-plan stop mutation probe now removes the domain fence around the
+named admission call, so it continues to test the same commit boundary.
+
+Verification: `make test` passed all 1,026 backend cases on Python 3.14.3
+with loopback access in 1,411.473 seconds. The final focused reruns passed the
+nine control-store/provider-lock cases and both strengthened checkpoint and
+monitoring storage-recovery cases. `make arch-check` passed with 175 classified
+modules and 28 remaining exceptions. The affected saved-plan stop mutation was
+detected (1/1). `make interface-check` passed the build, formatting check and all
+108 browser cases. `git diff --check` and whitespace checks for all seven new
+files passed. No live or paid model calls were made.
+
+The branch incorporates main's single-Python CI, monitoring-test and contact
+identity reconstruction follow-ups. After the final rebase, all 43 focused
+contact, control-store and workspace tests passed, both changed monitoring
+browser cases passed, and both affected provider-account and saved-plan stop
+mutations were detected. Architecture and whitespace checks also passed. The
+full backend and browser totals above refer to the implementation before those
+upstream follow-ups; those complete suites were not repeated after the rebase.
+
+### Command-identity mutation target after extraction
+
+PR #99's first CI run passed both backend shards and both browser shards, but
+mutation shard 2 stopped at `workspace-command-identity`: its source replacement
+still expected the pre-extraction double-quoted dictionary key. The live guard
+uses a single-quoted key. Updating the mutation's exact source target preserves
+its original change (`if False`) and behavioral oracle: reusing a completed
+command key for another action must raise a conflict and cannot advance the
+fixture clock or create beliefs. No production behavior or mutation criterion
+changes.
+
+The stale-target failure was reproduced independently before the fix. Afterwards,
+all 511 catalogue targets matched exactly once and their mutated sources compiled.
+The command-identity mutant was detected by the existing workspace regression;
+all five focused CI-tool and command-reuse tests passed. The architecture and
+whitespace checks passed. This source/compilation audit validates experiment
+setup; it is not a claim that all 511 mutants were executed in that audit.
 
 ## Final sequence authority time follow-up
 

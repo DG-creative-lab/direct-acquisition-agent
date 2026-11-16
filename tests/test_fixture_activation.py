@@ -233,6 +233,10 @@ with patch.object(SqliteTasks, 'settle', exit_after_draft):
             # Simulate a stop after the fixture clock commits but before the runner checks.
             self.w.action(sid, 'advance-report-check', payload)
         self.w = self.workspace()
+        with patch('acquisition.learning.application.LearningService.check_reports',
+                   side_effect=sqlite3.OperationalError('report storage unavailable')):
+            self.w.advance_report_monitoring()
+        self.assertEqual(self.w.view(sid)['learning']['monitoring']['status'], 'scheduled')
         self.w.advance_report_monitoring()
         state = self.w.view(sid)
         plan = state['learning']['monitoring']
