@@ -12,7 +12,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from acquisition.audiences import ContactDirectory, ContactAccount, contact_snapshot_from
+from acquisition.audiences import ContactDirectory, ContactAccount, ContactConnection, NativeReference, contact_snapshot_from
 from acquisition.bootstrap import build_contact_directory
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.adapters.contact_fixtures import RecordedContactSource, synthetic_contact_snapshots
@@ -237,6 +237,18 @@ class ContactTests(unittest.TestCase):
         self.assertEqual(self.counts(service),before)
 
     def test_connection_alias_cannot_erase_native_objections_or_retired_identity(self):
+        # Historical external-account and native IDs are durable contracts.
+        connection=ContactConnection('one','alias-a','provider','account-a','v1')
+        reference=NativeReference(connection,'Person','abc','contact')
+        self.assertEqual(connection.id,'connection_692a89816649bfa7947cffc43d52b695e561a89fae6e9b74b2a4b70860624183')
+        self.assertEqual(reference.id,'native_97c86a1b0f0404c7b10ff6bdfe1203b4281f6059c261bea4fb66c4238bb33852')
+        self.assertEqual(replace(connection,key='alias-b',mapping_version='v2').id,connection.id)
+        for field, value in (('organization','two'),('provider','other-provider'),('provider_account','account-b')):
+            self.assertNotEqual(replace(connection,**{field:value}).id,connection.id)
+        self.assertNotEqual(replace(reference,native_id='def').id,reference.id)
+        for field in ('organization','key','provider','provider_account','mapping_version'):
+            with self.subTest(invalid_connection_field=field),self.assertRaises(ValueError):
+                replace(connection,**{field:''})
         profiles = LocalProfiles('one','fielddesk',ROOT/'config/profiles')
         history = tuple(synthetic_contact_snapshots('one',profiles.profile))[:3]
         alias = contact_snapshot_from(json.loads(canonical(asdict(history[0])).replace('fielddesk-crm-a','fielddesk-crm-alias')))

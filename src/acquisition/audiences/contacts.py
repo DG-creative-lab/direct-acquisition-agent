@@ -36,13 +36,14 @@ class ContactConnection:
     mapping_version: str
 
     def __post_init__(self):
-        for value in asdict(self).values():
+        for value in (self.organization, self.key, self.provider, self.provider_account, self.mapping_version):
             catalogue_identity(value)
 
     @property
     def id(self):
         # Access aliases and mapping revisions cannot rename an external account and erase objections.
-        return 'connection_' + digest({k:v for k,v in asdict(self).items() if k not in {'key','mapping_version'}})
+        return 'connection_' + digest({'organization':self.organization, 'provider':self.provider,
+                                       'provider_account':self.provider_account})
 
 
 @dataclass(frozen=True)

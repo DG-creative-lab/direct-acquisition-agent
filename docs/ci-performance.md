@@ -158,3 +158,40 @@ PYTHONPATH=src:tests python3 -m scripts.benchmark_sequence_review \
 PYTHONPATH=src:tests python3 -m scripts.benchmark_sequence_review \
   --output .local/benchmarks/sequence-review-after.json
 ```
+
+
+## Contact identity reconstruction, 16 November 2026
+
+Contact connection validation and identity hashing now use their declared string
+fields directly instead of converting the entire dataclass. Identity still hashes
+the same organization, provider and provider-account values on every access.
+Aliases and mapping revisions stay excluded. No authority or identity is cached.
+
+Three unprofiled serial repetitions on the same macOS arm64 machine and Python
+3.14.3 measured unchanged test methods. Times include case setup and cleanup but
+exclude shared class setup.
+
+| Case | Before samples (s) | After samples (s) | Median before → after |
+| --- | --- | --- | --- |
+| Approval, both arms/controls and restart | 13.27, 10.44, 10.59 | 13.05, 9.24, 9.18 | 10.59 → 9.24 s (12.8% lower) |
+| Full evidence-basis expiry | 35.82, 34.41, 33.53 | 31.88, 29.45, 30.06 | 34.41 → 30.06 s (12.6% lower) |
+
+These are local case timings, not hosted CI timings; three samples with
+overlapping ranges are limited evidence. The baseline was `cd3d638`. The
+contact-domain SHA-256 changed from `2dde9ffd3f86a15eaec1202db09e31fcafef4d73cc0b0cdfcb62c37af936b61c`
+to `c666b08e185b381379f24295bd13ea3ece93d8e57be0a6c123038dcd6f8eaff3`;
+the unchanged sequence-review test file hash was
+`acd0e9152286afb078b1ffc503cddb13663b63f009be81e24be8c470d26f7f89`.
+Run each version separately without concurrent verification:
+
+```sh
+PYTHONPATH=src:tests python3 -m scripts.benchmark_sequence_review \
+  --output .local/benchmarks/sequence-review.json
+```
+
+For the profiled approval/restart case, `asdict` calls fell from 853,572 to
+69,205. Both profiles retained 180 material reconstructions, 2,408 contact
+evidence checks, 4,822 current-source reads, 29 current-proposal reconstructions,
+25 readiness reports and 22 authorizations. Profile timings overlap and are not
+a separate elapsed comparison. Final source, reviewer, epoch, expiry, lease and
+acceptance checks stay in their original paths.

@@ -2196,3 +2196,26 @@ enabled resume control before checking pause persistence across reload. Its
 separate lost-pause-response branch still checks recovery. Both committed and
 uncommitted creation-response cases passed three focused Chromium runs each on
 Python 3.14; no production code or retry policy changed.
+
+## Contact identity reconstruction, 16 November 2026
+
+Connection validation and identity hashing read the same declared strings
+directly, without caching identity or authority. The existing alias/objection
+regression verifies literal historical connection and native IDs, scope, aliases
+and invalid values for each connection field. The provider-account mutation now
+targets the equivalent new expression.
+
+Three serial runs of two unchanged sequence-review cases measured median case
+times of 10.59 → 9.24 seconds and 34.41 → 30.06 seconds. The [performance
+record](ci-performance.md) includes all samples, source hashes, profile counts
+and limitations. Both profiles retained the same current-source,
+current-proposal, readiness and authorization call counts.
+
+Verification passed all 999 backend tests (`make test`, 1,139.0 seconds), the
+architecture check and the final focused identity tests. Six targeted mutations
+were detected: provider-account scoping, exact-row history reuse, final source
+attestation, final current-material validation, final clock and the complete
+readiness window. All 511 mutation definitions still match one source location
+and compile; the full mutation catalogue was not rerun. Full-suite elapsed time
+included overlapping focused verification and is not a before/after benchmark.
+No live model calls were made.
