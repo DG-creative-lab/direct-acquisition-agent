@@ -311,6 +311,32 @@ print(json.dumps(app.engagements.advance('one',sys.argv[2])))'''
             self.assertFalse(view['validation']['review_ready']);self.assertIsNone(view['summary'])
             self.assertEqual(next(c for c in view['validation']['checks'] if c['id']=='current_epochs')['status'],'unknown')
 
+        # One report may share reconstructed inputs, but its final current-source
+        # check must reject bytes changed after the payload checker succeeded.
+        with store.database.connect() as db:
+            with patch.object(store.proposals,'_material',wraps=store.proposals._material) as material:
+                self.assertTrue(store._report(db,'one',subject)['review_ready'])
+            reconstructions = material.call_count
+            payloads = store._payloads
+            def corrupt_after_payloads(connection, organization, proposal):
+                result = payloads(connection,organization,proposal)
+                connection.execute('DROP TRIGGER channel_artifacts_immutable_update')
+                row = connection.execute('SELECT id,payload FROM channel_artifacts LIMIT 1').fetchone()
+                value = json.loads(row['payload']);value['rendered'][0]['id'] = 'changed-after-payload-check'
+                connection.execute('UPDATE channel_artifacts SET payload=? WHERE id=?',(canonical(value),row['id']))
+                return result
+            db.execute('BEGIN')
+            try:
+                with patch.object(store,'_payloads',side_effect=corrupt_after_payloads):
+                    changed = store._report(db,'one',subject)
+                self.assertFalse(changed['review_ready'])
+                indexed = {c['id']:c['status'] for c in changed['checks']}
+                self.assertEqual(indexed['recipient_payloads'],'passed')
+                self.assertEqual(indexed['sequence_contract'],'failed')
+            finally:
+                db.rollback()
+        self.assertEqual(reconstructions,6)
+
     def test_exact_operator_facts_reject_praise_missing_population_and_stale_subject(self):
         app,proposal,approval=self.reviewed()
         view=app.reviews.view('one',approval['subject_id']);output=view['summary']

@@ -12,6 +12,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ('sequence-review-reused-material-final-current', 'adapters/sqlite/sequence_reviews.py',
+     '        self.proposals.current(db,organization,proposal)', '        pass',
+     'test_sequence_reviews.SequenceReviewTests.test_required_membership_and_all_nonpassing_statuses_withhold_substantive_output'),
     ('contact-history-reuse-exact-row', 'adapters/sqlite/contacts.py',
      'candidate is not None and tuple(row)==candidate[1]', 'candidate is not None',
      'test_contacts.ContactTests.test_equal_time_permission_conflicts_survive_regrant_omission_and_restart'),
