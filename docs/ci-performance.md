@@ -3,11 +3,14 @@
 Initial measurements below use baseline `0ffba90` (PR #84). The CI branch is
 now rebased onto `b88e632` (PR #85), including exact sequence review.
 
-CI retains the full Python 3.11–3.14 matrix. Backend shards keep modules together,
-record case and class setup durations and report estimated versus actual time.
+CI now tests Python 3.12, 3.13 and 3.14. Python 3.12 is the minimum
+supported runtime. The [gate audit](ci-gate-audit.md) records the justification
+and limits of each remaining check, including the cost of compatibility testing.
+Backend shards keep modules together, record case and class setup durations and
+report estimated versus actual time.
 Mutation jobs partition the entire catalogue and reject fixture/loader failures.
-No test coverage is removed. Reducing Python compatibility checks remains a
-policy decision rather than an execution optimization.
+All behavioral test cases are retained. Further changes to compatibility cadence
+remain explicit support-policy decisions.
 
 ## Browser isolation
 

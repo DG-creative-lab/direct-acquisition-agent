@@ -114,7 +114,10 @@ class ContactTests(unittest.TestCase):
     def test_new_request_for_identical_frozen_evidence_reuses_immutable_assessment(self):
         service = self.service()
         first = self.prepare(service)
-        second = self.prepare(service,request='another-observation')
+        try:
+            second = self.prepare(service,request='another-observation')
+        except sqlite3.IntegrityError as exc:
+            self.fail(f'Identical evidence must reuse its immutable assessment: {exc}')
         self.assertEqual(first['assessment_id'],second['assessment_id'])
         self.assertEqual(first['report'],second['report'])
         self.assertEqual(self.counts(service)['contact_assessments'],1)
@@ -124,8 +127,8 @@ class ContactTests(unittest.TestCase):
     def test_missing_ambiguous_partial_or_expired_evidence_cannot_claim_complete_readiness(self):
         snapshot = self.service().source.read('one','fielddesk-crm-a',1)
         variants = {
-            'missing_permission':replace(snapshot,permissions=()),
             'unknown_permission':replace(snapshot,permissions=tuple(replace(p,status='unknown') for p in snapshot.permissions)),
+            'missing_permission':replace(snapshot,permissions=()),
             'expired_permission':replace(snapshot,permissions=tuple(replace(p,expires_at=NOW) for p in snapshot.permissions)),
             'partial_population':replace(snapshot,contacts=snapshot.contacts[:2],complete=False,cursor='next',
                 permissions=tuple(p for p in snapshot.permissions if p.contact.id!=snapshot.contacts[2].ref.id),

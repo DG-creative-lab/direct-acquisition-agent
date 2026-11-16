@@ -4,7 +4,7 @@ React and TypeScript provide the local interface; Vite produces static assets se
 
 ## Start locally
 
-Requires Python 3.11+, Node 22.12+ and pnpm 10.33+ on macOS or Linux. The local server uses a POSIX file lock to permit one server process per workspace root.
+Requires Python 3.12+, Node 22.12+ and pnpm 10.33+ on macOS or Linux. The local server uses a POSIX file lock to permit one server process per workspace root.
 
 ```sh
 make workspace

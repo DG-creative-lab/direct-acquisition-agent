@@ -1973,3 +1973,69 @@ performance comparison. No frontend or schema changed and no live model call was
 made. Review of the changed call graph found no removed final authority boundary;
 input reuse is confined to the successful payload-to-campaign handoff in one
 report, with the existing independent current-source reconstruction retained.
+
+
+## CI support and gate audit, 15 November 2026
+
+Python 3.11 is removed from CI and the advertised minimum is now 3.12. The
+remaining runtime matrix is unchanged. Architecture scanning runs once and early;
+frontend formatting runs in one interface partition. Both isolated browser jobs
+still compile and serve their own production assets. Historical measurements and
+compatibility artifacts are preserved.
+
+The [gate audit](ci-gate-audit.md) summarizes the configured checks, their
+protected behaviors, costs and limitations. It distinguishes compatibility
+cadence and formatting policy from application behavior, and records the mutation
+harness limits and observed absence of required merge checks. Production code, repository protection settings and authority boundaries
+are unchanged.
+
+Backend shard weights use median case plus class-setup costs across 3.12, 3.13
+and 3.14 in PR #87. The [gate audit](ci-gate-audit.md) records the source run
+and measurement limits. Both groups together retain all 999 cases, with no
+missing or overlapping IDs. The existing coverage regression now also rejects loader
+errors instead of accepting failed imports as discovered coverage. All 511
+mutation targets remain in their existing four partitions. The new shard costs
+are projections until a hosted run measures the changed allocation.
+
+Verification passed all 999 backend cases with `make test` on Python 3.14.3
+(1,616.1 seconds), plus the final focused CI-tool and architecture self-tests.
+The backend run overlapped the initial browser runs, so its elapsed time is
+verification evidence rather than a performance comparison. Production build,
+formatting, `make arch-check`, workflow validation with actionlint 1.7.12,
+whitespace, support-contract and audit-link checks passed. The original 59 module
+weights reproduced the saved module medians; the current allocation retains the
+20 highest measured weights.
+
+The full mutation catalogue was not rerun for this CI configuration change.
+PR #87's recorded run passed all 511 variants on the unchanged production code,
+mutation harness and target regressions. No live model call was made.
+
+The two initial local browser partitions passed 97 of 108 cases, with eleven
+fixture-start, completion-wait and test-deadline failures while the full backend
+suite ran on the same machine. Initial reports and traces were preserved. After
+backend completion, only those failed IDs were rerun, one partition at a time:
+all four first-partition cases and all seven second-partition cases passed
+(31.6 and 42.3 seconds). Identity comparison verifies those reruns exactly cover
+the eleven initial failures, yielding passing evidence for all 108 distinct
+cases across the attempts. No assertion, timeout, retry configuration or
+application code was changed. This is consistent with resource contention; it
+is not a claim of a clean initial run or a measured CI speedup.
+
+
+## Mutation assertion evidence
+
+Mutation detection now requires a test assertion failure and rejects unexpected
+test-body and subtest errors, in addition to fixture and loader failures. The
+existing harness regression exercises both crash paths and a valid assertion
+failure. This narrows what a detected mutation means; it does not establish that
+every assertion is the intended behavioral oracle.
+
+The first strict hosted run reported 48 invalid experiments. Existing tests now
+make their expected result explicit at the relevant boundary, including the
+required rejection type, required fields, replay success and lock release. The
+workspace lock case prepares its fixture independently of the mutation before
+exercising the unpatched read under a real SQLite writer. Each of the 48 named
+mutations was detected in a targeted rerun, and the corresponding unmutated
+tests passed. These assertions establish the stated behavior and error contract;
+a wrong error type alone does not prove that an unauthorized effect occurred.
+The complete catalogue remains the final CI check.

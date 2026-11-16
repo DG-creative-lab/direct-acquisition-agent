@@ -93,7 +93,11 @@ class AtomicAdmissionTests(unittest.TestCase):
             replace(original,parent_run_id='another-run'),replace(original,workflow_version='unknown/v1'),
             replace(original,task_plan_json=canonical([{'capability':'test.unknown','inputs':{},'max_attempts':3}]))]
         for value in altered:
-            with self.subTest(value=value),self.assertRaises(Conflict):self.store.admit(value,self.now)
+            with self.subTest(value=value):
+                try:
+                    with self.assertRaises(Conflict):self.store.admit(value,self.now)
+                except ValueError as exc:
+                    self.fail(f'Changed admission inputs must be rejected as a conflict: {exc}')
         with self.assertRaises(NotFound):self.store.admit(replace(original,request_id='no-consent'),self.now)
         with self.assertRaises(Conflict):self.store.request_planning(self.org,self.cid,'prepare',1,context,
             fixture=False,allow_model=True,model_config=replace(self.config,model='other/model'))
@@ -161,7 +165,10 @@ class AtomicAdmissionTests(unittest.TestCase):
             def checked(frozen,*args):
                 original(frozen,*args)
                 frozen['messages'][0]['content']='Mutation of a validation copy.'
-            with patch.object(reopened,'preflight',side_effect=checked):receipt=reopened.admit(restored,self.now)
+            try:
+                with patch.object(reopened,'preflight',side_effect=checked):receipt=reopened.admit(restored,self.now)
+            except Conflict as exc:
+                self.fail(f'Preflight copy changes must not alter frozen admission inputs: {exc}')
             self.assertEqual(reopened.get(self.org,intent.id).fingerprint,before)
         self.assertEqual(receipt.fingerprint,before)
 

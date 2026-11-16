@@ -112,7 +112,11 @@ class ExecutionTests(unittest.TestCase):
         before=self.usage()['used']
         receipt=self.w.stop_execution(self.c,'stop',1)['execution_receipt']
         self.assertTrue(self.w.view(self.sid)['review']['approval_valid'])
-        self.assertEqual(self.w.stop_execution(self.c,'stop',1)['execution_receipt'],receipt)
+        try:
+            replay=self.w.stop_execution(self.c,'stop',1)
+        except Conflict as exc:
+            self.fail(f'The original stop receipt must replay after commit: {exc}')
+        self.assertEqual(replay['execution_receipt'],receipt)
         with self.assertRaises(Conflict):self.w.stop_execution(self.c,'stop',2)
         app=self.w._conversation_app()
         with self.assertRaises(NotFound):app.execution.stop('another-org',self.c,'stop',1)
@@ -299,7 +303,10 @@ class ExecutionFollowupTests(unittest.TestCase):
         def observed(request):
             calls.append(request);return original(request)
         with patch('acquisition.workspace.openrouter_key',return_value='fixture'),patch('acquisition.workspace.OpenRouter',return_value=model),patch.object(model,'complete',side_effect=observed):
-            child=self.w.create('manual','model',self.sid)
+            try:
+                child=self.w.create('manual','model',self.sid)
+            except Conflict as exc:
+                self.fail(f'The manual descendant must retain its valid origin: {exc}')
             self.assertEqual(len(calls),6)
             self.assertEqual(self.usage()['used'],6)
             self.assertIn(child['session']['run_id'],{c['run_id'] for c in self.usage()['calls']})
@@ -1086,8 +1093,11 @@ print(json.dumps(SqliteExecution(Database(sys.argv[1])).view('local-conversation
         bad,bad_sid=self.checkpoint('disabled-checkpoint')
         healthy,healthy_sid=self.checkpoint('healthy-checkpoint')
         with patch.object(SqliteReviews,'open_case',side_effect=OSError('case storage unavailable')):
-            self.w.stop_execution(bad,'stop-bad',1)
-            self.w.stop_execution(healthy,'stop-healthy',1)
+            try:
+                self.w.stop_execution(bad,'stop-bad',1)
+                self.w.stop_execution(healthy,'stop-healthy',1)
+            except OSError as exc:
+                self.fail(f'Unavailable case storage must not prevent stopping work: {exc}')
         session=self.w._session(bad_sid);app=self.w._app(session)
         app.reviews.store.register_actor(session['organization'],'local-operator',('operator',),False)
         reopened=Workspace(self.root,real_clock=lambda:1792972800.)
@@ -1223,7 +1233,10 @@ class WorkspaceAncestryLockTests(unittest.TestCase):
                             errors.append(error)  # Keep the traceback and connection alive.
                         other = sqlite3.connect(path, timeout=0, isolation_level=None)
                         try:
-                            other.execute('BEGIN IMMEDIATE')
+                            try:
+                                other.execute('BEGIN IMMEDIATE')
+                            except sqlite3.OperationalError as exc:
+                                self.fail(f'Invalid journal cleanup must release the writer lock: {exc}')
                             other.execute("UPDATE sessions SET payload='updated' WHERE id='one'")
                             other.commit()
                         finally:

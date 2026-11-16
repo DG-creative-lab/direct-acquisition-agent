@@ -451,6 +451,7 @@ class PreparationTests(unittest.TestCase):
                     self.assertFalse(row["current"])
                     self.assertIn("brief changed", row["detail"])
                     self.assertIn("charged", row["detail"])
+                    self.assertIsInstance(row['generation'],dict,'Uncertain work must retain its generation journal')
                     self.assertTrue(row["generation"]["outcome_uncertain"])
                     self.assertTrue(row["generation"]["unresolved_calls"])
                     self.assertEqual(row["generation"]["provider_error"], None if interrupted else "provider_request_failed")

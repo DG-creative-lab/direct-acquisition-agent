@@ -40,7 +40,10 @@ class PlanningRequestScopeTests(unittest.TestCase):
     def test_same_native_key_in_two_chats_preserves_native_tasks_and_distinct_admissions(self):
         runs=[];intents=[]
         for cid in (self.first,self.second):
-            run=self.app.conversations.plan_fixture(self.org,cid,'shared',1)
+            try:
+                run=self.app.conversations.plan_fixture(self.org,cid,'shared',1)
+            except Conflict as exc:
+                self.fail(f'Independent conversations must admit their own planning key: {exc}')
             intent=self.intent(run);runs.append(run);intents.append(intent)
             task=intent.tasks[0].inputs
             self.assertEqual(task['request_id'],'shared')
@@ -85,7 +88,10 @@ class PlanningRequestScopeTests(unittest.TestCase):
         with store.database.connect() as db:saved=tuple(db.execute('SELECT * FROM admission_requests WHERE organization=? AND request_id=?',(self.org,native)).fetchone())
         second=self.app.conversations.plan_fixture(self.org,self.second,native,1)
         reopened=build(self.path,clock=lambda:self.now,model_config=self.config)
-        first=reopened.conversations.plan_fixture(self.org,self.first,native,1)
+        try:
+            first=reopened.conversations.plan_fixture(self.org,self.first,native,1)
+        except Conflict as exc:
+            self.fail(f'The original staged planning request must resume: {exc}')
         self.assertEqual(store.find_request(self.org,native).run_id,first)
         self.assertEqual(store.get_request(self.org,native),original)
         with store.database.connect() as db:self.assertEqual(tuple(db.execute('SELECT * FROM admission_requests WHERE organization=? AND request_id=?',(self.org,native)).fetchone()),saved)

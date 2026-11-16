@@ -90,8 +90,12 @@ class AdmissionEntrypointTests(unittest.TestCase):
         before=self.counts()
         raw=build(self.path,clock=lambda:self.now)
         for org in ('one','another'):
-            with self.subTest(org=org),self.assertRaisesRegex(Conflict,'requires verified admission'):
-                raw.tasks.create(org,'raw',[TaskSpec('new.provider-tool',{})],self.now)
+            with self.subTest(org=org):
+                try:
+                    with self.assertRaisesRegex(Conflict,'requires verified admission'):
+                        raw.tasks.create(org,'raw',[TaskSpec('new.provider-tool',{})],self.now)
+                except sqlite3.IntegrityError as exc:
+                    self.fail(f'Raw writes must be rejected at the admission boundary: {exc}')
         self.assertEqual(self.counts(),before)
 
     def test_verified_creation_does_not_require_a_workspace_ancestry_witness(self):

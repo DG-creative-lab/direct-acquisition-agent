@@ -621,7 +621,10 @@ assert p['status'] == 'retired' and len(p['history']) == 3
             db.execute("UPDATE review_events SET payload=? WHERE organization=? AND kind='artifact_commented'",
                        (canonical(first['source']), session['organization']))
         self.w.change_writing_preference(cid, **correction)
-        with self.assertRaises(Conflict): self.w.change_writing_preference(cid, **(correction | {'request_id': 'stale'}))
+        try:
+            with self.assertRaises(Conflict): self.w.change_writing_preference(cid, **(correction | {'request_id': 'stale'}))
+        except sqlite3.IntegrityError as exc:
+            self.fail(f'A stale preference edit must be rejected before writing history: {exc}')
         with self.assertRaises(Conflict): self.w.change_writing_preference(cid, **(inputs | {'request_id': 'confirm-again'}))
         with app.tasks.database.transaction() as db:
             db.execute("CREATE TRIGGER reject_preference BEFORE INSERT ON writing_preference_versions BEGIN SELECT RAISE(ABORT,'preference interrupted'); END")

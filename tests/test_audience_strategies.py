@@ -163,8 +163,11 @@ print(json.dumps({'run':asdict(run), 'plan':contact_decision_plan(batch, request
         }
         for name, result in cases.items():
             with patch.object(service.decision,'decide',return_value=result) as infer:
-                receipt = self.prepare(service,name)
-                replay = self.prepare(service,name)
+                try:
+                    receipt = self.prepare(service,name)
+                    replay = self.prepare(service,name)
+                except KeyError as exc:
+                    self.fail(f'Incomplete strategy evidence must produce an incomplete decision: {exc}')
             self.assertEqual(infer.call_count,1)
             self.assertEqual(receipt['decision'],replay['decision'])
             self.assertEqual(receipt['decision']['plan']['status'],'incomplete',name)
