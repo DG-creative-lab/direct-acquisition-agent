@@ -337,7 +337,7 @@ CASES = [
      '            if existing is None:', '            if True:',
      'test_contacts.ContactTests.test_new_request_for_identical_frozen_evidence_reuses_immutable_assessment'),
     ('contact-provider-account-scope', 'audiences/contacts.py',
-     "if k not in {'key','mapping_version'}", "if k not in {'key','mapping_version','provider_account'}",
+     "                                       'provider_account':self.provider_account})", "                                       })",
      'test_contacts.ContactTests.test_two_companies_and_two_provider_accounts_keep_native_execution_identity_separate'),
     ('contact-mapping-role-fence', 'adapters/sqlite/contacts.py',
      '                if replacement and replacement.ref.role != prior.ref.role:', '                if False:',
