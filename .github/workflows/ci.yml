@@ -14,7 +14,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python: ['3.12', '3.13', '3.14']
         shard: [1, 2]
     steps:
       - uses: actions/checkout@v4
@@ -22,9 +21,9 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
-          python-version: '${{ matrix.python }}'
+          python-version: '3.14'
       - run: make arch-check
-        if: matrix.python == '3.12' && matrix.shard == 1
+        if: matrix.shard == 1
       - run: make test-shard
         env:
           SHARD: ${{ matrix.shard }}
@@ -32,7 +31,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: backend-timings-${{ matrix.python }}-${{ matrix.shard }}
+          name: backend-timings-3.14-${{ matrix.shard }}
           path: backend-timings.json
           if-no-files-found: ignore
           retention-days: 14
@@ -48,7 +47,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.14'
       - run: python3 scripts/check_failure_mutations.py --shard "${{ matrix.shard }}" --shards 4
   interface:
     runs-on: ubuntu-latest
@@ -70,7 +69,7 @@ jobs:
           cache-dependency-path: frontend/pnpm-lock.yaml
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.14'
       - run: pnpm --dir frontend install --frozen-lockfile
       - run: pnpm --dir frontend exec playwright install --with-deps chromium
       - run: pnpm --dir frontend run build

@@ -1,14 +1,14 @@
 # CI gate audit
 
 The original implementation introduced Python 3.11 through 3.14 without a
-recorded customer or deployment requirement for that range. This change removes
-3.11 and sets the minimum to 3.12. It keeps the remaining matrix while making
-its cost and purpose explicit. The full invariant ledger and executable evidence
+recorded customer or deployment requirement for that range. CI now uses only
+Python 3.14, and the minimum required version is 3.14. Compatibility with other
+versions is not currently checked. The full invariant ledger and executable evidence
 are in [validation.md](validation.md).
 
 | Check | Protection | Decision |
 | --- | --- | --- |
-| Backend on 3.12, 3.13, 3.14 | Domain behavior, scoped SQLite transactions, restart/replay, approval and final authority, inference budgets and synthetic learning | Keep the tests. Per-PR coverage of every supported Python version is a policy choice; no deployment requirement for 3.12 or 3.13 was found. |
+| Backend on 3.14 | Domain behavior, scoped SQLite transactions, restart/replay, approval and final authority, inference budgets and synthetic learning | Keep the full suite in two shards on the selected runtime. Other Python versions are not checked. |
 | Architecture | Module boundaries, private imports and cycles | Keep once, before backend tests. |
 | Mutation catalogue | Measures whether selected tests fail for declared harmful changes | Keep, but an assertion failure is evidence of the asserted contract, not proof of complete coverage. |
 | Build and type check | Broken frontend types, imports and production assets | Keep for each isolated browser runner. |
@@ -65,5 +65,5 @@ cannot substitute for reviewing behavioral oracles and final authority checks.
 
 Further work should reduce repeated material reconstruction and move pure rules
 out of full workflow fixtures, preserving fresh evidence and authority checks at
-commit. Consider one primary runtime per PR and scheduled compatibility runs if
-later detection on older runtimes is acceptable.
+commit. Add compatibility coverage only when a product or deployment need is
+identified.
