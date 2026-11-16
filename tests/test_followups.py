@@ -5,7 +5,7 @@ import unittest
 from unittest.mock import patch
 from pathlib import Path
 import test_conversation_learning as learning_tests
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from test_copy_revisions import RevisionModel
 
@@ -88,7 +88,7 @@ class FollowupTests(unittest.TestCase):
         p=self.finalized()
         with self.assertRaises(ValueError): self.w.prepare_followup(self.sid,'not-consented',p['id'],'model',False)
         model=RevisionModel()
-        with patch('acquisition.workspace.openrouter_key',return_value='fake'),patch('acquisition.workspace.OpenRouter',return_value=model):
+        with patch('acquisition.bootstrap.workspace_key',return_value='fake'),patch('acquisition.bootstrap.workspace_gateway',return_value=model):
             child=self.w.prepare_followup(self.sid,'model',p['id'],'model',True)
             self.assertTrue(child['review']['candidate_valid'],child['review']['blocked_reasons'])
             app=self.w._app(self.w._session(child['session']['id']))
@@ -158,7 +158,7 @@ class FollowupTests(unittest.TestCase):
         import subprocess, sys, os
         p=self.finalized()
         code = """import sys,json
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 w=Workspace(sys.argv[1],real_clock=lambda:1792972800.)
 s=w.prepare_followup(sys.argv[2],'restart',sys.argv[3],'fixture',False)
 print(json.dumps(s['session']))
@@ -340,7 +340,7 @@ print(json.dumps(s['session']))
                     if name == 'missing':
                         code = """import sys
 from acquisition.contracts import Conflict
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 w=Workspace(sys.argv[1],real_clock=lambda:1792972800.)
 try:w.propose_followup(sys.argv[2],'restart-missing-acceptance',sys.argv[3])
 except Conflict:print('blocked')
@@ -406,7 +406,7 @@ else:raise AssertionError('Missing acceptance supported a new proposal after res
         from acquisition.creative import fact_pack_id
         from acquisition.reviews import ReviewPolicy
         model = RevisionModel()
-        with patch('acquisition.workspace.openrouter_key', return_value='fake'), patch('acquisition.workspace.OpenRouter', return_value=model):
+        with patch('acquisition.bootstrap.workspace_key', return_value='fake'), patch('acquisition.bootstrap.workspace_gateway', return_value=model):
             source = self.w.create('grounded-hook-source', 'model')
         sid = source['session']['id']
         approved = self.w.action(sid, 'approve', {'request_id': 'hook-review', 'subject_id': source['review']['subject']['id'], 'reason': 'Reviewed original source.'})
@@ -464,7 +464,7 @@ else:raise AssertionError('Missing acceptance supported a new proposal after res
     def test_unknown_model_result_is_not_repeated_on_prepare_replay(self):
         from acquisition.reasoning import ModelError
         p=self.finalized();model=RevisionModel()
-        with patch('acquisition.workspace.openrouter_key',return_value='fake'),patch('acquisition.workspace.OpenRouter',return_value=model),patch.object(model,'complete',side_effect=ModelError('provider_request_failed')) as dispatch:
+        with patch('acquisition.bootstrap.workspace_key',return_value='fake'),patch('acquisition.bootstrap.workspace_gateway',return_value=model),patch.object(model,'complete',side_effect=ModelError('provider_request_failed')) as dispatch:
             for key in ('initial','retry'):
                 with self.assertRaises(Conflict):self.w.prepare_followup(self.sid,key,p['id'],'model',True)
             self.assertEqual(dispatch.call_count,1)
@@ -485,7 +485,7 @@ else:raise AssertionError('Missing acceptance supported a new proposal after res
                 model=RevisionModel()
                 catalogue_patch=(patch('acquisition.bootstrap.agent_catalogue',side_effect=ValueError('Catalogue unavailable'))
                                  if unavailable else patch('acquisition.bootstrap.agent_catalogue',return_value=changed))
-                with catalogue_patch as catalogue, patch('acquisition.bootstrap.copy_assets',side_effect=AssertionError('Must use frozen contexts')) as rebuild, patch('acquisition.workspace.openrouter_key',return_value='fake'),patch('acquisition.workspace.OpenRouter',return_value=model):
+                with catalogue_patch as catalogue, patch('acquisition.bootstrap.copy_assets',side_effect=AssertionError('Must use frozen contexts')) as rebuild, patch('acquisition.bootstrap.workspace_key',return_value='fake'),patch('acquisition.bootstrap.workspace_gateway',return_value=model):
                     child=w.prepare_followup(self.sid,'frozen-copy',p['id'],'model',True)
                     self.assertTrue(child['review']['candidate_valid'],child['review']['blocked_reasons'])
                     self.assertFalse(child['review']['approval_valid'])

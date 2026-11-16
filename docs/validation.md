@@ -191,6 +191,51 @@ all five focused CI-tool and command-reuse tests passed. The architecture and
 whitespace checks passed. This source/compilation audit validates experiment
 setup; it is not a claim that all 511 mutants were executed in that audit.
 
+## Workspace composition boundary, issue 91
+
+The branch starts from merged #90 (`05f7d9a`). The documented offline smoke
+slice passed all three cases on that merge before implementation: real HTTP
+actions/artifacts, fresh-process acceptance replay and the restartable offline
+fixture journey. CI already runs on `main`; no extra post-merge workflow or live
+provider call is introduced.
+
+`build_workspace` now supplies all facade collaborators. Provider sessions live
+in the model adapter, preparation continuation in its workflow host, campaign
+use cases in the campaign workflow, and CLI dispatch in an injected command
+handler. HTTP transport is separate from startup, so its role still rejects
+bootstrap/provider wiring. Fifteen #91 dependency exceptions and the obsolete
+workspace constructor root-guard exception are removed. Twelve #92 exceptions
+remain; there are no new exceptions or weakened dependency rules.
+
+| Protected outcome | Evidence and failure boundary | Limit |
+| --- | --- | --- |
+| Construction and fixture work consume no model calls | An injected gateway factory stays unused through construction/listing/fixture preparation; explicit model preparation makes six mocked calls and remains unapproved. | Offline mock-provider evidence, not a live inference claim. |
+| Restart cannot repeat a completed generation | A fresh Python process replays the same model campaign with a gateway factory that fails on any construction; the exact subject is retained. Existing interrupted/uncertain reservation tests remain. | No automatic retry of uncertain paid work is introduced. |
+| Ephemeral provider scope remains bounded | Existing browser preparation tests now inject sessions at composition and retain exact frozen model/caps across reconnect. New clock-controlled tests reject expiry at 300 seconds and foreign handles, preserve the original binding after reconnect, and reject the 33rd live connection without revoking the first tab. | The server still supports one worker per root. |
+| Current configuration cannot rewrite historical context | Asset loading is deferred to new work. Existing historical-plan/action tests resume with current catalogue reads made unavailable; frozen admissions remain usable. | New requests continue to require current supported assets and freshness. |
+| Consent, store identity and environment authority keep their owners | Existing preparation, authority, stop/edit, projection-loss and HTTP guard regressions use real SQLite through the new factory/host. Model/key tests inject bootstrap or adapter factories rather than concrete providers inside use cases. | Existing verified execution remains paused apart from explicit offline fixtures. |
+| Relocation cannot silently invalidate mutation evidence | All 511 mutation targets still match once and their mutated sources compile. Four relocated guards retain the same harmful change and behavioral oracle. | Source/compilation checks alone do not establish mutant detection. |
+
+Verification: `make test` passed all 1,029 backend tests on Python 3.14.3
+with loopback access in 1,276.083 seconds. `make interface-check` passed the build,
+formatting check and all 108 browser cases. The two missing/restored-configuration
+browser cases passed again after the final shared CLI/workspace credential
+factory update. All eight affected mutation probes were detected; all 511
+catalogue targets matched once and their mutated sources compiled. The final
+architecture check passed with 181 modules and 12 remaining exceptions.
+`git diff --check` and whitespace checks for all eight new files passed. The
+three-case smoke on merged #90 passed before implementation. No live or paid
+model calls were made.
+
+Publishing verification after rebasing onto #100/#101: the two reusable fixture
+setups retain their isolated database/model copies and now inject through the
+bootstrap boundary. All 103 focused conversation-action, copy-revision, contact,
+CI-tool and workspace-composition cases passed. All nine affected mutation
+probes, including the new exact-payload contact-source probe, were detected.
+All 512 catalogue targets match once and compile; architecture and whitespace
+checks passed. The full backend/browser totals above were established before
+those upstream CI/performance changes and were not repeated after the rebase.
+
 ## Final sequence authority time follow-up
 
 Review of `137db62` found that `authorize` discarded the successful readiness

@@ -15,7 +15,7 @@ from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.reasoning import validate_assets, ModelConfig, ModelError
 from test_conversations import PlannerModel
 from test_copy_revisions import RevisionModel
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 
 
 class AgentAssetTests(unittest.TestCase):
@@ -258,7 +258,7 @@ with patch('acquisition.bootstrap.agent_catalogue',side_effect=ValueError('Curre
         w=Workspace(Path(self.temp.name)/'workspace',real_clock=lambda:1792972800.)
         c=w.create_conversation('c','Assets')['id']
         model=RevisionModel()
-        with patch('acquisition.workspace.openrouter_key',return_value='fake'),patch('acquisition.workspace.OpenRouter',return_value=model):
+        with patch('acquisition.bootstrap.workspace_key',return_value='fake'),patch('acquisition.bootstrap.workspace_gateway',return_value=model):
             w.message_conversation(c,'m',0,'Prepare a £600 contractor campaign with model copy.')
             w.start_preparation(c,'prep',1,False,True)
             for _ in range(6): w.advance_preparations()

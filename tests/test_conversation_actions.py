@@ -18,7 +18,7 @@ from prepared_workspace_fixture import prepared_workspace
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.conversations import ActionNotSaved, FIXTURE_MESSAGE
 from acquisition.reasoning import ModelConfig, ModelError
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from test_model_copy import reply
 from test_preparations import CombinedModel
 
@@ -40,8 +40,8 @@ def _set_up_workspace(self, template=None):
     if template:
         copytree(template['root'], self.root, dirs_exist_ok=True)
     self.w=Workspace(self.root,real_clock=lambda:self.now);self.gateway=copy.deepcopy(template['model']) if template else ActionGateway()
-    for p in (patch('acquisition.workspace.openrouter_key',return_value='fixture'),
-              patch('acquisition.workspace.OpenRouter',return_value=self.gateway)):
+    for p in (patch('acquisition.bootstrap.workspace_key',return_value='fixture'),
+              patch('acquisition.bootstrap.workspace_gateway',return_value=self.gateway)):
         p.start();self.addCleanup(p.stop)
 
 
@@ -498,7 +498,7 @@ class ConversationActionTests(unittest.TestCase):
         self.assertEqual(self.w.conversation(self.c)['revision'],2)
 
     def test_missing_key_keeps_saved_request_blocked_then_resumes_original_identity(self):
-        with patch('acquisition.workspace.openrouter_key',side_effect=ValueError('key missing')):
+        with patch('acquisition.bootstrap.workspace_key',side_effect=ValueError('key missing')):
             value=self.ask('Please explain how this population was chosen.')
             self.assertEqual(value['actions'][0]['status'],'blocked')
             self.w.advance_actions();self.assertEqual(self.gateway.routing_requests,[])
@@ -582,7 +582,7 @@ class ConversationActionTests(unittest.TestCase):
     def test_saved_observation_survives_fresh_process_without_becoming_a_brief_message(self):
         self.ask()
         code='''import json,sys
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 w=Workspace(sys.argv[1],real_clock=lambda:1793404800.)
 v=w.conversation(sys.argv[2]);print(json.dumps({'revision':v['revision'],'messages':len(v['messages']),'answer':v['actions'][0]['result']['text']}))
 '''

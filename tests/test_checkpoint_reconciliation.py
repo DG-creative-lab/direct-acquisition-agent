@@ -11,7 +11,7 @@ from acquisition.contracts import Conflict
 from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.reasoning import CallScope, ModelConfig
 from acquisition.reviews import ReviewPolicy
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 import test_workspace_checkpoint as checkpoint_tests
 from test_conversations import PlannerModel
 

@@ -18,7 +18,7 @@ from acquisition.bootstrap import build
 from acquisition.campaigns import build_draft, brief_from
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.conversations import AudienceSelectionRejected, FIXTURE_MESSAGE
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from test_preparations import CombinedModel
 
 
@@ -29,8 +29,8 @@ class ConversationAudienceTests(unittest.TestCase):
         self.w=Workspace(self.root, real_clock=lambda:self.now)
         self.c=self.w.create_conversation('c','Audience experiment')['id']
         self.model=CombinedModel()
-        for p in (patch('acquisition.workspace.openrouter_key',return_value='fixture'),
-                  patch('acquisition.workspace.OpenRouter',return_value=self.model)):
+        for p in (patch('acquisition.bootstrap.workspace_key',return_value='fixture'),
+                  patch('acquisition.bootstrap.workspace_gateway',return_value=self.model)):
             p.start();self.addCleanup(p.stop)
 
     def waiting(self, model=False):
@@ -82,8 +82,8 @@ class ConversationAudienceTests(unittest.TestCase):
 
     def test_audience_confirmation_cannot_step_a_browser_preparation_after_a_concurrent_tick(self):
         tab, model = str(uuid4()), "vendor/selected"
-        with patch("acquisition.workspace_models.OpenRouter", return_value=self.model), patch(
-            "acquisition.workspace_models.workspace_models", return_value=[{"id": model, "tier": "Standard"}]
+        with patch("acquisition.adapters.models.workspace_sessions.OpenRouter", return_value=self.model), patch(
+            "acquisition.adapters.models.workspace_sessions.workspace_models", return_value=[{"id": model, "tier": "Standard"}]
         ):
             handle = self.w.models.connect("fixture-key-" + "x" * 40, tab)["handle"]
             with self.w.models.browser(handle, tab, model, "Standard"):
@@ -131,7 +131,7 @@ class ConversationAudienceTests(unittest.TestCase):
             self.w=Workspace(self.root,real_clock=lambda:self.now)
             view=self.finish();self.assertEqual(view['review']['manifest']['counts']['input'],100)
         code='''import json,sys
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 w=Workspace(sys.argv[1],real_clock=lambda:1793404800.)
 v=w.conversation(sys.argv[2]);s=w.view(v['campaigns'][0]['session_id'])
 print(json.dumps(s['review']['manifest']['brief']['audience_source']))
@@ -314,7 +314,7 @@ print(json.dumps(s['review']['manifest']['brief']['audience_source']))
     def test_copy_revision_keeps_selected_source_and_requires_new_subject_approval(self):
         from test_copy_revisions import RevisionModel
         model=RevisionModel()
-        with patch('acquisition.workspace.OpenRouter',return_value=model):
+        with patch('acquisition.bootstrap.workspace_gateway',return_value=model):
             self.waiting(model=True);receipt=self.choose()['audience_receipt'];base=self.finish()
             sid=base['session']['id'];subject=base['review']['subject']['id']
             self.w.action(sid,'approve',{'request_id':'approve','subject_id':subject,'reason':'Reviewed source and campaign.'})

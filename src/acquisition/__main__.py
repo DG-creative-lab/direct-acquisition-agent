@@ -2,12 +2,10 @@ import argparse
 import json
 from pathlib import Path
 
-from acquisition.bootstrap import build
+from acquisition.bootstrap import build_cli_application, model_catalogue
+from acquisition.application.cli_commands import run_command
 from acquisition.contracts import Conflict, NotFound
-from acquisition.local_root import inspection_only
-from acquisition.adapters.environment import openrouter_key
-from acquisition.adapters.openrouter import OpenRouter, inexpensive_models
-from acquisition.reasoning import ModelConfig, ModelError
+from acquisition.reasoning import ModelError
 from acquisition.learning_cli import add_learning_commands, learning_command
 from acquisition.learning_demo import run_learning_demo
 from acquisition.review_cli import add_review_commands, review_command
@@ -55,61 +53,20 @@ def main() -> None:
     args = parser.parse_args()
     try:
         if args.command == "models":
-            print(json.dumps(inexpensive_models(), indent=2))
+            print(json.dumps(model_catalogue(), indent=2))
             return
         if args.command == "demo-learning":
             if args.verified_admissions:raise ValueError('Verified admissions are paused; the complete learning demo requires execution')
             print(json.dumps(run_learning_demo(args.db, args.organization, args.request_id, args.out), indent=2))
             return
         model = args.model or ("openai/gpt-oss-120b" if args.command in {"create-model", "demo-model"} else None)
-        from acquisition.bootstrap import build_admissions
-        admission_store=build_admissions(args.db,verified_admissions=args.verified_admissions or args.command=='admission-cutover')
-        gateway = OpenRouter(openrouter_key(args.env_file)) if model and not inspection_only(args.db) and not admission_store.required() else None
-        force_tools = args.tool_choice == "required" if args.tool_choice else model == "openai/gpt-oss-120b"
-        config = ModelConfig(model, max_calls=args.model_max_calls, force_tool_choice=force_tools) if model else None
-        app = build(args.db, gateway=gateway, model_config=config)
-        scope = args.organization
-        if args.command=='admission-cutover':
-            result={'policy':'verified-paused/v1','execution':'fixture-only' if admission_store.fixture_execution() else 'paused'}
-        elif args.command=='execution-unresolved':
-            result=app.execution.unresolved(scope)
-        elif args.command=='execution-resolve-independent':
-            result=app.execution.resolve_independent(scope,args.request_id,args.run,args.fingerprint,args.actor,args.reason)
-        elif args.command.startswith("learning-"):
-            result = learning_command(app, args)
-        elif args.command.startswith("review-") or args.command == "demo-review":
-            result = review_command(app, args)
-        elif args.command in {"create", "demo", "create-model", "demo-model"}:
-            start = app.start_model if args.command.endswith("model") else app.start
-            run_id = start(scope, args.request_id, args.size, args.seed, args.budget_pence, args.as_of, campaign_id=args.campaign_id,
-                           **({'parent_run_id':args.parent_run} if args.parent_run else {}))
-            result = {"run_id": run_id, "mode": "synthetic_generated_unreviewed" if args.command.endswith("model") else "synthetic_day_one_no_release"}
-            if args.command.startswith("demo"):
-                result["worker_ticks"] = app.worker.drain(scope)
-                result["state"] = app.tasks.inspect(scope, run_id)
-                if result["state"]["run"]["status"] in {"waiting", "succeeded"}:
-                    result["export_directory"] = str(app.export(scope, run_id, Path(".local/exports")).resolve())
-                if args.command.endswith("model"):
-                    result["model_calls"] = app.calls.inspect(scope, run_id)
-                if result["state"]["run"]["status"] == "failed":
-                    print(json.dumps(result, indent=2))
-                    parser.exit(1, "Workflow failed; inspect its task and model receipts.\n")
-        elif args.command == "work":
-            result = {"worker_ticks": app.worker.drain(scope, args.max_tasks)}
-        elif args.command == "status":
-            result = app.tasks.inspect(scope, args.run)
-        elif args.command == "calls":
-            result = app.calls.inspect(scope, args.run)
-        elif args.command == "remember":
-            result = {"memory_id": app.memory.remember(scope, args.segment, args.preferred, args.avoid, args.reason)}
-        elif args.command == "export":
-            result = {"export_directory": str(app.export(scope, args.run, args.out).resolve())}
-        else:
-            if args.command == "acknowledge":
-                app.tasks.acknowledge(scope, args.run, args.reference, app.clock())
-            else:
-                app.tasks.cancel(scope, args.run, app.clock())
-            result = app.tasks.inspect(scope, args.run)
+        app = build_cli_application(args.db, model=model, max_calls=args.model_max_calls,
+                                    tool_choice=args.tool_choice, env_file=args.env_file,
+                                    verified_admissions=args.verified_admissions or args.command=='admission-cutover')
+        result = run_command(app, args, learning_command=learning_command, review_command=review_command)
+        if args.command.startswith('demo') and result.get('state', {}).get('run', {}).get('status') == 'failed':
+            print(json.dumps(result, indent=2))
+            parser.exit(1, "Workflow failed; inspect its task and model receipts.\n")
         print(json.dumps(result, indent=2))
     except (ValueError, Conflict, NotFound, ModelError) as error:
         parser.exit(2, f"{type(error).__name__}: {error}\n")

@@ -11,7 +11,7 @@ async function workspace(scenario, run) {
 import sys, time
 from pathlib import Path
 from unittest.mock import patch
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from acquisition.workspace_server import WorkspaceServer
 from acquisition.reasoning import ModelError
 from test_copy_revisions import RevisionModel
@@ -33,8 +33,8 @@ class Gateway:
                     if time.monotonic() >= deadline: raise ModelError('provider_request_failed')
                     time.sleep(0.01)
         return original(request)
-patch('acquisition.workspace.openrouter_key', return_value='fake').start()
-patch('acquisition.workspace.OpenRouter', return_value=Gateway()).start()
+patch('acquisition.bootstrap.workspace_key', return_value='fake').start()
+patch('acquisition.bootstrap.workspace_gateway', return_value=Gateway()).start()
 w=Workspace(sys.argv[1], real_clock=lambda:1792972800.0)
 c=w.create_conversation('c','Campaign for copy review')['id']
 offline=sys.argv[2].startswith('handoff')
@@ -55,13 +55,13 @@ if sys.argv[2] == 'partial-delivery':
     w._app(session).reviews.store.handoff(session['organization'],session['case_id'],approval,'local-operator','partial',simulation='partial')
 if sys.argv[2] in {'missing-key','recover-key'}:
     original_revision=w.request_copy_revision
-    def restored_key(path):
+    def restored_key():
         if sys.argv[2] == 'recover-key' and (Path(sys.argv[1])/'restore-key').exists(): return 'fake'
         raise ModelError('private-key-error-sentinel')
     def admit_then_remove_key(*args, **kwargs):
         with w.lock:
             result=original_revision(*args, **kwargs)
-            patch('acquisition.workspace.openrouter_key', side_effect=restored_key).start()
+            patch('acquisition.bootstrap.workspace_key', side_effect=restored_key).start()
             return result
     w.request_copy_revision=admit_then_remove_key
 if sys.argv[2] == 'historical-dialog':

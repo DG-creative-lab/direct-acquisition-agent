@@ -13,7 +13,7 @@ from acquisition.bootstrap import initialize_fixture_workspace
 from acquisition.contracts import Conflict, NotFound, digest
 from acquisition.reasoning import ModelError
 from acquisition.conversations import FIXTURE_MESSAGE
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from test_conversation_actions import _set_up_workspace
 from test_conversations import proposal
 from test_preparations import CombinedModel
@@ -23,7 +23,7 @@ import test_conversation_learning as learning_tests
 def restart(test, conversation_id, action_id, *, confirmed=False):
     script = """
 import json, sys
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 root, cid, action_id, clock, confirm = sys.argv[1:]
 w = Workspace(root, real_clock=lambda: float(clock))
 if confirm == 'True':
@@ -172,8 +172,8 @@ class TypedPrepareTests(unittest.TestCase):
         planner, router = CombinedModel(), self.gateway
         router.action = "prepare_campaign"
         model, tab = "vendor/selected", str(uuid4())
-        with patch("acquisition.workspace_models.OpenRouter") as adapter, patch(
-            "acquisition.workspace_models.workspace_models", return_value=[{"id": model, "tier": "Standard"}]
+        with patch("acquisition.adapters.models.workspace_sessions.OpenRouter") as adapter, patch(
+            "acquisition.adapters.models.workspace_sessions.workspace_models", return_value=[{"id": model, "tier": "Standard"}]
         ):
             adapter.side_effect = lambda key: planner if key.endswith("a") else adapter.return_value
             adapter.return_value.complete.side_effect = router.complete

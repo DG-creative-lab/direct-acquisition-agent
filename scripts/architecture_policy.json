@@ -13,6 +13,8 @@
     "acquisition.adapters.local_audiences": "adapter",
     "acquisition.adapters.local_profiles": "adapter",
     "acquisition.adapters.local_reports": "adapter",
+    "acquisition.adapters.models": "adapter",
+    "acquisition.adapters.models.workspace_sessions": "adapter",
     "acquisition.adapters.openrouter": "adapter",
     "acquisition.adapters.recipient_fixtures": "adapter",
     "acquisition.adapters.review_report": "adapter",
@@ -67,6 +69,7 @@
     "acquisition.adapters.sqlite.writing_preferences": "adapter",
     "acquisition.adapters.synthetic": "adapter",
     "acquisition.application": "public_api",
+    "acquisition.application.cli_commands": "application",
     "acquisition.application.workspace": "public_api",
     "acquisition.application.workspace.ports": "ports",
     "acquisition.application.workspace.state": "application",
@@ -157,9 +160,12 @@
     "acquisition.runtime.domain": "domain",
     "acquisition.runtime.ports": "ports",
     "acquisition.sequence_cli": "entrypoint",
+    "acquisition.transport": "transport",
+    "acquisition.transport.workspace_http": "transport",
     "acquisition.workflows": "workflow",
     "acquisition.workflows.admission_coverage": "workflow",
     "acquisition.workflows.audience_discovery": "workflow",
+    "acquisition.workflows.campaign_application": "workflow",
     "acquisition.workflows.channel_content": "workflow",
     "acquisition.workflows.conversation": "workflow",
     "acquisition.workflows.conversational_actions": "workflow",
@@ -167,41 +173,17 @@
     "acquisition.workflows.learning": "workflow",
     "acquisition.workflows.model_mail": "workflow",
     "acquisition.workflows.monthly_mail": "workflow",
+    "acquisition.workflows.preparation_host": "workflow",
     "acquisition.workflows.profile_preparation": "workflow",
     "acquisition.workflows.sequences": "workflow",
     "acquisition.workflows.workspace_state": "workflow",
     "acquisition.workspace": "application",
     "acquisition.workspace_checkpoint": "entrypoint",
     "acquisition.workspace_fixture": "entrypoint",
-    "acquisition.workspace_models": "application",
     "acquisition.workspace_rebuild": "entrypoint",
-    "acquisition.workspace_server": "transport"
+    "acquisition.workspace_server": "entrypoint"
   },
   "exceptions": [
-    {
-      "module": "acquisition.__main__",
-      "rule": "layer",
-      "target": "acquisition.adapters.environment.openrouter_key",
-      "occurrences": 1,
-      "reason": "Workspace/CLI still selects concrete service or provider implementations; inject collaborators through bootstrap.",
-      "issue": 91
-    },
-    {
-      "module": "acquisition.__main__",
-      "rule": "layer",
-      "target": "acquisition.adapters.openrouter.OpenRouter",
-      "occurrences": 1,
-      "reason": "Workspace/CLI still selects concrete service or provider implementations; inject collaborators through bootstrap.",
-      "issue": 91
-    },
-    {
-      "module": "acquisition.__main__",
-      "rule": "layer",
-      "target": "acquisition.adapters.openrouter.inexpensive_models",
-      "occurrences": 1,
-      "reason": "Workspace/CLI still selects concrete service or provider implementations; inject collaborators through bootstrap.",
-      "issue": 91
-    },
     {
       "module": "acquisition.adapters.sqlite.contacts",
       "rule": "private-api",
@@ -275,86 +257,6 @@
       "issue": 92
     },
     {
-      "module": "acquisition.workspace",
-      "rule": "infrastructure",
-      "target": "pathlib.Path",
-      "occurrences": 1,
-      "issue": 91,
-      "reason": "Workspace loads filesystem configuration; inject reviewed assets through composition."
-    },
-    {
-      "module": "acquisition.workspace",
-      "rule": "layer",
-      "target": "acquisition.adapters.environment.openrouter_key",
-      "occurrences": 1,
-      "reason": "Workspace/CLI still selects concrete service or provider implementations; inject collaborators through bootstrap.",
-      "issue": 91
-    },
-    {
-      "module": "acquisition.workspace",
-      "rule": "layer",
-      "target": "acquisition.adapters.openrouter.OpenRouter",
-      "occurrences": 1,
-      "reason": "Workspace/CLI still selects concrete service or provider implementations; inject collaborators through bootstrap.",
-      "issue": 91
-    },
-    {
-      "module": "acquisition.workspace",
-      "rule": "layer",
-      "target": "acquisition.bootstrap.agent_catalogue",
-      "occurrences": 1,
-      "reason": "Workspace/CLI still selects concrete service or provider implementations; inject collaborators through bootstrap.",
-      "issue": 91
-    },
-    {
-      "module": "acquisition.workspace",
-      "rule": "layer",
-      "target": "acquisition.bootstrap.build",
-      "occurrences": 1,
-      "reason": "Workspace/CLI still selects concrete service or provider implementations; inject collaborators through bootstrap.",
-      "issue": 91
-    },
-    {
-      "module": "acquisition.workspace",
-      "rule": "layer",
-      "target": "acquisition.bootstrap.build_admissions",
-      "occurrences": 1,
-      "reason": "Workspace/CLI still selects concrete service or provider implementations; inject collaborators through bootstrap.",
-      "issue": 91
-    },
-    {
-      "module": "acquisition.workspace",
-      "rule": "layer",
-      "target": "acquisition.bootstrap.build_preparations",
-      "occurrences": 1,
-      "reason": "Workspace/CLI still selects concrete service or provider implementations; inject collaborators through bootstrap.",
-      "issue": 91
-    },
-    {
-      "module": "acquisition.workspace",
-      "rule": "layer",
-      "target": "acquisition.bootstrap.build_workspace_state",
-      "occurrences": 1,
-      "reason": "Workspace/CLI still selects concrete service or provider implementations; inject collaborators through bootstrap.",
-      "issue": 91
-    },
-    {
-      "module": "acquisition.workspace",
-      "rule": "layer",
-      "target": "acquisition.bootstrap.verified_admission_mode",
-      "occurrences": 1,
-      "reason": "Workspace/CLI still selects concrete service or provider implementations; inject collaborators through bootstrap.",
-      "issue": 91
-    },
-    {
-      "module": "acquisition.workspace",
-      "rule": "layer",
-      "target": "acquisition.local_root.require_live_root",
-      "occurrences": 1,
-      "reason": "Legacy root-level command/facade directly accesses infrastructure; separate application, transport and startup roles.",
-      "issue": 92
-    },
-    {
       "module": "acquisition.workspace_checkpoint",
       "rule": "infrastructure",
       "target": "sqlite3",
@@ -369,30 +271,6 @@
       "occurrences": 1,
       "issue": 92,
       "reason": "Legacy inspection/fixture command imports SQLite exceptions directly; move storage error handling into its adapter."
-    },
-    {
-      "module": "acquisition.workspace_models",
-      "rule": "layer",
-      "target": "acquisition.adapters.openrouter.OpenRouter",
-      "occurrences": 1,
-      "reason": "Workspace/CLI still selects concrete service or provider implementations; inject collaborators through bootstrap.",
-      "issue": 91
-    },
-    {
-      "module": "acquisition.workspace_models",
-      "rule": "layer",
-      "target": "acquisition.adapters.openrouter.WORKSPACE_PRICE_TIERS",
-      "occurrences": 1,
-      "reason": "Workspace/CLI still selects concrete service or provider implementations; inject collaborators through bootstrap.",
-      "issue": 91
-    },
-    {
-      "module": "acquisition.workspace_models",
-      "rule": "layer",
-      "target": "acquisition.adapters.openrouter.workspace_models",
-      "occurrences": 1,
-      "reason": "Workspace/CLI still selects concrete service or provider implementations; inject collaborators through bootstrap.",
-      "issue": 91
     },
     {
       "module": "acquisition.workspace_rebuild",

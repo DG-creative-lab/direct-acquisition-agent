@@ -21,7 +21,7 @@ from acquisition.conversations.legacy_migration import classify_inventory
 from acquisition.adapters.sqlite.database import Database
 from acquisition.adapters.sqlite.legacy_inventory import SqliteLegacyInventory
 from acquisition.reasoning import ModelConfig, ModelError
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from test_conversations import PlannerModel
 
 
@@ -120,7 +120,7 @@ class LegacyInventoryTests(unittest.TestCase):
         before=self.facts();binary=self.byte_facts()
         with patch.object(Database,'transaction',side_effect=AssertionError('inspection write')), \
              patch('acquisition.bootstrap.agent_catalogue',side_effect=AssertionError('current guidance')), \
-             patch('acquisition.workspace.OpenRouter',side_effect=AssertionError('provider')):
+             patch('acquisition.bootstrap.workspace_gateway',side_effect=AssertionError('provider')):
             report=self.inspect()
         for kind in ('environment','session'):
             item=next(r for r in report['records'] if r['kind']==kind and r['key']==session['id'])

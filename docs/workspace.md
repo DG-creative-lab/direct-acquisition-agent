@@ -2,6 +2,30 @@
 
 React and TypeScript provide the local interface; Vite produces static assets served by the Python loopback server. Population rules, grounded copy, exact-subject review and mature outcome learning are enforced in the Python application.
 
+## Smoke testing after a merge
+
+CI runs on pushes to `main`, so it checks the merged commit as well as each PR.
+For composition or persistence changes, also run this short offline slice from
+the merged checkout:
+
+```sh
+PYTHONPATH=src:tests python3 -m unittest \
+  test_workspace.WorkspaceHttpTests.test_real_http_json_actions_artifacts_and_input_boundaries \
+  test_conversation_handoff.ConversationHandoffTests.test_fresh_process_replays_one_acceptance_after_partial_control_acknowledgement \
+  test_fixture_activation.FixtureActivationTests.test_offline_journey_restarts_after_draft_commit_and_finishes_once -v
+```
+
+These tests use fresh temporary roots and real SQLite. They cover loopback API
+actions/artifacts, an unapproved fixture draft, restart/replay of one simulated
+acceptance, and the offline fixture journey. They do not use a live model or
+existing workspace data. UI/startup changes also require `make interface-check`,
+which builds and exercises the compiled React workspace. A smoke run complements
+the required backend and architecture gates; it does not replace them.
+
+Python callers construct the composed workspace with
+`acquisition.bootstrap.build_workspace(root, ...)`. The `Workspace` class itself
+receives its dependencies and does not select adapters.
+
 ## Start locally
 
 Requires Python 3.14+, Node 22.12+ and pnpm 10.33+ on macOS or Linux. The local server uses a POSIX file lock to permit one server process per workspace root.

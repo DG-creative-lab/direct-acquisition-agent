@@ -18,7 +18,7 @@ from acquisition.contracts import Conflict, digest
 from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.reasoning import CallScope, ModelConfig, ModelError
 from acquisition.runtime import Claim, LeaseLost, Outcome, TaskSpec
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 import test_admission_workflow_coverage as coverage
 import test_copy_revisions as revisions
 import test_followups as followups
@@ -297,7 +297,7 @@ class ConversationEntrypointTests(unittest.TestCase):
         self.assertEqual(app.calls.inspect('local-conversations',plan['run_id']),[])
 
     def test_model_planning_needs_no_key_and_cannot_downgrade_consent(self):
-        with patch('acquisition.workspace.openrouter_key',side_effect=AssertionError('Loaded a key')):
+        with patch('acquisition.bootstrap.workspace_key',side_effect=AssertionError('Loaded a key')):
             self.w.start_preparation(self.cid,'prepare',1,False,False)
         app=self.w._conversation_app(with_model=True)
         view=self.w.conversation(self.cid);request=view['preparations'][0]['plan_request_id']
@@ -325,7 +325,7 @@ class ConversationEntrypointTests(unittest.TestCase):
         self.assertEqual(app.actions.reconcile('local-conversations',row),run)
 
     def test_public_followup_progress_reports_pause_without_requesting_credentials(self):
-        with patch('acquisition.workspace.openrouter_key',side_effect=AssertionError('Loaded a provider key')):
+        with patch('acquisition.bootstrap.workspace_key',side_effect=AssertionError('Loaded a provider key')):
             self.w.route_followup(self.cid,'question',1,'What should I consider next?',False)
             self.w.advance_actions()
             action=self.w.conversation(self.cid)['actions'][0]

@@ -19,7 +19,7 @@ for (const failure of [
 import sys
 from pathlib import Path
 from unittest.mock import patch
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from acquisition.workspace_server import WorkspaceServer
 from acquisition.reasoning import ModelError
 from acquisition.contracts import Conflict
@@ -28,7 +28,7 @@ w = Workspace(Path(sys.argv[1]), real_clock=lambda: 1792972800.0)
 c = w.create_conversation('failure', 'Failed generation example')
 w.message_conversation(c['id'], 'message', 0, 'Use £300 and model copy for contractors.')
 model = PlannerModel(proposal(budget_pence=30000, copy_mode='model'))
-with patch('acquisition.workspace.openrouter_key', return_value='fixture'), patch('acquisition.workspace.OpenRouter', return_value=model):
+with patch('acquisition.bootstrap.workspace_key', return_value='fixture'), patch('acquisition.bootstrap.workspace_gateway', return_value=model):
     p = w.plan_conversation(c['id'], 'plan', 1)['current_plan']['result']
     failure = sys.argv[2]
     with patch.object(model, 'complete', side_effect=KeyboardInterrupt() if failure == 'reserved' else ModelError(failure)):

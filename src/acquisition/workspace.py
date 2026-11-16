@@ -7,16 +7,11 @@ import re
 import threading
 import time
 from datetime import datetime, timezone
-from pathlib import Path
 
-from acquisition.bootstrap import build, build_admissions, build_preparations, build_workspace_state, verified_admission_mode, agent_catalogue
 from acquisition.conversations import ACTIVE_PREPARATION, AudienceSelectionRejected, ActionNotSaved, pending_copy_clarification, EnvironmentIntent, FIXTURE_MESSAGE, TYPED_ACTION_ALIASES, action_alias
 from acquisition.conversations import MessageRejectedConflict, MessageRejectedInvalid, MessageRejectedNotFound
-from acquisition.adapters.environment import openrouter_key
-from acquisition.adapters.openrouter import OpenRouter
-from acquisition.application.workspace import WorkspaceStorageUnavailable
+from acquisition.application.workspace import WorkspaceStorageUnavailable, WorkspaceApplications, WorkspaceModelSessions, WorkspaceStateAccess
 from acquisition.contracts import Conflict, NotFound, canonical, digest
-from acquisition.local_root import require_live_root
 from acquisition.learning import finite, identifier
 from acquisition.reasoning import ModelConfig
 from acquisition.creative import validate_fact_pack, fixture_catalog, historical_hook
@@ -24,7 +19,6 @@ from acquisition.learning import followup_hypotheses
 from acquisition.campaigns import FollowupBrief, build_draft, brief_from
 from dataclasses import replace
 from acquisition.reviews import ReviewPolicy, text, ActorUnavailable
-from acquisition.workspace_models import WorkspaceModels
 
 
 def _partial_delivery(review):
@@ -55,23 +49,26 @@ class MonitoringRejected(ValueError):
 
 
 class Workspace:
-    def __init__(self, root, real_clock=time.time, *, verified_admissions=False):
+    def __init__(self, root, real_clock, *, applications: WorkspaceApplications, state_access: WorkspaceStateAccess, models: WorkspaceModelSessions, assets, lock,
+                 legacy_preparations, owned_preparations, preparation_host, verified_admissions=False):
         if type(verified_admissions) is not bool:raise ValueError('Choose an explicit admission mode')
-        self._requested_verified=verified_admissions
+        self._requested_verified = verified_admissions
         self.real_clock = real_clock
-        self.root = Path(root)
-        require_live_root(self.root)
-        self.root.mkdir(parents=True, exist_ok=True)
-        self.lock = threading.RLock()
-        self.models = WorkspaceModels()
+        self.root = root
+        self.lock = lock
+        self.models = models
+        self._applications = applications
         self._browser_tick = threading.Lock()
-        self._state_access = build_workspace_state(self.root, self.real_clock)
-        self.control_store = self._state_access.control
-        self._storage_faults = self._state_access.storage_faults
-        self._legacy_preparations = build_preparations(self.root / "workspace.sqlite", self)
+        self._state_access = state_access
+        self.control_store = state_access.control
+        self._storage_faults = state_access.storage_faults
+        self._legacy_preparations = legacy_preparations
+        self._owned_preparation_factory = owned_preparations
         self._owned_preparations = None
+        self.preparation_host = preparation_host
         self._authority = None
-        self.pack = json.loads((Path(__file__).resolve().parents[2] / "config/iwoca-product-facts-v1.json").read_text())
+        self.pack = assets['product_facts']
+        self._knowledge = assets['knowledge']
 
     @property
     def authority(self):
@@ -84,7 +81,7 @@ class Workspace:
     def preparations(self):
         if not self._verified_mode():return self._legacy_preparations
         if self._owned_preparations is None:
-            self._owned_preparations=build_preparations(self.root/'conversations.sqlite',self,authoritative=True)
+            self._owned_preparations=self._owned_preparation_factory()
         return self._owned_preparations
 
     def _sessions(self,*,reverse=False):
@@ -145,9 +142,7 @@ class Workspace:
         return json.loads(row["payload"])
 
     def _model_gateway(self, config):
-        if config.browser_binding:
-            return self.models.gateway(config)
-        return OpenRouter(openrouter_key(Path(".env.local")))
+        return self.models.gateway(config)
 
     def _app(self, session, with_model=False, *, revision_admission=False, model_config=None):
         verified=self._verified_mode()
@@ -162,26 +157,17 @@ class Workspace:
         # Each sandbox has its own durable clock. Live generation starts at real
         # time; explicit outcome simulation alone can advance the sandbox clock.
         conversation_db = session.get("database_scope") == "conversations" or session.get("conversation_plan") or session["organization"] == "local-conversations"
-        database = self.root / "conversations.sqlite" if conversation_db else self.root / session["organization"] / "campaign.sqlite"
         if verified and authoritative is None:
-            # Legacy routing is an inspection hint only, never a new clock grant.
             if session['organization']!='local-conversations' and not re.fullmatch(r'workspace_[0-9a-f]{24}',session['organization']):
                 raise Conflict('Legacy application scope is unavailable')
-            if not database.is_file() or not database.resolve().is_relative_to(self.root.resolve()):
-                raise Conflict('Restore the original legacy application store before inspection')
         clock=(lambda:self.authority.clock(session['id'],self.real_clock())) if authoritative is not None else self.real_clock if verified else (lambda:max(self.real_clock(),session['clock']) if session.get('clock_mode')=='REAL' else session['clock'])
-        return build(database,clock=clock,gateway=gateway,model_config=config,workspace_organization=session['organization'],
-                     verified_admissions=verified, preference_organization='local-conversations' if conversation_db else None,
-                     **({'execution_clock': self.real_clock} if verified else {}))
+        return self._applications.campaign(session['organization'], 'conversations' if conversation_db else 'campaign', clock,
+                    verified=verified, legacy=authoritative is None, gateway=gateway, model_config=config)
 
     def _verified_mode(self):
-        # Only the root's authoritative application store selects this format.
-        # Constructing Workspace before acquiring the server lock does not seal.
-        path=self.root/'conversations.sqlite'
-        if self._requested_verified:
-            build_admissions(path,self.real_clock,verified_admissions=True)
-            self._requested_verified=False
-        return path.exists() and verified_admission_mode(path)
+        verified = self._applications.verified_mode(select=self._requested_verified)
+        self._requested_verified = False
+        return verified
 
     def listing(self):
         sessions=self._sessions(reverse=True)[:50]
@@ -193,7 +179,7 @@ class Workspace:
         verified=self._verified_mode()
         config = model_config or (self.models.selected(2) if with_model else None)
         gateway = self._model_gateway(config) if with_model and not verified else None
-        return build(self.root / "conversations.sqlite", clock=self.real_clock, gateway=gateway, model_config=config, workspace_organization='local-conversations',verified_admissions=verified)
+        return self._applications.conversation(verified=verified, gateway=gateway, model_config=config)
 
     def conversations(self):
         return {"conversations": self._conversation_app().conversations.store.listing("local-conversations")}
@@ -205,13 +191,7 @@ class Workspace:
         return self._conversation_app().audience_discovery.inspect("local-conversations", dataset_id, version, checksum, manifest_id)
 
     def knowledge(self):
-        config = Path(__file__).resolve().parents[2] / "config"
-        playbooks = json.loads((config / "campaign-playbooks-v1.json").read_text())
-        editorial = json.loads((config / "editorial-v3.json").read_text())
-        return {"agent_catalogue": agent_catalogue(), "playbooks": playbooks, "product_facts": self.pack,
-                "editorial": {"version": editorial["version"], "rules": editorial["rules"],
-                              "situations": editorial["situations"]},
-                "learning": "Synthetic outcome memory is scoped to each campaign and is advisory. Inspect it in Learning."}
+        return self._knowledge()
 
     def conversation(self, conversation_id):
         self._ensure_descendant_links()
@@ -628,7 +608,7 @@ class Workspace:
                     value |= {'status':'blocked','detail':'Restore the original routing model and limits to resume this saved request.'}
                 else:
                     try:
-                        if not openrouter_key(Path('.env.local')):
+                        if not self.models.legacy_available():
                             raise ValueError("Missing server key")
                     except ValueError:
                         value |= {'status':'blocked','detail':'Routing is waiting for the server-side OpenRouter key. Restore it to resume this saved request.'}
@@ -758,23 +738,13 @@ class Workspace:
             raise NotFound("Conversation organization is not available in this workspace")
 
     def freeze_preparation_plan(self, organization, conversation_id, request_id, revision, fixture, model_config=None):
-        self._preparation_scope(organization)
-        app = self._conversation_app(with_model=not fixture, model_config=model_config)
-        return app.conversations.planning_context(organization, conversation_id, request_id, revision, fixture)
+        return self.preparation_host.freeze_preparation_plan(organization, conversation_id, request_id, revision, fixture, model_config)
 
     def admit_preparation_plan(self, organization, row):
-        self._preparation_scope(organization)
-        inputs = row["inputs"]
-        config = row['planning_context'].get('model_config')
-        app = self._conversation_app(with_model=not inputs["fixture"], model_config=self.models.frozen(config))
-        plan = app.conversations.plan_fixture if inputs["fixture"] else app.conversations.plan
-        return plan(organization, inputs["conversation_id"], row["plan_request_id"], inputs["revision"],
-                    frozen_context=row["planning_context"])
+        return self.preparation_host.admit_preparation_plan(organization, row)
 
     def preparation_source(self, organization, conversation_id):
-        self._preparation_scope(organization)
-        app = self._conversation_app()
-        return app.conversations.view(organization, conversation_id) | {'execution':app.execution.view(organization,conversation_id)}
+        return self.preparation_host.preparation_source(organization, conversation_id)
 
     def stop_execution(self, conversation_id, request_id, expected_revision):
         # Deliberately independent of the executor lock: a provider call may be in flight.
@@ -879,30 +849,16 @@ class Workspace:
             self._restore_checkpoint_reviews(receipt)
 
     def step_preparation_plan(self, organization, row):
-        self._preparation_scope(organization)
-        with self.lock:
-            config = row['planning_context'].get('model_config')
-            app = self._conversation_app(with_model=not row["inputs"]["fixture"], model_config=self.models.frozen(config))
-            app.worker.tick(organization, run_id=row["run_id"])
-            return self._run_generation(app, organization, row["run_id"])
+        return self.preparation_host.step_preparation_plan(organization, row)
 
     def step_preparation_campaign(self, organization, row, plan):
-        self._preparation_scope(organization)
-        return self.draft_conversation(row["inputs"]["conversation_id"], row["id"] + ":draft",
-                                       row["inputs"]["revision"], plan["id"], partial=True)
+        return self.preparation_host.step_preparation_campaign(organization, row, plan)
 
     def preparation_audience_selected(self, organization, row, plan):
-        self._preparation_scope(organization)
-        selected = self._conversation_app().conversation_audiences.store.get(organization, row['inputs']['conversation_id'], row['inputs']['revision'])
-        return selected is not None and selected['plan_id'] == plan['id']
+        return self.preparation_host.preparation_audience_selected(organization, row, plan)
 
     def preparation_uses_catalogue(self, organization, row):
-        self._preparation_scope(organization)
-        inputs = row['inputs']
-        return bool(inputs.get('use_audience_catalogue') or (
-            inputs['fixture'] and row['request_id'].startswith('typed_effect_')
-            and self._conversation_app().actions.store.is_typed_fixture_preparation(
-                organization, inputs['conversation_id'], inputs['revision'], row['request_id'])))
+        return self.preparation_host.preparation_uses_catalogue(organization, row)
 
     def select_conversation_audience(self, conversation_id, **inputs):
         try:
@@ -924,16 +880,12 @@ class Workspace:
         row = self.control_store.draft_request(conversation_id, request_id)
         return row['session_id'] if row else None
 
+    def draft_generation(self, conversation_id, request_id):
+        session_id = self._draft_session_id(conversation_id, request_id)
+        return self._generation(self._session(session_id)) if session_id else None
+
     def preparation_generation(self, organization, row):
-        self._preparation_scope(organization)
-        session_id=self._draft_session_id(row['inputs']['conversation_id'],row['id']+':draft')
-        if session_id:return self._generation(self._session(session_id))
-        app=self._conversation_app();run_id=row['run_id']
-        if run_id is None:
-            source=app.conversations.view(organization,row['inputs']['conversation_id'])
-            plan=next((p for p in source['plans'] if p['request_id']==row['plan_request_id']),None)
-            run_id=plan['run_id'] if plan else None
-        return self._run_generation(app,organization,run_id) if run_id else None
+        return self.preparation_host.preparation_generation(organization, row)
 
     def start_preparation(self, conversation_id, request_id, expected_revision, fixture, allow_model_copy, use_audience_catalogue=False):
         self.preparations.admit("local-conversations", conversation_id, request_id, expected_revision, fixture, allow_model_copy, use_audience_catalogue)

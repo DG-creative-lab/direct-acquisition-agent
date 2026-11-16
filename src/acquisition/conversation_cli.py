@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace
 from acquisition.contracts import Conflict
 
 
@@ -27,7 +27,7 @@ def main():
             sub.add_argument("--content", required=True)
     args = parser.parse_args()
     try:
-        workspace = Workspace(args.root,verified_admissions=args.verified_admissions)
+        workspace = build_workspace(args.root,verified_admissions=args.verified_admissions)
     except (Conflict, BlockingIOError) as error:
         parser.exit(2, str(error) + "\n")
     if args.command == "new":

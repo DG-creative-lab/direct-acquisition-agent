@@ -11,7 +11,7 @@ async function fakeWorkspace(scenario, run) {
 import sys, time
 from pathlib import Path
 from unittest.mock import patch
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from acquisition.workspace_server import WorkspaceServer
 from acquisition.reasoning import ModelError
 from test_preparations import CombinedModel
@@ -34,8 +34,8 @@ class Gateway:
                 raise KeyboardInterrupt()
             raise ModelError('provider_request_failed')
         return original(request)
-patch('acquisition.workspace.openrouter_key', return_value='fixture').start()
-patch('acquisition.workspace.OpenRouter', return_value=Gateway()).start()
+patch('acquisition.bootstrap.workspace_key', return_value='fixture').start()
+patch('acquisition.bootstrap.workspace_gateway', return_value=Gateway()).start()
 w = Workspace(Path(sys.argv[1]), real_clock=lambda: 1792972800.0)
 if scenario in {'reserved', 'legacy-stale-uncertain'}:
     c = w.create_conversation('new', 'Interrupted generation')['id']
