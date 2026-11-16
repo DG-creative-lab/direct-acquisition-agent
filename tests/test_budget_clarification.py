@@ -455,6 +455,7 @@ class HistoricalBudgetTests(unittest.TestCase):
                 with patch.object(SqliteConversations, 'admit', historical_admission):
                     run = self.plan()
                 question = self.finish()
+                self.assertIn('budget_clarification', question)
                 self.assertEqual(question['budget_clarification']['reason'], reason)
                 self.assertEqual(len(self.model.requests), calls_before)
                 self.app = self.open()

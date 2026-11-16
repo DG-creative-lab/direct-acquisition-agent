@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from acquisition.bootstrap import initialize_fixture_workspace
 from acquisition.contracts import Conflict, NotFound, digest
+from acquisition.reasoning import ModelError
 from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.workspace import Workspace
 from test_conversation_actions import _set_up_workspace
@@ -236,8 +237,11 @@ class TypedPrepareTests(unittest.TestCase):
                     w.stop_execution(cid, 'stop', 1)
                     return draft(*args, **kwargs)
 
-                with patch.object(w, 'draft_conversation', side_effect=stop_before_draft) as attempted, self.assertRaises(Conflict):
-                    w.confirm_typed_action(cid, action['id'], 'confirm', action['result']['id'], 1)
+                try:
+                    with patch.object(w, 'draft_conversation', side_effect=stop_before_draft) as attempted, self.assertRaises(Conflict):
+                        w.confirm_typed_action(cid, action['id'], 'confirm', action['result']['id'], 1)
+                except ModelError as exc:
+                    self.fail(f'Stopping before session creation must return a conflict: {exc}')
                 attempted.assert_called_once()
                 reopened = Workspace(root, real_clock=lambda: self.now)
                 reopened.advance_preparations()

@@ -208,7 +208,10 @@ with patch('acquisition.adapters.channel_fixtures.OfflineChannelModel.complete',
             elif attack=='html': row['email']['html']='<script>send()</script>'
             else: row['recipient_facts']=[]
             before=self.counts(app)
-            with self.assertRaises(Conflict): app.tasks.settle(claim,Outcome('succeeded',altered),self.now)
+            try:
+                with self.assertRaises(Conflict): app.tasks.settle(claim,Outcome('succeeded',altered),self.now)
+            except ValueError as exc:
+                self.fail(f'Tampered content must be rejected at the commit boundary: {exc}')
             self.assertEqual(self.counts(app),before)
         app.tasks.settle(claim,Outcome('succeeded',result),self.now)
         self.assertTrue(app.inspect('one','content')['ready_for_review'])

@@ -29,7 +29,7 @@ The [sequence simulation guide](docs/sequence-simulation.md) combines frozen aud
 
 ## Try it locally
 
-Requires Python 3.11 or later, Node 22.12+ and pnpm 10.33+ on macOS or Linux.
+Requires Python 3.12 or later, Node 22.12+ and pnpm 10.33+ on macOS or Linux.
 
 ```sh
 make workspace
@@ -87,6 +87,7 @@ The workspace's **Knowledge** view shows advisory campaign playbooks, the baseli
 | Inspect versioned synthetic audience sources | [Audience catalogue](docs/audience-catalogue.md) |
 | Inspect inference controls and evidence | [Model integration](docs/model-integration.md), [grounding](docs/product-grounding.md) |
 | Assess verification and remaining gaps | [Validation](docs/validation.md) |
+| Understand CI checks, justification and execution cost | [CI gate audit](docs/ci-gate-audit.md) |
 | Reuse the visual system and trace the shared mark | [Branding](docs/branding.md) |
 
 ## Engineering
@@ -100,6 +101,8 @@ make mutation-check
 pnpm --dir frontend exec playwright install chromium
 make interface-check
 ```
+
+New CI gates and runtime matrix entries must record their protected regression, value beyond existing checks, measured cost and execution cadence in the [gate audit](docs/ci-gate-audit.md). Runtime support needs an explicit product or deployment reason.
 
 Offline checks need no provider credentials. Live model quality is evaluated separately. A [recorded generated-copy example](examples/grounded-run/letters.txt) is supplied for inspection, with its limitations described in the grounding guide.
 

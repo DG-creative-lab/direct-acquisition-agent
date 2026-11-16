@@ -7,20 +7,31 @@ import time
 import unittest
 
 
-# Initial sequence/review weights use the local review measurements recorded in
-# docs/test-suite-performance.md. Other modules use Actions run 42200956130.
-# Refresh from CI timing artifacts; mixed-machine estimates are approximate.
-SLOW_MODULE_SECONDS = {
-    'test_sequences': 423.0,
-    'test_sequence_reviews': 273.0,
-    'test_execution_controls': 134.2,
-    'test_conversation_actions': 76.9,
-    'test_copy_revisions': 72.8,
-    'test_conversational_copy_revision': 63.6,
-    'test_followups': 36.2,
-    'test_conversation_audiences': 32.8,
-    'test_learning': 29.1,
-    'test_workspace': 24.5,
+# Median module case + class setup durations across Python 3.12/3.13/3.14
+# in Actions run 43738876446, after report-local material reuse (PR #87).
+# Source and measurement limits: docs/ci-gate-audit.md.
+# These guide partitioning, not performance assertions; new modules use fallback.
+MODULE_SECONDS = {
+    'test_admission_entrypoints': 14.2,
+    'test_admission_workflow_coverage': 19.2,
+    'test_budget_clarification': 25.2,
+    'test_channel_content': 17.0,
+    'test_conversation_actions': 101.3,
+    'test_conversation_audiences': 44.7,
+    'test_conversational_copy_revision': 79.6,
+    'test_copy_revisions': 70.7,
+    'test_execution_controls': 133.7,
+    'test_fixture_activation': 54.7,
+    'test_followups': 51.9,
+    'test_learning': 29.8,
+    'test_legacy_inventory': 17.7,
+    'test_preparations': 27.0,
+    'test_sequence_reviews': 178.6,
+    'test_sequences': 311.7,
+    'test_typed_chat_routing': 25.4,
+    'test_workspace': 29.4,
+    'test_workspace_authority': 23.0,
+    'test_workspace_checkpoint': 15.0,
 }
 SECONDS_PER_CASE = 0.43
 
@@ -39,7 +50,7 @@ def split_suite(discovered):
         count = suite.countTestCases()
         if count:
             module = type(next(cases(suite))).__module__
-            weight = SLOW_MODULE_SECONDS.get(module, count * SECONDS_PER_CASE)
+            weight = MODULE_SECONDS.get(module, count * SECONDS_PER_CASE)
             weighted.append((weight, index, suite))
 
     groups = [[], []]

@@ -66,7 +66,10 @@ class PreEntrypointRoutingRecoveryTests(unittest.TestCase):
         self.assertIsNone(app.admissions.store.request_for_source('other-org','routing',row['id'],refs))
         with self.assertRaises(Conflict):app.admissions.store.request_for_source(org,'routing',row['id'],{'action_id':'other-action'})
         reopened=build(self.root/'conversations.sqlite',clock=lambda:self.now,model_config=ModelConfig(**row['model_config']))
-        run=reopened.actions.reconcile(org,row)
+        try:
+            run=reopened.actions.reconcile(org,row)
+        except Conflict as exc:
+            self.fail(f'The original staged source key must resume: {exc}')
         self.assertEqual(app.admissions.store.find_request(org,'preceding-storage-key').run_id,run)
         self.assertEqual(request_row(app,org,intent.request_id),saved)
         self.assertIsNone(app.admissions.store.get_request(org,'old-route'))

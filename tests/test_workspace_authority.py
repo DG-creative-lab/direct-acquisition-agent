@@ -183,7 +183,11 @@ class WorkspaceAuthorityTests(unittest.TestCase):
                 if 5<=i<=7:payload=canonical(json.loads(payload)|{'id':'broken-'+str(i)})
                 db.execute('INSERT INTO sessions VALUES(?,?,?)',('broken-'+str(i),'unused',payload))
         for workspace in (self.w,Workspace(self.root,real_clock=lambda:self.now)):
-            self.assertEqual(workspace.listing()['sessions'],[{k:session[k] for k in ('id','name','mode','created_at','case_id')}])
+            try:
+                listed=workspace.listing()['sessions']
+            except (ValueError,TypeError) as exc:
+                self.fail(f'Malformed projection rows must not hide the owned session: {exc}')
+            self.assertEqual(listed,[{k:session[k] for k in ('id','name','mode','created_at','case_id')}])
             self.assertEqual(workspace._session(session['id']),session)
             self.assertEqual(workspace.conversation(cid)['preparations'][0]['id'],prep['id'])
             self.assertEqual(workspace.action_context(cid,1)['target']['conversation_id'],cid)
@@ -351,17 +355,31 @@ class WorkspaceAuthorityTests(unittest.TestCase):
         self.assertEqual(self.w.authority.get(session['id']),session)
 
     def test_clock_reads_do_not_take_a_nested_write_lock(self):
-        session=self.create();app=self.app(session)
+        from acquisition.adapters.sqlite.database import Database
+        # Prepare the session with read-only opens for existing stores. The clock
+        # call below runs without this fixture patch, under an active writer.
+        def fixture_database(path,*args,**kwargs):
+            return Database(path,*args,**kwargs) if args or kwargs else Database.existing(path)
+        with patch('acquisition.adapters.sqlite.workspace_state.Database',side_effect=fixture_database):
+            session=self.create();app=self.app(session)
         with app.tasks.database.transaction() as db:
             db.execute('UPDATE campaign_environments SET epoch=epoch WHERE organization=?',(session['organization'],))
-            self.assertEqual(self.w.authority.clock(session['id'],self.now),session['clock'])
+            try:
+                clock=self.w.authority.clock(session['id'],self.now)
+            except sqlite3.OperationalError as exc:
+                self.fail(f'Clock reads must not acquire a nested write lock: {exc}')
+            self.assertEqual(clock,session['clock'])
             self.assertEqual(self.w._session(session['id']),session)
 
     def test_compatibility_session_read_does_not_migrate_under_an_active_domain_transaction(self):
         root=self.root/'compat-lock';compat=Workspace(root,real_clock=lambda:self.now)
         session=compat.create('legacy','fixture')['session'];app=compat._conversation_app()
         with app.tasks.database.transaction():
-            self.assertEqual(compat._session(session['id'])['id'],session['id'])
+            try:
+                saved=compat._session(session['id'])
+            except sqlite3.OperationalError as exc:
+                self.fail(f'Compatibility reads must not acquire a migration write lock: {exc}')
+            self.assertEqual(saved['id'],session['id'])
 
     def seed_clock_source(self,session):
         # Independent committed-fact fixture for the clock boundary only. New

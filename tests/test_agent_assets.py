@@ -12,7 +12,7 @@ from unittest.mock import patch
 from acquisition.bootstrap import build, agent_catalogue
 from acquisition.contracts import digest, Conflict
 from acquisition.conversations import FIXTURE_MESSAGE
-from acquisition.reasoning import validate_assets, ModelConfig
+from acquisition.reasoning import validate_assets, ModelConfig, ModelError
 from test_conversations import PlannerModel
 from test_copy_revisions import RevisionModel
 from acquisition.workspace import Workspace
@@ -228,7 +228,10 @@ with patch('acquisition.bootstrap.agent_catalogue',side_effect=ValueError('Curre
         # Record the historical read, then resume with a fresh inference instance.
         inference.call(scope,context_id+':grounded:read',*captured['read'])
         resumed=Inference(model,app.calls,limited,lambda:1792972800.)
-        variants=GroundedCopyAgent(resumed,app.memory).generate(scope,context_id,date(2026,10,26))
+        try:
+            variants=GroundedCopyAgent(resumed,app.memory).generate(scope,context_id,date(2026,10,26))
+        except ModelError as exc:
+            self.fail(f'The recorded legacy request fits its original input limit: {exc}')
         self.assertEqual(len(variants),2)
         self.assertEqual([r['tools'][0]['function']['name'] for r in model.requests],
                          ['read_editorial_context','submit_grounded_copy','record_claim_check'])

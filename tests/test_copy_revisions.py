@@ -334,7 +334,10 @@ class CopyRevisionTests(unittest.TestCase):
         session = self.w._session(self.sid)
         session["clock"] = self.now + 31 * 86400
         self.w._save(session)
-        for _ in range(4): self.w.advance_copy_revisions()
+        try:
+            for _ in range(4): self.w.advance_copy_revisions()
+        except ValueError as exc:
+            self.fail(f'Expired evidence must block one revision without halting the worker: {exc}')
         blocked = Workspace(self.root, real_clock=lambda: self.now).view(self.sid)["copy_revisions"][0]
         self.assertEqual(blocked["status"], "blocked")
         self.assertEqual(blocked["block"]["code"], "evidence_unavailable")

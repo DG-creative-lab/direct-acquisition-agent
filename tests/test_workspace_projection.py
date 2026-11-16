@@ -110,7 +110,10 @@ class WorkspaceProjectionTests(TestCase):
         with self.w.control() as db:
             db.execute("UPDATE sessions SET payload='{broken',request_hash='stale' WHERE id=?",(session['id'],))
             rowid=db.execute("SELECT rowid FROM sessions WHERE id='legacy-opaque'").fetchone()[0]
-        result=self.rebuild(apply=True)
+        try:
+            result=self.rebuild(apply=True)
+        except Conflict as exc:
+            self.fail(f'Owned projection recovery must preserve legacy records: {exc}')
         self.assertEqual(result['protected_records']['sessions'],1)
         after=records(self.root/'workspace.sqlite')
         for table,rows in legacy.items():
@@ -309,7 +312,10 @@ os._exit(74)
             db.execute('INSERT INTO copy_revision_blocks VALUES(?,?,?)',(org,'owned-revision','configuration_unavailable'))
             db.execute('INSERT INTO copy_revision_blocks VALUES(?,?,?)',(org,'legacy-revision','configuration_unavailable'))
         before=self.facts()
-        self.rebuild(apply=True)
+        try:
+            self.rebuild(apply=True)
+        except Conflict as exc:
+            self.fail(f'Owned diagnostic cleanup must leave legacy diagnostics intact: {exc}')
         with self.w.control() as db:
             self.assertIsNone(db.execute('SELECT 1 FROM checkpoint_recovery_blocks WHERE organization=? AND run_id=?',(org,session['run_id'])).fetchone())
             self.assertIsNone(db.execute('SELECT 1 FROM copy_revision_blocks WHERE organization=? AND revision_id=?',(org,'owned-revision')).fetchone())

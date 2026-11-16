@@ -590,6 +590,7 @@ class LegacyInventoryTests(unittest.TestCase):
         with sqlite3.connect(path) as db:
             db.executescript('PRAGMA user_version=1; CREATE TABLE runs(id TEXT, organization TEXT, request_id TEXT, request_hash TEXT,status TEXT,created_at REAL); CREATE TABLE tasks(run_id TEXT);')
         before=self.byte_facts();report=self.inspect()
+        self.assertIn('schema_version',next(f for f in report['files'] if f['key']=='conversations.sqlite'))
         self.assertEqual(next(f for f in report['files'] if f['key']=='conversations.sqlite')['schema_version'],1)
         self.assertEqual(self.byte_facts(),before)
         with sqlite3.connect(path) as db:db.execute('PRAGMA user_version=999')
@@ -771,6 +772,10 @@ os._exit(17)
         child['owners']=[['org','conversation','other',1]]
         self.assertEqual(self.run_record(report(),child_key)['classification'],'conflicting')
         child['owners']=[];parent['parents']=[child['id']]
-        self.assertEqual(report()['summary']['conflicting'],2)
+        try:
+            cycle_report=report()
+        except RecursionError as exc:
+            self.fail(f'Inventory must classify cyclic ancestry without recursion failure: {exc}')
+        self.assertEqual(cycle_report['summary']['conflicting'],2)
         parent['parents']=['missing-parent']
         self.assertEqual(self.run_record(report(),child_key)['classification'],'incomplete')

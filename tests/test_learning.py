@@ -365,7 +365,10 @@ else:
         receipt = self.import_report(report)
         (self.root / "provider-report.json").unlink()
         reopened = build(self.path, clock=lambda: self.now).learning.store
-        source = reopened.report_snapshot(self.scope, self.cohort, "provenance")
+        try:
+            source = reopened.report_snapshot(self.scope, self.cohort, "provenance")
+        except NotFound as exc:
+            self.fail(f'The imported snapshot must survive reopening: {exc}')
         self.assertEqual(source["snapshot"], report)
         self.assertEqual(digest(source["snapshot"]), receipt["report_sha256"])
         self.assertEqual(source["import_receipt"], receipt | {"actor": self.actor})

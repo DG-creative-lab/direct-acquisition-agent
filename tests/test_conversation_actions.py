@@ -58,9 +58,11 @@ class ConversationActionContextTests(unittest.TestCase):
         self.w.advance_actions()
         payload=json.loads(self.gateway.routing_requests[-1]['messages'][-1]['content'])
         self.assertEqual(payload['message'],'£600')
+        self.assertIn('dialogue',payload)
         self.assertEqual(payload['dialogue']['messages'],[
             {'id':'budget-request','revision':1,'role':'user','content':original}])
         response=payload['dialogue']['planner_response']
+        self.assertIn('question',response)
         self.assertEqual(response['question'],question)
         self.assertEqual(response['id'],before['current_plan']['result']['id'])
         self.assertEqual(response['outcome'],'clarification')
@@ -220,6 +222,7 @@ class ConversationActionTests(unittest.TestCase):
         self.assertEqual(planned['current_plan']['result']['budget_evidence']['quote'],'£400')
         self.assertEqual(planned['preparations'][-1]['status'],'selecting_audience')
         request=json.loads(self.gateway.planner.requests[-1]['messages'][-1]['content'])
+        self.assertIn('confirmed_action_exchanges',request)
         carried=request['confirmed_action_exchanges'][-1]
         self.assertEqual(carried['exchange'],action['result']['amendment_exchange'])
         self.assertEqual(carried['revision'],3)
@@ -396,6 +399,7 @@ class ConversationActionTests(unittest.TestCase):
         self.gateway.action='amend_brief'
         pending=self.routed('Actually change it to £500','pending')
         action=self.routed('Change it','reply')
+        self.assertIn('amendment_exchange',action['result'])
         self.assertEqual([e['action_id'] for e in action['result']['amendment_exchange'][:-1]],[first['id'],pending['id']])
         self.gateway.planner.results=[proposal(budget_pence=50000)]
         self.confirm(action)

@@ -10,7 +10,6 @@ class MutationResult(unittest.TextTestResult):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fixture_failure = False
-        self.body_errors = 0
 
     def is_fixture_error(self, err):
         traceback = err[2]
@@ -31,24 +30,8 @@ class MutationResult(unittest.TextTestResult):
     def addSubTest(self, test, subtest, err):
         if err is not None:
             self.fixture_failure |= self.is_fixture_error(err)
-            if not issubclass(err[0], test.failureException):
-                self.body_errors += 1
         super().addSubTest(test, subtest, err)
 
-    def addError(self, test, err):
-        # Loading and class/module fixture errors are not TestCase test bodies.
-        traceback = err[2]
-        in_body = False
-        while traceback:
-            frame = traceback.tb_frame
-            in_body |= (frame.f_globals.get('__name__') == 'unittest.case'
-                        and frame.f_code.co_name == '_callTestMethod')
-            traceback = traceback.tb_next
-        if not in_body or self.is_fixture_error(err):
-            self.fixture_failure = True
-        else:
-            self.body_errors += 1
-        super().addError(test, err)
 
 
 def main():
@@ -58,8 +41,8 @@ def main():
         result = unittest.TextTestRunner(stream=sys.stderr, verbosity=2, failfast=True,
                                          resultclass=MutationResult).run(suite)
     # A fixture failure does not prove the target assertion ran.
-    detected = (not loader.errors and result.testsRun == 1 and bool(result.failures or result.body_errors)
-                and len(result.errors) == result.body_errors and not result.fixture_failure and not result.skipped
+    detected = (not loader.errors and result.testsRun == 1 and bool(result.failures)
+                and not result.errors and not result.fixture_failure and not result.skipped
                 and not result.unexpectedSuccesses)
     print(json.dumps({'detected': detected, 'tests_run': result.testsRun,
                       'failures': len(result.failures), 'errors': len(result.errors)}))
