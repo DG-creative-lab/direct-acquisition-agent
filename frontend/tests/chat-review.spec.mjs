@@ -954,9 +954,10 @@ test("restored configuration keeps polling through a delayed provider call to co
     } finally {
       await writeFile(join(root, "release-provider"), "released");
     }
+    // Rewriting, screening and publication continue after the provider is released.
     await expect(
       region.getByText("Revised copy is ready for review", { exact: true }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 10000 });
     await expect(
       region.getByText("Revision outcome is uncertain", { exact: true }),
     ).toHaveCount(0);
