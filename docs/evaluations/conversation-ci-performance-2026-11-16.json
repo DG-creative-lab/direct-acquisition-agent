@@ -1,0 +1,116 @@
+{
+  "before": {
+    "revision": "e7e87ccd0fc2267a9b52c15b3d3daef44b2d94eb",
+    "python": "3.14.3 (main, Feb  3 2026, 15:32:20) [Clang 17.0.0 (clang-1700.6.3.2)]",
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "source_sha256": {
+      "tests/test_conversation_actions.py": "ec5d3cacf25a82d7670c9f49eb1ab7d474af51d0fdf405027b6aa2697e07d97e",
+      "tests/test_conversational_copy_revision.py": "31c94fd479384b32bbf206e38fd85d605ef2492cbf91443a7fdd73cc0d94f76d"
+    },
+    "full_modules_seconds": 157.49707554100314,
+    "full_modules_cases": 72,
+    "module_case_seconds_excluding_shared_setup": {
+      "test_conversation_actions": 87.44302183107357,
+      "test_conversational_copy_revision": 70.0524990419799
+    },
+    "four_case_suite_seconds": [
+      11.706660582975019,
+      11.720506249985192,
+      11.20614191700588
+    ]
+  },
+  "after": {
+    "revision": "e7e87ccd0fc2267a9b52c15b3d3daef44b2d94eb",
+    "python": "3.14.3 (main, Feb  3 2026, 15:32:20) [Clang 17.0.0 (clang-1700.6.3.2)]",
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "source_sha256": {
+      "tests/test_conversation_actions.py": "506407be38706c23aec0e986722b6c9c8eca63ff4cab6b8bc9ccf64f67e85a0d",
+      "tests/test_conversational_copy_revision.py": "2b93c7a7ce9203c3627f3cb90d84ceaa10c764e7c6ff152166f6f3f2eca45c31"
+    },
+    "full_modules_seconds": 73.65739470900735,
+    "full_modules_cases": 72,
+    "module_case_seconds_excluding_shared_setup": {
+      "test_conversation_actions": 38.423376249091234,
+      "test_conversational_copy_revision": 32.66302983704372
+    },
+    "four_case_suite_seconds": [
+      7.629033790988615,
+      7.965115332975984,
+      7.799277624988463
+    ]
+  },
+  "unchanged_test_methods": 72,
+  "test_methods_ast_sha256": "cbc7f7b912f194825c38880f3f2e722b5927a10ed3d9b6c0aea347835c7b77c0",
+  "test_ids_sha256": "548e893a950a8a96475dd7d9253d34533c3dcf5dac4b60209651b887984ff6ed",
+  "fixture_helper_sha256": "df1223292ed5da6ec06f4c723401f58027b031609fabe383ff2587c56926b15b",
+  "measurement": "Serial unprofiled runs, no concurrent verification. Full modules: one sample per phase. Four-case cohort: three repetitions, includes shared setup and cleanup. Candidate is a working tree change on the recorded baseline revision. No production source changes.",
+  "cohort_targets": [
+    "test_conversation_actions.ConversationActionTests.test_read_questions_preserve_revision_source_approval_and_original_preparation",
+    "test_conversation_actions.ConversationActionTests.test_amendment_proposal_has_no_effect_until_exact_confirmation",
+    "test_conversational_copy_revision.ConversationalCopyRevisionTests.test_copy_proposal_waits_for_explicit_consent_then_reuses_native_revision",
+    "test_conversational_copy_revision.ConversationalCopyRevisionTests.test_selector_only_question_remembers_variant_when_feedback_arrives"
+  ],
+  "partition_estimate": {
+    "hosted_run": 43902416003,
+    "local_module_factor": 0.46767468193294304,
+    "old_partition_candidate_estimates": [
+      340.33386217,
+      309.15653115999964,
+      358.9173095179999,
+      298.7494564218665
+    ],
+    "new_partition_estimates": [
+      314.08160567600004,
+      326.6651649959997,
+      323.68430284310983,
+      342.7260857547565
+    ],
+    "new_partition_counts": [
+      151,
+      280,
+      265,
+      331
+    ]
+  },
+  "exploratory_candidate": {
+    "full_modules_seconds": 83.49934162502177,
+    "four_case_suite_seconds": [
+      10.185187791008502,
+      10.300686416012468,
+      8.742114540975308
+    ],
+    "source_sha256": {
+      "tests/test_conversation_actions.py": "286d35b6ed778d34cb87d095a43151831b012f44982e9ba4630cfa2a332a4cf9",
+      "tests/test_conversational_copy_revision.py": "528c393a2a5ac7d13f06daff5089f8c31189f3747d03e59981f1f644136069f2"
+    },
+    "note": "Measured before adding the borrowed-setup compatibility fallback. Retained as additional variation evidence; primary after results use the final implementation."
+  },
+  "full_backend_verification": {
+    "partitions": [
+      {
+        "shard": 1,
+        "cases": 151,
+        "seconds": 261.4458631669986
+      },
+      {
+        "shard": 2,
+        "cases": 280,
+        "seconds": 310.05863399998634
+      },
+      {
+        "shard": 3,
+        "cases": 265,
+        "seconds": 322.413824999996
+      },
+      {
+        "shard": 4,
+        "cases": 331,
+        "seconds": 321.44058354201843
+      }
+    ],
+    "discovered": 1027,
+    "executed": 1027,
+    "distinct": 1027,
+    "note": "Four local concurrent runners, all successful. Mutation probes overlapped part of verification. These are verification timings, not a controlled suite benchmark."
+  }
+}

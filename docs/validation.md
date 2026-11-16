@@ -2311,3 +2311,40 @@ including real SQLite, process restart and authority tests. The initially
 started serial `make test` was intentionally stopped in favor of this complete
 four-partition verification; it is not recorded as a successful serial run.
 No browser or frontend code changed. No live model calls were made.
+
+
+## Prepared conversation fixture isolation, 16 November 2026
+
+Conversation-action and conversational copy-revision cases reuse only a prepared,
+quiescent workspace template, copied into a new root per case with independent
+fake provider state. They open the real SQLite stores and read base review state
+afresh. All 72 existing test methods and their assertions are unchanged; no
+production authority path was modified. Clarification and multi-segment setup
+remain fresh, and campaign preparation retains its own workflow tests.
+Execution-control and legacy-replay classes borrow the setup methods directly;
+their explicit fallback retains fresh preparation without requiring the owning
+class lifecycle. Full-suite verification caught this dependency before publication.
+
+A separate isolation experiment for each prepared class approved and amended
+one copy and changed its model history and filesystem. The other copy remained
+at revision 1 with a valid candidate and no approval, unchanged model history
+and no extra file. Template file hashes were unchanged. All 29 existing mutation
+probes targeting the two modules were detected, including exact preview/result
+binding, explicit consent, changed admission text, final confirmation authority,
+routing admission and atomic native confirmation. The full 512-probe catalogue
+was retained and was not rerun locally. Architecture checks passed with 175
+classified modules and 28 declared temporary exceptions.
+
+The serial before/after measurements include shared setup. The 72-case module
+run changed from 157.50s to 73.66s (one sample each); a four-case cohort changed
+from median 11.71s to 7.80s across three runs each. These are local measurements.
+[The performance record](ci-performance.md#conversation-preparation-fixtures-16-november-2026)
+retains evidence and partition-calibration limitations.
+
+Final verification passed all 1,027 backend cases across the refreshed four
+partitions (151, 280, 265 and 331 cases), including all borrowed-setup execution
+and legacy-replay cases. Recorded IDs matched fresh discovery exactly once.
+The complete backend discovery suite was verified with `make test-shard`
+for all four partitions instead of a separate serial `make test` rerun.
+Final architecture and CI-tool checks passed, and all 29 relevant mutations were
+detected again after the compatibility fix. No live model calls were made.
