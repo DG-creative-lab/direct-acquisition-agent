@@ -251,3 +251,66 @@ partitions, with 176, 277, 314 and 252 cases. Runner times were 266.40, 313.07,
 367.01 and 360.45 seconds. Fresh discovery matched every executed ID exactly
 once. The longest local runner took 6m07s; this measures the candidate on one
 shared machine and does not establish a hosted before/after speedup.
+
+
+## Conversation preparation fixtures, 16 November 2026
+
+A profile of the copy clarification and approved-campaign inspection cases
+spent 3.44 of 6.84 profiled test-runner seconds in their two setup methods.
+Each case prepared a complete campaign before testing a later follow-up.
+Only the two common prepared-campaign classes now share initial preparation.
+The planner-clarification and multi-segment preparation classes remain fresh.
+Execution-control and legacy-replay classes that borrow these setup methods
+also retain their original fresh preparation via an explicit fallback.
+No production source, assertion or test method changed.
+
+Each class prepares its template through the original real workflow and closes
+all SQLite connections before copying it. A remaining SQLite WAL causes fixture
+creation to fail. Every case copies the entire closed workspace, including
+SQLite stores and journals, into an independent temporary root, deep-copies the
+fake provider state, and opens a new Workspace. The seed's provider patches and
+original root are cleaned up immediately. Base review state is read afresh in
+each case. Approval, suppression, epochs, source/admission integrity, consent,
+lease and acceptance checks continue through the original application paths.
+
+Serial measurements on the same Python 3.14.3/macOS arm64 machine used identical
+ordered test IDs and unchanged ASTs for all 72 test methods:
+
+| Measurement, including setup and cleanup | Before | After | Reduction |
+| --- | ---: | ---: | ---: |
+| Complete two modules, 72 cases | 157.50 s | 73.66 s | 53.2% |
+| Four-case cohort, median of three runs | 11.71 s | 7.80 s | 33.4% |
+
+The complete modules have one sample per phase, so their observed reduction
+is limited evidence. The repeated four-case suite includes a new class template
+on each repetition; its lower amortization deliberately keeps setup cost visible.
+[Raw samples, targets, source hashes and AST/ID fingerprints](evaluations/conversation-ci-performance-2026-11-16.json)
+record the measurements. No concurrent verification ran during either phase.
+Run the complete module measurement from each corresponding checkout with:
+
+```sh
+PYTHONPATH=src:tests python3 -m unittest test_conversation_actions test_conversational_copy_revision
+```
+
+For the repeated cohort, pass the four recorded `cohort_targets` to the same
+unittest command three times in order. Class setup and cleanup must stay inside
+each measurement; case timings alone would conceal the shared preparation cost.
+A single-case mutation process still pays class preparation plus a copy, so this
+change does not promise faster mutation jobs.
+
+Partition weights now use case and class setup durations from successful main
+run [43902416003](https://github.com/DG-creative-lab/direct-acquisition-agent/actions/runs/43902416003),
+which includes both PR #99 and PR #100. The two affected module weights are
+scaled by the measured full-module factor 73.6574 / 157.4971 = 0.46767.
+This is a scheduling estimate, not a hosted speedup claim; the other modules use
+the observed hosted durations. The four jobs and whole-module grouping remain.
+Replaying estimated candidate costs against the old layout gives 340.33,
+309.16, 358.92 and 298.75 seconds. The refreshed layout gives 314.08, 326.67,
+323.68 and 342.73 seconds, excluding runner setup. Variability and differing
+module speedups require validation in the next hosted run.
+
+Final full-backend verification passed all 1,027 discovered cases exactly once
+across the new partitions, with runner times of 261.45, 310.06, 322.41 and
+321.44 seconds. These concurrent local verification runs overlapped mutation
+checks; they are not an additional controlled before/after suite benchmark.
+Hosted end-to-end timing remains unmeasured for this candidate.

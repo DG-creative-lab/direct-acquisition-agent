@@ -77,3 +77,4 @@ dist/
 !/docs/ci-gate-audit.md
 
 !/docs/evaluations/ci-critical-path-2026-11-16.json
+!/docs/evaluations/conversation-ci-performance-2026-11-16.json

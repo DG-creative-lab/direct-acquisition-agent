@@ -1,12 +1,16 @@
 """Natural-language copy edits preserve native revision and approval authority."""
 
+import copy
 import json
 import sqlite3
+from shutil import copytree
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 from concurrent.futures import ThreadPoolExecutor
+
+from prepared_workspace_fixture import prepared_workspace
 
 from acquisition.contracts import Conflict, NotFound
 from acquisition.reasoning import ModelError
@@ -28,10 +32,12 @@ class CopyRoutingModel(RevisionModel):
         return super().complete(request)
 
 
-def _set_up_workspace(self):
+def _set_up_workspace(self, template=None):
     self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
     self.root=Path(self.temp.name);self.now=1793404800.
-    self.model=CopyRoutingModel()
+    if template:
+        copytree(template['root'], self.root, dirs_exist_ok=True)
+    self.model=copy.deepcopy(template['model']) if template else CopyRoutingModel()
     for p in (patch('acquisition.workspace.openrouter_key',return_value='fixture'),
               patch('acquisition.workspace.OpenRouter',return_value=self.model)):
         p.start();self.addCleanup(p.stop)
@@ -62,7 +68,20 @@ class MultiSegmentCopyRoutingTests(unittest.TestCase):
 
 
 class ConversationalCopyRevisionTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.template = prepared_workspace(cls, cls._prepare_workspace, 'model')
+
     def setUp(self):
+        # Other test classes borrow this method without class-level preparation.
+        if not isinstance(self, ConversationalCopyRevisionTests):
+            ConversationalCopyRevisionTests._prepare_workspace(self)
+            return
+        _set_up_workspace(self, self.template)
+        self.c, self.sid = self.template['c'], self.template['sid']
+        self.base = self.w.view(self.sid)
+
+    def _prepare_workspace(self):
         _set_up_workspace(self)
         self.c=self.w.create_conversation('copy-chat','Copy campaign')['id']
         self.w.message_conversation(self.c,'m',0,'Prepare a £600 contractor campaign with model copy.')

@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+from shutil import copytree
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -12,6 +13,8 @@ from threading import Event
 from unittest.mock import patch
 
 from acquisition.bootstrap import build
+from prepared_workspace_fixture import prepared_workspace
+
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.conversations import ActionNotSaved, FIXTURE_MESSAGE
 from acquisition.reasoning import ModelConfig, ModelError
@@ -31,10 +34,12 @@ class ActionGateway(CombinedModel):
         return super().complete(request)
 
 
-def _set_up_workspace(self):
+def _set_up_workspace(self, template=None):
     self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
     self.root=Path(self.temp.name);self.now=1793404800.
-    self.w=Workspace(self.root,real_clock=lambda:self.now);self.gateway=ActionGateway()
+    if template:
+        copytree(template['root'], self.root, dirs_exist_ok=True)
+    self.w=Workspace(self.root,real_clock=lambda:self.now);self.gateway=copy.deepcopy(template['model']) if template else ActionGateway()
     for p in (patch('acquisition.workspace.openrouter_key',return_value='fixture'),
               patch('acquisition.workspace.OpenRouter',return_value=self.gateway)):
         p.start();self.addCleanup(p.stop)
@@ -124,7 +129,20 @@ class ConversationActionContextTests(unittest.TestCase):
 
 
 class ConversationActionTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.template = prepared_workspace(cls, cls._prepare_workspace, 'gateway')
+
     def setUp(self):
+        # Other test classes borrow this method without class-level preparation.
+        if not isinstance(self, ConversationActionTests):
+            ConversationActionTests._prepare_workspace(self)
+            return
+        _set_up_workspace(self, self.template)
+        self.c, self.sid = self.template['c'], self.template['sid']
+        self.base = self.w.view(self.sid)
+
+    def _prepare_workspace(self):
         _set_up_workspace(self)
         self.c=self.w.create_conversation('c','Follow-up continuity')['id']
         self.w.message_conversation(self.c,'m',0,FIXTURE_MESSAGE)
