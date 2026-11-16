@@ -2187,3 +2187,12 @@ CI-tool checks, the frontend production build and two Chromium review flows.
 The workflow passed actionlint. The backend run overlapped the mutation and
 browser checks, so its 1,257.5-second duration is verification evidence, not a
 before/after timing comparison. The complete browser suite and hosted CI were not rerun for this change.
+
+The first hosted browser partition exposed an asynchronous test race after a
+monitoring pause: the server's new revision appeared before the browser had
+finished clearing its saved request. Reloading at that point correctly showed
+recovery instead of the resume control. The existing test now waits for the
+enabled resume control before checking pause persistence across reload. Its
+separate lost-pause-response branch still checks recovery. Both committed and
+uncommitted creation-response cases passed three focused Chromium runs each on
+Python 3.14; no production code or retry policy changed.
