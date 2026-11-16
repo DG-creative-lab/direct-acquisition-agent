@@ -1471,7 +1471,7 @@ CASES = [
      'if mutation and self.headers.get("Origin") != "http://" + host:', 'if False:',
      "test_workspace.WorkspaceHttpTests.test_host_token_and_origin_guard_every_mutation"),
     ("workspace-command-identity", "workspace.py",
-     'if old["request_hash"] != fingerprint:', 'if False:',
+     "if old['request_hash'] != fingerprint:", 'if False:',
      "test_workspace.WorkspaceTests.test_request_reuse_cannot_advance_clock_or_change_action"),
     ("workspace-artifact-subject", "workspace.py",
      'if review["subject"]["id"] != expected_subject:', 'if False:',

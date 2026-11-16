@@ -173,6 +173,24 @@ mutations were detected. Architecture and whitespace checks also passed. The
 full backend and browser totals above refer to the implementation before those
 upstream follow-ups; those complete suites were not repeated after the rebase.
 
+### Command-identity mutation target after extraction
+
+PR #99's first CI run passed both backend shards and both browser shards, but
+mutation shard 2 stopped at `workspace-command-identity`: its source replacement
+still expected the pre-extraction double-quoted dictionary key. The live guard
+uses a single-quoted key. Updating the mutation's exact source target preserves
+its original change (`if False`) and behavioral oracle: reusing a completed
+command key for another action must raise a conflict and cannot advance the
+fixture clock or create beliefs. No production behavior or mutation criterion
+changes.
+
+The stale-target failure was reproduced independently before the fix. Afterwards,
+all 511 catalogue targets matched exactly once and their mutated sources compiled.
+The command-identity mutant was detected by the existing workspace regression;
+all five focused CI-tool and command-reuse tests passed. The architecture and
+whitespace checks passed. This source/compilation audit validates experiment
+setup; it is not a claim that all 511 mutants were executed in that audit.
+
 ## Final sequence authority time follow-up
 
 Review of `137db62` found that `authorize` discarded the successful readiness
