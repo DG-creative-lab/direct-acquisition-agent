@@ -1780,13 +1780,14 @@ with sqlite3.connect(sys.argv[1]) as db:
           .click();
       }
       await expect(controls).toContainText("Schedule revision 3.");
+      const resume = controls.getByRole("button", {
+        name: "Resume monitoring",
+        exact: true,
+      });
+      // A polled revision can appear before the browser clears the saved request.
+      await expect(resume).toBeEnabled();
       await page.reload();
-      await expect(
-        controls.getByRole("button", {
-          name: "Resume monitoring",
-          exact: true,
-        }),
-      ).toBeVisible();
+      await expect(resume).toBeVisible();
       const paused = (await backend(page, `/api/sessions/${sid}`)).body
         .learning;
       expect(paused.monitoring.status).toBe("paused");

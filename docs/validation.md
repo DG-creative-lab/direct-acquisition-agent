@@ -821,7 +821,7 @@ These are bounded schedules and fake-model responses. They do not establish sema
 
 Pure domain tests use literal expected populations, money and posterior values. Persistence tests use real temporary SQLite databases, controlled clocks, concurrent connections and injected failures. CLI tests cross OS process boundaries to exercise restart, review, export, learning and replay. HTTP tests send real requests to the loopback server. Frontend client tests use the real backend, and Chromium tests inspect the rendered interface.
 
-CI runs the complete backend suite in two parallel shards on each Python version from 3.11 through 3.14. Standard unittest discovery supplies both shards. Whole modules stay together, and measured module runtimes balance the two groups. The first shard also runs the architecture check for its Python version. Run the same groups locally with `make test-shard SHARD=1` and `make test-shard SHARD=2`. The mutation suite runs once in a separate, parallel Python 3.12 job. The architecture checker still has a self-test with deliberately forbidden imports.
+CI runs the complete backend suite on Python 3.14 in two parallel shards. Standard unittest discovery supplies both shards. Whole modules stay together, and measured module runtimes balance the groups. The first shard also runs the architecture check. Run the same groups locally with `make test-shard SHARD=1` and `make test-shard SHARD=2`. The mutation and browser jobs also use Python 3.14. Other Python versions are not checked in CI. The architecture checker retains its self-test with deliberately forbidden imports.
 
 The mutation command creates temporary source copies and weakens selected enforcement points, including leases, reservations, uncertain-call fencing, retired-workflow admission, timestamp validation, migration locking, review expiry/epochs, cohort maturity/completeness, atomic finalization, snapshot memory, Origin checks, exact-subject binding, planning budget provenance, current-revision projection, conversation scope, targeted execution, stale-budget correction handling and relative-budget recognition. The results apply to the declared probes. They are not a general mutation score. Frontend regressions are reported separately.
 
@@ -2170,3 +2170,29 @@ mutations was detected in a targeted rerun, and the corresponding unmutated
 tests passed. These assertions establish the stated behavior and error contract;
 a wrong error type alone does not prove that an unauthorized effect occurred.
 The complete catalogue remains the final CI check.
+
+
+## Single Python runtime for CI
+
+The backend, mutation and browser jobs now use Python 3.14. The backend remains
+fully discovered across two shards, and the mutation catalogue and both browser
+partitions remain unchanged. Python 3.14 is the minimum required version; CI
+does not establish compatibility with other versions. The change removes four
+backend jobs, so it reduces repeated runner work. Because jobs run in parallel,
+its effect on the critical path depends on the remaining slowest job.
+
+Verification on Python 3.14.3 passed all 999 backend tests, all 511 declared
+mutation probes (run locally in two isolated partitions), the architecture and
+CI-tool checks, the frontend production build and two Chromium review flows.
+The workflow passed actionlint. The backend run overlapped the mutation and
+browser checks, so its 1,257.5-second duration is verification evidence, not a
+before/after timing comparison. The complete browser suite and hosted CI were not rerun for this change.
+
+The first hosted browser partition exposed an asynchronous test race after a
+monitoring pause: the server's new revision appeared before the browser had
+finished clearing its saved request. Reloading at that point correctly showed
+recovery instead of the resume control. The existing test now waits for the
+enabled resume control before checking pause persistence across reload. Its
+separate lost-pause-response branch still checks recovery. Both committed and
+uncommitted creation-response cases passed three focused Chromium runs each on
+Python 3.14; no production code or retry policy changed.

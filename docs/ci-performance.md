@@ -3,8 +3,8 @@
 Initial measurements below use baseline `0ffba90` (PR #84). The CI branch is
 now rebased onto `b88e632` (PR #85), including exact sequence review.
 
-CI now tests Python 3.12, 3.13 and 3.14. Python 3.12 is the minimum
-supported runtime. The [gate audit](ci-gate-audit.md) records the justification
+CI runs on Python 3.14 only, including backend, mutation and browser jobs.
+Python 3.14 is the minimum required runtime; other versions are not tested in CI. The [gate audit](ci-gate-audit.md) records the justification
 and limits of each remaining check, including the cost of compatibility testing.
 Backend shards keep modules together, record case and class setup durations and
 report estimated versus actual time.

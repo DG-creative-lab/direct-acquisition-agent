@@ -29,7 +29,7 @@ The [sequence simulation guide](docs/sequence-simulation.md) combines frozen aud
 
 ## Try it locally
 
-Requires Python 3.12 or later, Node 22.12+ and pnpm 10.33+ on macOS or Linux.
+Requires Python 3.14 or later, Node 22.12+ and pnpm 10.33+ on macOS or Linux.
 
 ```sh
 make workspace
