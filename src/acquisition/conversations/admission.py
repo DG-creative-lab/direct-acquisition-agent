@@ -158,6 +158,19 @@ class AdmissionIntent:
         except TypeError as error:
             raise ValueError('Invalid admission contract values') from error
 
+    def validate_source_ownership(self, owners):
+        """Check the proposed owner against every required, verified lineage.
+
+        The capability's trusted loader determines which lineages are required
+        and verifies them in the admission transaction. Use None for unresolved
+        evidence. A standalone proof identifies its explicit operation root.
+        """
+        if type(owners) not in (list, tuple) or not owners:
+            raise Conflict('Admission requires verified source ownership')
+        for owner in owners:
+            if type(owner) is not ExecutionOwnership or owner != self.ownership:
+                raise Conflict('Admission ownership differs from verified source provenance')
+
     def validate_parent(self, *, organization, run_id, ownership):
         """Compare facts loaded by the store, under its admission transaction."""
         if self.parent_run_id is None or run_id!=self.parent_run_id:
