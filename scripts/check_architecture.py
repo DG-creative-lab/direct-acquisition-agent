@@ -1,7 +1,7 @@
 """Static production dependency contract. Does not import or execute product code."""
 
 import ast
-from collections import Counter, namedtuple
+from collections import namedtuple
 import json
 from pathlib import Path
 
@@ -385,34 +385,12 @@ def check(root):
         if set(policy['modules'].values()) - ROLES:
             raise ValueError('Unknown architecture role')
         problems, paths = analyze(root, policy)
-        actual = Counter((p.module, p.rule, p.target) for p in problems)
-        exceptions = {}
-        if not isinstance(policy['exceptions'], list):
-            raise ValueError('Exceptions must be an explicit list')
-        for entry in policy['exceptions']:
-            if not isinstance(entry, dict) or set(entry) != {'module', 'rule', 'target', 'occurrences', 'reason', 'issue'}:
-                raise ValueError('Each exception needs exact dependency, count, reason and issue fields')
-            if not all(isinstance(entry[field], str) for field in ('module', 'rule', 'target', 'reason')):
-                raise ValueError('Exception dependencies and reasons must be strings')
-            key = (entry['module'], entry['rule'], entry['target'])
-            if key in exceptions or any('*' in value for value in key):
-                raise ValueError('Duplicate or wildcard architecture exception')
-            if entry['issue'] not in {90, 91, 92, 93} or not entry['reason'].strip():
-                raise ValueError('Each exception needs a reason and an assigned removal issue')
-            if type(entry['occurrences']) is not int or entry['occurrences'] < 1:
-                raise ValueError('Exception occurrences must be a positive exact count')
-            if entry['rule'] in {'classification', 'stale-classification', 'unknown-target'}:
-                raise ValueError('Classification failures cannot be excepted')
-            exceptions[key] = entry
+        if type(policy['exceptions']) is not list or policy['exceptions']:
+            raise ValueError('Architecture migration is closed; exceptions must be an empty list')
         errors = []
         for problem in problems:
-            key = (problem.module, problem.rule, problem.target)
-            if key not in exceptions or actual[key] > exceptions[key]['occurrences']:
-                path = paths.get(problem.module, problem.module)
-                errors.append(f'{path}:{problem.line}: [{problem.rule}] {problem.message}: {problem.target}')
-        for key, entry in exceptions.items():
-            if actual[key] < entry['occurrences']:
-                errors.append(f'Stale architecture exception: {key}; remove/update with #{entry["issue"]}')
+            path = paths.get(problem.module, problem.module)
+            errors.append(f'{path}:{problem.line}: [{problem.rule}] {problem.message}: {problem.target}')
         return sorted(set(errors))
     except (OSError, ValueError, KeyError, TypeError, SyntaxError) as error:
         return [f'Invalid architecture policy or source: {error}']

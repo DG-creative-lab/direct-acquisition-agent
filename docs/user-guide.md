@@ -179,3 +179,23 @@ requests still require verified admission, and execution remains paused.
 If you give alternative totals or a relative change, the agent asks you to state one absolute GBP total. For example, reply "Use GBP 400 as the total budget." The agent does not choose a budget for you. Your reply creates a new brief revision; earlier questions remain in the conversation history.
 
 Keep model-copy permission explicit for that request. Reloading after a lost response retains the saved reply or preparation, so retry the displayed pending command rather than sending a duplicate message. Review the resulting audience, copy and exact budget before any approval. Approval and simulated acceptance remain separate actions.
+
+## Rechecking the integrated architecture
+
+Developers can run `make boundary-check` from the repository root. Each run uses
+fresh synthetic stores, deterministic gateways and real SQLite/fresh processes.
+It records JSON results, the exact evaluated input hashes, preserved historical
+artifact hashes and retained per-scenario stores/logs in a new directory under
+`.local/boundary-evidence/`. An existing evidence directory is never overwritten.
+The output path is printed at the end; `BOUNDARY_OUTPUT` selects a new empty
+location. This command is local control evidence, not model-quality or live
+provider evidence. Run `make test`, `make arch-check` and `make interface-check`
+for the full gates. [Boundary verification](hexagonal-boundaries.md) maps each
+scenario to its owner and limitations.
+
+Supported `python -m acquisition` and standalone command names still launch
+through root compatibility wrappers. New application imports use canonical
+`application/workspace` and public business packages; startup code uses
+`entrypoints`. The [wrapper inventory](architecture.md#compatibility-wrapper-inventory)
+lists the supported names. Projection repair and restore retain their existing
+offline commands and inspection-only restrictions.

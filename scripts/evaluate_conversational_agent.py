@@ -8,7 +8,7 @@ Fake responses exercise orchestration and fault handling, not semantic accuracy.
 Exit 1 means an acceptance expectation failed; results are still written.
 """
 import argparse
-from contextlib import ExitStack
+from contextlib import ExitStack, nullcontext
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -287,12 +287,21 @@ def complete_journey(w, cid, state, model):
             'confirmed_amendment_budget_pence': 51200}
 
 
-def run_case(case):
+def retained_directory(directory, prefix):
+    """A caller can retain evidence in a fresh directory; defaults stay temporary."""
+    if directory is None:
+        return tempfile.TemporaryDirectory(prefix=prefix)
+    path = Path(directory)
+    path.mkdir(parents=True, exist_ok=False)
+    return nullcontext(str(path))
+
+
+def run_case(case, *, directory=None):
     model = RecordedFake(case['scripted_brief'])
     started = time.perf_counter()
     result = {'id': case['id'], 'expected': case['expected'], 'passed': False}
     try:
-        with tempfile.TemporaryDirectory(prefix='issue25-offline-') as root, ExitStack() as stack:
+        with retained_directory(directory, 'issue25-offline-') as root, ExitStack() as stack:
             fake_provider(stack, model)
             w = build_workspace(root, real_clock=lambda: NOW)
             cid = w.create_conversation('chat', case['id'])['id']
@@ -322,10 +331,10 @@ def run_case(case):
     return result
 
 
-def verified_boundary():
+def verified_boundary(*, directory=None):
     started = time.perf_counter()
     model = RecordedFake({})
-    with tempfile.TemporaryDirectory(prefix='issue25-verified-') as parent, ExitStack() as stack:
+    with retained_directory(directory, 'issue25-verified-') as parent, ExitStack() as stack:
         fake_provider(stack, model)
         root = Path(parent) / 'fresh'
         initialize_fixture_workspace(root, clock=lambda: NOW)
@@ -364,11 +373,11 @@ def verified_boundary():
                 'elapsed_seconds': round(time.perf_counter() - started, 3)}
 
 
-def uncertain_restart():
+def uncertain_restart(*, directory=None):
     started = time.perf_counter()
     model = RecordedFake({'budget_pence': 55300, 'copy_mode': 'fixture'})
     model.uncertain = True
-    with tempfile.TemporaryDirectory(prefix='issue25-uncertain-') as root, ExitStack() as stack:
+    with retained_directory(directory, 'issue25-uncertain-') as root, ExitStack() as stack:
         fake_provider(stack, model)
         w = build_workspace(root, real_clock=lambda: NOW)
         cid = w.create_conversation('chat', 'Unknown planner response')['id']

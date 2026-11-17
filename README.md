@@ -97,6 +97,7 @@ A Python modular monolith owns business rules, durable tasks, inference reservat
 ```sh
 make test
 make arch-check
+make boundary-check
 make mutation-check
 pnpm --dir frontend exec playwright install chromium
 make interface-check
@@ -107,3 +108,11 @@ New CI gates and runtime matrix entries must record their protected regression, 
 Offline checks need no provider credentials. Live model quality is evaluated separately. A [recorded generated-copy example](examples/grounded-run/letters.txt) is supplied for inspection, with its limitations described in the grounding guide.
 
 Development branches use `feature/...`. Build history is available in Git; the guides describe the current product and label future work explicitly. No license terms have been selected yet.
+
+`make boundary-check` runs the bounded offline lifecycle and recovery corpus
+without provider credentials. It retains a fresh evidence bundle under
+`.local/boundary-evidence/` and exits nonzero for missing cases, failed assertions,
+network attempts, changed source inputs or altered historical evidence. Use
+`BOUNDARY_OUTPUT=/path/to/new-empty-directory` to choose a destination. See
+[hexagonal boundary verification](docs/hexagonal-boundaries.md) for ownership,
+scenario scope and the evidence reusable by later product gates.
