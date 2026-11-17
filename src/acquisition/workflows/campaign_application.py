@@ -43,6 +43,8 @@ class Application:
     assets: Callable[[], dict]
     copy_assets: Callable
     draft_exporter: Callable
+    learning_reporter: Callable
+    review_reporter: Callable
 
     def _legacy_campaign(self, organization, request_id, snapshot_id, brief, *, model=False,
                          contexts_override=None, objective=None, parent_run_id=None):

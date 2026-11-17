@@ -54,7 +54,7 @@ The [local checkpoint adapter](workspace-checkpoints.md) uses the same root lock
 `make arch-check` statically inspects every Python file under `src/acquisition`,
 without importing product code. `scripts/architecture_policy.json` is the reviewed,
 exact module-to-role inventory and temporary exception ledger. It currently
-classifies 181 modules, including workspace control/model ports, startup/transport separation, engagements and supporting
+classifies 205 modules, including workspace application/views, startup and HTTP adapters, compatibility wrappers, engagements and supporting
 files and every root utility. An added file needs an explicit classification;
 removed files must lose their classifications. A file/package name collision is
 rejected. Tests and scripts are outside this production inventory and cannot be
@@ -71,9 +71,10 @@ through the backend suite.
 | Workflows | Public business APIs, other workflow composition and technical contracts |
 | Adapters | Public business contracts/validators, adapter helpers, infrastructure and technical contracts |
 | Infrastructure helpers | Other infrastructure helpers and technical contracts |
-| Bootstrap composition | Concrete adapters, services, workflows and transport; no entry-point dependencies |
+| Bootstrap composition | Concrete adapters, services, workflows and transport; no entrypoint or compatibility-wrapper dependencies |
 | Entry points | Bootstrap, public APIs, application/transport and startup helpers; delegate provider/SQLite I/O |
 | HTTP transport | Application/public APIs, infrastructure helpers and technical contracts; no bootstrap or concrete provider/store wiring |
+| Compatibility wrappers | Named exports from canonical entrypoints or public APIs, plus an optional `main()` launch; no behavior or composition |
 
 Business dependency directions remain explicitly declared in the checker:
 campaigns uses audiences/creative; creative uses reasoning/audiences; reviews uses
@@ -135,28 +136,21 @@ rejected. A transport role is not a general adapter exemption.
 
 ### Temporary exception ledger
 
-The initial #89 inventory recorded **31 exact dependency exceptions**. After #90 and #91,
-**12 remain**, with module,
-rule, target, occurrence count, reason and removal issue in the JSON ledger.
-These make existing debt visible; they are not permissions for additional imports.
-A new/substituted target, increased occurrence count, removed violation with a
-stale exception, duplicate entry or wildcard fails the check. Classification and
-unknown-target failures cannot be excepted. The checker has no baseline-refresh
-command. Changes to inventory, roles or exceptions require explicit review.
+The initial #89 inventory recorded **31 exact dependency exceptions**. Issues
+#90, #91 and #92 have removed all of them. The JSON ledger is empty. It still
+rejects new violations, stale entries, occurrence changes, duplicates and
+wildcards. Classification and unknown-target failures cannot be excepted. The
+checker has no baseline-refresh command; inventory, roles and exception changes
+require explicit review. Issue #93 owns final integrated evidence and closeout.
 
-| Removal issue | Count | Existing dependency to extract |
-| --- | --- | --- |
-| #90 | 0 | Extracted into consumer-owned workspace ports and the SQLite control adapter |
-| #91 | 0 | Workspace, CLI and provider construction now flows through bootstrap; ephemeral sessions are adapter-owned |
-| #92 | 12 | Remaining root command/report/storage-error infrastructure, the contact adapter's private policy-module import and review validators from mixed creative application code |
-
-The last group includes three domain imports of `fact_pack_id`,
-`validate_fact_pack` and `validate_grounded_catalogue`. These pure functions share
-`creative.grounding` with inference/application imports. #92 must separate their
-pure owner and expose the required contact-policy functions through the public
-campaign API. Do not relabel mixed application code as domain to clear a check.
-#93 requires zero temporary exceptions. #90 and #91 implement the workspace extractions. #92 owns the remaining root
-utilities and mixed policy owners; #93 requires the final zero-exception check.
+The contact adapter uses the named public `evaluate_contact_eligibility` policy.
+Review's fact-pack and grounded-catalogue validators resolve to
+`creative/grounding_policy.py`; copy schemas live in `creative/copy_contracts.py`.
+Both are pure domain owners. Model orchestration remains in
+`creative/grounding.py`. Review and learning reports are bootstrap-injected output
+callbacks on the campaign application. Offline recovery commands receive a
+storage-error boundary from bootstrap; only its SQLite adapter imports native
+SQLite exceptions.
 
 ## Repository map
 
@@ -183,11 +177,15 @@ src/acquisition/
   workflows/                  integration through public contracts
   adapters/                   SQLite, OpenRouter, files and report projections
   bootstrap.py                composition root
-  workspace.py                local workspace facade
-  workspace_server.py         loopback transport and static asset serving
-  workspace_checkpoint.py     offline checkpoint capture, validation and restore
-  conversation_cli.py         explicit conversation and planner commands
-  __main__.py                 CLI entry point
+  application/workspace/      service, ports, state access and read-only views
+  adapters/http/              loopback routing, guards and static asset serving
+  entrypoints/                CLI dispatch, offline commands and server lifecycle
+  workspace.py                compatibility exports for the public facade
+  workspace_server.py         compatibility launch for the workspace server
+  *_cli.py, *_demo.py          compatibility exports for canonical entrypoints
+  workspace_*.py              compatibility launches for offline recovery commands
+  legacy_migration.py         compatibility launch for offline legacy recovery
+  __main__.py                 compatibility launch for the CLI
 config/                       editorial guidance, fact pack and evaluation cases
 tests/                        pure rules, SQLite, HTTP and process recovery
 frontend/tests/               real-backend client and Chromium regressions
@@ -224,7 +222,7 @@ Unsealed compatibility stores still keep preparation intent, routing and sandbox
 
 `bootstrap.build_workspace` constructs the facade with its control/state ports,
 model-session interface, reviewed asset loaders, scoped application factory and
-preparation coordinators. `workspace.py` contains no bootstrap imports, provider
+preparation coordinators. `application/workspace/service.py` contains no bootstrap imports, provider
 construction, credential reads or filesystem configuration loading. The factory
 keeps existing authoritative environment routing, lazy verified-store selection
 and compatibility-store behavior. Construction does not dispatch a model or
@@ -237,8 +235,11 @@ silently seal a store before the server's root lock is acquired.
 | `workflows/preparation_host.py` | Implements the preparation host over injected conversation APIs and narrow campaign/generation continuations; preserves the existing consent, admission and stop rules in their owners |
 | `workflows/campaign_application.py` | Campaign creation/replay, frozen copy context preparation and export use cases over injected stores, population generation, reviewed assets and an export effect |
 | `application/cli_commands.py` | Executes CLI commands using the supplied application and explicit legacy review/learning delegates |
-| `transport/workspace_http.py` | The unchanged loopback request guards and server/worker lifecycle |
-| `workspace_server.py`, `__main__.py`, `conversation_cli.py` | Startup argument parsing, composition through bootstrap and presentation of results |
+| `application/workspace/service.py` | Injected workspace coordination and use cases, exported by `application/workspace/__init__.py` |
+| `application/workspace/views.py` | Read-only campaign/action/preparation progress and blocker wording |
+| `adapters/http/workspace_server.py` | Loopback routing, serialization, static assets and unchanged request guards |
+| `entrypoints/workspace.py` | Root lock, recovery, scheduler and request-draining shutdown lifetime |
+| `entrypoints/cli.py`, `entrypoints/*_cli.py` | Argument parsing, dispatch and presentation of results through bootstrap-built applications |
 
 `ScopedWorkspaceApplications` is bound to one server-owned root and constructs
 only campaign or fixed conversation applications. It accepts explicit resolved
@@ -414,3 +415,28 @@ The runtime executes `conversations.route.v1` without business-specific scheduli
 [Execution controls](execution-controls.md) supplement capability consent and per-run limits with one conversation-wide reservation allowance. Run relationships are established at admission, including descendant experiments. Reservation checks the allowance in the call-journal transaction. Exact-revision cancellation, runtime fencing and stop receipts commit in the domain database; the separate coordinator journal observes that authority after partial failure. Draft writes and revision admission/publication remain fenced. Existing review checkpoints and approvals are preserved.
 
 The [exact sequence review slice](sequence-review.md) composes domain-owned validators through reviews and an engagements-owned transaction authority port. One approval binds the complete immutable synthetic sequence and current evidence basis. The SQLite engagement adapter requires it for new enrollment, reservation and settlement, while retaining late provider observations separately. Bootstrap wires these adapters; the runtime and frontend do not gain business rules or new authority.
+
+### Compatibility wrapper inventory
+
+These root modules contain named forwarding imports and, where previously
+supported, an `if __name__ == "__main__": main()` launch. They contain no command,
+policy, storage or startup behavior. The checker gives them a separate `wrapper`
+role and rejects reverse dependencies from application, adapters, bootstrap and
+canonical entrypoints. Root `contracts.py`, `local_root.py` and `bootstrap.py`
+retain their technical-contract, infrastructure and composition responsibilities.
+
+| Root compatibility module(s) | Canonical owner |
+| --- | --- |
+| `__main__.py` | `entrypoints/cli.py` |
+| `workspace.py` | Public `application/workspace` exports |
+| `workspace_server.py` | `entrypoints/workspace.py` |
+| `channel_cli.py`, `contact_cli.py`, `conversation_cli.py`, `decision_cli.py`, `profile_cli.py`, `recipient_cli.py`, `sequence_cli.py` | Matching `entrypoints/*_cli.py` modules |
+| `learning_cli.py`, `review_cli.py`, `learning_demo.py`, `review_demo.py` | Matching `entrypoints/` command and scripted demonstration modules |
+| `workspace_checkpoint.py`, `workspace_rebuild.py`, `workspace_fixture.py`, `legacy_migration.py` | Matching `entrypoints/` offline command modules |
+
+The former internal `transport/workspace_http.py` implementation is replaced by
+`adapters/http/workspace_server.py`. Supported public launch commands retain
+identical names and arguments. Root-lock scope, fixed server-side identity,
+Host/token/Origin checks, body/path limits and exact-subject download validation
+retain their existing behavioral tests. This layout adds no model inference,
+sending authority, schema migration or deployment topology.

@@ -20,3 +20,6 @@ from .sequence_application import SequenceCampaigns
 from .sequences import validate_sequence_proposal, validate_sequence_window
 __all__ += ['validate_sequence_proposal','validate_sequence_window']
 __all__ += ['SequenceProposalStore','SequenceCampaigns']
+
+from .contact_eligibility import contact_eligibility as evaluate_contact_eligibility
+__all__ += ['evaluate_contact_eligibility']

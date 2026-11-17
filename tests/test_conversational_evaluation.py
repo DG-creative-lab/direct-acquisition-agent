@@ -50,7 +50,7 @@ class ConversationalEvaluationTests(unittest.TestCase):
         self.assertFalse(evaluation.assess_outcome(expected, dirty)['passed'])
 
     def test_unrelated_preparation_failure_does_not_pass_a_negative_case(self):
-        from acquisition.workspace import Workspace as WorkspaceFacade
+        from acquisition.application.workspace import Workspace as WorkspaceFacade
         original = WorkspaceFacade.start_preparation
 
         def fail_before_dispatch(workspace, cid, *args, **kwargs):

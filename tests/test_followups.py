@@ -217,7 +217,7 @@ print(json.dumps(s['session']))
             for key in ('followup-request:historical', historical['id']):
                 db.execute('INSERT INTO review_commands VALUES(?,?,?,?)',
                            (self.scope, key, digest(historical), canonical(historical)))
-        with patch('acquisition.workspace.followup_hypotheses', side_effect=AssertionError('Historical hypothesis replaced')):
+        with patch('acquisition.application.workspace.service.followup_hypotheses', side_effect=AssertionError('Historical hypothesis replaced')):
             self.assertEqual(self.w.propose_followup(self.sid, 'historical', self.cohort), historical)
             child = self.w.prepare_followup(self.sid, 'historical-prepare', historical['id'], 'fixture', False)
         self.assertTrue(child['review']['candidate_valid'])

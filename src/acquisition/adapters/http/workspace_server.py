@@ -1,68 +1,28 @@
-"""Loopback-only, same-origin transport for the trusted local workspace."""
-
-import argparse
+"""Loopback request routing, serialization and browser security boundaries."""
 import json
 import mimetypes
 import secrets
 import threading
-import time
 from contextlib import ExitStack
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
-
 from acquisition.contracts import Conflict, NotFound
 from acquisition.conversations import ActionNotSaved, AudienceSelectionRejected, MessageRejectedConflict, MessageRejectedInvalid, MessageRejectedNotFound
 from acquisition.reasoning import ModelError
-from acquisition.workspace import MonitoringRejected
-from acquisition.application.workspace import ModelSelectionRejected, ModelSessionExpired
-from acquisition.local_root import workspace_root_lock, require_live_root
+from acquisition.application.workspace import MonitoringRejected, ModelSelectionRejected, ModelSessionExpired
 
 
-class WorkspaceServer(ThreadingHTTPServer):
-    # Handlers can reserve inference and commit workspace state.
+class WorkspaceHTTPServer(ThreadingHTTPServer):
+    # Closing waits for handlers that can reserve inference or commit state.
     daemon_threads = False
 
     def __init__(self, port, workspace, assets):
         self.workspace, self.assets = workspace, Path(assets).resolve()
         self.token = secrets.token_urlsafe(32)
-        self.preparation_stop = threading.Event()
         self.request_gate = threading.Lock()
         self.closing = False
-        self.preparation_worker = None
-        require_live_root(workspace.root)
-        self.root_lock = ExitStack()
-        self.root_lock.enter_context(workspace_root_lock(workspace.root))
-        try:
-            super().__init__(("127.0.0.1", port), Handler)
-            self.workspace.recover_execution()
-            self.workspace.preparations.recover("local-conversations")
-            self.workspace.recover_copy_revisions()
-            self.workspace.recover_actions()
-        except BaseException:
-            if hasattr(self, "socket"):
-                super().server_close()
-            self.root_lock.close()
-            raise
-        self.preparation_worker = threading.Thread(target=self._continue_preparations, daemon=True)
-        self.preparation_worker.start()
-
-    def _continue_preparations(self):
-        next_report_check = time.monotonic()
-        while not self.preparation_stop.wait(0.25):
-            if time.monotonic() >= next_report_check:
-                try:
-                    self.workspace.advance_report_monitoring()
-                except Exception:
-                    pass  # The next pass rechecks the same scoped schedules.
-                next_report_check = time.monotonic() + 2
-            try:
-                self.workspace.models.expire()
-                self.workspace.advance_preparations()
-            except Exception:
-                # A storage interruption leaves original durable identities intact.
-                # No alternate run/key is ever created by this scheduler.
-                continue
+        super().__init__(("127.0.0.1", port), Handler)
 
     def process_request(self, request, client_address):
         with self.request_gate:
@@ -71,18 +31,9 @@ class WorkspaceServer(ThreadingHTTPServer):
                 return
             super().process_request(request, client_address)
 
-    def server_close(self):
-        with self.request_gate:
-            self.closing = True
-            self.preparation_stop.set()
-        super().server_close()
-        if self.preparation_worker is not None:
-            self.preparation_worker.join()
-        self.root_lock.close()
-
 
 class Handler(BaseHTTPRequestHandler):
-    server: WorkspaceServer
+    server: WorkspaceHTTPServer
     timeout = 15  # Bound idle socket reads while the server drains handlers.
 
     def log_message(self, *args):

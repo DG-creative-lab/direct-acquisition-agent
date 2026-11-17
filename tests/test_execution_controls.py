@@ -1089,7 +1089,7 @@ print(json.dumps(SqliteExecution(Database(sys.argv[1])).view('local-conversation
 
     def test_disabled_checkpoint_operator_does_not_block_startup_or_other_recovery(self):
         from acquisition.adapters.sqlite.reviews import SqliteReviews
-        from acquisition.workspace_server import WorkspaceServer
+        from acquisition.entrypoints.workspace import WorkspaceServer
         import urllib.request
         import sqlite3
         bad,bad_sid=self.checkpoint('disabled-checkpoint')

@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 from acquisition.adapters.sqlite.followups import SqliteFollowups
 from acquisition.campaigns import FollowupStore
 from acquisition.adapters.files import export_draft
+from acquisition.adapters.learning_report import write_learning
+from acquisition.adapters.review_report import write_review
 from acquisition.adapters.sqlite.audiences import SqliteAudiences
 from acquisition.adapters.sqlite.database import Database
 from acquisition.local_root import inspection_only, require_live_root, workspace_root_lock
@@ -422,7 +424,8 @@ def build(path: str | Path, clock: Callable[[], float] = time.time,
                        discovery, ConversationAudiences(conversations, discovery, SqliteAudienceSelections(database, clock), audiences, clock), actions,
                        ConversationExecution(SqliteExecution(database), clock),admissions,model_config,
                        generate, _campaign_assets, lambda *a, **k: copy_assets(*a, **k),
-                       lambda draft, directory, contexts: export_draft(draft, Path(directory), contexts))
+                       lambda draft, directory, contexts: export_draft(draft, Path(directory), contexts),
+                       write_learning, write_review)
 
 
 def _campaign_assets():
@@ -488,7 +491,7 @@ class ScopedWorkspaceApplications:
 
 def build_workspace(root, real_clock=time.time, *, verified_admissions=False, model_sessions=None, gateway_factory=None):
     from threading import RLock
-    from acquisition.workspace import Workspace
+    from acquisition.application.workspace import Workspace
     from acquisition.adapters.models.workspace_sessions import WorkspaceSessions
     from acquisition.workflows.preparation_host import WorkspacePreparationHost
     if type(verified_admissions) is not bool:raise ValueError('Choose an explicit admission mode')
@@ -524,3 +527,15 @@ def build_cli_application(path, *, model=None, max_calls=10, tool_choice=None, e
     force_tools = tool_choice == 'required' if tool_choice else model == 'openai/gpt-oss-120b'
     config = ModelConfig(model, max_calls=max_calls, force_tool_choice=force_tools) if model else None
     return build(path, gateway=gateway, model_config=config)
+
+
+def build_workspace_http(port, workspace, assets):
+    """Select the inbound adapter after startup has acquired the root lock."""
+    from acquisition.adapters.http.workspace_server import WorkspaceHTTPServer
+    return WorkspaceHTTPServer(port, workspace, assets)
+
+
+def build_recovery_error_boundary():
+    """Normalize storage failures without importing SQLite in command startup."""
+    from acquisition.adapters.sqlite.errors import recovery_storage_errors
+    return recovery_storage_errors()

@@ -1,5 +1,54 @@
 # Validation and limits
 
+## Workspace directory boundaries, issue 92
+
+The feature branch starts from merged #91 (`d48bbe7`, PR #102). Before changing
+code, three post-merge smoke cases passed: real HTTP actions and artifacts,
+fresh-process acceptance replay after a partial acknowledgement, and the offline
+fixture journey restarting after draft commit. These are local synthetic checks;
+no live provider call or external dispatch was executed.
+
+| Protected outcome | Evidence | Boundary and limit |
+| --- | --- | --- |
+| Directory moves retain workspace behavior | 82 of 83 original workspace members retain identical AST bodies across the service and view owners; the conversation projection changes its read order as described below. The existing 132-case HTTP, workspace, recovery, grounding and report-command selection passes. | AST comparison supports relocation review; behavioral suites remain the authority for observable effects. |
+| HTTP remains an inbound adapter | Its transport role rejects SQLite and bootstrap imports at the new path; existing real HTTP cases retain Host/token/Origin, path/body limits, fixed scope and exact-subject downloads. | Trusted loopback service with one worker, not hosted authentication. |
+| Startup owns lock and worker lifetime | Existing in-flight inference shutdown and second-server tests pass. A new actual-socket recovery-failure case verifies immediate root reuse and a stopped worker after close. | The root lock remains held until handlers and scheduler drain. No deployment topology change. |
+| Compatibility names cannot become reverse dependencies | Independently authored wrapper fixtures reject imports from application, adapters and bootstrap, reject composition imports inside wrappers and reject executable wrapper behavior. | Supported `python -m` names forward to canonical entrypoints. The static gate is not an execution sandbox. |
+| Offline storage failures keep their command contract | Four CLI cases trigger an actual SQLite missing-table error and observe exit status 2 with each command's existing guidance, without a traceback. Existing fresh-process checkpoint, projection and migration tests remain in place. | SQLite exception handling stays in its adapter; command startup handles the neutral storage error. |
+| Pure domain policy keeps its owner | Review validators resolve to pure creative policy and schema modules. The contact adapter uses an explicit public policy export. | No mixed inference file is relabeled as domain. Report output is bootstrap-injected. |
+| Relocation preserves mutation oracles | All 512 existing mutation anchors and the new completion-order probe match once and their mutated sources compile. Relocated probes retain their original harmful changes and tests. | This audit alone does not establish detection; targeted executions are recorded below. |
+
+A browser failure exposed a pre-existing projection interleaving: campaign rows
+were captured before action progress observed review completion. The response
+could report no pending continuation but omit the just-published case mapping,
+which stopped browser polling. The conversation projection now samples actions
+before campaign rows. The saved-plan SQLite/restart test publishes the exact
+completed mapping between those reads. It failed before the fix with a missing
+case and passes after it. The new mutation reverses the read order without
+changing the behavioral oracle. No task, approval or model-call rule changed.
+
+`make test` passed all 1,033 backend tests on Python 3.14.3 with loopback access
+in 1,945.027 seconds. The architecture gate passes with 205 modules and zero
+temporary exceptions. All 24 focused architecture, recovery-error and startup
+cases passed; all 13 supported launch commands returned help successfully.
+All nine targeted harmful mutations were detected, including the new
+completion-order probe. All 513 catalogue targets match once and compile.
+
+The saved-plan browser case passed three repetitions after its deterministic
+projection fix. A separate navigation case was still preparing when its default
+five-second assertion expired; its wait now uses the existing ten-second
+preparation bound used by the other journeys, retaining every state and
+navigation assertion. Three navigation repetitions passed. An artifact-revision
+wait also expired when both browser partitions and the backend suite competed
+locally; its trace recorded successful revision completion. It passed unchanged
+when the first browser partition ran after the backend suite. Build and format
+checks pass. Final interface verification passed all 108 distinct browser cases
+across the supported two partitions: 49 in the isolated first partition and 59
+in the second. The first used `make interface-check BROWSER_SHARD=1
+BROWSER_SHARDS=2`; the second used `BROWSER_SHARD=2 BROWSER_SHARDS=2 pnpm --dir
+frontend test` against the same source and verified build. No case was skipped
+or accepted through a retry. No live or paid model call was executed.
+
 ## Architecture review follow-up: transport imports and current main (#89)
 
 The transport role previously escaped external infrastructure checks. Extending

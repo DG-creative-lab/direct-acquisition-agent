@@ -70,7 +70,7 @@ class ReviewRegressions(unittest.TestCase):
         self.assertTrue(all(t["attempts"] == 0 for t in state["tasks"]))
 
     def test_cli_create_then_unconfigured_work_stays_resumable(self):
-        from acquisition.__main__ import main
+        from acquisition.entrypoints.cli import main
         from contextlib import redirect_stdout
         from io import StringIO
         from unittest.mock import patch

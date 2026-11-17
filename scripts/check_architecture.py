@@ -17,7 +17,7 @@ DEPENDENCIES = {
     'engagements': {'campaigns'},
 }
 ROLES = {'domain', 'ports', 'application', 'public_api', 'workflow', 'adapter',
-         'composition', 'entrypoint', 'transport', 'infrastructure', 'contracts'}
+         'composition', 'entrypoint', 'transport', 'infrastructure', 'contracts', 'wrapper'}
 ALLOWED = {
     'domain': {'domain', 'contracts'},
     'ports': {'domain', 'ports', 'contracts'},
@@ -27,7 +27,8 @@ ALLOWED = {
     'adapter': {'public_api', 'adapter', 'infrastructure', 'contracts'},
     'infrastructure': {'infrastructure', 'contracts'},
     'contracts': {'contracts'},
-    'composition': ROLES - {'entrypoint'},
+    'composition': ROLES - {'entrypoint', 'wrapper'},
+    'wrapper': {'entrypoint', 'public_api'},
     'entrypoint': {'composition', 'entrypoint', 'application', 'public_api',
                    'transport', 'infrastructure', 'contracts'},
     'transport': {'application', 'public_api', 'infrastructure', 'contracts'},
@@ -66,6 +67,9 @@ def standard_import_allowed(role, module, symbol):
         symbols['pathlib'] = {'Path'}
     if role in {'entrypoint', 'transport'}:
         modules['argparse'] = {'ArgumentParser'}
+    if role == 'entrypoint':
+        modules['contextlib'] = modules['contextlib'] | {'ExitStack'}
+        modules['threading'] = modules['threading'] | {'Thread', 'Event'}
     if role == 'transport':
         # Only the installed server protocol and static-asset dependencies.
         # This does not admit client networking, provider SDKs or persistence.
@@ -209,6 +213,15 @@ class Inventory:
 
         def reject(rule, target, line, message):
             found.append(Problem(module, rule, target, line, message))
+
+        if role == 'wrapper':
+            for node in tree.body:
+                forwarding = isinstance(node, ast.ImportFrom) and node.level == 0 and (node.module or '').startswith('acquisition.')
+                docstring = isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str)
+                launch = (isinstance(node, ast.If) and ast.dump(node, include_attributes=False) == ast.dump(
+                    ast.parse('if __name__ == "__main__":\n    main()').body[0], include_attributes=False))
+                if not (forwarding or docstring or launch):
+                    reject('wrapper', module, node.lineno, 'Compatibility wrappers may only forward named exports and launch main')
 
         for ref in references(tree, module, package):
             target, symbol = self.target(ref)

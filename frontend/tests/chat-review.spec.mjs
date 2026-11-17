@@ -12,7 +12,7 @@ import sys, time
 from pathlib import Path
 from unittest.mock import patch
 from acquisition.bootstrap import build_workspace as Workspace
-from acquisition.workspace_server import WorkspaceServer
+from acquisition.entrypoints.workspace import WorkspaceServer
 from acquisition.reasoning import ModelError
 from test_copy_revisions import RevisionModel
 from test_model_copy import reply

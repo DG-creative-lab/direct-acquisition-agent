@@ -18,7 +18,7 @@ from acquisition.bootstrap import build
 from acquisition.contracts import Conflict, NotFound, digest
 from acquisition.learning import counts_for, posterior, recommend, WINDOW_SECONDS
 from acquisition.local_root import CHECKPOINT_FILE
-from acquisition.review_demo import run_review_demo
+from acquisition.entrypoints.review_demo import run_review_demo
 from acquisition.adapters.learning_report import render_learning
 from acquisition.reasoning import ModelConfig
 from test_model_copy import FakeModel
@@ -153,7 +153,7 @@ class LearningTests(unittest.TestCase):
         path = self.root / "provider-report.json"
         path.write_text(json.dumps(report))
         script = '''import sys
-import acquisition.__main__ as cli
+import acquisition.entrypoints.cli as cli
 import acquisition.bootstrap as composition
 from functools import partial
 now = float(sys.argv.pop(1))
@@ -220,7 +220,7 @@ cli.main()
 import os
 import sys
 from unittest.mock import patch
-import acquisition.__main__ as cli
+import acquisition.entrypoints.cli as cli
 import acquisition.bootstrap as composition
 from acquisition.adapters.sqlite.report_monitoring import SqliteReportMonitoring
 

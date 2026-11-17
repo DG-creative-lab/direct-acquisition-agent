@@ -78,7 +78,7 @@ class LegacyInventoryTests(unittest.TestCase):
         cid,app,run=self.planner();before=self.facts();binary=self.byte_facts()
         with patch.object(Database,'transaction',side_effect=AssertionError('write')), \
              patch('acquisition.bootstrap.agent_catalogue',side_effect=AssertionError('current guidance')), \
-             patch('acquisition.workspace.Workspace',side_effect=AssertionError('workspace construction')):
+             patch('acquisition.application.workspace.Workspace',side_effect=AssertionError('workspace construction')):
             report=self.inspect();self.assertEqual(report,self.inspect())
         item=self.run_record(report,run)
         self.assertEqual(item['classification'],'supported',item)
