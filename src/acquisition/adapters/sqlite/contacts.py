@@ -209,7 +209,7 @@ class SqliteContactDirectory:
             return result
 
     def prepare(self, organization, request_id, snapshot, channel, purpose):
-        from .sequence_journeys import journey_transaction
+        from .sequence_journeys import journey_transaction, assessment_journey_origin
         channel_purpose(channel,purpose)
         inputs = {'kind':'contact-prepare/v1','source_id':snapshot.id,'channel':channel,'purpose':purpose,
                   'profile_id':self._profile(organization).id}
@@ -217,6 +217,7 @@ class SqliteContactDirectory:
             self._writable(db)
             replay = self._replay(db,organization,request_id,inputs)
             if replay: return replay
+            assessment_journey_origin(db,organization,request_id,snapshot)
             self._install(db,organization,snapshot)
             report = self._report(db,organization,snapshot.connection.key,channel,purpose)
             payload = {'organization':organization,'request':inputs,'connection_key':snapshot.connection.key,

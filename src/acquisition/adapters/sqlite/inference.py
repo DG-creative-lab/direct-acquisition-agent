@@ -45,6 +45,12 @@ class SqliteCalls:
             if 'journey' in inputs:
                 from .sequence_journeys import require_journey_origin
                 require_journey_origin(connection,scope.organization,inputs['journey'])
+            channel_context = None
+            if task['capability']=='creative.channel_content.v1':
+                from .creative import read_context
+                from .sequence_journeys import require_channel_context_origin
+                channel_context=read_context(connection,scope.organization,inputs['context_id'])
+                require_channel_context_origin(connection,scope.organization,channel_context)
             audience_source = None
             if inputs.get("workflow_version") == "copy-revision/v3":
                 try:
@@ -95,6 +101,8 @@ class SqliteCalls:
                 raise LeaseLost("Inference attempt expired before reservation")
             if 'journey' in inputs:
                 require_journey_origin(connection,scope.organization,inputs['journey'])
+            if channel_context is not None:
+                require_channel_context_origin(connection,scope.organization,channel_context)
             if audience_source is not None:
                 try:
                     validate_dataset_freshness(audience_source, datetime.fromtimestamp(reservation_time, timezone.utc).date())

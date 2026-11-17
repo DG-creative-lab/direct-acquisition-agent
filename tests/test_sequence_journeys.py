@@ -288,6 +288,36 @@ class SequenceJourneyTests(unittest.TestCase):
         before=self.counts()
         with self.assertRaises(Conflict):channels.start(native,'new-key','fielddesk',row['outputs']['email-contexts'],'email')
         self.assertEqual(before,self.counts())
+        # New context keys must not detach an assessment from its journey.
+        from acquisition.bootstrap import build_recipient_contexts
+        contexts=build_recipient_contexts(self.path,native,'fielddesk',lambda:self.now)
+        # Emulate contexts already saved by the old writer. Channel admission
+        # independently follows their assessment provenance before reserving work.
+        derived=[]
+        with patch('acquisition.adapters.sqlite.sequence_journeys.recipient_journey_origin',return_value=None):
+            for index,key in enumerate(row['outputs']['email-contexts']):
+                request=contexts.inspect(native,key)['saved']['request']
+                key='previously-derived-'+str(index)
+                contexts.prepare(native,key,request['assessment_id'],request['contact_id'],request['source_key'],request['source_version'])
+                derived.append(key)
+        for state in ('active','stopped'):
+            with self.subTest(derived_context=state):
+                if state=='stopped':self.app.stop('one',self.journey,'stop-derived-context',1)
+                before=self.counts()
+                with self.assertRaises(Conflict):
+                    channels.start(native,'detached-derived-'+state,'fielddesk',derived,'email')
+                self.assertEqual(before,self.counts())
+                with closing(sqlite3.connect(self.path)) as db:
+                    count=db.execute('SELECT count(*) FROM recipient_context_commands').fetchone()[0]
+                for index,key in enumerate(row['outputs']['email-contexts']):
+                    request=contexts.inspect(native,key)['saved']['request']
+                    with self.assertRaises(Conflict):
+                        contexts.prepare(native,'derived-'+state+'-'+str(index),
+                            request['assessment_id'],request['contact_id'],request['source_key'],request['source_version'])
+                self.assertEqual(before,self.counts())
+                with closing(sqlite3.connect(self.path)) as db:
+                    self.assertEqual(db.execute('SELECT count(*) FROM recipient_context_commands').fetchone()[0],count)
+        self.copy_template()
         self.app.send('one',self.conversation,'edit',1,'Change budget to £200')
         self.assertFalse(self.app.view('one',self.journey)['current'])
         self.assertEqual(self.app.view('one',self.journey)['status'],'historical')
@@ -301,6 +331,161 @@ class SequenceJourneyTests(unittest.TestCase):
         with self.assertRaises(Conflict):native_app.campaigns.prepare(native,'detached',request)
         self.assertEqual(before,self.counts())
         with self.assertRaises(NotFound):self.app.store.get('other',self.journey)
+
+    def test_reassessment_keeps_frozen_source_ownership_and_standalone_sources_remain_usable(self):
+        from acquisition.bootstrap import build_contact_directory, build_recipient_contexts, build_channel_preparation
+        row=self.app.store.get('one',self.journey);native=row['inputs']['native_organization']
+        self.app.stop('one',self.journey,'stop-reassessment',1)
+        self.now+=60
+        directory=build_contact_directory(self.path,native,'fielddesk',lambda:self.now)
+        before=self.counts()
+        with closing(sqlite3.connect(self.path)) as db:
+            assessments=db.execute('SELECT count(*) FROM contact_assessments').fetchone()[0]
+        for version in (1,2):
+            with self.subTest(source_version=version), self.assertRaises(Conflict):
+                directory.prepare(native,'refreshed-assessment-'+str(version),'fielddesk-crm-a',version,'email')
+        self.assertEqual(before,self.counts())
+        with closing(sqlite3.connect(self.path)) as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM contact_assessments').fetchone()[0],assessments)
+        # Emulate a later assessment and context saved by the earlier writer.
+        with patch('acquisition.adapters.sqlite.sequence_journeys.assessment_journey_origin',return_value=None):
+            refreshed=directory.prepare(native,'old-refreshed','fielddesk-crm-a',1,'email')
+        self.assertNotEqual(refreshed['assessment_id'],row['outputs']['email-assessment'])
+        contexts=build_recipient_contexts(self.path,native,'fielddesk',lambda:self.now)
+        person=refreshed['report']['eligible'][0]
+        before=self.counts()
+        with self.assertRaises(Conflict):
+            contexts.prepare(native,'new-refreshed-context',refreshed['assessment_id'],person,'reviewed-context-a',1)
+        self.assertEqual(before,self.counts())
+        with patch('acquisition.adapters.sqlite.sequence_journeys.recipient_journey_origin',return_value=None):
+            contexts.prepare(native,'old-refreshed-context',refreshed['assessment_id'],person,'reviewed-context-a',1)
+        before=self.counts()
+        channels=build_channel_preparation(self.path,native,'fielddesk',lambda:self.now)
+        with self.assertRaises(Conflict):
+            channels.start(native,'detached-refreshed-content','fielddesk',['old-refreshed-context'],'email')
+        self.assertEqual(before,self.counts())
+        # An unowned connection in the same scope, and the same connection in an
+        # independent scope, remain genuinely standalone and can generate.
+        used=build(self.path,clock=lambda:self.now).execution.view('one',self.conversation)['used']
+        for organization,connection in ((native,'fielddesk-crm-b'),('standalone','fielddesk-crm-a')):
+            with self.subTest(standalone=(organization,connection)):
+                directory=build_contact_directory(self.path,organization,'fielddesk',lambda:self.now)
+                assessment=directory.prepare(organization,'standalone-assessment',connection,1,'email')
+                contexts=build_recipient_contexts(self.path,organization,'fielddesk',lambda:self.now)
+                contexts.prepare(organization,'standalone-context',assessment['assessment_id'],assessment['report']['eligible'][0],'reviewed-context-a',1)
+                channels=build_channel_preparation(self.path,organization,'fielddesk',lambda:self.now)
+                result=channels.prepare(organization,'standalone-content','fielddesk',['standalone-context'],'email')
+                self.assertTrue(result['ready_for_review'])
+                self.assertEqual(len(result['model_calls']),3)
+        self.assertEqual(build(self.path,clock=lambda:self.now).execution.view('one',self.conversation)['used'],used)
+
+    def test_earlier_detached_run_rechecks_source_before_resume_reservation_and_publication(self):
+        from acquisition.bootstrap import build_recipient_contexts, build_channel_preparation
+        from acquisition.reasoning import CallScope
+        for stage in ('resume','reservation','publication','uncertain'):
+            with self.subTest(stage=stage):
+                self.copy_template()
+                row=self.app.store.get('one',self.journey);native=row['inputs']['native_organization']
+                contexts=build_recipient_contexts(self.path,native,'fielddesk',lambda:self.now)
+                original=contexts.inspect(native,row['outputs']['email-contexts'][0])['saved']['request']
+                # Save exactly what the earlier writer allowed, without rewriting
+                # any immutable context or run after it has been admitted.
+                with patch('acquisition.adapters.sqlite.sequence_journeys.recipient_journey_origin',return_value=None):
+                    contexts.prepare(native,'old-detached-recipient',original['assessment_id'],original['contact_id'],original['source_key'],original['source_version'])
+                channels=build_channel_preparation(self.path,native,'fielddesk',lambda:self.now)
+                with patch('acquisition.adapters.sqlite.sequence_journeys.channel_journey_origin',return_value=None):
+                    run=channels.start(native,'old-detached-run','fielddesk',['old-detached-recipient'],'email')
+                    if stage!='resume':
+                        claim=channels.tasks.claim(native,self.now,180,run_id=run)
+                        scope=CallScope(native,run,claim.task_id,claim.token)
+                        handler=channels.worker.capabilities[claim.capability]
+                        if stage=='publication':outcome=handler(claim)
+                        if stage=='uncertain':
+                            with patch.object(channels.inference.gateway,'complete',side_effect=ModelError('provider_timeout')), self.assertRaises(ModelError):
+                                handler(claim)
+                self.app.stop('one',self.journey,'stop-old-detached',1)
+                if stage=='resume':
+                    conversation=build(self.path,clock=lambda:self.now).conversations.create('one','another-owner','Later journey')['id']
+                    later=self.app.send('one',conversation,'another-owner-message',0,OBJECTIVE.format(profile='fielddesk'))
+                    self.app.stop('one',later['id'],'stop-another-owner',1)
+                if stage=='publication':
+                    self.assertFalse(build(self.path,clock=lambda:self.now).execution.view('one',self.conversation)['accounting_complete'])
+                before=self.counts()
+                if stage=='reservation':
+                    with self.assertRaises(Conflict):
+                        channels.inference.journal.reserve(scope,'new-call','hash',5,self.now)
+                elif stage=='publication':
+                    with self.assertRaises(Conflict):channels.tasks.settle(claim,outcome,self.now)
+                else:
+                    self.now+=181
+                    restarted=build_channel_preparation(self.path,native,'fielddesk',lambda:self.now)
+                    restarted.worker.drain(native,run_id=run)
+                self.assertEqual(self.counts()['model_calls'],before['model_calls'])
+                with closing(sqlite3.connect(self.path)) as db:
+                    self.assertEqual(db.execute('SELECT count(*) FROM channel_artifacts WHERE organization=? AND run_id=?',(native,run)).fetchone()[0],0)
+                view=channels.inspect(native,'old-detached-run')
+                self.assertEqual(view['run_id'],run)
+                self.assertFalse(view['currently_applicable'])
+                self.assertEqual(channels.start(native,'old-detached-run','fielddesk',['old-detached-recipient'],'email'),run)
+                if stage=='uncertain':self.assertEqual([r['status'] for r in view['model_calls']],['unknown'])
+
+    def test_standalone_admission_precedes_later_journey_without_losing_its_run(self):
+        from acquisition.bootstrap import build_contact_directory, build_recipient_contexts, build_channel_preparation
+        for stage in ('queued','unknown','legacy-queued','legacy-ambiguous'):
+            with self.subTest(stage=stage):
+                path=Path(self.temp.name)/(stage+'.sqlite')
+                journeys=build_sequence_journeys(path,lambda:self.now)
+                profile=next(p for p in journeys.host.catalogue('one')['profiles'] if p['key']=='fielddesk')
+                native=profile['organization']
+                directory=build_contact_directory(path,native,'fielddesk',lambda:self.now)
+                assessment=directory.prepare(native,'independent-assessment','fielddesk-crm-a',1,'email')
+                contexts=build_recipient_contexts(path,native,'fielddesk',lambda:self.now)
+                contexts.prepare(native,'independent-context',assessment['assessment_id'],assessment['report']['eligible'][0],'reviewed-context-a',1)
+                channels=build_channel_preparation(path,native,'fielddesk',lambda:self.now)
+                run=channels.start(native,'independent-run','fielddesk',['independent-context'],'email')
+                if stage=='unknown':
+                    with patch.object(channels.inference.gateway,'complete',side_effect=ModelError('provider_timeout')):
+                        channels.worker.drain(native,run_id=run)
+                conversation=build(path,clock=lambda:self.now).conversations.create('one','later','Later journey')['id']
+                if stage=='legacy-queued':self.now+=1
+                original_event=journeys.store._event
+                def legacy_event(db,organization,kind,value):
+                    if stage.startswith('legacy-'):value={k:v for k,v in value.items() if k!='prior_channel_runs'}
+                    return original_event(db,organization,kind,value)
+                with patch.object(journeys.store,'_event',side_effect=legacy_event):
+                    later=journeys.send('one',conversation,'later-message',0,OBJECTIVE.format(profile='fielddesk'))
+                if stage.startswith('legacy-'):journeys.stop('one',later['id'],'stop-later',1)
+                restarted=build_channel_preparation(path,native,'fielddesk',lambda:self.now)
+                restarted.worker.drain(native,run_id=run)
+                view=restarted.inspect(native,'independent-run')
+                self.assertEqual(view['currently_applicable'],not stage.startswith('legacy-'))
+                self.assertEqual(view['run_id'],run)
+                self.assertEqual(restarted.start(native,'independent-run','fielddesk',['independent-context'],'email'),run)
+                if stage=='queued':
+                    self.assertTrue(view['ready_for_review'])
+                    self.assertEqual(len(view['model_calls']),3)
+                else:
+                    self.assertFalse(view['ready_for_review'])
+                    self.assertEqual([r['status'] for r in view['model_calls']],['unknown'] if stage=='unknown' else [])
+                if not stage.startswith('legacy-'):
+                    usage=build(path,clock=lambda:self.now).execution.view('one',conversation)
+                    self.assertTrue(usage['accounting_complete'])
+                    self.assertEqual(usage['used'],0)
+                    advanced=build_sequence_journeys(path,lambda:self.now).advance('one',later['id'])
+                    self.assertEqual(advanced['stage'],1)
+                    self.assertEqual(advanced['status'],'preparing')
+                    recovered=build_sequence_journeys(path,lambda:self.now)
+                    for _ in range(20):
+                        advanced=recovered.advance('one',later['id'])
+                        if advanced['status']!='preparing':break
+                    self.assertEqual(advanced['status'],'ready')
+                    usage=build(path,clock=lambda:self.now).execution.view('one',conversation)
+                    self.assertTrue(usage['accounting_complete'])
+                    self.assertEqual(usage['used'],9)
+                    self.assertFalse(recovered.view('one',later['id'])['review']['approval_valid'])
+                    journeys.stop('one',later['id'],'stop-later',1)
+                with self.assertRaises(Conflict):
+                    directory.prepare(native,'detached-after-journey','fielddesk-crm-a',1,'email')
 
     def test_stop_after_confirmation_and_disabled_reviewer_cannot_dispatch(self):
         subject=self.app.view('one',self.journey)['review']['subject_id']

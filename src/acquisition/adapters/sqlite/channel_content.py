@@ -78,10 +78,9 @@ class SqliteChannelContent:
         return result
 
     def _current(self, db, organization, context):
-        if 'journey' in context:
-            from .sequence_journeys import require_journey_origin
-            require_journey_origin(db,organization,context['journey'])
+        from .sequence_journeys import require_channel_context_origin
         validate_channel_context(context,organization,self._today())
+        require_channel_context_origin(db,organization,context)
         command = ChannelContentRequest(**(context['command'] | {'recipient_requests':tuple(context['command']['recipient_requests'])}))
         profile = self.profiles.campaign_profile(organization,command.profile_key,'v1')
         product = self.profiles.product_profile(organization,profile.product_profile_id)

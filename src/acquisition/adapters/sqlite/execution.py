@@ -191,6 +191,9 @@ def unreconciled_call_exists(db, organization, conversation_id, *, account_exist
             if not row['complete_tasks'] or not row['request_hash'] or stored_plan_hash(db, run_id) != row['request_hash']:
                 return True
             if owner is None and not independent_resolution(db, run_scope, run_id):
+                from .sequence_journeys import prior_standalone_channel_run
+                if prior_standalone_channel_run(db,run_scope,run_id,organization,conversation_id):
+                    continue
                 # Pre-admission schemas have no verified standalone records.
                 has_admissions = db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='execution_admissions'").fetchone()
                 intent = binding(db, run_scope, run_id) if has_admissions else None

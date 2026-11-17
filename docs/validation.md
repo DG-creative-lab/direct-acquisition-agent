@@ -16,6 +16,169 @@ reassessment and missing accounting evidence. They establish behavior for that
 candidate's compatibility bridge. The [reuse inventory and rollout plan](run-ownership-admission.md)
 identifies the candidate and the later writer and reader work.
 
+## Standalone accounting interaction review, issue 68
+
+A prior standalone run could continue using its immutable admission-order
+receipt, but conversation accounting did not recognize that evidence and marked
+the shared native scope unresolved. The extended regression failed for both a
+completed prior run and a prior unknown call with `accounting_complete: false`.
+
+Accounting now uses the same validated prior-admission classifier as channel
+continuation. The exact run/context must precede every relevant journey, retain
+valid saved source provenance and have no contradictory native binding. Runtime
+task completeness and plan-hash checks still run before this exception. No new
+ownership is inferred from an absent link, a timestamp or the shared source.
+After-journey detached calls and missing task-origin/index/account evidence stay
+unresolved.
+
+The composed test checks complete accounting with zero journey usage before
+preparation, restart, a validated unapproved sequence and exactly nine counted
+journey calls. Prior standalone calls, including an unknown call, remain on their
+original run and outside the journey allowance. The detached late-publication
+case independently verifies incomplete accounting. The three focused interaction,
+detached-run and lost-link tests passed. The design assessment and proposed
+immutable per-run ownership migration are recorded in
+`docs/conversational-sequences.md`; that migration is not implemented here.
+
+`make test` passed all 1,058 tests in 1,016.051 seconds. `make arch-check`
+passed with 209 modules and zero exceptions. The selected omission and overly
+broad accounting-exemption mutations were detected (2/2); all 522 catalogue
+anchors still match once and compile. `git diff --check` passed.
+
+## Independent standalone admission ordering review, issue 68
+
+Dynamic source ownership incorrectly applied a later journey to a standalone
+channel run admitted before it. The regression failed for both a queued run and
+an unknown-call run because they became inapplicable after the later journey.
+
+A journey's immutable requested event now records existing scoped channel
+run/context identities inside its admission transaction. Continuation excludes
+that later journey from ownership of those exact prior admissions, including
+when both clocks are equal. Earlier source-owning journeys still fence detached
+runs; being listed by a still-later journey cannot erase the original owner.
+New preparation commands remain subject to current ownership checks. Existing
+run and context identities are preserved.
+
+For historical requested events without the snapshot, timestamps alone do not
+establish transaction ordering. Missing admission events, missing snapshots and
+malformed ordering receipts grant no exemption.
+No historical artifact or event is rewritten and no schema migration is added.
+
+The regression covers queued continuation, the original unknown-call fence,
+equal-clock transactional ordering and older receipts without ordering evidence
+under both equal and different clocks. The detached-run regression also creates a still-later
+journey to prove it cannot legitimize the detached admission. All 19 focused
+channel-content and journey tests passed.
+
+`make test` passed all 1,058 backend tests in 1,607.226 seconds. The architecture
+check passed with 209 classified modules and zero exceptions. Removing the
+ordering receipt or incorrectly dropping earlier journey ownership was detected
+(2/2 selected mutations). All 522 mutation anchors match once and compile.
+`git diff --check` passed.
+
+## Existing channel run provenance review, issue 68
+
+An earlier writer could admit a detached channel run whose immutable context had
+no journey field. Checking provenance only at new admission did not fence that
+run when it later resumed. The new real-SQLite regression reproduced three new
+calls after its source journey stopped. It also failed independently for direct
+call reservation, late publication and an uncertain run still shown as applicable.
+
+A shared derived-origin check reconstructs ownership from the saved recipient
+assessments and original preparation command. Channel load/current inspection and
+artifact publication invoke it regardless of the optional saved journey field.
+The call journal repeats it before reservation and at the reservation commit
+boundary. Existing contexts, run IDs and immutable receipts are preserved; the
+late-call recording path remains available and does not grant continuation.
+
+The regression retains an earlier-writer fixture for four positions: queued
+resume, reservation from cached inputs, publication after calls completed and
+restart with an unknown call. It verifies zero new calls or artifacts after the
+stop, historical applicability, the same run on exact replay and the original
+unknown-call fence. All 17 focused channel-content and continuation tests passed.
+
+`make test` passed all 1,057 backend tests in 1,659.241 seconds. The architecture
+check passed with 209 classified modules and zero exceptions. Independent removal
+of the channel load/publication check or the reservation check was detected
+(2/2 selected mutations). All 522 existing mutation anchors still match once and
+compile. `git diff --check` passed.
+
+## Reassessed contact source ownership review, issue 68
+
+The first provenance fix followed an exact assessment identity. Reassessing a
+journey-owned source at a later timestamp produced another identity and could
+therefore detach its recipient contexts. The new regression failed before the
+fix because a stopped journey's source accepted a fresh assessment command.
+
+Ownership is now derived from each journey's immutable discovery catalogue and
+selected source, using the scoped provider-account connection identity. It does
+not depend on the mutable assessment timestamp, source version, access alias,
+mapping revision or command-binding index. Contact assessment admission rejects
+new unbound commands for that owned source. Recipient publication and channel
+admission also derive the source ownership when reading older saved assessments
+and contexts. No historical rows or schemas are rewritten.
+
+The regression covers reassessment at a later time, a newer source version,
+older-writer assessment/context fixtures, zero new generation on rejection and
+the unchanged original conversation allowance. As positive controls, standalone
+requests on an unowned connection within the same native scope and on the same
+connection within a separate organization each produce a review-ready artifact
+with three synthetic calls. These controls prevent a blanket ban on standalone
+preparation. The 46 focused contact, recipient-context and journey tests passed.
+
+`make test` passed all 1,056 backend tests in 999.072 seconds. The architecture
+check passed with 209 classified modules and zero exceptions. Independent removal
+of either reassessment admission fencing or downstream source ownership was
+detected (2/2 selected mutations). `git diff --check` passed.
+
+## Derived recipient-context provenance review, issue 68
+
+The review reproduced a detached recipient-context key derived from a journey-owned
+contact assessment. The previous context publication guard checked only the new
+request key; channel admission therefore treated its source as standalone.
+The extended real-SQLite regression failed for both active and stopped journeys
+before the fix, with `Conflict not raised`.
+
+Recipient context publication now resolves the assessment through scoped immutable
+contact receipts and journey bindings. It requires the original bound context
+command and its journey's assessment. Channel admission repeats that provenance
+check on saved recipient inputs, so contexts persisted by the earlier writer cannot
+be used under a fresh standalone generation key. No historical payload is rewritten.
+The same regression retains an earlier-writer fixture and checks that rejected
+publication/admission adds no context commands, runs, inference receipts or journey
+events. Existing exact-key, material-edit and cross-organization checks remain.
+
+`make test` passed all 1,055 tests in 996.201 seconds. `make arch-check` passed
+with 209 classified modules and zero exceptions. The focused recipient-context
+and journey regression run passed 21 tests. Independent removal of either the
+publication guard or the channel provenance lookup was detected by the extended
+regression (2/2 selected mutations). `git diff --check` passed.
+
+## Multichannel workspace architecture integration, issue 68
+
+The existing conversational multichannel branch is integrated with merged
+architecture and CI-cleanup work through main commit `ff2e1ff`. Sequence message
+coordination and progress now live in `application/workspace/service.py`, HTTP
+commands in `adapters/http/workspace_server.py`, and construction in bootstrap.
+The injected journey factory preserves lazy store construction. Root workspace
+and server modules remain forwarding wrappers. The new pure language predicate
+lives in the public conversations contract; the checker permits only the named
+`difflib.get_close_matches` value helper for fuzzy company matching.
+
+`make test` passed all 1,055 backend tests in 1,018.407 seconds on Python 3.14.
+The 17 focused sequence-journey tests passed. The 25 architecture and CI-tool
+tests passed, and `make arch-check` classifies 209 modules with zero exceptions.
+All 522 mutation anchors match once and produce compilable variants; the selected
+company-binding, budget-binding and cancellation-fence mutations were detected
+by their target assertions (3/3). This is selected evidence, not a full mutation run.
+
+`make interface-check` passed its build, formatting and all 114 browser cases,
+including the six multichannel journey cases. The on-demand boundary command
+passed all five cases at integrated commit `512e82d`; its report at
+`/private/tmp/iwoca-68-integrated-boundary-evidence` records stable source inputs
+and unchanged historical evidence bytes. All generation and engagement effects
+in these checks are deterministic and synthetic.
+
 ## CI and evidence cleanup, issue 93
 
 The initial proposal repeated the architecture check and eight tests already in

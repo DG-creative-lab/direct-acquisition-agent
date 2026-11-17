@@ -5,6 +5,7 @@ from contextlib import contextmanager
 from uuid import uuid4
 
 from acquisition.contracts import Conflict, NotFound, canonical, digest
+from acquisition.audiences import ContactConnection
 from acquisition.conversations import journey_commands, identity, revision_number, text
 from .admission_guard import require_legacy_writer
 from .conversations import scoped_conversation, messages, append_message
@@ -101,10 +102,72 @@ def require_journey_origin(db, organization, origin, *, current=True):
         raise Conflict('Conversation sequence origin differs from its original native command')
 
 
-def channel_journey_origin(db,organization,request_id,command):
+def journey_owned_source(db,organization,source_id,connection_id=None,*,journey_ids=None):
+    """Derive ownership from frozen discovery, independently of assessment keys."""
+    if db.execute('PRAGMA user_version').fetchone()[0]<23:return False
+    if connection_id is None:
+        source=db.execute('SELECT payload FROM contact_sources WHERE organization=? AND id=?',
+            (organization,source_id)).fetchone()
+        if source is None:raise Conflict('Restore the original scoped contact source')
+        connection_id=ContactConnection(**json.loads(source['payload'])['connection']).id
+    for row in db.execute("SELECT organization,id FROM sequence_journeys WHERE json_extract(inputs,'$.native_organization')=?",(organization,)):
+        if journey_ids is not None and row['id'] not in journey_ids:continue
+        frozen=saved_journey(db,row['organization'],row['id'])['inputs']
+        profile=next(p for p in frozen['catalogue']['profiles'] if p['key']==frozen['interpretation']['profile_key'])
+        connection=next(c for c in profile['connections'] if c['key']==frozen['interpretation']['connection_key'])
+        if source_id==connection['source_id'] or connection_id==connection['connection_id']:return True
+    return False
+
+
+def assessment_journey_origin(db,organization,request_id,snapshot):
+    origin=journey_command(db,organization,request_id)
+    if not journey_owned_source(db,organization,snapshot.id,snapshot.connection.id) and origin is None:return None
+    if origin is None:raise Conflict('Contact reassessment must retain its original conversation source binding')
+    row=require_journey(db,origin['organization'],origin['journey_id'])
+    commands=journey_commands(row['id'])
+    if request_id not in (commands['email-assessment'],commands['call-assessment']):
+        raise Conflict('Use the original bound assessment command')
+    profile=next(p for p in row['inputs']['catalogue']['profiles'] if p['key']==row['inputs']['interpretation']['profile_key'])
+    connection=next(c for c in profile['connections'] if c['key']==row['inputs']['interpretation']['connection_key'])
+    if snapshot.id!=connection['source_id']:raise Conflict('Assessment differs from its frozen conversation source')
+    return origin
+
+
+def recipient_journey_origin(db,organization,request_id,request,*,journey_ids=None):
+    """Assessment provenance survives a new recipient-context request key."""
+    origin=journey_command(db,organization,request_id)
+    if db.execute('PRAGMA user_version').fetchone()[0]<23:return None
+    assessment=request.assessment_id if not isinstance(request,dict) else request['assessment_id']
+    source=db.execute("SELECT json_extract(payload,'$.request.source_id') FROM contact_assessments WHERE organization=? AND id=?",
+        (organization,assessment)).fetchone()
+    if source is None:raise Conflict('Restore the original scoped contact assessment')
+    if not journey_owned_source(db,organization,source[0],journey_ids=journey_ids) and origin is None:return None
+    if origin is None:raise Conflict('Recipient context must retain its original conversation assessment binding')
+    row=require_journey(db,origin['organization'],origin['journey_id'])
+    commands=journey_commands(row['id'])
+    channels=[channel for channel in ('email','human_call')
+              if request_id in [commands[channel+'-context-'+str(i)] for i in range(6)]]
+    if len(channels)!=1:raise Conflict('Use the original bound recipient-context command')
+    channel=channels[0]
+    key=commands['email-assessment' if channel=='email' else 'call-assessment']
+    source=db.execute('SELECT receipt FROM contact_commands WHERE organization=? AND request_id=?',
+        (organization,key)).fetchone()
+    if source is None or json.loads(source['receipt']).get('assessment_id')!=assessment:
+        raise Conflict('Recipient context differs from its original conversation assessment')
+    return origin
+
+
+def channel_journey_origin(db,organization,request_id,command,*,journey_ids=None):
     """A new generation key cannot detach conversation-owned recipient inputs."""
     origin=journey_command(db,organization,request_id)
-    sources=[journey_command(db,organization,key) for key in command.recipient_requests]
+    sources=[]
+    for key in command.recipient_requests:
+        context=db.execute("""SELECT r.payload FROM recipient_context_commands c JOIN recipient_contexts r
+            ON r.organization=c.organization AND r.id=json_extract(c.receipt,'$.context_id')
+            WHERE c.organization=? AND c.request_id=?""",(organization,key)).fetchone()
+        source=(recipient_journey_origin(db,organization,key,json.loads(context['payload'])['request'],journey_ids=journey_ids)
+                if context is not None else journey_command(db,organization,key))
+        sources.append(source)
     bound=[o for o in sources if o is not None]
     if not bound and origin is None:return None
     if origin is None or len(bound)!=len(sources):
@@ -123,6 +186,62 @@ def channel_journey_origin(db,organization,request_id,command):
             or command.parent_id!=(row['outputs'].get('initial-artifact') if stage=='followup' else None)):
         raise Conflict('Channel generation differs from its frozen conversation stage')
     return origin
+
+
+def channel_admission_journeys(db,organization,context):
+    """Exclude later ownership only when independent admission is evidenced."""
+    if context.get('journey') is not None or db.execute('PRAGMA user_version').fetchone()[0]<23:return None
+    identity='context_'+digest({'organization':organization,**context})
+    admitted=db.execute("""SELECT p.run_id FROM channel_preparations p
+        JOIN runs r ON r.id=p.run_id AND r.organization=p.organization
+        WHERE p.organization=? AND p.request_id=? AND p.context_id=?""",
+        (organization,context['preparation_request_id'],identity)).fetchone()
+    if admitted is None:return None
+    applicable=[]
+    for row in db.execute("SELECT organization,id FROM sequence_journeys WHERE json_extract(inputs,'$.native_organization')=?",(organization,)):
+        saved_journey(db,row['organization'],row['id'])
+        event=db.execute("""SELECT payload FROM sequence_journey_events WHERE organization=?
+            AND json_extract(payload,'$.kind')='requested'
+            AND json_extract(payload,'$.data.journey_id')=?""",(row['organization'],row['id'])).fetchone()
+        data=json.loads(event['payload'])['data'] if event is not None else {}
+        prior=data.get('prior_channel_runs')
+        if prior is not None:
+            if type(prior) is not list or any(type(r) is not list or len(r)!=2 or any(type(v) is not str for v in r) for r in prior):
+                raise Conflict('Restore the original channel admission ordering receipt')
+            if [admitted['run_id'],identity] in prior:continue
+        applicable.append(row['id'])
+    return applicable
+
+
+def require_channel_context_origin(db,organization,context):
+    """Reconstruct saved input ownership even when an old context has no origin."""
+    from acquisition.creative import ChannelContentRequest
+    command=ChannelContentRequest(**(context['command'] | {'recipient_requests':tuple(context['command']['recipient_requests'])}))
+    origin=channel_journey_origin(db,organization,context['preparation_request_id'],command,
+        journey_ids=channel_admission_journeys(db,organization,context))
+    if origin!=context.get('journey'):
+        raise Conflict('Channel context differs from its derived conversation origin')
+
+
+def prior_standalone_channel_run(db,organization,run_id,owner,conversation_id):
+    """Use the continuation ownership decision for conversation accounting too."""
+    from .creative import read_context
+    if db.execute('PRAGMA user_version').fetchone()[0]<23:return False
+    preparation=db.execute('SELECT context_id FROM channel_preparations WHERE organization=? AND run_id=?',
+        (organization,run_id)).fetchone()
+    if preparation is None:return False
+    context=read_context(db,organization,preparation['context_id'])
+    if context.get('journey') is not None:return False
+    keys=[context['preparation_request_id'],*context['command']['recipient_requests']]
+    if any(journey_command(db,organization,key,current=False) is not None for key in keys):return False
+    relevant={r['id'] for r in db.execute("""SELECT id FROM sequence_journeys
+        WHERE organization=? AND conversation_id=? AND json_extract(inputs,'$.native_organization')=?""",
+        (owner,conversation_id,organization))}
+    applicable=channel_admission_journeys(db,organization,context)
+    if not relevant or applicable is None or relevant.intersection(applicable):return False
+    # A later receipt cannot erase an earlier source owner or a native binding.
+    require_channel_context_origin(db,organization,context)
+    return True
 
 
 def sequence_journey_origin(db,organization,request_id,request):
@@ -247,7 +366,11 @@ class SqliteSequenceJourneys:
             for role,key in journey_commands(frozen['id']).items():
                 db.execute('INSERT INTO sequence_journey_bindings VALUES(?,?,?,?,?)',
                     (frozen['native_organization'],key,organization,frozen['id'],role))
-        self._event(db,organization,'requested',{'journey_id':frozen['id'],'status':status})
+        prior_channel_runs=[list(r) for r in db.execute(
+            'SELECT run_id,context_id FROM channel_preparations WHERE organization=? ORDER BY run_id',
+            (frozen['native_organization'],))]
+        self._event(db,organization,'requested',{'journey_id':frozen['id'],'status':status,
+            'prior_channel_runs':prior_channel_runs})
         return saved_journey(db,organization,frozen['id'])
 
     def get(self,organization,journey_id):
