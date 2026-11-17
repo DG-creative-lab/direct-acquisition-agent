@@ -18,7 +18,7 @@ from acquisition.bootstrap import build_audience_decisions, build_sequence_simul
 from acquisition.campaigns import SequenceRequest
 from acquisition.contracts import Conflict, canonical
 from acquisition.conversations import FIXTURE_MESSAGE
-from acquisition.learning_demo import run_learning_demo
+from acquisition.entrypoints.learning_demo import run_learning_demo
 from acquisition.reasoning import CallScope
 from acquisition.bootstrap import build_workspace as Workspace
 from test_conversations import PlannerModel

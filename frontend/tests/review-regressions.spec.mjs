@@ -504,9 +504,11 @@ test("conversation navigation opens a new chat and returns to recent work", asyn
     .getByRole("region", { name: "Choose campaign audience" })
     .getByRole("button", { name: "Use v1", exact: true })
     .click();
+  // Preparation runs through the background worker and real SQLite stores.
+  // Match the bounded preparation wait used by the other browser journeys.
   await expect(
     page.getByRole("button", { name: /Review campaign/ }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 10000 });
   await page.getByRole("button", { name: /Review campaign/ }).click();
   await expect(page.getByText("Review & approval")).toBeVisible();
   await page

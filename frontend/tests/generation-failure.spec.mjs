@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 from acquisition.bootstrap import build_workspace as Workspace
-from acquisition.workspace_server import WorkspaceServer
+from acquisition.entrypoints.workspace import WorkspaceServer
 from acquisition.reasoning import ModelError
 from acquisition.contracts import Conflict
 from test_conversations import PlannerModel, proposal

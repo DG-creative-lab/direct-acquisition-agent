@@ -64,7 +64,19 @@ Model-mode clocks progress with real time until an explicit outcome simulation a
 
 ## Ownership and recovery
 
-`workspace.py` is an entry-point facade around the existing composition root. It calls public application services and ports rather than reimplementing domain decisions. `workspace_server.py` provides bounded JSON transport and serves only compiled frontend assets and explicit verified artifact downloads.
+`application/workspace/service.py` coordinates public module APIs through injected
+ports. `application/workspace/views.py` owns read-only progress and blocker wording;
+`application/workspace/__init__.py` exports the supported workspace use cases.
+`adapters/http/workspace_server.py` handles bounded JSON, request guards, compiled
+assets and exact-subject downloads. It has no bootstrap, SQL or provider wiring.
+`entrypoints/workspace.py` acquires the root lock before recovery or verified-store
+selection, starts the scheduler and drains HTTP handlers and the scheduler before
+releasing that lock. Bootstrap selects and constructs the HTTP adapter.
+
+The documented `python -m acquisition`, `python -m acquisition.workspace_server`
+and standalone command names still work through thin compatibility wrappers.
+The full wrapper inventory is in [architecture](architecture.md#compatibility-wrapper-inventory).
+Canonical application, adapter and composition code cannot import those wrappers.
 
 Each root has a small separate `workspace.sqlite` control store for session metadata, command identities and scoped preparation records, plus existing application databases under sandbox directories. The application schema is v17; the compatibility control-store layout remains separate. Descendant experiments share their parent's organization/application database to retain scoped learning; independent campaigns have separate sandboxes. Organization and database paths are resolved from server-owned metadata, never supplied by action payloads.
 

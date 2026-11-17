@@ -183,7 +183,7 @@ class GroundingTests(unittest.TestCase):
         self.assertIn("fact_id", creative_record(replace(old, fact_id="new")))
 
     def test_default_model_commands_use_gpt_oss_with_required_tools_and_bounded_calls(self):
-        from acquisition.__main__ import main
+        from acquisition.entrypoints.cli import main
         from contextlib import redirect_stdout
         from io import StringIO
         from unittest.mock import patch

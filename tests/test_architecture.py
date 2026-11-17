@@ -17,6 +17,10 @@ class ArchitectureTests(unittest.TestCase):
     def test_harmful_boundary_mutations_are_detected(self):
         examples = [
             ("acquisition.runtime.application", "from acquisition.campaigns import Brief"),
+            ("acquisition.adapters.http.workspace_server", "import sqlite3"),
+            ("acquisition.adapters.http.workspace_server", "from acquisition.bootstrap import build"),
+            ("acquisition.application.workspace.service", "from acquisition.workspace import Workspace"),
+            ("acquisition.adapters.openrouter", "from acquisition.__main__ import main"),
             ("acquisition.campaigns.application", "from acquisition.adapters.sqlite import database"),
             ("acquisition.campaigns.domain", "from acquisition.audiences.domain import Snapshot"),
             ("acquisition.campaigns.domain", "from .application import CampaignService"),
@@ -36,7 +40,7 @@ class ArchitectureTests(unittest.TestCase):
             ("acquisition.creative.channel_agent", "from urllib.request import urlopen as fetch"),
             ("acquisition.conversations.actions", "import requests as provider"),
             ("acquisition.workflows.monthly_mail", "from acquisition.bootstrap import build"),
-            ("acquisition.adapters.openrouter", "from acquisition.__main__ import main"),
+            ("acquisition.adapters.openrouter", "from acquisition.entrypoints.cli import main"),
             ("acquisition.adapters.openrouter", "from acquisition.workflows.monthly_mail import MonthlyMail"),
             ("acquisition.campaigns.domain", "from acquisition.creative import CopyAgent as CreativeValue"),
             ("acquisition.creative.recipient_context", "from acquisition.audiences import ContactDirectory as Reference"),
@@ -179,6 +183,23 @@ class ArchitectureRepositoryTests(unittest.TestCase):
         errors = '\n'.join(self.check())
         self.assertIn('workflow may not depend on composition', errors)
         self.assertIn('adapter may not depend on entrypoint', errors)
+
+    def test_compatibility_wrappers_cannot_hide_effects_or_reverse_dependencies(self):
+        self.source('acquisition.entrypoints.cli', 'entrypoint', 'def main(): pass\n')
+        wrapper = self.source('acquisition.__main__', 'wrapper',
+            'from acquisition.entrypoints.cli import main\nif __name__ == "__main__":\n    main()\n')
+        self.assertEqual(self.check(), [])
+        for module, role in [('acquisition.bootstrap', 'composition'),
+                             ('acquisition.adapters.example', 'adapter'),
+                             ('acquisition.application.example', 'application')]:
+            self.source(module, role, 'from acquisition.__main__ import main\n')
+        errors = '\n'.join(self.check())
+        for role in ('composition', 'adapter', 'application'):
+            self.assertIn(role + ' may not depend on wrapper', errors)
+        wrapper.write_text('from acquisition.entrypoints.cli import main\ndef start(): main()\n')
+        self.assertIn('[wrapper]', '\n'.join(self.check()))
+        wrapper.write_text('from acquisition.bootstrap import build\n')
+        self.assertIn('wrapper may not depend on composition', '\n'.join(self.check()))
 
     def test_eager_module_and_deferred_package_cycles_fail(self):
         self.source('acquisition.audiences.left', 'domain', 'from .right import Value\nclass Value: pass\n')

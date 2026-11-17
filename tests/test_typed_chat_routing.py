@@ -165,6 +165,19 @@ class TypedPrepareTests(unittest.TestCase):
         self.assertEqual(final['execution']['used'], 0)
         review = self.w.view(final['campaigns'][0]['session_id'])['review']
         self.assertEqual(review['manifest']['brief']['audience_source'], selection)
+        # Review completion can publish after the campaign list was sampled but
+        # before action progress. That response must keep the current case mapping.
+        sid = final['campaigns'][0]['session_id']
+        completed = self.w._session(sid)
+        self.w._save(completed | {'case_id': None})
+        progress = self.w.action_progress
+        def finish_between_reads(conversation_id):
+            self.w._save(completed)
+            return progress(conversation_id)
+        with patch.object(self.w, 'action_progress', side_effect=finish_between_reads):
+            projected = self.w.conversation(cid)
+        self.assertFalse(projected['actions'][0]['continuation_pending'])
+        self.assertEqual(projected['campaigns'][0]['case_id'], completed['case_id'])
 
     def test_confirmed_saved_plan_uses_planner_connection_instead_of_router_connection(self):
         cid = self.w.create_conversation("two-keys", "Saved model brief")["id"]

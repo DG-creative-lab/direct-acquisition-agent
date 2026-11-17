@@ -16,8 +16,8 @@ from unittest.mock import patch
 from uuid import uuid4
 
 from acquisition.bootstrap import build_workspace as Workspace
-from acquisition.workspace import MonitoringRejected
-from acquisition.workspace_server import WorkspaceServer, main
+from acquisition.application.workspace import MonitoringRejected
+from acquisition.entrypoints.workspace import WorkspaceServer, main
 from acquisition.contracts import Conflict, NotFound
 from acquisition.reasoning import ModelConfig
 from acquisition.bootstrap import build
@@ -261,10 +261,28 @@ class WorkspaceTests(unittest.TestCase):
 
 
 class WorkspaceStartupTests(unittest.TestCase):
+    def test_failed_recovery_releases_socket_and_root_lock_for_restart(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            workspace = Workspace(root / "data")
+            from acquisition.bootstrap import build_workspace_http
+            ports = []
+            def listen(*args):
+                transport = build_workspace_http(*args)
+                ports.append(transport.server_port)
+                return transport
+            with patch('acquisition.entrypoints.workspace.build_workspace_http', side_effect=listen), patch.object(
+                    workspace, 'recover_actions', side_effect=RuntimeError('interrupted recovery')):
+                with self.assertRaisesRegex(RuntimeError, 'interrupted recovery'):
+                    WorkspaceServer(0, workspace, root)
+            reopened = WorkspaceServer(ports[0], workspace, root)
+            reopened.server_close()
+            self.assertFalse(reopened.preparation_worker.is_alive())
+
     def test_missing_assets_report_the_reproducible_pnpm_build_commands(self):
         error = io.StringIO()
         with (
-            patch("acquisition.workspace_server.Path.exists", return_value=False),
+            patch("acquisition.entrypoints.workspace.Path.exists", return_value=False),
             patch("sys.argv", ["workspace-server"]),
             redirect_stderr(error),
             self.assertRaises(SystemExit) as stopped,

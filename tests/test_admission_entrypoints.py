@@ -23,7 +23,7 @@ import test_admission_workflow_coverage as coverage
 import test_copy_revisions as revisions
 import test_followups as followups
 import test_workspace as workspace_tests
-from acquisition.workspace_server import WorkspaceServer
+from acquisition.entrypoints.workspace import WorkspaceServer
 
 
 class AdmissionEntrypointTests(unittest.TestCase):
