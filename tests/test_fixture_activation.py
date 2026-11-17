@@ -64,9 +64,14 @@ class FixtureActivationTests(unittest.TestCase):
         return cid, session
 
     def test_offline_journey_restarts_after_draft_commit_and_finishes_once(self):
+        from scripts.boundary_journey_fixture import verify_rebuild_replay
+
         evidence = self.offline_journey()
         self.assertEqual(evidence['population'], evidence['received'])
         self.assertEqual(evidence['model_calls'], 0)
+        result = verify_rebuild_replay(self, self.parent, evidence)
+        self.assertTrue(result['projection_preserved_authority'])
+        self.assertTrue(result['fresh_process_replay']['changed_input_rejected'])
 
     def offline_journey(self):
         cid, session = self.start_campaign()

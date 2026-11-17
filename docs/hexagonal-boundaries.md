@@ -51,7 +51,9 @@ authoritative row snapshots, manifests and subprocess logs.
 | `uncertain-restart` | Preserve one uncertain reservation and one used call. Stop/reopen in a new interpreter, create no campaign, issue no new inference and retain the exact authoritative snapshot. |
 | `profile-replay` | Reuse iwoca and Fielddesk profiles. Each 100-record fixture has 24 exclusions, 70 mailed and six controls, costing 5,950 pence. Fresh CLI replay preserves distinct draft identities/manifests and every row; changed inputs fail without approval or execution. |
 | `engagement-replay` | Reuse current contact/recipient/channel/sequence fixtures. One simulation has two enrollments, six steps and two initial dispatches. A new process returns the same receipt without invoking the synthetic transport or changing any row count. |
-| `boundary-regressions` | Eight named existing oracles cover original model settings and expired/foreign sessions; loss after acceptance commit before workspace acknowledgement; projection commit/lookup replay; stale approval/reviewer state; legacy v2 authority cutoff and original creative serialization. No skipped or failed target can pass. |
+
+The backend suite independently runs the session, acceptance, authority and
+legacy regression tests. The evidence command does not repeat those tests.
 
 The source manifest is captured before production/fixture imports and after all
 cases. It covers production, fixtures, configuration, evaluation tooling,
@@ -81,8 +83,11 @@ make boundary-check
 ```
 
 Run resource-intensive backend and browser suites separately on a constrained
-local machine. CI uses isolated jobs and supported shards. The boundary job runs
-the static gate and native corpus, then uploads its bundle even on failure.
+local machine. CI uses isolated jobs and supported shards. The backend fixture
+test checks the combined crash, projection rebuild and fresh-process replay on
+every PR. Run the broader evidence command on demand for integrated workspace,
+recovery or architecture-boundary changes. It retains a local bundle; CI does
+not upload one on every PR.
 Harmful import, unresolved re-export, implicit initialization cycle, wrapper
 bypass and closed-exception probes remain in the backend suite. Semantic mutation
 checks supplement those oracles; compilation or line coverage is not a claim of
@@ -91,8 +96,8 @@ behavioral completeness.
 The published run is summarized in `docs/validation.md`; its JSON report and
 Markdown summary live in `docs/evaluations/issue-93-boundary-*`. The hostname-guard
 review follow-up is recorded separately in `issue-93-hostname-guard-*`; the earlier
-reports retain their original bytes. Full per-case
-stores/logs remain in the local bundle or CI artifact. They are not product data.
+reports retain their original bytes. Full per-case stores and logs remain in a
+local bundle. They are not product data.
 
 ## Applicable later gates and limits
 

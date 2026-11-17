@@ -52,13 +52,17 @@ def command(args, directory):
 def verified(directory):
     # Reuse the merged crash-after-draft fixture and every original oracle.
     from test_fixture_activation import FixtureActivationTests
-    from acquisition.bootstrap import build_workspace_projection
     case = FixtureActivationTests('test_offline_journey_restarts_after_draft_commit_and_finishes_once')
     case.parent, case.root, case.now = directory, directory / 'workspace', 1793016000.
     command(['-m', 'acquisition.workspace_fixture', '--root', case.root], directory)
     case.w = case.workspace()
     with patch('acquisition.bootstrap.workspace_gateway', side_effect=AssertionError('Provider must remain unused')):
         evidence = case.offline_journey()
+    return verify_rebuild_replay(case, directory, evidence)
+
+
+def verify_rebuild_replay(case, directory, evidence):
+    """Check the same journey after losing and rebuilding its projection."""
     before = authoritative(case.root)
     save(directory / 'authoritative-before.json', before)
     for suffix in ('', '-wal', '-shm', '-journal'):
@@ -68,7 +72,7 @@ def verified(directory):
                        '--expected-plan', inspected['plan_id'], 'rebuild'], directory)
     if rebuilt['status'] != 'rebuilt' or authoritative(case.root) != before:
         raise AssertionError('Projection rebuild changed authoritative facts')
-    save(directory / 'replay-input.json', evidence | {'clock': case.now})
+    save(directory / 'replay-input.json', evidence | {'clock': case.now, 'root': str(case.root)})
     replay = command(['-m', 'scripts.boundary_journey_fixture', 'replay-verified', directory], directory)
     after = authoritative(case.root)
     save(directory / 'authoritative-after.json', after)
@@ -83,7 +87,7 @@ def replay_verified(directory):
     from acquisition.bootstrap import build_workspace
     from acquisition.contracts import Conflict
     data = json.loads((directory / 'replay-input.json').read_text())
-    w = build_workspace(directory / 'workspace', real_clock=lambda: data['clock'])
+    w = build_workspace(Path(data['root']), real_clock=lambda: data['clock'])
     sid = data['session_id']
     handoff = w.action(sid, 'handoff', data['handoff_command'])
     final = w.action(sid, 'finalize', data['finalize_command'])
@@ -202,22 +206,8 @@ def replay_engagement(directory):
     return {'pid': os.getpid(), 'receipt': receipt}
 
 
-def regressions(directory):
-    import unittest
-    from scripts.evaluate_boundary_journey import REGRESSIONS
-    suite = unittest.TestLoader().loadTestsFromNames(REGRESSIONS)
-    result = unittest.TestResult()
-    suite.run(result)
-    report = {'targets': list(REGRESSIONS), 'tests_run': result.testsRun,
-              'failures': [(t.id(),message) for t,message in result.failures],
-              'errors': [(t.id(),message) for t,message in result.errors],
-              'skipped': [(t.id(),reason) for t,reason in result.skipped]}
-    save(directory / 'regressions.json', report)
-    return report
-
-
 CASES = {'verified-commit-rebuild-replay': verified, 'compatibility-model-journey': compatibility,
-         'uncertain-restart': uncertain, 'profile-replay': profiles, 'engagement-replay': engagement, 'boundary-regressions': regressions}
+         'uncertain-restart': uncertain, 'profile-replay': profiles, 'engagement-replay': engagement}
 
 
 def main():
