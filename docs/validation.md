@@ -2461,3 +2461,9 @@ comparison retained all 103 test methods across the four edited test modules.
 Architecture passed with 205 classified modules and no temporary exceptions.
 Full runtime and mutation verification is delegated to GitHub to avoid sustained
 local CPU load. Hosted results and aggregate compute are recorded in the PR.
+
+The hosted run exposed additional admission and workspace-authority classes
+borrowing follow-up setup directly. Every newly prepared class now explicitly
+retains fresh setup for external borrowers. The backend and strict mutation
+runner rejected the initial fixture errors; no invalid experiment was credited
+as a mutation detection. Final hosted reruns verify the corrected fallback.

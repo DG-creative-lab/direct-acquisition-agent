@@ -18,6 +18,9 @@ class FollowupTests(unittest.TestCase):
         cls.template = prepared_workspace(cls, handoff_tests.ConversationHandoffTests.setUp)
 
     def setUp(self):
+        if not isinstance(self, FollowupTests):
+            handoff_tests.ConversationHandoffTests.setUp(self)
+            return
         handoff_tests._set_up_workspace(self, self.template)
 
     approve=learning_tests.ConversationLearningTests.approve

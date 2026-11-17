@@ -25,6 +25,9 @@ class ExecutionTests(unittest.TestCase):
         cls.template = prepared_workspace(cls, copy_tests.ConversationalCopyRevisionTests._prepare_workspace, 'model')
 
     def setUp(self):
+        if not isinstance(self, ExecutionTests):
+            copy_tests.ConversationalCopyRevisionTests._prepare_workspace(self)
+            return
         copy_tests._set_up_workspace(self, self.template)
         self.c, self.sid = self.template['c'], self.template['sid']
         self.base = self.w.view(self.sid)
@@ -295,6 +298,9 @@ class ExecutionFollowupTests(unittest.TestCase):
         cls.template = prepared_workspace(cls, handoff_tests.ConversationHandoffTests.setUp)
 
     def setUp(self):
+        if not isinstance(self, ExecutionFollowupTests):
+            handoff_tests.ConversationHandoffTests.setUp(self)
+            return
         handoff_tests._set_up_workspace(self, self.template)
 
     usage=ExecutionTests.usage
