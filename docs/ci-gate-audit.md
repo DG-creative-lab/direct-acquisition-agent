@@ -81,11 +81,26 @@ Normal pull requests and main pushes run the four backend and two browser jobs.
 Application authority checks, all regression cases and the full catalogue remain.
 
 Run a full audit explicitly for changes to approval, scope isolation, leases or
-replay behavior, or before a release:
+replay behavior, or before a release. For a pull request, dispatch the audit on
+its head branch, not the base branch. Replace the placeholders with the PR number
+and its head branch:
 
 ```sh
-gh workflow run ci.yml --repo DG-creative-lab/direct-acquisition-agent --ref main
+gh pr view <PR_NUMBER> --repo DG-creative-lab/direct-acquisition-agent --json headRefName,headRefOid
+gh workflow run ci.yml --repo DG-creative-lab/direct-acquisition-agent --ref <PR_HEAD_BRANCH>
 ```
+
+After the run completes, compare its `headSha` with the PR's current `headRefOid`:
+
+```sh
+gh run view <AUDIT_RUN_ID> --repo DG-creative-lab/direct-acquisition-agent --json headSha,status,conclusion,url
+gh pr view <PR_NUMBER> --repo DG-creative-lab/direct-acquisition-agent --json headRefOid
+```
+
+The audit is current only when the run succeeded and those commit IDs match.
+If the branch changes during or after the audit, run it again on the new head.
+For an audit of the already merged release, use `--ref main` and verify the run
+against the intended main commit instead.
 
 The successful main run [44033513092](https://github.com/DG-creative-lab/direct-acquisition-agent/actions/runs/44033513092)
 used 50m04s of summed runner job time: backend 19m50s, mutation 19m40s and
