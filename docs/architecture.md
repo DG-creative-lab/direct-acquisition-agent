@@ -137,11 +137,14 @@ rejected. A transport role is not a general adapter exemption.
 ### Temporary exception ledger
 
 The initial #89 inventory recorded **31 exact dependency exceptions**. Issues
-#90, #91 and #92 have removed all of them. The JSON ledger is empty. It still
-rejects new violations, stale entries, occurrence changes, duplicates and
-wildcards. Classification and unknown-target failures cannot be excepted. The
-checker has no baseline-refresh command; inventory, roles and exception changes
-require explicit review. Issue #93 owns final integrated evidence and closeout.
+#90, #91 and #92 removed all of them. Issue #93 closes the migration: the JSON
+ledger must be exactly `exceptions: []`. Even an exact former exception with a
+removal issue and reason now fails the gate. All import, export, classification
+and cycle diagnostics are unconditional. Legitimate startup wrappers retain
+explicit roles and strict forwarding shapes, not dependency exceptions. The
+checker has no baseline-refresh or migration-reopen command. Inventory and role
+changes require explicit review. The [integrated evidence contract](hexagonal-boundaries.md)
+records actual recovery scenarios, commands, source fingerprints and limits.
 
 The contact adapter uses the named public `evaluate_contact_eligibility` policy.
 Review's fact-pack and grounded-catalogue validators resolve to

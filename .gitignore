@@ -78,3 +78,9 @@ dist/
 
 !/docs/evaluations/ci-critical-path-2026-11-16.json
 !/docs/evaluations/conversation-ci-performance-2026-11-16.json
+
+!/docs/hexagonal-boundaries.md
+!/docs/evaluations/issue-93-boundary-results.json
+!/docs/evaluations/issue-93-boundary-evidence.md
+!/docs/evaluations/issue-93-hostname-guard-results.json
+!/docs/evaluations/issue-93-hostname-guard-evidence.md

@@ -27,6 +27,16 @@ See `docs/product-grounding.md` for recorded live-model evidence.
   repositories, service locators, event buses and unused abstraction layers.
 - `contracts.py` contains only stable serialization/hash helpers and common
   errors; do not turn it into a shared business model.
+- `application/workspace/service.py` coordinates workspace use cases through
+  `ports.py`; `views.py` owns progress projections and blocker wording.
+  `adapters/http/workspace_server.py` owns routing, serialization and request
+  security. `entrypoints/workspace.py` owns the root lock, recovery, scheduler
+  and draining shutdown; other `entrypoints` modules own CLI parsing/dispatch.
+- Root launch/import wrappers only forward named canonical exports. Core,
+  adapters, bootstrap and canonical entrypoints must not depend on wrappers.
+  The architecture migration is closed: `scripts/architecture_policy.json`
+  must keep `exceptions: []`; legitimate wrapper roles are not exemptions.
+
 
 ## Invariants
 
@@ -55,7 +65,10 @@ regression and what observable result would fail, do not add it. Extend an
 existing test when it exercises the same boundary. Before removing a test,
 show where the same failure would still be caught.
 
-Run `make test` and `make arch-check`. Test real SQLite and process restarts,
+Run `make test` and `make arch-check`. Run `make boundary-check` for integrated
+workspace/recovery or architecture-boundary changes and retain its attributable
+JSON report. See `docs/hexagonal-boundaries.md` for the finite evidence contract.
+Test real SQLite and process restarts,
 not only mocked repositories. Maintain the invariant ledger in
 `docs/validation.md`. Add targeted checks for every new effect or
 authority boundary. Do not claim live model behavior without executing it.

@@ -33,3 +33,8 @@ interface-check:
 	pnpm --dir frontend run build
 	pnpm --dir frontend run format:check
 	BROWSER_SHARD=$(BROWSER_SHARD) BROWSER_SHARDS=$(BROWSER_SHARDS) pnpm --dir frontend test
+
+.PHONY: boundary-check
+BOUNDARY_OUTPUT ?=
+boundary-check:
+	python3 scripts/evaluate_boundary_journey.py $(if $(BOUNDARY_OUTPUT),--output-dir "$(BOUNDARY_OUTPUT)",)

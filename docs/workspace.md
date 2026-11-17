@@ -237,3 +237,15 @@ Run `make test`, `make arch-check` and `make mutation-check` for backend checks.
 Native dialogs support focus containment, return focus and Escape. Audience/copy tabs support arrow keys, Home and End. Stale loads cannot replace another selected campaign. Failed decisions retain the server error in their dialog. Browser session storage retains each uncertain command identity until confirmed success. Storage failure blocks dispatch. Equivalent field ordering preserves identity. Retrying an older pending follow-up without saved funding checks the exact request in the conversation. With no receipt on the current brief, the browser keeps the original request ID and offers a receipt check or an explicit resend. The first resend uses the funding shown in the composer, and the workspace admits at most one follow-up for the ID. If a newer brief has already fenced the original revision and there is still no receipt, the browser restores the text for editing.
 
 Historical creative previews retain their original styling and bundled Inter font independently of workspace tokens. The shared mark, accessible navigation name and brand provenance are documented in [branding](branding.md).
+
+## Integrated boundary verification
+
+The [bounded offline corpus](hexagonal-boundaries.md) exercises the merged
+workspace application, CLI wrappers, real SQLite and fresh-process recovery.
+It deletes only the verified workspace projection, rebuilds through the supported
+CLI, then checks original acceptance/finalization receipts and all authoritative
+rows. The compatibility store is tested separately and is never treated as a
+replaceable verified projection. Model-session expiry and original settings,
+uncertain outcomes, stale authority and legacy bytes retain dedicated regression
+oracles. `make boundary-check` preserves its evaluated source manifest and
+per-case evidence; the separate interface gate exercises HTTP/browser behavior.

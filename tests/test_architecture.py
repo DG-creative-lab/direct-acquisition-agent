@@ -363,39 +363,30 @@ class ArchitectureRepositoryTests(unittest.TestCase):
         self.source('acquisition.adapters.right', 'adapter', 'from .left import value\n')
         self.assertEqual(self.check(), [])
 
-    def test_exact_exception_count_does_not_authorize_additions_or_linger_after_removal(self):
+    def test_closed_migration_rejects_even_an_exact_former_exception(self):
         path = self.source('acquisition.workspace', 'application', 'import sqlite3\n')
-        self.exceptions = [{'module': 'acquisition.workspace', 'rule': 'infrastructure',
-                            'target': 'sqlite3', 'occurrences': 1, 'issue': 90,
-                            'reason': 'Extract the existing control-store operation.'}]
-        self.assertEqual(self.check(), [])
-        path.write_text('import sqlite3\nimport sqlite3 as another\n')
-        self.assertIn('[infrastructure]', '\n'.join(self.check()))
+        for issue in (90, 91, 92, 93):
+            with self.subTest(issue=issue):
+                self.exceptions = [{'module': 'acquisition.workspace', 'rule': 'infrastructure',
+                                    'target': 'sqlite3', 'occurrences': 1, 'issue': issue,
+                                    'reason': 'Former migration allowance.'}]
+                self.assertIn('migration is closed', '\n'.join(self.check()))
         path.write_text('')
-        self.assertIn('Stale architecture exception', '\n'.join(self.check()))
+        self.assertIn('migration is closed', '\n'.join(self.check()))
+        self.exceptions = []
+        self.assertEqual(self.check(), [])
 
-    def test_changed_target_cannot_reuse_an_exception(self):
+    def test_nonempty_or_malformed_exception_ledgers_cannot_reopen_migration(self):
         self.source('acquisition.workspace', 'application', 'import socket\n')
-        self.exceptions = [{'module': 'acquisition.workspace', 'rule': 'infrastructure',
-                            'target': 'sqlite3', 'occurrences': 1, 'issue': 90,
-                            'reason': 'Extract the existing control-store operation.'}]
-        errors = '\n'.join(self.check())
-        self.assertIn('infrastructure', errors)
-        self.assertIn('socket', errors)
-        self.assertIn('Stale architecture exception', errors)
+        for exceptions in ([{}], [None], ['legacy'], False, {}, None):
+            with self.subTest(exceptions=exceptions):
+                self.exceptions = exceptions
+                self.assertIn('exceptions must be an empty list', '\n'.join(self.check()))
+        self.exceptions = []
+        self.assertIn('[infrastructure]', '\n'.join(self.check()))
 
-    def test_invalid_exceptions_cannot_exempt_classification_or_use_wildcards(self):
-        self.source('acquisition.workspace', 'application')
-        base = {'module': 'acquisition.workspace', 'rule': 'infrastructure',
-                'target': 'sqlite3', 'occurrences': 1, 'issue': 90, 'reason': 'Extraction.'}
-        for patch in ({'target': '*'}, {'issue': 1}, {'reason': ''},
-                      {'occurrences': True}, {'occurrences': 0}, {'rule': 'classification'},
-                      {'rule': 'unknown-target'}, {'reason': None}):
-            with self.subTest(patch=patch):
-                self.exceptions = [base | patch]
-                self.assertIn('Invalid architecture policy', '\n'.join(self.check()))
-        self.exceptions = [base, base]
-        self.assertIn('Duplicate', '\n'.join(self.check()))
+    def test_duplicate_policy_keys_cannot_replace_the_closed_ledger(self):
+        self.check()
         policy = self.root / CHECKER.POLICY
         policy.write_text('{"version": 1, "version": 1, "modules": {}, "exceptions": []}')
         self.assertIn('Duplicate policy key', '\n'.join(CHECKER.check(self.root)))

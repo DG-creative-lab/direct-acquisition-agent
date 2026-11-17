@@ -64,6 +64,11 @@ class FixtureActivationTests(unittest.TestCase):
         return cid, session
 
     def test_offline_journey_restarts_after_draft_commit_and_finishes_once(self):
+        evidence = self.offline_journey()
+        self.assertEqual(evidence['population'], evidence['received'])
+        self.assertEqual(evidence['model_calls'], 0)
+
+    def offline_journey(self):
         cid, session = self.start_campaign()
         sid, run, scope = session['id'], session['run_id'], session['organization']
         interrupted = self.process('-c', """
@@ -184,6 +189,12 @@ with patch.object(SqliteTasks, 'settle', exit_after_draft):
             self.assertEqual(db.execute('SELECT count(*) FROM draft_operations WHERE organization=?', (scope,)).fetchone()[0], 1)
             self.assertEqual(db.execute('SELECT count(*) FROM simulated_agency_jobs WHERE organization=?', (scope,)).fetchone()[0], 1)
             self.assertEqual(db.execute('SELECT count(*) FROM model_calls').fetchone()[0], 0)
+        return {'session_id': sid, 'run_id': run, 'draft_id': draft_id, 'subject_id': subject,
+                'cohort_id': cohort_id, 'organization': scope, 'checkpoint_id': manifest['checkpoint_id'],
+                'handoff': accepted, 'handoff_command': handoff_command,
+                'finalize_command': {'request_id': 'finalize', **targets},
+                'population': complete['learning']['enrolled'], 'received': complete['learning']['received'],
+                'model_calls': 0, 'restored_bytes_unchanged': tree(restored) == before}
 
     def test_recorded_monitoring_keeps_exact_fixture_time_and_restores_for_inspection(self):
         _, session = self.start_campaign()

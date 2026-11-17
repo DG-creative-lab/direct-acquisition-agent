@@ -1,5 +1,133 @@
 # Validation and limits
 
+## Offline hostname lookup guard review, issue 93
+
+The review identified that the offline audit guard counted connections and
+`getaddrinfo`, but omitted forward/reverse hostname resolution and name-info
+lookups. The guard now also records and denies `socket.gethostbyname`,
+`socket.gethostbyaddr` and `socket.getnameinfo`. Python uses the first event for
+both forward lookup functions; direct `_socket` aliases and `getfqdn` are covered
+by the underlying audited resolver event. See the
+[Python socket audit contract](https://docs.python.org/3.14/library/socket.html).
+
+The existing caught-network regression now exercises nine real API operations
+in both direct and nested interpreters, including a child that replaces
+`PYTHONPATH`. A second audit hook prevents actual DNS/network activity if the
+evidence guard misses an event. Only the evidence guard's `RuntimeError` is
+caught; an escaped operation fails independently before reaching a resolver.
+The original guard failed 14 of the 18 cases; the corrected guard passes all 18.
+Each caught attempt is logged exactly once and makes an otherwise valid report
+fail grading. Removing any one of the three new event families was detected by
+a behavioral assertion, with no import/setup failure counted as detection.
+
+The 36 focused evidence/checker/CI-tool tests passed. `make arch-check` passed
+with 205 modules and zero exceptions. The six-case native corpus passed under
+the updated guard, with stable evaluated inputs and unchanged historical bytes.
+The [follow-up JSON](evaluations/issue-93-hostname-guard-results.json) and
+[summary](evaluations/issue-93-hostname-guard-evidence.md) are separate artifacts;
+the earlier #93 reports retain their original bytes. The full retained bundle is
+`/private/tmp/iwoca-93-hostname-evidence`. Its source fingerprint is
+`cda037421ca1067a8b441a5837879ff806110f8322e46e5702406069b554e866` on the uncommitted #93 branch.
+
+Commands: `make boundary-check BOUNDARY_OUTPUT=/private/tmp/iwoca-93-hostname-evidence`,
+`PYTHONPATH=src:tests python3 -m unittest test_boundary_evaluation test_architecture
+test_conversational_evaluation test_ci_tools -v`, `make test`, and `make arch-check`.
+`make test` passed all 1,038 backend tests in 928.183 seconds. Final whitespace
+checks and all report fingerprints passed. Frontend, HTTP and product code are
+unchanged, so the prior 108-case interface result
+remains the applicable browser evidence. No DNS query, live inference or external
+effect was required to reproduce or fix this finding.
+
+## Hexagonal migration closure, issue 93
+
+The branch starts at merged #92 (`1c88b42`, PR #103). Before changes, four smoke
+cases passed in 17.461 seconds: real HTTP actions/artifacts, acceptance replay
+after partial workspace acknowledgement, the draft-commit crash/restart lifecycle
+and saved-plan completion projection. The existing evaluation worktree was left
+unchanged. Only its bounded source-attribution helper was ported from unmerged
+#23; its browser runner, product edits and historical reports were not imported.
+
+### Confirmed integrated contract
+
+`exceptions: []` is now mandatory, not merely the current migration count. Even
+an exact former exception assigned to #90-#93 fails. Production roles, business
+dependency directions and legitimate forwarding wrapper roles are unchanged.
+All import/re-export/classification/cycle diagnostics are unconditional. Existing
+independent fixtures retain harmful-import, wildcard/alias, implicit package-init,
+cycle, unclassified-file and wrapper-bypass probes. The former exception-acceptance
+tests now prove that the closed migration cannot be reopened through metadata.
+
+| Interaction exercised | Authoritative observation and independent oracle |
+| --- | --- |
+| Compatibility model workflow, revision and amendment | Ten fake dispatches match ten inference journal rows. Exact replay and inspection add no calls. Existing #25 oracles bind subject, preferences, population, budget, simulated acceptance and mature learning. |
+| Verified draft commit, acknowledgement loss and projection rebuild | The original hard-exit fixture retains one draft operation and one accepted job, zero inference, 379 complete outcomes and unchanged restored bytes. Supported offline CLI rebuild followed by new-process handoff/finalization replay preserves every authoritative row. Changed exact inputs fail. |
+| Uncertain inference, stop and fresh process | One fake failed dispatch remains one used reservation; a fresh interpreter creates no campaign or new dispatch and preserves the complete authoritative snapshot. |
+| Two profile identities and historical CLI replay | iwoca and Fielddesk each conserve 100 inputs, 24 exclusions, 70 mailed and six controls at 5,950 pence. Distinct draft/manifests replay without any database change; changed inputs fail without approval or execution. |
+| Native sequence effect and fresh process | Current merged contact/recipient/channel fixtures produce one simulation, two enrollments, six planned steps and two initial dispatches. Replay returns the same receipt without submission and preserves all rows, including sequence review/approval records. Template generation's nine recorded calls are deterministic fixture calls, not live inference. |
+| Existing session, acceptance, authority and legacy boundaries | Eight named regression oracles cover frozen model settings, expired/foreign handles and original binding recovery; acceptance commit before partial acknowledgement; projection commit/lookup replay; expired review/reviewer authority; legacy v2 cutoff and original serialization. All eight run in a fresh process, with no skipped target accepted. |
+
+The finite six-case matrix is documented in
+[the integrated evidence contract](hexagonal-boundaries.md). Each case is mandatory
+and unique. Grading independently checks the stated counts, distinct identities,
+fresh process IDs, artifact hashes and current effect/authority observations.
+Missing cases, success-only flags, altered counts, source/history drift and even
+caught network attempts fail. An inherited network audit hook remains active in
+nested children whose fixtures replace `PYTHONPATH`. These are local synthetic
+control observations, not model quality, provider delivery or customer outcomes.
+
+### Attributable published evidence
+
+The [JSON report](evaluations/issue-93-boundary-results.json) and
+[run summary](evaluations/issue-93-boundary-evidence.md) retain all six passing
+cases, eight nested regressions and hashes of per-case stores, manifests and logs.
+The complete local bundle is `/private/tmp/iwoca-93-verified-evidence`; CI's
+`hexagonal-boundary-evidence` artifact retains the same format even on failure.
+The repository summaries do not embed the full SQLite stores.
+
+This is explicitly an uncommitted evaluated revision: `evaluated_commit` is null,
+base is `1c88b42a639b43fcc2107bbfb5d549d4d508ac62`, and 352 actual source/configuration/
+fixture/frontend/CI/operating inputs have per-file hashes. The aggregate source
+fingerprint is `d27a50c85d27c565d99d95c15dfb1df36d251ceb6b0c1d9e2b84914ee0c7417d`. Inputs were stable through execution. All ten
+previous committed evaluation artifacts retain their exact original bytes.
+The new reports were published separately and no earlier report was regenerated.
+
+The existing complete conversational evaluator also passed 12/12 cases, with
+zero false acceptances, zero planner/infrastructure failures and stable inputs.
+Its shared input hashes match this six-case run. Its supplementary local report
+is `/private/tmp/iwoca-93-conversation-corpus-verified.json`.
+
+Executed commands:
+
+```sh
+make boundary-check BOUNDARY_OUTPUT=/private/tmp/iwoca-93-verified-evidence
+python3 scripts/evaluate_conversational_agent.py --output /private/tmp/iwoca-93-conversation-corpus-verified.json
+make test
+make arch-check
+make interface-check
+```
+
+`make test` passed all 1,038 backend tests in 923.091 seconds on Python 3.14.3,
+including real SQLite, process restarts and HTTP lifecycle checks. The 36 focused
+checker/evaluator/CI-tool tests passed. All nine selected fixture, projection,
+replay and exact-subject mutations were detected; all five closed-ledger,
+false-success, source/history drift and caught-network mutations were detected
+by behavioral assertions, not fixture/import failures. All 513 existing
+catalogue anchors match once and their mutated sources compile. The architecture
+gate reports 205 modules and zero exceptions. `make interface-check` passed the
+frontend build, formatting and all 108 Chromium cases in 6.6 minutes, after the
+backend run. No browser case was skipped or accepted through a retry. Final
+tracked and new-file whitespace checks passed.
+
+### Applicable evidence and limits
+
+The consumer map in `docs/hexagonal-boundaries.md` gives #60/#68/#69/#70/#74/#77
+precise reusable fixtures, commands and restrictions. This closes the architecture
+migration, not those product issues or #23. No hosted identity, real CRM, OAuth,
+live outbound transport, held-out semantic quality, multi-worker execution or
+exactly-once remote delivery is established. Compatibility stores, verified
+fixture execution and inspection-only restores remain distinct. Approval, model
+budgets, admission, lease/stop fencing and counted-outcome policy were not changed.
+
 ## Workspace directory boundaries, issue 92
 
 The feature branch starts from merged #91 (`d48bbe7`, PR #102). Before changing
