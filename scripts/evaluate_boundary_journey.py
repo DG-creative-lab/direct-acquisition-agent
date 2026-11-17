@@ -23,8 +23,7 @@ PREFIXES = ('src', 'tests', 'config', 'scripts', 'frontend/src', 'frontend/tests
             'frontend/public', 'frontend/package.json', 'frontend/pnpm-lock.yaml', 'frontend/playwright.config.ts',
             'frontend/tsconfig.json', 'frontend/vite.config.ts', 'frontend/index.html', '.github',
             'Makefile', '.gitignore', 'AGENTS.md', 'README.md', 'docs/architecture.md', 'docs/workspace.md', 'docs/user-guide.md')
-CASES = ('compatibility-model-journey', 'verified-commit-rebuild-replay', 'uncertain-restart', 'profile-replay', 'engagement-replay', 'boundary-regressions')
-REGRESSIONS = ('test_workspace_composition.WorkspaceCompositionTests.test_expired_or_foreign_handle_cannot_supply_gateway_and_reconnect_keeps_binding', 'test_workspace_composition.WorkspaceCompositionTests.test_injected_gateway_is_lazy_and_fresh_process_replay_adds_no_calls', 'test_conversation_handoff.ConversationHandoffTests.test_fresh_process_replays_one_acceptance_after_partial_control_acknowledgement', 'test_conversation_handoff.ConversationHandoffTests.test_expired_approval_or_changed_reviewer_cannot_accept', 'test_workspace_projection.WorkspaceProjectionTests.test_lost_acknowledgement_after_commit_replays_without_domain_effects', 'test_workspace_projection.WorkspaceProjectionTests.test_original_conversation_request_lookup_survives_rebuild_and_rejects_changed_inputs', 'test_review_regressions.ReviewRegressions.test_real_pre_migration_v2_rows_resume_but_cannot_authorize_a_new_run', 'test_grounding.GroundingTests.test_legacy_generated_serialization_omits_new_fields')
+CASES = ('compatibility-model-journey', 'verified-commit-rebuild-replay', 'uncertain-restart', 'profile-replay', 'engagement-replay')
 COUNTS = {'input': 100, 'excluded': 24, 'eligible_unselected': 0, 'holdout': 6, 'mailed': 70}
 # An audit hook remains active in nested fresh CLI processes, even when a
 # dependency catches the raised exception. Count attempts, not just exceptions.
@@ -120,8 +119,7 @@ def valid_case(row):
                 and count(counts.get('engagement_dispatches'), 2) and type(value.get('fresh_process_pid')) is int
                 and value['fresh_process_pid'] != value['process_pid'])
         else:
-            valid = valid and value.get('targets') == list(REGRESSIONS) and count(value.get('tests_run'), len(REGRESSIONS)) and (
-                value.get('failures') == value.get('errors') == value.get('skipped') == [])
+            return False
         return bool(valid)
     except (KeyError, TypeError, AttributeError, ValueError):
         return False

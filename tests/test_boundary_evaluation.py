@@ -30,7 +30,6 @@ def complete_rows():
             'model_calls':0, 'changed_input_rejected':True},
         'engagement-replay': {'counts':{'engagement_simulations':1,'engagement_enrollments':2,'engagement_steps':6,'engagement_dispatches':2},
             'same_receipt':True,'fresh_process_pid':2},
-        'boundary-regressions': {'targets':list(evaluation.REGRESSIONS), 'tests_run':8, 'failures':[], 'errors':[], 'skipped':[]},
     }
     return [{'id':key,'exit_code':0,'network_attempts':0,'artifacts':{'proof.json':{'sha256':'a'*64,'bytes':1}},
              'observed': value | {'process_pid':1}} for key,value in observed.items()]
@@ -39,8 +38,8 @@ def complete_rows():
 class BoundaryEvidenceTests(unittest.TestCase):
     def test_missing_duplicate_malformed_and_success_only_evidence_cannot_pass(self):
         rows=complete_rows(); self.assertEqual(evaluation.grade(rows), [])
-        for changed in ([], rows[:-1], rows+[rows[0]], [rows[0]]*6,
-                        [{'id':r['id'],'passed':True} for r in rows], [None]*6):
+        for changed in ([], rows[:-1], rows+[rows[0]], [rows[0]]*len(rows),
+                        [{'id':r['id'],'passed':True} for r in rows], [None]*len(rows)):
             with self.subTest(changed=changed):self.assertTrue(evaluation.grade(changed))
         for field,value in [('exit_code',False),('network_attempts',False),('artifacts',{})]:
             changed=copy.deepcopy(rows);changed[0][field]=value
@@ -58,12 +57,11 @@ class BoundaryEvidenceTests(unittest.TestCase):
             ('uncertain-restart','fake_provider_calls',2),
             ('uncertain-restart','used',0),
             ('engagement-replay','same_receipt',False),
-            ('boundary-regressions','skipped',[['test','not run']]),
         ):
             changed=copy.deepcopy(rows);next(r for r in changed if r['id']==identity)['observed'][field]=value
             self.assertTrue(evaluation.grade(changed), (identity,field))
         for field,value in [('engagement_simulations',2),('engagement_dispatches',3),('engagement_steps',5)]:
-            changed=copy.deepcopy(rows);changed[-2]['observed']['counts'][field]=value
+            changed=copy.deepcopy(rows);changed[-1]['observed']['counts'][field]=value
             self.assertTrue(evaluation.grade(changed),field)
         changed=copy.deepcopy(rows);changed[1]['observed']['fresh_process_replay']['pid']=1
         self.assertTrue(evaluation.grade(changed))

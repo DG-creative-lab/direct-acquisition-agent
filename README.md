@@ -109,8 +109,8 @@ Offline checks need no provider credentials. Live model quality is evaluated sep
 
 Development branches use `feature/...`. Build history is available in Git; the guides describe the current product and label future work explicitly. No license terms have been selected yet.
 
-`make boundary-check` runs the bounded offline lifecycle and recovery corpus
-without provider credentials. It retains a fresh evidence bundle under
+`make boundary-check` runs the bounded offline lifecycle and recovery corpus on
+demand without provider credentials. It retains a fresh evidence bundle under
 `.local/boundary-evidence/` and exits nonzero for missing cases, failed assertions,
 network attempts, changed source inputs or altered historical evidence. Use
 `BOUNDARY_OUTPUT=/path/to/new-empty-directory` to choose a destination. See

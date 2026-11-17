@@ -15,6 +15,7 @@ are in [validation.md](validation.md).
 | Browser partitions | Displayed subjects, user decisions, reloads and lost responses against the real loopback API | Keep. One worker per isolated root preserves fixture sequencing. |
 | Formatting | Source consistency | Optional quality policy; run once. |
 | Timing and browser artifacts | Diagnosis and shard estimates | Keep as diagnostics, not correctness checks. |
+| Integrated crash, rebuild and replay | Preserve authoritative rows and original command receipts through projection loss and process restart | Extend the existing lifecycle test in the backend suite. Run the broader evidence bundle on demand for boundary changes. |
 
 New CI gates and runtime versions should document the failure they catch, their
 value beyond existing checks, cost and cadence. Offline checks do not establish
@@ -23,6 +24,18 @@ coverage. GitHub's effective main-branch rules had no required checks when
 inspected on 15 November 2026; repository settings were not changed.
 
 ## Cost and shard estimates
+
+The initial #93 proposal added a separate per-PR evidence job, repeated the
+architecture gate and reran eight backend regression tests. A local run of that
+six-case corpus took 34.37 seconds and retained 18 MB of uncompressed evidence.
+This was not a GitHub Actions duration or compressed artifact measurement. The
+revised CI runs the architecture gate once and the combined recovery journey in
+the existing backend suite. The remaining five-case evidence command is on demand;
+one local run took 26.34 seconds and retained 18 MB uncompressed. These single
+local measurements do not establish GitHub Actions duration or critical-path
+impact. Its cost is not added to every PR. No incremental mutation comparison against
+the complete backend suite has established that the other evidence scenarios
+need a separate per-PR job.
 
 In [PR 87's successful run](https://github.com/DG-creative-lab/direct-acquisition-agent/actions/runs/43738876446),
 the slowest backend jobs were 17m15s on 3.11, 12m37s on 3.12, 12m25s on 3.13

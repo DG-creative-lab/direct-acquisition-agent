@@ -1,5 +1,39 @@
 # Validation and limits
 
+## CI and evidence cleanup, issue 93
+
+The initial proposal repeated the architecture check and eight tests already in
+the backend suite. The separate per-PR evidence job has been removed. The existing
+fixture lifecycle test now also deletes and rebuilds the verified projection,
+replays the original commands in a fresh process, rejects changed inputs and
+compares all authoritative rows. The eight regressions remain in backend
+discovery and are not repeated by the on-demand evidence command. The original
+six-case reports below remain immutable historical records; new evidence runs
+contain five cases. The full corpus remains available through `make boundary-check`
+for integrated workspace, recovery and architecture changes.
+
+Backend discovery was checked against the original eight fully qualified test
+IDs: all eight were present with no discovery errors. The revised five-case
+corpus passed in 26.34 seconds locally and retained 18 MB uncompressed at
+`/private/tmp/iwoca-93-cleanup-evidence`; the earlier six-case local run took
+34.37 seconds. These are single local observations, not CI timing measurements.
+
+In a disposable copy, a synthetic rebuild fault deleted one learning outcome
+from an authoritative SQLite store. The previous lifecycle test and the
+existing missing-projection rebuild test both passed individually. The extended
+lifecycle test failed with `Projection rebuild changed authoritative facts`.
+This establishes a difference for that specific fault and those two tests, not
+that the complete previous suite misses it or that all other corpus cases are
+redundant.
+
+The duplicate source-attribution implementation was consolidated into the
+shared helper. The focused attribution and boundary tests passed, as did the
+standalone conversational evaluation with 12/12 cases and no live calls. The
+updated five-case boundary corpus passed with stable inputs and unchanged
+historical report bytes at `/private/tmp/iwoca-93-cleanup-final-evidence`.
+`make test` passed all 1,038 backend tests in 919.858 seconds with local loopback
+access. `make arch-check` passed with 205 classified modules and zero exceptions.
+
 ## Offline hostname lookup guard review, issue 93
 
 The review identified that the offline audit guard counted connections and
@@ -66,8 +100,8 @@ tests now prove that the closed migration cannot be reopened through metadata.
 | Native sequence effect and fresh process | Current merged contact/recipient/channel fixtures produce one simulation, two enrollments, six planned steps and two initial dispatches. Replay returns the same receipt without submission and preserves all rows, including sequence review/approval records. Template generation's nine recorded calls are deterministic fixture calls, not live inference. |
 | Existing session, acceptance, authority and legacy boundaries | Eight named regression oracles cover frozen model settings, expired/foreign handles and original binding recovery; acceptance commit before partial acknowledgement; projection commit/lookup replay; expired review/reviewer authority; legacy v2 cutoff and original serialization. All eight run in a fresh process, with no skipped target accepted. |
 
-The finite six-case matrix is documented in
-[the integrated evidence contract](hexagonal-boundaries.md). Each case is mandatory
+The original finite six-case matrix preceded the current five-case
+[integrated evidence contract](hexagonal-boundaries.md). Each case was mandatory
 and unique. Grading independently checks the stated counts, distinct identities,
 fresh process IDs, artifact hashes and current effect/authority observations.
 Missing cases, success-only flags, altered counts, source/history drift and even
@@ -80,8 +114,8 @@ control observations, not model quality, provider delivery or customer outcomes.
 The [JSON report](evaluations/issue-93-boundary-results.json) and
 [run summary](evaluations/issue-93-boundary-evidence.md) retain all six passing
 cases, eight nested regressions and hashes of per-case stores, manifests and logs.
-The complete local bundle is `/private/tmp/iwoca-93-verified-evidence`; CI's
-`hexagonal-boundary-evidence` artifact retains the same format even on failure.
+The complete local bundle was retained at `/private/tmp/iwoca-93-verified-evidence`;
+the originally proposed CI job would have uploaded the same format on failure.
 The repository summaries do not embed the full SQLite stores.
 
 This is explicitly an uncommitted evaluated revision: `evaluated_commit` is null,
