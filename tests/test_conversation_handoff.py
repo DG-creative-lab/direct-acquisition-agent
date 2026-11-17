@@ -3,6 +3,7 @@ import json
 import os
 import subprocess
 import sys
+from shutil import copytree
 import tempfile
 import unittest
 from pathlib import Path
@@ -12,19 +13,27 @@ from acquisition.contracts import Conflict
 from acquisition.bootstrap import build_workspace as Workspace
 
 
-class ConversationHandoffTests(unittest.TestCase):
-    def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
-        self.w = Workspace(self.root, real_clock=lambda: 1792972800.0)
+def _set_up_workspace(self, template=None):
+    self.temp = tempfile.TemporaryDirectory()
+    self.addCleanup(self.temp.cleanup)
+    self.root = Path(self.temp.name)
+    if template:
+        copytree(template['root'], self.root, dirs_exist_ok=True)
+    self.w = Workspace(self.root, real_clock=lambda: 1792972800.0)
+    if template:
+        self.c, self.sid = template['c'], template['sid']
+    else:
         self.c = self.w.create_conversation('chat', 'Handoff')['id']
         self.w.message_conversation(self.c, 'message', 0, FIXTURE_MESSAGE)
         self.w.start_preparation(self.c, 'prepare', 1, True, False)
         for _ in range(5): self.w.advance_preparations()
         self.sid = self.w.conversation(self.c)['campaigns'][0]['session_id']
-        self.state = self.w.view(self.sid)
-        self.subject = self.state['review']['subject']['id']
+    self.state = self.w.view(self.sid)
+    self.subject = self.state['review']['subject']['id']
+
+
+class ConversationHandoffTests(unittest.TestCase):
+    setUp = _set_up_workspace
 
     def approve(self):
         return self.w.action(self.sid, 'approve', {'request_id': 'approve', 'subject_id': self.subject, 'reason': 'Reviewed exact campaign.'})['review']['approval']['id']

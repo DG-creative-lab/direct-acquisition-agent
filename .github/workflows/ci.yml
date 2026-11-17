@@ -3,6 +3,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -10,6 +11,7 @@ permissions:
   contents: read
 jobs:
   test:
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -37,6 +39,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
   mutation:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -51,6 +54,7 @@ jobs:
           python-version: '3.14'
       - run: python3 scripts/check_failure_mutations.py --shard "${{ matrix.shard }}" --shards 4
   interface:
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

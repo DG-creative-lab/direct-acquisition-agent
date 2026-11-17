@@ -314,3 +314,29 @@ across the new partitions, with runner times of 261.45, 310.06, 322.41 and
 321.44 seconds. These concurrent local verification runs overlapped mutation
 checks; they are not an additional controlled before/after suite benchmark.
 Hosted end-to-end timing remains unmeasured for this candidate.
+
+
+## MVP routine compute and remaining fixtures, 17 November 2026
+
+Baseline main run 44033513092 (commit 1c88b42) completed 1,033 distinct backend
+cases. Its backend runners used 1,154.56 seconds of test-process elapsed time;
+backend jobs including setup used 1,190 seconds, and all ten jobs used 3,004
+seconds. The first-job-start to last-job-completion window was 394 seconds.
+The full 512-probe mutation audit used another 1,180 seconds within that total.
+Routine CI now has six jobs: four backend and two browser partitions. The four
+mutation partitions are retained as an explicit manual audit, separately counted
+from routine CI. See the [gate audit](ci-gate-audit.md#mvp-gate-cadence-and-aion-comparison-17-november-2026).
+
+Four more prepared classes now reuse a quiescent template: native copy revision,
+execution controls, execution follow-ups and follow-up preparation. The original
+98 per-case campaign preparations become four class preparations plus independent
+filesystem/SQLite copies. Every case reopens Workspace and rereads base review
+state; mutable fake-model state is copied where inference fixtures are used.
+The handoff fixture also supports template restoration while retaining its
+original fresh path for callers that do not opt in. Native copy-revision setup
+retains a fresh fallback for admission and legacy classes that borrow it.
+No production source, authority check, test method or assertion was changed.
+
+Weights were refreshed from the observed baseline module durations without
+assuming a speedup for the new fixtures. Hosted timing artifacts will establish
+the candidate module costs. Heavy verification runs on GitHub, not locally.

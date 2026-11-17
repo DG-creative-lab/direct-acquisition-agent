@@ -6,7 +6,7 @@ from shutil import copytree
 from tempfile import TemporaryDirectory
 
 
-def prepared_workspace(test_class, setup, model_attribute):
+def prepared_workspace(test_class, setup, model_attribute=None):
     seed = test_class('runTest')
     try:
         setup(seed)
@@ -17,8 +17,8 @@ def prepared_workspace(test_class, setup, model_attribute):
         directory = TemporaryDirectory()
         test_class.addClassCleanup(directory.cleanup)
         copytree(seed.root, directory.name, dirs_exist_ok=True)
-        return {'root': Path(directory.name), 'now': seed.now,
+        return {'root': Path(directory.name), 'now': getattr(seed, 'now', None),
                 'c': seed.c, 'sid': seed.sid,
-                'model': deepcopy(getattr(seed, model_attribute))}
+                'model': deepcopy(getattr(seed, model_attribute)) if model_attribute else None}
     finally:
         seed.doCleanups()
