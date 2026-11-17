@@ -1,4 +1,5 @@
 """Application authority survives missing or adversarial workspace projections."""
+from workspace_control_fixture import control_connection
 import json
 import math
 import shutil
@@ -17,7 +18,7 @@ from acquisition.adapters.synthetic import generate
 from acquisition.campaigns import Brief
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.conversations import FIXTURE_MESSAGE, EnvironmentIntent
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from acquisition.reviews import ActorUnavailable
 from acquisition.reasoning import ModelConfig
 from test_legacy_action_replay import durable_rows
@@ -56,7 +57,7 @@ class WorkspaceAuthorityTests(unittest.TestCase):
         with self.assertRaises(Conflict):self.w.authority.save(session|{'run_id':run})
         self.assertEqual(durable_rows(app),before)
         reopened=Workspace(self.root,real_clock=lambda:self.now)
-        with patch('acquisition.workspace.OpenRouter',side_effect=AssertionError('Provider loaded')):
+        with patch('acquisition.bootstrap.workspace_gateway',side_effect=AssertionError('Provider loaded')):
             with self.assertRaises(Conflict):reopened.prepare(sid)
         self.assertIsNone(reopened.authority.get(sid)['run_id'])
         self.assertEqual(app.calls.inspect(org,run),[])
@@ -177,13 +178,17 @@ class WorkspaceAuthorityTests(unittest.TestCase):
                    canonical(session|{'id':'bad-clock','created_at':None}),
                    canonical(session|{'id':'bad-plan','conversation_plan':[]}),
                    canonical(session|{'id':'null-plan','conversation_plan':None}), '['*1100+']'*1100)
-        with self.w.control() as db:
+        with control_connection(self.w) as db:
             db.execute("UPDATE sessions SET payload='{broken' WHERE id=?",(session['id'],))
             for i,payload in enumerate(malformed):
                 if 5<=i<=7:payload=canonical(json.loads(payload)|{'id':'broken-'+str(i)})
                 db.execute('INSERT INTO sessions VALUES(?,?,?)',('broken-'+str(i),'unused',payload))
         for workspace in (self.w,Workspace(self.root,real_clock=lambda:self.now)):
-            self.assertEqual(workspace.listing()['sessions'],[{k:session[k] for k in ('id','name','mode','created_at','case_id')}])
+            try:
+                listed=workspace.listing()['sessions']
+            except (ValueError,TypeError) as exc:
+                self.fail(f'Malformed projection rows must not hide the owned session: {exc}')
+            self.assertEqual(listed,[{k:session[k] for k in ('id','name','mode','created_at','case_id')}])
             self.assertEqual(workspace._session(session['id']),session)
             self.assertEqual(workspace.conversation(cid)['preparations'][0]['id'],prep['id'])
             self.assertEqual(workspace.action_context(cid,1)['target']['conversation_id'],cid)
@@ -211,9 +216,9 @@ class WorkspaceAuthorityTests(unittest.TestCase):
                 session=self.create(mode,mode);app=self.app(session);before=durable_rows(app)
                 fake=session|{'organization':'some-other-org','database_scope':'conversations','mode':'model' if mode=='fixture' else 'fixture',
                               'clock':self.now+90*86400,'clock_mode':'SIMULATED','run_id':'wrong-run','case_id':'wrong-case','name':'Poisoned'}
-                with self.w.control() as db:db.execute('UPDATE sessions SET payload=? WHERE id=?',(canonical(fake),session['id']))
+                with control_connection(self.w) as db:db.execute('UPDATE sessions SET payload=? WHERE id=?',(canonical(fake),session['id']))
                 self.assertEqual(self.w._session(session['id']),session)
-                with patch('acquisition.workspace.OpenRouter',side_effect=AssertionError('Loaded provider')):
+                with patch('acquisition.bootstrap.workspace_gateway',side_effect=AssertionError('Loaded provider')):
                     routed=self.w._app(fake,with_model=True)
                 self.assertEqual(routed.tasks.database.path,app.tasks.database.path)
                 self.assertEqual(routed.clock(),max(self.now,session['clock']) if mode=='model' else session['clock'])
@@ -284,13 +289,13 @@ class WorkspaceAuthorityTests(unittest.TestCase):
     def test_preparation_commits_frozen_consent_before_plan_and_survives_restart(self):
         cid=self.w.create_conversation('chat','Recover intent')['id']
         self.w.message_conversation(cid,'message',0,FIXTURE_MESSAGE)
-        with patch.object(self.w,'admit_preparation_plan',side_effect=OSError('Plan admission unavailable')):
+        with patch.object(self.w.preparation_host, 'admit_preparation_plan',side_effect=OSError('Plan admission unavailable')):
             with self.assertRaises(OSError):self.w.start_preparation(cid,'original',1,False,False)
         saved=self.w.preparations.store.for_revision('local-conversations',cid,1)
         self.assertEqual(saved['status'],'admitting');self.assertFalse(saved['inputs']['allow_model_copy'])
-        with self.w.control() as db:self.assertEqual(db.execute('SELECT COUNT(*) FROM preparations').fetchone()[0],0)
+        with control_connection(self.w) as db:self.assertEqual(db.execute('SELECT COUNT(*) FROM preparations').fetchone()[0],0)
         reopened=Workspace(self.root,real_clock=lambda:self.now)
-        with patch.object(reopened,'freeze_preparation_plan',side_effect=AssertionError('Rebuilt frozen context')):
+        with patch.object(reopened.preparation_host, 'freeze_preparation_plan',side_effect=AssertionError('Rebuilt frozen context')):
             reopened.start_preparation(cid,'original',1,False,False)
             reopened.advance_preparations()
         actual=reopened.preparations.store.for_revision('local-conversations',cid,1)
@@ -303,7 +308,7 @@ class WorkspaceAuthorityTests(unittest.TestCase):
     def test_preparation_projection_cannot_replace_intent_or_redirect_a_run(self):
         cid,saved=self.prepare();other=self.create()
         forged=saved|{'inputs':saved['inputs']|{'allow_model_copy':True},'run_id':other['run_id']}
-        with self.w.control() as db:
+        with control_connection(self.w) as db:
             db.execute('INSERT INTO preparations VALUES(?,?,?,?,?,?,?)',('local-conversations',saved['id'],saved['request_id'],cid,1,0,canonical(forged)))
         self.assertEqual(self.w.preparations.store.get('local-conversations',saved['id']),saved)
         app=self.w._conversation_app()
@@ -351,17 +356,31 @@ class WorkspaceAuthorityTests(unittest.TestCase):
         self.assertEqual(self.w.authority.get(session['id']),session)
 
     def test_clock_reads_do_not_take_a_nested_write_lock(self):
-        session=self.create();app=self.app(session)
+        from acquisition.adapters.sqlite.database import Database
+        # Prepare the session with read-only opens for existing stores. The clock
+        # call below runs without this fixture patch, under an active writer.
+        def fixture_database(path,*args,**kwargs):
+            return Database(path,*args,**kwargs) if args or kwargs else Database.existing(path)
+        with patch('acquisition.adapters.sqlite.workspace_state.Database',side_effect=fixture_database):
+            session=self.create();app=self.app(session)
         with app.tasks.database.transaction() as db:
             db.execute('UPDATE campaign_environments SET epoch=epoch WHERE organization=?',(session['organization'],))
-            self.assertEqual(self.w.authority.clock(session['id'],self.now),session['clock'])
+            try:
+                clock=self.w.authority.clock(session['id'],self.now)
+            except sqlite3.OperationalError as exc:
+                self.fail(f'Clock reads must not acquire a nested write lock: {exc}')
+            self.assertEqual(clock,session['clock'])
             self.assertEqual(self.w._session(session['id']),session)
 
     def test_compatibility_session_read_does_not_migrate_under_an_active_domain_transaction(self):
         root=self.root/'compat-lock';compat=Workspace(root,real_clock=lambda:self.now)
         session=compat.create('legacy','fixture')['session'];app=compat._conversation_app()
         with app.tasks.database.transaction():
-            self.assertEqual(compat._session(session['id'])['id'],session['id'])
+            try:
+                saved=compat._session(session['id'])
+            except sqlite3.OperationalError as exc:
+                self.fail(f'Compatibility reads must not acquire a migration write lock: {exc}')
+            self.assertEqual(saved['id'],session['id'])
 
     def seed_clock_source(self,session):
         # Independent committed-fact fixture for the clock boundary only. New
@@ -416,7 +435,7 @@ class WorkspaceAuthorityTests(unittest.TestCase):
         parent=self.create();app,_=self.seed_clock_source(parent)
         self.w.authority.begin(parent['id'],'finalize',{'request_id':'mature'})
         parent=self.w.authority.get(parent['id'])
-        with self.w.control() as db:db.execute('DELETE FROM sessions')
+        with control_connection(self.w) as db:db.execute('DELETE FROM sessions')
         child=self.w.create('child','fixture',parent['id'])['session']
         actual=self.w._session(child['id']);routed=self.w._app(actual)
         self.assertEqual(routed.tasks.database.path,app.tasks.database.path)
@@ -433,7 +452,7 @@ class WorkspaceAuthorityTests(unittest.TestCase):
         session=self.create();cid,prep=self.prepare();app=self.app(session);before=durable_rows(app)
         (self.root/'workspace.sqlite').unlink()
         code='''import json,sys
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 w=Workspace(sys.argv[1],real_clock=lambda:1792972800.)
 print(json.dumps({'session':w._session(sys.argv[2]),'preparation':w.preparations.store.get('local-conversations',sys.argv[3])}))'''
         result=subprocess.run([sys.executable,'-c',code,str(self.root),session['id'],prep['id']],capture_output=True,text=True,timeout=20)
@@ -489,7 +508,7 @@ print(json.dumps({'session':w._session(sys.argv[2]),'preparation':w.preparations
         shown=selected.view(session['id'])['session']
         self.assertEqual(shown,session|{'clock':self.now})
         owned=selected.create('owned','fixture')['session']
-        with selected.control() as db:db.execute("INSERT INTO sessions VALUES('broken','unused','{}')")
+        with control_connection(selected) as db:db.execute("INSERT INTO sessions VALUES('broken','unused','{}')")
         self.assertEqual({s['id'] for s in selected.listing()['sessions']},{session['id'],owned['id']})
         with self.assertRaisesRegex(Conflict,'migration'):selected.create('legacy','fixture')
         with self.assertRaises(Conflict):selected.action(session['id'],'approve',{'request_id':'new','subject_id':selected.view(session['id'])['review']['subject']['id'],'reason':'Cannot use projected clock as authority.'})

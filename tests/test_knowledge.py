@@ -7,7 +7,7 @@ from unittest.mock import patch
 from acquisition.bootstrap import build
 from acquisition.contracts import NotFound, digest
 from acquisition.reasoning import ModelConfig
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from test_conversations import PlannerModel
 
 

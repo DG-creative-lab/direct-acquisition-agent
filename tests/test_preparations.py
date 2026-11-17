@@ -14,8 +14,8 @@ from uuid import uuid4
 from acquisition.contracts import Conflict, NotFound
 from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.reasoning import ModelError
-from acquisition.workspace import Workspace
-from acquisition.workspace_models import ModelSelectionRejected, ModelSessionExpired
+from acquisition.bootstrap import build_workspace as Workspace
+from acquisition.application.workspace import ModelSelectionRejected, ModelSessionExpired
 from test_conversations import PlannerModel, proposal
 from test_model_copy import FakeModel, reply
 
@@ -42,8 +42,8 @@ class PreparationTests(unittest.TestCase):
         self.now = 1792972800.0
         self.w = self.open()
         self.model = CombinedModel()
-        for patcher in (patch("acquisition.workspace.openrouter_key", return_value="fixture"),
-                        patch("acquisition.workspace.OpenRouter", return_value=self.model)):
+        for patcher in (patch("acquisition.bootstrap.workspace_key", return_value="fixture"),
+                        patch("acquisition.bootstrap.workspace_gateway", return_value=self.model)):
             patcher.start()
             self.addCleanup(patcher.stop)
         self.c = self.w.create_conversation("c", "Continuous contractor experiment")["id"]
@@ -101,49 +101,52 @@ class PreparationTests(unittest.TestCase):
         chosen, other = "vendor/selected", "vendor/other"
         browser_model = CombinedModel()
         models = [{"id": chosen, "tier": "Lower cost"}, {"id": other, "tier": "Standard"}]
-        with patch("acquisition.workspace_models.workspace_models", return_value=models), patch(
-            "acquisition.workspace_models.OpenRouter", return_value=browser_model
-        ):
-            connection = self.w.models.connect(key, session)
-            with self.w.models.browser(connection["handle"], session, chosen, "Lower cost"):
-                self.admit()
-            reopened = self.open()
-            with self.assertRaises(ModelSessionExpired), reopened.models.browser(connection["handle"], session):
-                self.fail("A fresh server must require reconnection")
-            reopened.advance_preparations()
-            for wrong_key, wrong_session in [(key, str(uuid4())), (key + "y", session)]:
-                wrong = reopened.models.connect(wrong_key, wrong_session)
-                with reopened.models.browser(wrong["handle"], wrong_session):
-                    reopened.advance_browser_model()
-            self.assertEqual(browser_model.planner.requests, [])
-            self.assertEqual(self.model.planner.requests, [])
-            self.assertEqual(reopened.conversation(self.c)["preparations"][0]["status"], "planning")
+        from acquisition.adapters.models.workspace_sessions import WorkspaceSessions
+        def open_browser():
+            sessions = WorkspaceSessions(lambda: self.model, gateway_factory=lambda key: browser_model,
+                                         catalogue_source=lambda: models)
+            return Workspace(self.root, real_clock=lambda: self.now, model_sessions=sessions)
+        self.w = open_browser()
+        connection = self.w.models.connect(key, session)
+        with self.w.models.browser(connection["handle"], session, chosen, "Lower cost"):
+            self.admit()
+        reopened = open_browser()
+        with self.assertRaises(ModelSessionExpired), reopened.models.browser(connection["handle"], session):
+            self.fail("A fresh server must require reconnection")
+        reopened.advance_preparations()
+        for wrong_key, wrong_session in [(key, str(uuid4())), (key + "y", session)]:
+            wrong = reopened.models.connect(wrong_key, wrong_session)
+            with reopened.models.browser(wrong["handle"], wrong_session):
+                reopened.advance_browser_model()
+        self.assertEqual(browser_model.planner.requests, [])
+        self.assertEqual(self.model.planner.requests, [])
+        self.assertEqual(reopened.conversation(self.c)["preparations"][0]["status"], "planning")
 
-            original = reopened.models.connect(key, session)
-            self.assertEqual(original["binding"], connection["binding"])
-            with reopened.models.browser(original["handle"], session, other, "Standard"):
-                self.assertEqual(self.finish(reopened)["status"], "review_ready")
-            requests = browser_model.planner.requests + browser_model.copy.requests
-            self.assertEqual(len(requests), 4)
-            self.assertEqual({r["model"] for r in requests}, {chosen})
-            self.assertTrue(all(r["tool_choice"] == "required" for r in requests))
-            self.assertTrue(all(r["provider"]["max_price"] == {"prompt": 0.25, "completion": 0.50, "request": 0}
-                                for r in requests))
-            self.assertNotIn(key, str(requests))
-            self.assertNotIn(session, str(requests))
-            for store in self.root.rglob("*.sqlite*"):
-                self.assertNotIn(key.encode(), store.read_bytes())
-                self.assertNotIn(session.encode(), store.read_bytes())
-                self.assertNotIn(connection["handle"].encode(), store.read_bytes())
-            self.assert_no_release(reopened)
+        original = reopened.models.connect(key, session)
+        self.assertEqual(original["binding"], connection["binding"])
+        with reopened.models.browser(original["handle"], session, other, "Standard"):
+            self.assertEqual(self.finish(reopened)["status"], "review_ready")
+        requests = browser_model.planner.requests + browser_model.copy.requests
+        self.assertEqual(len(requests), 4)
+        self.assertEqual({r["model"] for r in requests}, {chosen})
+        self.assertTrue(all(r["tool_choice"] == "required" for r in requests))
+        self.assertTrue(all(r["provider"]["max_price"] == {"prompt": 0.25, "completion": 0.50, "request": 0}
+                            for r in requests))
+        self.assertNotIn(key, str(requests))
+        self.assertNotIn(session, str(requests))
+        for store in self.root.rglob("*.sqlite*"):
+            self.assertNotIn(key.encode(), store.read_bytes())
+            self.assertNotIn(session.encode(), store.read_bytes())
+            self.assertNotIn(connection["handle"].encode(), store.read_bytes())
+        self.assert_no_release(reopened)
 
     def test_browser_key_does_not_enable_paid_execution_in_a_verified_workspace(self):
         verified = Workspace(self.root / "verified", real_clock=lambda: self.now, verified_admissions=True)
         cid = verified.create_conversation("browser", "Verified paid planning")["id"]
         verified.message_conversation(cid, "brief", 0, "Prepare a £600 contractor experiment.")
         model = "vendor/selected"
-        with patch("acquisition.workspace_models.workspace_models", return_value=[{"id": model, "tier": "Standard"}]), patch(
-            "acquisition.workspace_models.OpenRouter", return_value=self.model
+        with patch("acquisition.adapters.models.workspace_sessions.workspace_models", return_value=[{"id": model, "tier": "Standard"}]), patch(
+            "acquisition.adapters.models.workspace_sessions.OpenRouter", return_value=self.model
         ):
             session = str(uuid4())
             connection = verified.models.connect("fixture-key-" + "x" * 40, session)
@@ -161,8 +164,8 @@ class PreparationTests(unittest.TestCase):
         before = [{"id": model, "tier": "Lower cost"}]
         after = [{"id": model, "tier": "Standard"}]
         self.w.message_conversation(self.c, "brief", 0, "Prepare a £600 contractor experiment.")
-        with patch("acquisition.workspace_models.workspace_models", side_effect=[before, after]), patch(
-            "acquisition.workspace_models.OpenRouter", return_value=self.model
+        with patch("acquisition.adapters.models.workspace_sessions.workspace_models", side_effect=[before, after]), patch(
+            "acquisition.adapters.models.workspace_sessions.OpenRouter", return_value=self.model
         ):
             handle = self.w.models.connect("fixture-key-" + "x" * 40, session)["handle"]
             self.assertEqual(self.w.models.catalogue(), before)
@@ -186,7 +189,7 @@ class PreparationTests(unittest.TestCase):
         cid = verified.create_conversation("browser", "Staged planning")["id"]
         verified.message_conversation(cid, "brief", 0, "Prepare a £600 contractor experiment.")
         store = verified._conversation_app().admissions.store
-        with patch("acquisition.workspace_models.OpenRouter", return_value=self.model), patch.object(
+        with patch("acquisition.adapters.models.workspace_sessions.OpenRouter", return_value=self.model), patch.object(
             verified.models, "catalogue", return_value=[{"id": model, "tier": "Lower cost"}]
         ):
             connection = verified.models.connect("fixture-key-" + "x" * 40, tab)
@@ -250,7 +253,7 @@ class PreparationTests(unittest.TestCase):
     def test_real_process_restart_resumes_a_queued_fixture(self):
         self.admit(fixture=True)
         env = dict(os.environ, PYTHONPATH=str(Path("src").resolve()))
-        code = "from acquisition.workspace import Workspace; import sys; w=Workspace(sys.argv[1]); [w.advance_preparations() for _ in range(6)]"
+        code = "from acquisition.bootstrap import build_workspace as Workspace; import sys; w=Workspace(sys.argv[1]); [w.advance_preparations() for _ in range(6)]"
         result = subprocess.run([sys.executable, "-c", code, str(self.root)], env=env, capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.w.conversation(self.c)["preparations"][0]["status"], "review_ready")
@@ -451,6 +454,7 @@ class PreparationTests(unittest.TestCase):
                     self.assertFalse(row["current"])
                     self.assertIn("brief changed", row["detail"])
                     self.assertIn("charged", row["detail"])
+                    self.assertIsInstance(row['generation'],dict,'Uncertain work must retain its generation journal')
                     self.assertTrue(row["generation"]["outcome_uncertain"])
                     self.assertTrue(row["generation"]["unresolved_calls"])
                     self.assertEqual(row["generation"]["provider_error"], None if interrupted else "provider_request_failed")
@@ -473,7 +477,7 @@ class PreparationTests(unittest.TestCase):
                 c = w.create_conversation("new", "Interrupted admission")["id"]
                 w.message_conversation(c, "message", 0, FIXTURE_MESSAGE)
                 if point == "before-plan":
-                    fault = patch.object(w, "admit_preparation_plan", side_effect=KeyboardInterrupt())
+                    fault = patch.object(w.preparation_host, "admit_preparation_plan", side_effect=KeyboardInterrupt())
                 elif point == "after-plan-record":
                     fault = patch("acquisition.adapters.sqlite.tasks.SqliteTasks.create", side_effect=KeyboardInterrupt())
                 else:
@@ -498,7 +502,7 @@ class PreparationTests(unittest.TestCase):
                 code = '''
 import sys
 from unittest.mock import patch
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 w = Workspace(sys.argv[1])
 w.preparations.recover('local-conversations')
 with patch('acquisition.conversations.application.ConversationService._knowledge', side_effect=AssertionError('Do not rebuild frozen guidance')):
@@ -518,7 +522,7 @@ with patch('acquisition.conversations.application.ConversationService._knowledge
                 self.assert_no_release(reopened)
 
     def test_model_consent_and_original_context_survive_an_admission_interruption(self):
-        with patch.object(self.w, "admit_preparation_plan", side_effect=KeyboardInterrupt()), self.assertRaises(KeyboardInterrupt):
+        with patch.object(self.w.preparation_host, "admit_preparation_plan", side_effect=KeyboardInterrupt()), self.assertRaises(KeyboardInterrupt):
             self.admit()
         row = self.w.preparations.store.listing("local-conversations")[0]
         self.assertTrue(row["inputs"]["allow_model_copy"])

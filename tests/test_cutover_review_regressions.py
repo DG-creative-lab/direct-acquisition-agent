@@ -14,7 +14,7 @@ from acquisition.bootstrap import build
 from acquisition.contracts import Conflict
 from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.reasoning import ModelConfig
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 import test_admission_workflow_coverage as coverage
 import test_copy_revisions as revisions
 
@@ -149,7 +149,10 @@ class RoutingIdentityTests(unittest.TestCase):
         for cid in (first,self.w.create_conversation('second','Second')['id']):
             if cid!=first:self.w.message_conversation(cid,'message',0,FIXTURE_MESSAGE)
             row=app.actions.admit('local-conversations',cid,'shared',1,'What should I consider next?',False,self.w.action_context(cid,1))
-            run=app.actions.reconcile('local-conversations',row)
+            try:
+                run=app.actions.reconcile('local-conversations',row)
+            except Conflict as exc:
+                self.fail(f'Independent routing keys must reconcile in their own scope: {exc}')
             state=app.tasks.inspect('local-conversations',run)
             self.assertEqual(state['tasks'][0]['inputs']['request_id'],'shared')
             self.assertEqual(state['tasks'][0]['inputs']['inputs']['conversation_id'],cid)

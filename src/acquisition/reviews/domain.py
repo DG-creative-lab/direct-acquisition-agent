@@ -1,7 +1,7 @@
 """Approval rules. A decision authorizes only a local simulated handoff."""
 
 import csv
-import io
+from io import StringIO
 import math
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -57,7 +57,7 @@ def validate_population(draft: Draft, snapshot: Snapshot, suppressions: set[str]
     brief = brief_from(draft.manifest["brief"])
     if build_draft(snapshot, brief, creatives) != draft:
         raise Conflict("Draft is not the exact result of its recorded inputs")
-    mailed = {row["business_id"] for row in csv.DictReader(io.StringIO(draft.mailing_csv))}
+    mailed = {row["business_id"] for row in csv.DictReader(StringIO(draft.mailing_csv))}
     if mailed & suppressions:
         raise Conflict("Current suppressions affect this draft; rebuild before review")
 

@@ -11,8 +11,9 @@ from uuid import uuid4
 
 from acquisition.bootstrap import initialize_fixture_workspace
 from acquisition.contracts import Conflict, NotFound, digest
+from acquisition.reasoning import ModelError
 from acquisition.conversations import FIXTURE_MESSAGE
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from test_conversation_actions import _set_up_workspace
 from test_conversations import proposal
 from test_preparations import CombinedModel
@@ -22,7 +23,7 @@ import test_conversation_learning as learning_tests
 def restart(test, conversation_id, action_id, *, confirmed=False):
     script = """
 import json, sys
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 root, cid, action_id, clock, confirm = sys.argv[1:]
 w = Workspace(root, real_clock=lambda: float(clock))
 if confirm == 'True':
@@ -164,6 +165,19 @@ class TypedPrepareTests(unittest.TestCase):
         self.assertEqual(final['execution']['used'], 0)
         review = self.w.view(final['campaigns'][0]['session_id'])['review']
         self.assertEqual(review['manifest']['brief']['audience_source'], selection)
+        # Review completion can publish after the campaign list was sampled but
+        # before action progress. That response must keep the current case mapping.
+        sid = final['campaigns'][0]['session_id']
+        completed = self.w._session(sid)
+        self.w._save(completed | {'case_id': None})
+        progress = self.w.action_progress
+        def finish_between_reads(conversation_id):
+            self.w._save(completed)
+            return progress(conversation_id)
+        with patch.object(self.w, 'action_progress', side_effect=finish_between_reads):
+            projected = self.w.conversation(cid)
+        self.assertFalse(projected['actions'][0]['continuation_pending'])
+        self.assertEqual(projected['campaigns'][0]['case_id'], completed['case_id'])
 
     def test_confirmed_saved_plan_uses_planner_connection_instead_of_router_connection(self):
         cid = self.w.create_conversation("two-keys", "Saved model brief")["id"]
@@ -171,8 +185,8 @@ class TypedPrepareTests(unittest.TestCase):
         planner, router = CombinedModel(), self.gateway
         router.action = "prepare_campaign"
         model, tab = "vendor/selected", str(uuid4())
-        with patch("acquisition.workspace_models.OpenRouter") as adapter, patch(
-            "acquisition.workspace_models.workspace_models", return_value=[{"id": model, "tier": "Standard"}]
+        with patch("acquisition.adapters.models.workspace_sessions.OpenRouter") as adapter, patch(
+            "acquisition.adapters.models.workspace_sessions.workspace_models", return_value=[{"id": model, "tier": "Standard"}]
         ):
             adapter.side_effect = lambda key: planner if key.endswith("a") else adapter.return_value
             adapter.return_value.complete.side_effect = router.complete
@@ -236,8 +250,11 @@ class TypedPrepareTests(unittest.TestCase):
                     w.stop_execution(cid, 'stop', 1)
                     return draft(*args, **kwargs)
 
-                with patch.object(w, 'draft_conversation', side_effect=stop_before_draft) as attempted, self.assertRaises(Conflict):
-                    w.confirm_typed_action(cid, action['id'], 'confirm', action['result']['id'], 1)
+                try:
+                    with patch.object(w, 'draft_conversation', side_effect=stop_before_draft) as attempted, self.assertRaises(Conflict):
+                        w.confirm_typed_action(cid, action['id'], 'confirm', action['result']['id'], 1)
+                except ModelError as exc:
+                    self.fail(f'Stopping before session creation must return a conflict: {exc}')
                 attempted.assert_called_once()
                 reopened = Workspace(root, real_clock=lambda: self.now)
                 reopened.advance_preparations()

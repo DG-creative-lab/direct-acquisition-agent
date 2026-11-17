@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+from shutil import copytree
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -12,10 +13,12 @@ from threading import Event
 from unittest.mock import patch
 
 from acquisition.bootstrap import build
+from prepared_workspace_fixture import prepared_workspace
+
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.conversations import ActionNotSaved, FIXTURE_MESSAGE
 from acquisition.reasoning import ModelConfig, ModelError
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from test_model_copy import reply
 from test_preparations import CombinedModel
 
@@ -31,12 +34,14 @@ class ActionGateway(CombinedModel):
         return super().complete(request)
 
 
-def _set_up_workspace(self):
+def _set_up_workspace(self, template=None):
     self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
     self.root=Path(self.temp.name);self.now=1793404800.
-    self.w=Workspace(self.root,real_clock=lambda:self.now);self.gateway=ActionGateway()
-    for p in (patch('acquisition.workspace.openrouter_key',return_value='fixture'),
-              patch('acquisition.workspace.OpenRouter',return_value=self.gateway)):
+    if template:
+        copytree(template['root'], self.root, dirs_exist_ok=True)
+    self.w=Workspace(self.root,real_clock=lambda:self.now);self.gateway=copy.deepcopy(template['model']) if template else ActionGateway()
+    for p in (patch('acquisition.bootstrap.workspace_key',return_value='fixture'),
+              patch('acquisition.bootstrap.workspace_gateway',return_value=self.gateway)):
         p.start();self.addCleanup(p.stop)
 
 
@@ -58,9 +63,11 @@ class ConversationActionContextTests(unittest.TestCase):
         self.w.advance_actions()
         payload=json.loads(self.gateway.routing_requests[-1]['messages'][-1]['content'])
         self.assertEqual(payload['message'],'£600')
+        self.assertIn('dialogue',payload)
         self.assertEqual(payload['dialogue']['messages'],[
             {'id':'budget-request','revision':1,'role':'user','content':original}])
         response=payload['dialogue']['planner_response']
+        self.assertIn('question',response)
         self.assertEqual(response['question'],question)
         self.assertEqual(response['id'],before['current_plan']['result']['id'])
         self.assertEqual(response['outcome'],'clarification')
@@ -122,7 +129,20 @@ class ConversationActionContextTests(unittest.TestCase):
 
 
 class ConversationActionTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.template = prepared_workspace(cls, cls._prepare_workspace, 'gateway')
+
     def setUp(self):
+        # Other test classes borrow this method without class-level preparation.
+        if not isinstance(self, ConversationActionTests):
+            ConversationActionTests._prepare_workspace(self)
+            return
+        _set_up_workspace(self, self.template)
+        self.c, self.sid = self.template['c'], self.template['sid']
+        self.base = self.w.view(self.sid)
+
+    def _prepare_workspace(self):
         _set_up_workspace(self)
         self.c=self.w.create_conversation('c','Follow-up continuity')['id']
         self.w.message_conversation(self.c,'m',0,FIXTURE_MESSAGE)
@@ -220,6 +240,7 @@ class ConversationActionTests(unittest.TestCase):
         self.assertEqual(planned['current_plan']['result']['budget_evidence']['quote'],'£400')
         self.assertEqual(planned['preparations'][-1]['status'],'selecting_audience')
         request=json.loads(self.gateway.planner.requests[-1]['messages'][-1]['content'])
+        self.assertIn('confirmed_action_exchanges',request)
         carried=request['confirmed_action_exchanges'][-1]
         self.assertEqual(carried['exchange'],action['result']['amendment_exchange'])
         self.assertEqual(carried['revision'],3)
@@ -396,6 +417,7 @@ class ConversationActionTests(unittest.TestCase):
         self.gateway.action='amend_brief'
         pending=self.routed('Actually change it to £500','pending')
         action=self.routed('Change it','reply')
+        self.assertIn('amendment_exchange',action['result'])
         self.assertEqual([e['action_id'] for e in action['result']['amendment_exchange'][:-1]],[first['id'],pending['id']])
         self.gateway.planner.results=[proposal(budget_pence=50000)]
         self.confirm(action)
@@ -476,7 +498,7 @@ class ConversationActionTests(unittest.TestCase):
         self.assertEqual(self.w.conversation(self.c)['revision'],2)
 
     def test_missing_key_keeps_saved_request_blocked_then_resumes_original_identity(self):
-        with patch('acquisition.workspace.openrouter_key',side_effect=ValueError('key missing')):
+        with patch('acquisition.bootstrap.workspace_key',side_effect=ValueError('key missing')):
             value=self.ask('Please explain how this population was chosen.')
             self.assertEqual(value['actions'][0]['status'],'blocked')
             self.w.advance_actions();self.assertEqual(self.gateway.routing_requests,[])
@@ -560,7 +582,7 @@ class ConversationActionTests(unittest.TestCase):
     def test_saved_observation_survives_fresh_process_without_becoming_a_brief_message(self):
         self.ask()
         code='''import json,sys
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 w=Workspace(sys.argv[1],real_clock=lambda:1793404800.)
 v=w.conversation(sys.argv[2]);print(json.dumps({'revision':v['revision'],'messages':len(v['messages']),'answer':v['actions'][0]['result']['text']}))
 '''

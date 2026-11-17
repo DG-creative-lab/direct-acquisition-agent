@@ -3,8 +3,10 @@
 test:
 	PYTHONPATH=src python3 -m unittest discover -s tests -v
 
+BACKEND_SHARDS ?= 2
+
 test-shard:
-	PYTHONPATH=src python3 -m scripts.run_backend_shard "$(SHARD)"
+	PYTHONPATH=src python3 -m scripts.run_backend_shard "$(SHARD)" --shards "$(BACKEND_SHARDS)"
 
 arch-check:
 	python3 scripts/check_architecture.py
@@ -31,3 +33,8 @@ interface-check:
 	pnpm --dir frontend run build
 	pnpm --dir frontend run format:check
 	BROWSER_SHARD=$(BROWSER_SHARD) BROWSER_SHARDS=$(BROWSER_SHARDS) pnpm --dir frontend test
+
+.PHONY: boundary-check
+BOUNDARY_OUTPUT ?=
+boundary-check:
+	python3 scripts/evaluate_boundary_journey.py $(if $(BOUNDARY_OUTPUT),--output-dir "$(BOUNDARY_OUTPUT)",)

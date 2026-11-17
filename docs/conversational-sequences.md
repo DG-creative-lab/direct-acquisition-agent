@@ -37,6 +37,7 @@ A status question such as `What is the status?`, `show the proposal` or `inspect
 | `workflows` | Composes existing public contact, audience, creative, campaign, review and engagement APIs. The host advances one saved stage and resumes original native commands after interruption. |
 | `bootstrap.py` | Wires installed company/profile discovery, offline interpretation/model adapters, shared SQLite persistence and public services. It selects concrete adapters. |
 | Existing business modules | Continue to own eligibility, grounding, budgets, exact review, current evidence and synthetic acceptance. Their ports remain usable independently for unbound historical or standalone requests. |
+| Workspace application | `application/workspace/service.py` receives a lazy journey factory from bootstrap. It routes messages and exposes saved progress through public conversation contracts. It does not construct concrete adapters. |
 | React and HTTP | Present saved progress and exact server-owned subjects. Fixed organization/actor resolution, Host, Origin and token protections remain in the existing loopback transport. |
 
 Company-native scopes are stable hashes of owner organization and profile key. They isolate installed companies while preserving source identity and objection history across journeys for the same company. They do not create hosted tenant administration.

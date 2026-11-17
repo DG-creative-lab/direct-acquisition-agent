@@ -98,7 +98,7 @@ class ValidationReportTests(unittest.TestCase):
         self.assertIsNone(reopened.reviews.store.view('one',self.case)['approval'])
 
     def test_conversation_edit_blocks_current_progress_and_report_without_changing_old_subject(self):
-        from acquisition.workspace import Workspace
+        from acquisition.bootstrap import build_workspace as Workspace
         from acquisition.conversations import FIXTURE_MESSAGE
         w=Workspace(self.root/'chat',real_clock=lambda:1792972800.)
         c=w.create_conversation('chat','Validation')['id']

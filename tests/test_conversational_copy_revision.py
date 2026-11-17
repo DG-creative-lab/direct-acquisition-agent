@@ -1,16 +1,20 @@
 """Natural-language copy edits preserve native revision and approval authority."""
 
+import copy
 import json
 import sqlite3
+from shutil import copytree
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 from concurrent.futures import ThreadPoolExecutor
 
+from prepared_workspace_fixture import prepared_workspace
+
 from acquisition.contracts import Conflict, NotFound
 from acquisition.reasoning import ModelError
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from test_copy_revisions import RevisionModel
 from test_model_copy import reply
 
@@ -28,12 +32,14 @@ class CopyRoutingModel(RevisionModel):
         return super().complete(request)
 
 
-def _set_up_workspace(self):
+def _set_up_workspace(self, template=None):
     self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
     self.root=Path(self.temp.name);self.now=1793404800.
-    self.model=CopyRoutingModel()
-    for p in (patch('acquisition.workspace.openrouter_key',return_value='fixture'),
-              patch('acquisition.workspace.OpenRouter',return_value=self.model)):
+    if template:
+        copytree(template['root'], self.root, dirs_exist_ok=True)
+    self.model=copy.deepcopy(template['model']) if template else CopyRoutingModel()
+    for p in (patch('acquisition.bootstrap.workspace_key',return_value='fixture'),
+              patch('acquisition.bootstrap.workspace_gateway',return_value=self.model)):
         p.start();self.addCleanup(p.stop)
     self.w=Workspace(self.root,real_clock=lambda:self.now)
 
@@ -62,7 +68,20 @@ class MultiSegmentCopyRoutingTests(unittest.TestCase):
 
 
 class ConversationalCopyRevisionTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.template = prepared_workspace(cls, cls._prepare_workspace, 'model')
+
     def setUp(self):
+        # Other test classes borrow this method without class-level preparation.
+        if not isinstance(self, ConversationalCopyRevisionTests):
+            ConversationalCopyRevisionTests._prepare_workspace(self)
+            return
+        _set_up_workspace(self, self.template)
+        self.c, self.sid = self.template['c'], self.template['sid']
+        self.base = self.w.view(self.sid)
+
+    def _prepare_workspace(self):
         _set_up_workspace(self)
         self.c=self.w.create_conversation('copy-chat','Copy campaign')['id']
         self.w.message_conversation(self.c,'m',0,'Prepare a £600 contractor campaign with model copy.')
@@ -310,7 +329,7 @@ class ConversationalCopyRevisionTests(unittest.TestCase):
         self.w=Workspace(self.root,real_clock=lambda:self.now)
         for _ in range(5):self.w.advance_preparations()
         before=len(self.model.revision_calls)
-        with patch('acquisition.workspace.openrouter_key',side_effect=ValueError('key removed')):
+        with patch('acquisition.bootstrap.workspace_key',side_effect=ValueError('key removed')):
             replay=self.confirm(action)
             alias=self.confirm(action,request='another-observation')
         self.assertEqual(replay['actions'][-1]['confirmed'],alias['actions'][-1]['confirmed'])
@@ -330,7 +349,7 @@ class ConversationalCopyRevisionTests(unittest.TestCase):
 
     def test_missing_key_blocks_the_saved_revision_and_restoration_resumes_it(self):
         action=self.route()
-        with patch('acquisition.workspace.openrouter_key',side_effect=ValueError('key missing')):
+        with patch('acquisition.bootstrap.workspace_key',side_effect=ValueError('key missing')):
             self.confirm(action)
             self.w.advance_copy_revisions()
             progress=self.w.conversation(self.c)['actions'][-1]['copy_revision_progress']

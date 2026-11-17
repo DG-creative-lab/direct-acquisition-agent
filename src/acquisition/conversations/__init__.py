@@ -30,3 +30,6 @@ __all__ += ['mentioned_profiles','effective_sequence_messages','sequence_literal
 
 from .scope import postal_request
 __all__ += ['postal_request']
+
+from .scope import sequence_language
+__all__ += ['sequence_language']

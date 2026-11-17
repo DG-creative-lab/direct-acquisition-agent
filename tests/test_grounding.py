@@ -183,13 +183,13 @@ class GroundingTests(unittest.TestCase):
         self.assertIn("fact_id", creative_record(replace(old, fact_id="new")))
 
     def test_default_model_commands_use_gpt_oss_with_required_tools_and_bounded_calls(self):
-        from acquisition.__main__ import main
+        from acquisition.entrypoints.cli import main
         from contextlib import redirect_stdout
         from io import StringIO
         from unittest.mock import patch
-        with patch("acquisition.__main__.OpenRouter", return_value=self.model), \
-             patch("acquisition.__main__.openrouter_key", return_value="fake-not-a-key"), \
-             patch("acquisition.__main__.build", side_effect=lambda path, **kwargs: build(path, clock=lambda: self.now, **kwargs)), \
+        with patch("acquisition.bootstrap.workspace_gateway", return_value=self.model), \
+             patch("acquisition.bootstrap.workspace_key", return_value="fake-not-a-key"), \
+             patch("acquisition.bootstrap.build", side_effect=lambda path, **kwargs: build(path, clock=lambda: self.now, **kwargs)), \
              patch("sys.argv", ["acquisition", "--db", str(self.root / "cli.sqlite"), "create-model", "--size", "100"]), \
              redirect_stdout(StringIO()) as output:
             main()

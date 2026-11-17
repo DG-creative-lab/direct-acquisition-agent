@@ -21,11 +21,16 @@ class CIToolTests(unittest.TestCase):
         self.assertEqual(len({case[0] for case in CASES}), len(CASES))
 
     def test_backend_shards_preserve_discovery(self):
-        discovered = unittest.defaultTestLoader.discover('tests')
+        loader = unittest.TestLoader()
+        discovered = loader.discover('tests')
+        self.assertFalse(loader.errors, loader.errors)
         expected = [test.id() for test in cases(discovered)]
-        groups, _ = split_suite(discovered)
-        self.assertTrue(all(group.countTestCases() for group in groups))
-        self.assertCountEqual([test.id() for group in groups for test in cases(group)], expected)
+        for shards in (2, 4):
+            with self.subTest(shards=shards):
+                groups, _ = split_suite(discovered, shards)
+                self.assertEqual(len(groups), shards)
+                self.assertTrue(all(group.countTestCases() for group in groups))
+                self.assertCountEqual([test.id() for group in groups for test in cases(group)], expected)
 
     def test_timing_preserves_test_identity_when_fixture_assigns_id(self):
         class UsesSubjectId(unittest.TestCase):
@@ -64,7 +69,7 @@ class Examples(unittest.TestCase):
             Path(directory, 'examples.py').write_text(source)
             env = dict(os.environ, PYTHONPATH=os.pathsep.join((str(root), directory)))
             for target, expected in [('test_setup', 1), ('test_teardown', 1), ('test_error', 1),
-                                     ('test_killed', 0), ('test_body_error', 0), ('test_subtest_error', 0),
+                                     ('test_killed', 0), ('test_body_error', 1), ('test_subtest_error', 1),
                                      ('test_survived', 1),
                                      ('missing', 1)]:
                 with self.subTest(target=target):

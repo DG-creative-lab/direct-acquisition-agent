@@ -1,4 +1,5 @@
 """Checkpoint publication preserves history without carrying forward authority."""
+from workspace_control_fixture import control_connection
 import hashlib
 import json
 import os
@@ -17,9 +18,9 @@ from acquisition.bootstrap import build_audience_decisions, build_sequence_simul
 from acquisition.campaigns import SequenceRequest
 from acquisition.contracts import Conflict, canonical
 from acquisition.conversations import FIXTURE_MESSAGE
-from acquisition.learning_demo import run_learning_demo
+from acquisition.entrypoints.learning_demo import run_learning_demo
 from acquisition.reasoning import CallScope
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from test_conversations import PlannerModel
 from test_workspace_projection import records
 
@@ -116,8 +117,8 @@ class WorkspaceCheckpointTests(TestCase):
         w = Workspace(paid_root, real_clock=lambda: self.now)
         cid = w.create_conversation('chat', 'Scoped history')['id']
         w.message_conversation(cid, 'brief', 0, FIXTURE_MESSAGE)
-        with patch('acquisition.workspace.openrouter_key', return_value='fake'), \
-             patch('acquisition.workspace.OpenRouter', return_value=PlannerModel()):
+        with patch('acquisition.bootstrap.workspace_key', return_value='fake'), \
+             patch('acquisition.bootstrap.workspace_gateway', return_value=PlannerModel()):
             w.plan_conversation(cid, 'original-paid-plan', 1)
         w.stop_execution(cid, 'stop', 1)
         paid_app = w._conversation_app()
@@ -133,7 +134,7 @@ class WorkspaceCheckpointTests(TestCase):
         self.workspace.message_conversation(conversation, 'brief', 0, FIXTURE_MESSAGE)
         self.workspace.start_preparation(conversation, 'plan', 1, False, True)
         self.workspace.stop_execution(conversation, 'stop', 1)
-        with self.workspace.control() as db:
+        with control_connection(self.workspace) as db:
             db.execute('CREATE TABLE opaque_history (value BLOB)')
             db.execute('INSERT INTO opaque_history VALUES(?)', (b'\x00\xff original',))
         (self.source / '.env.local').write_text('EXAMPLE_NON_DATABASE_FILE')

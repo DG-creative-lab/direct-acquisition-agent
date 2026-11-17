@@ -78,7 +78,11 @@ class RecipientContextTests(unittest.TestCase):
                 person = directory.source.read('one',profile+'-crm-a',1).contacts[0]
                 service = self.service(profile=profile)
                 receipt = self.prepare(service,profile+'-'+channel,assessment_id=assessment,contact_id=person.ref.id)
-                context = receipt['context']; saved = service.inspect('one',profile+'-'+channel)
+                context = receipt['context']
+                contact_facts = [f for f in context['selected'] if f['slot'] in {'contact_role','prior_interaction'}]
+                self.assertTrue(contact_facts)
+                self.assertTrue(all(f['subject_id']==person.ref.id for f in contact_facts))
+                saved = service.inspect('one',profile+'-'+channel)
                 self.assertEqual(context['status'],'ready')
                 self.assertTrue(saved['currently_applicable'])
                 self.assertEqual(len(context['selected']),4)
@@ -177,7 +181,16 @@ class RecipientContextTests(unittest.TestCase):
         service = self.composed((single,corroborated))
         for source, applicable in ((single,True),(corroborated,False)):
             current = self.prepare(service,'current-'+source.source_key,source_key=source.source_key)
-            saved = service.inspect('one','current-'+source.source_key)['saved']
+            from acquisition.adapters.sqlite import recipient_contexts
+            reconstruct = recipient_contexts.reconstruct_saved_recipient_context
+            published_role = next(f for f in current['context']['selected'] if f['slot']=='contact_role')
+            def check_review_provenance(*args,**kwargs):
+                result = reconstruct(*args,**kwargs)
+                reconstructed_role = next(f for f in result['selected'] if f['slot']=='contact_role')
+                self.assertEqual(reconstructed_role['review_id'],published_role['review_id'])
+                return result
+            with patch.object(recipient_contexts,'reconstruct_saved_recipient_context',side_effect=check_review_provenance):
+                saved = service.inspect('one','current-'+source.source_key)['saved']
             self.assertEqual(saved['schema'],'recipient-context-artifact/v2')
             legacy = json.loads(canonical(saved)); legacy['schema'] = 'recipient-context-artifact/v1'
             # Independent representation of the prior writer: review metadata came from the first observation.

@@ -2,9 +2,33 @@
 
 React and TypeScript provide the local interface; Vite produces static assets served by the Python loopback server. Population rules, grounded copy, exact-subject review and mature outcome learning are enforced in the Python application.
 
+## Smoke testing after a merge
+
+CI runs on pushes to `main`, so it checks the merged commit as well as each PR.
+For composition or persistence changes, also run this short offline slice from
+the merged checkout:
+
+```sh
+PYTHONPATH=src:tests python3 -m unittest \
+  test_workspace.WorkspaceHttpTests.test_real_http_json_actions_artifacts_and_input_boundaries \
+  test_conversation_handoff.ConversationHandoffTests.test_fresh_process_replays_one_acceptance_after_partial_control_acknowledgement \
+  test_fixture_activation.FixtureActivationTests.test_offline_journey_restarts_after_draft_commit_and_finishes_once -v
+```
+
+These tests use fresh temporary roots and real SQLite. They cover loopback API
+actions/artifacts, an unapproved fixture draft, restart/replay of one simulated
+acceptance, and the offline fixture journey. They do not use a live model or
+existing workspace data. UI/startup changes also require `make interface-check`,
+which builds and exercises the compiled React workspace. A smoke run complements
+the required backend and architecture gates; it does not replace them.
+
+Python callers construct the composed workspace with
+`acquisition.bootstrap.build_workspace(root, ...)`. The `Workspace` class itself
+receives its dependencies and does not select adapters.
+
 ## Start locally
 
-Requires Python 3.11+, Node 22.12+ and pnpm 10.33+ on macOS or Linux. The local server uses a POSIX file lock to permit one server process per workspace root.
+Requires Python 3.14+, Node 22.12+ and pnpm 10.33+ on macOS or Linux. The local server uses a POSIX file lock to permit one server process per workspace root.
 
 ```sh
 make workspace
@@ -40,7 +64,19 @@ Model-mode clocks progress with real time until an explicit outcome simulation a
 
 ## Ownership and recovery
 
-`workspace.py` is an entry-point facade around the existing composition root. It calls public application services and ports rather than reimplementing domain decisions. `workspace_server.py` provides bounded JSON transport and serves only compiled frontend assets and explicit verified artifact downloads.
+`application/workspace/service.py` coordinates public module APIs through injected
+ports. `application/workspace/views.py` owns read-only progress and blocker wording;
+`application/workspace/__init__.py` exports the supported workspace use cases.
+`adapters/http/workspace_server.py` handles bounded JSON, request guards, compiled
+assets and exact-subject downloads. It has no bootstrap, SQL or provider wiring.
+`entrypoints/workspace.py` acquires the root lock before recovery or verified-store
+selection, starts the scheduler and drains HTTP handlers and the scheduler before
+releasing that lock. Bootstrap selects and constructs the HTTP adapter.
+
+The documented `python -m acquisition`, `python -m acquisition.workspace_server`
+and standalone command names still work through thin compatibility wrappers.
+The full wrapper inventory is in [architecture](architecture.md#compatibility-wrapper-inventory).
+Canonical application, adapter and composition code cannot import those wrappers.
 
 Each root has a small separate `workspace.sqlite` control store for session metadata, command identities and scoped preparation records, plus existing application databases under sandbox directories. The application schema is v17; the compatibility control-store layout remains separate. Descendant experiments share their parent's organization/application database to retain scoped learning; independent campaigns have separate sandboxes. Organization and database paths are resolved from server-owned metadata, never supplied by action payloads.
 
@@ -206,3 +242,14 @@ Historical creative previews retain their original styling and bundled Inter fon
 ## Conversational sequences
 
 The chat workspace now presents [installed synthetic multichannel journeys](conversational-sequences.md). The first message can admit a bounded offline journey instead of the postal preparation path. Material follow-ups create new revisions; inspection questions preserve the displayed proposal. Exact subject/revision confirmation, stop and human-task completion use guarded server routes. The native approval services continue to enforce evidence, reviewer generation and expiry. Native dialog confirmation freezes the original displayed target, and reload reads saved progress without admitting work.
+## Integrated boundary verification
+
+The [bounded offline corpus](hexagonal-boundaries.md) exercises the merged
+workspace application, CLI wrappers, real SQLite and fresh-process recovery.
+It deletes only the verified workspace projection, rebuilds through the supported
+CLI, then checks original acceptance/finalization receipts and all authoritative
+rows. The compatibility store is tested separately and is never treated as a
+replaceable verified projection. Model-session expiry and original settings,
+uncertain outcomes, stale authority and legacy bytes retain dedicated regression
+oracles. `make boundary-check` preserves its evaluated source manifest and
+per-case evidence; the separate interface gate exercises HTTP/browser behavior.

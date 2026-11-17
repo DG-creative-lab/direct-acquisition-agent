@@ -285,7 +285,10 @@ else:raise AssertionError('Merge ancestry lost after restart')
             for table in ('review_decisions','simulated_agency_jobs','learning_cohorts'):self.assertEqual(before[table],0)
 
     def test_controls_are_enrolled_but_never_receive_a_step_or_charge(self):
-        app,proposal,simulation=self.start(decision_request='controlled')
+        try:
+            app,proposal,simulation=self.start(decision_request='controlled')
+        except KeyError as exc:
+            self.fail(f'A control assignment must prepare without a treatment strategy: {exc}')
         self.assertEqual(proposal['saved']['counts']['controls'],1)
         view=app.engagements.advance('one',simulation)
         controls={m['contact_id'] for m in view['assignments'] if m['arm']=='no_contact'}

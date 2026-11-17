@@ -1,4 +1,5 @@
 """Offline migration effects through real application and journal stores."""
+from workspace_control_fixture import control_connection
 import json
 import os
 import sqlite3
@@ -18,7 +19,7 @@ from acquisition.bootstrap import build, build_legacy_migration_inventory
 from acquisition.contracts import Conflict, canonical, digest
 from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.reasoning import ModelConfig, ModelError
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from test_conversations import PlannerModel
 from test_legacy_inventory import rows
 
@@ -124,7 +125,7 @@ class LegacyMigrationTests(unittest.TestCase):
     def test_changed_journal_invalidates_the_reviewed_plan(self):
         self.planner('legacy')
         plan = self.seal()
-        with self.workspace.control() as db:
+        with control_connection(self.workspace) as db:
             db.execute("CREATE TABLE extra_history (payload TEXT)")
             db.execute("INSERT INTO extra_history VALUES ('new history')")
         before = self.snapshot()
@@ -170,7 +171,7 @@ class LegacyMigrationTests(unittest.TestCase):
         session = {'id': identity, 'organization': ORG, 'database_scope': 'conversations',
                    'mode': 'fixture', 'clock': self.now, 'run_id': run,
                    'conversation_plan': {'id': 'brief_' + 'b' * 64, 'conversation_id': other, 'revision': 1}}
-        with self.workspace.control() as db:
+        with control_connection(self.workspace) as db:
             db.execute('INSERT INTO sessions VALUES(?,?,?)', (identity, 'legacy', canonical(session)))
 
     def test_cutover_entrypoints_preserve_existing_quarantine_before_sealing(self):
@@ -189,7 +190,7 @@ class LegacyMigrationTests(unittest.TestCase):
                            'mode': 'fixture', 'clock': self.now, 'run_id': run,
                            'conversation_plan': {'id': 'brief_' + 'b' * 64,
                                                  'conversation_id': other, 'revision': 1}}
-                with workspace.control() as db:
+                with control_connection(workspace) as db:
                     db.execute('INSERT INTO sessions VALUES(?,?,?)', (identity, 'legacy', canonical(session)))
                 with app.tasks.database.transaction() as db:
                     db.execute("DELETE FROM execution_commands WHERE organization=? AND request_id='workspace:journal:v1'", (ORG,))
@@ -225,7 +226,7 @@ class LegacyMigrationTests(unittest.TestCase):
         _, weak = self.planner('weak-receipt')
         other_org = 'other-org'
         strong = self.app.start(other_org, 'independent', size=20)
-        with self.workspace.control() as db:
+        with control_connection(self.workspace) as db:
             journal_id = db.execute('SELECT journal_id FROM workspace_identity').fetchone()[0]
         original = {}
         with self.app.tasks.database.transaction() as db:
@@ -413,7 +414,7 @@ class LegacyMigrationTests(unittest.TestCase):
         with self.assertRaisesRegex(Conflict, 'supported legacy bindings'):
             self.migration.apply(plan['plan_id'])
         self.assertEqual(self.snapshot(), before)
-        with self.workspace.control() as db:
+        with control_connection(self.workspace) as db:
             journal_id = db.execute('SELECT journal_id FROM workspace_identity').fetchone()[0]
         witness = {'kind': 'workspace_journal_binding', 'journal_id': journal_id, 'database_kind': 'conversations.sqlite',
                    'basis': 'legacy_root_witness', 'witness': run}
@@ -596,8 +597,8 @@ class LegacyMigrationTests(unittest.TestCase):
         model = ActionGateway()
         cid = self.workspace.create_conversation('route-history', 'Routing history')['id']
         self.workspace.message_conversation(cid, 'brief', 0, FIXTURE_MESSAGE)
-        with patch('acquisition.workspace.openrouter_key', return_value='fixture'), \
-             patch('acquisition.workspace.OpenRouter', return_value=model):
+        with patch('acquisition.bootstrap.workspace_key', return_value='fixture'), \
+             patch('acquisition.bootstrap.workspace_gateway', return_value=model):
             self.workspace.route_followup(cid, 'route', 1, 'Please use £500 instead.', False)
             self.workspace.advance_actions()
         self.assertEqual(len(model.routing_requests), 1)
@@ -673,7 +674,7 @@ class LegacyMigrationTests(unittest.TestCase):
         run = self.app.start(org, identity, size=20)
         child = {'id': identity, 'organization': org, 'database_scope': 'conversations',
                  'mode': 'fixture', 'clock': self.now, 'run_id': run, 'parent_id': parent['id']}
-        with self.workspace.control() as db:
+        with control_connection(self.workspace) as db:
             db.execute('INSERT INTO sessions VALUES(?,?,?)', (identity, 'legacy', canonical(child)))
         cid, _ = self.planner('other')
         self.app.worker.drain(ORG)
@@ -682,7 +683,7 @@ class LegacyMigrationTests(unittest.TestCase):
         self.seal()
         item = next(r for r in self.migration.inspect()['records'] if r['key'] == child['run_id'])
         self.assertEqual(item['proposed_step'], 'migrate_paused_ownership')
-        with self.workspace.control() as db:
+        with control_connection(self.workspace) as db:
             db.execute('UPDATE sessions SET payload=? WHERE id=?',
                        (canonical(child | {'parent_id': other['id']}), child['id']))
         plan = self.migration.inspect()

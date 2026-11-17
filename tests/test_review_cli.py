@@ -47,7 +47,7 @@ class ReviewCliTests(unittest.TestCase):
 
     def test_completed_demo_replays_on_a_later_calendar_day(self):
         from acquisition.bootstrap import build
-        from acquisition.review_demo import run_review_demo
+        from acquisition.entrypoints.review_demo import run_review_demo
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             path = root / "demo.sqlite"

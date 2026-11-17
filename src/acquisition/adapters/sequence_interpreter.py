@@ -5,8 +5,6 @@ import re
 from acquisition.conversations import explicit_budget, mentioned_profiles, effective_sequence_messages, sequence_literal_issue
 
 
-def sequence_language(content):
-    return bool(re.search(r'\b(?:multichannel|multi.channel|e-?mails?|human calls?|call scripts?|phone calls?)\b',content,re.I))
 
 
 class OfflineSequenceInterpreter:

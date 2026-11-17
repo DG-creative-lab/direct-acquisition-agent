@@ -73,3 +73,15 @@ dist/
 !/docs/evaluations/issue-25-budget-clarification-results.json
 
 !/docs/conversational-sequences.md
+!/docs/evaluations/sequence-review-material-reuse-2026-11-15.json
+
+!/docs/ci-gate-audit.md
+
+!/docs/evaluations/ci-critical-path-2026-11-16.json
+!/docs/evaluations/conversation-ci-performance-2026-11-16.json
+
+!/docs/hexagonal-boundaries.md
+!/docs/evaluations/issue-93-boundary-results.json
+!/docs/evaluations/issue-93-boundary-evidence.md
+!/docs/evaluations/issue-93-hostname-guard-results.json
+!/docs/evaluations/issue-93-hostname-guard-evidence.md

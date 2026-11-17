@@ -70,7 +70,7 @@ class ReviewRegressions(unittest.TestCase):
         self.assertTrue(all(t["attempts"] == 0 for t in state["tasks"]))
 
     def test_cli_create_then_unconfigured_work_stays_resumable(self):
-        from acquisition.__main__ import main
+        from acquisition.entrypoints.cli import main
         from contextlib import redirect_stdout
         from io import StringIO
         from unittest.mock import patch
@@ -80,9 +80,9 @@ class ReviewRegressions(unittest.TestCase):
             with patch("sys.argv", ["acquisition", "--db", path, *args]), redirect_stdout(StringIO()) as output:
                 main()
             return json.loads(output.getvalue())
-        with patch("acquisition.__main__.OpenRouter", return_value=model), \
-             patch("acquisition.__main__.openrouter_key", return_value="fixture-not-a-key"), \
-             patch("acquisition.__main__.build", side_effect=lambda path, **kwargs: build(path, clock=lambda: self.now, **kwargs)):
+        with patch("acquisition.bootstrap.workspace_gateway", return_value=model), \
+             patch("acquisition.bootstrap.workspace_key", return_value="fixture-not-a-key"), \
+             patch("acquisition.bootstrap.build", side_effect=lambda path, **kwargs: build(path, clock=lambda: self.now, **kwargs)):
             run = cli("create-model", "--size", "100")["run_id"]
             self.assertEqual(cli("work")["worker_ticks"], 0)
             state = cli("status", "--run", run)

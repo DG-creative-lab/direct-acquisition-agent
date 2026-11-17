@@ -1,5 +1,452 @@
 # Validation and limits
 
+## CI and evidence cleanup, issue 93
+
+The initial proposal repeated the architecture check and eight tests already in
+the backend suite. The separate per-PR evidence job has been removed. The existing
+fixture lifecycle test now also deletes and rebuilds the verified projection,
+replays the original commands in a fresh process, rejects changed inputs and
+compares all authoritative rows. The eight regressions remain in backend
+discovery and are not repeated by the on-demand evidence command. The original
+six-case reports below remain immutable historical records; new evidence runs
+contain five cases. The full corpus remains available through `make boundary-check`
+for integrated workspace, recovery and architecture changes.
+
+Backend discovery was checked against the original eight fully qualified test
+IDs: all eight were present with no discovery errors. The revised five-case
+corpus passed in 26.34 seconds locally and retained 18 MB uncompressed at
+`/private/tmp/iwoca-93-cleanup-evidence`; the earlier six-case local run took
+34.37 seconds. These are single local observations, not CI timing measurements.
+
+In a disposable copy, a synthetic rebuild fault deleted one learning outcome
+from an authoritative SQLite store. The previous lifecycle test and the
+existing missing-projection rebuild test both passed individually. The extended
+lifecycle test failed with `Projection rebuild changed authoritative facts`.
+This establishes a difference for that specific fault and those two tests, not
+that the complete previous suite misses it or that all other corpus cases are
+redundant.
+
+The duplicate source-attribution implementation was consolidated into the
+shared helper. The focused attribution and boundary tests passed, as did the
+standalone conversational evaluation with 12/12 cases and no live calls. The
+updated five-case boundary corpus passed with stable inputs and unchanged
+historical report bytes at `/private/tmp/iwoca-93-cleanup-final-evidence`.
+`make test` passed all 1,038 backend tests in 919.858 seconds with local loopback
+access. `make arch-check` passed with 205 classified modules and zero exceptions.
+
+## Offline hostname lookup guard review, issue 93
+
+The review identified that the offline audit guard counted connections and
+`getaddrinfo`, but omitted forward/reverse hostname resolution and name-info
+lookups. The guard now also records and denies `socket.gethostbyname`,
+`socket.gethostbyaddr` and `socket.getnameinfo`. Python uses the first event for
+both forward lookup functions; direct `_socket` aliases and `getfqdn` are covered
+by the underlying audited resolver event. See the
+[Python socket audit contract](https://docs.python.org/3.14/library/socket.html).
+
+The existing caught-network regression now exercises nine real API operations
+in both direct and nested interpreters, including a child that replaces
+`PYTHONPATH`. A second audit hook prevents actual DNS/network activity if the
+evidence guard misses an event. Only the evidence guard's `RuntimeError` is
+caught; an escaped operation fails independently before reaching a resolver.
+The original guard failed 14 of the 18 cases; the corrected guard passes all 18.
+Each caught attempt is logged exactly once and makes an otherwise valid report
+fail grading. Removing any one of the three new event families was detected by
+a behavioral assertion, with no import/setup failure counted as detection.
+
+The 36 focused evidence/checker/CI-tool tests passed. `make arch-check` passed
+with 205 modules and zero exceptions. The six-case native corpus passed under
+the updated guard, with stable evaluated inputs and unchanged historical bytes.
+The [follow-up JSON](evaluations/issue-93-hostname-guard-results.json) and
+[summary](evaluations/issue-93-hostname-guard-evidence.md) are separate artifacts;
+the earlier #93 reports retain their original bytes. The full retained bundle is
+`/private/tmp/iwoca-93-hostname-evidence`. Its source fingerprint is
+`cda037421ca1067a8b441a5837879ff806110f8322e46e5702406069b554e866` on the uncommitted #93 branch.
+
+Commands: `make boundary-check BOUNDARY_OUTPUT=/private/tmp/iwoca-93-hostname-evidence`,
+`PYTHONPATH=src:tests python3 -m unittest test_boundary_evaluation test_architecture
+test_conversational_evaluation test_ci_tools -v`, `make test`, and `make arch-check`.
+`make test` passed all 1,038 backend tests in 928.183 seconds. Final whitespace
+checks and all report fingerprints passed. Frontend, HTTP and product code are
+unchanged, so the prior 108-case interface result
+remains the applicable browser evidence. No DNS query, live inference or external
+effect was required to reproduce or fix this finding.
+
+## Hexagonal migration closure, issue 93
+
+The branch starts at merged #92 (`1c88b42`, PR #103). Before changes, four smoke
+cases passed in 17.461 seconds: real HTTP actions/artifacts, acceptance replay
+after partial workspace acknowledgement, the draft-commit crash/restart lifecycle
+and saved-plan completion projection. The existing evaluation worktree was left
+unchanged. Only its bounded source-attribution helper was ported from unmerged
+#23; its browser runner, product edits and historical reports were not imported.
+
+### Confirmed integrated contract
+
+`exceptions: []` is now mandatory, not merely the current migration count. Even
+an exact former exception assigned to #90-#93 fails. Production roles, business
+dependency directions and legitimate forwarding wrapper roles are unchanged.
+All import/re-export/classification/cycle diagnostics are unconditional. Existing
+independent fixtures retain harmful-import, wildcard/alias, implicit package-init,
+cycle, unclassified-file and wrapper-bypass probes. The former exception-acceptance
+tests now prove that the closed migration cannot be reopened through metadata.
+
+| Interaction exercised | Authoritative observation and independent oracle |
+| --- | --- |
+| Compatibility model workflow, revision and amendment | Ten fake dispatches match ten inference journal rows. Exact replay and inspection add no calls. Existing #25 oracles bind subject, preferences, population, budget, simulated acceptance and mature learning. |
+| Verified draft commit, acknowledgement loss and projection rebuild | The original hard-exit fixture retains one draft operation and one accepted job, zero inference, 379 complete outcomes and unchanged restored bytes. Supported offline CLI rebuild followed by new-process handoff/finalization replay preserves every authoritative row. Changed exact inputs fail. |
+| Uncertain inference, stop and fresh process | One fake failed dispatch remains one used reservation; a fresh interpreter creates no campaign or new dispatch and preserves the complete authoritative snapshot. |
+| Two profile identities and historical CLI replay | iwoca and Fielddesk each conserve 100 inputs, 24 exclusions, 70 mailed and six controls at 5,950 pence. Distinct draft/manifests replay without any database change; changed inputs fail without approval or execution. |
+| Native sequence effect and fresh process | Current merged contact/recipient/channel fixtures produce one simulation, two enrollments, six planned steps and two initial dispatches. Replay returns the same receipt without submission and preserves all rows, including sequence review/approval records. Template generation's nine recorded calls are deterministic fixture calls, not live inference. |
+| Existing session, acceptance, authority and legacy boundaries | Eight named regression oracles cover frozen model settings, expired/foreign handles and original binding recovery; acceptance commit before partial acknowledgement; projection commit/lookup replay; expired review/reviewer authority; legacy v2 cutoff and original serialization. All eight run in a fresh process, with no skipped target accepted. |
+
+The original finite six-case matrix preceded the current five-case
+[integrated evidence contract](hexagonal-boundaries.md). Each case was mandatory
+and unique. Grading independently checks the stated counts, distinct identities,
+fresh process IDs, artifact hashes and current effect/authority observations.
+Missing cases, success-only flags, altered counts, source/history drift and even
+caught network attempts fail. An inherited network audit hook remains active in
+nested children whose fixtures replace `PYTHONPATH`. These are local synthetic
+control observations, not model quality, provider delivery or customer outcomes.
+
+### Attributable published evidence
+
+The [JSON report](evaluations/issue-93-boundary-results.json) and
+[run summary](evaluations/issue-93-boundary-evidence.md) retain all six passing
+cases, eight nested regressions and hashes of per-case stores, manifests and logs.
+The complete local bundle was retained at `/private/tmp/iwoca-93-verified-evidence`;
+the originally proposed CI job would have uploaded the same format on failure.
+The repository summaries do not embed the full SQLite stores.
+
+This is explicitly an uncommitted evaluated revision: `evaluated_commit` is null,
+base is `1c88b42a639b43fcc2107bbfb5d549d4d508ac62`, and 352 actual source/configuration/
+fixture/frontend/CI/operating inputs have per-file hashes. The aggregate source
+fingerprint is `d27a50c85d27c565d99d95c15dfb1df36d251ceb6b0c1d9e2b84914ee0c7417d`. Inputs were stable through execution. All ten
+previous committed evaluation artifacts retain their exact original bytes.
+The new reports were published separately and no earlier report was regenerated.
+
+The existing complete conversational evaluator also passed 12/12 cases, with
+zero false acceptances, zero planner/infrastructure failures and stable inputs.
+Its shared input hashes match this six-case run. Its supplementary local report
+is `/private/tmp/iwoca-93-conversation-corpus-verified.json`.
+
+Executed commands:
+
+```sh
+make boundary-check BOUNDARY_OUTPUT=/private/tmp/iwoca-93-verified-evidence
+python3 scripts/evaluate_conversational_agent.py --output /private/tmp/iwoca-93-conversation-corpus-verified.json
+make test
+make arch-check
+make interface-check
+```
+
+`make test` passed all 1,038 backend tests in 923.091 seconds on Python 3.14.3,
+including real SQLite, process restarts and HTTP lifecycle checks. The 36 focused
+checker/evaluator/CI-tool tests passed. All nine selected fixture, projection,
+replay and exact-subject mutations were detected; all five closed-ledger,
+false-success, source/history drift and caught-network mutations were detected
+by behavioral assertions, not fixture/import failures. All 513 existing
+catalogue anchors match once and their mutated sources compile. The architecture
+gate reports 205 modules and zero exceptions. `make interface-check` passed the
+frontend build, formatting and all 108 Chromium cases in 6.6 minutes, after the
+backend run. No browser case was skipped or accepted through a retry. Final
+tracked and new-file whitespace checks passed.
+
+### Applicable evidence and limits
+
+The consumer map in `docs/hexagonal-boundaries.md` gives #60/#68/#69/#70/#74/#77
+precise reusable fixtures, commands and restrictions. This closes the architecture
+migration, not those product issues or #23. No hosted identity, real CRM, OAuth,
+live outbound transport, held-out semantic quality, multi-worker execution or
+exactly-once remote delivery is established. Compatibility stores, verified
+fixture execution and inspection-only restores remain distinct. Approval, model
+budgets, admission, lease/stop fencing and counted-outcome policy were not changed.
+
+## Workspace directory boundaries, issue 92
+
+The feature branch starts from merged #91 (`d48bbe7`, PR #102). Before changing
+code, three post-merge smoke cases passed: real HTTP actions and artifacts,
+fresh-process acceptance replay after a partial acknowledgement, and the offline
+fixture journey restarting after draft commit. These are local synthetic checks;
+no live provider call or external dispatch was executed.
+
+| Protected outcome | Evidence | Boundary and limit |
+| --- | --- | --- |
+| Directory moves retain workspace behavior | 82 of 83 original workspace members retain identical AST bodies across the service and view owners; the conversation projection changes its read order as described below. The existing 132-case HTTP, workspace, recovery, grounding and report-command selection passes. | AST comparison supports relocation review; behavioral suites remain the authority for observable effects. |
+| HTTP remains an inbound adapter | Its transport role rejects SQLite and bootstrap imports at the new path; existing real HTTP cases retain Host/token/Origin, path/body limits, fixed scope and exact-subject downloads. | Trusted loopback service with one worker, not hosted authentication. |
+| Startup owns lock and worker lifetime | Existing in-flight inference shutdown and second-server tests pass. A new actual-socket recovery-failure case verifies immediate root reuse and a stopped worker after close. | The root lock remains held until handlers and scheduler drain. No deployment topology change. |
+| Compatibility names cannot become reverse dependencies | Independently authored wrapper fixtures reject imports from application, adapters and bootstrap, reject composition imports inside wrappers and reject executable wrapper behavior. | Supported `python -m` names forward to canonical entrypoints. The static gate is not an execution sandbox. |
+| Offline storage failures keep their command contract | Four CLI cases trigger an actual SQLite missing-table error and observe exit status 2 with each command's existing guidance, without a traceback. Existing fresh-process checkpoint, projection and migration tests remain in place. | SQLite exception handling stays in its adapter; command startup handles the neutral storage error. |
+| Pure domain policy keeps its owner | Review validators resolve to pure creative policy and schema modules. The contact adapter uses an explicit public policy export. | No mixed inference file is relabeled as domain. Report output is bootstrap-injected. |
+| Relocation preserves mutation oracles | All 512 existing mutation anchors and the new completion-order probe match once and their mutated sources compile. Relocated probes retain their original harmful changes and tests. | This audit alone does not establish detection; targeted executions are recorded below. |
+
+A browser failure exposed a pre-existing projection interleaving: campaign rows
+were captured before action progress observed review completion. The response
+could report no pending continuation but omit the just-published case mapping,
+which stopped browser polling. The conversation projection now samples actions
+before campaign rows. The saved-plan SQLite/restart test publishes the exact
+completed mapping between those reads. It failed before the fix with a missing
+case and passes after it. The new mutation reverses the read order without
+changing the behavioral oracle. No task, approval or model-call rule changed.
+
+`make test` passed all 1,033 backend tests on Python 3.14.3 with loopback access
+in 1,945.027 seconds. The architecture gate passes with 205 modules and zero
+temporary exceptions. All 24 focused architecture, recovery-error and startup
+cases passed; all 13 supported launch commands returned help successfully.
+All nine targeted harmful mutations were detected, including the new
+completion-order probe. All 513 catalogue targets match once and compile.
+
+The saved-plan browser case passed three repetitions after its deterministic
+projection fix. A separate navigation case was still preparing when its default
+five-second assertion expired; its wait now uses the existing ten-second
+preparation bound used by the other journeys, retaining every state and
+navigation assertion. Three navigation repetitions passed. An artifact-revision
+wait also expired when both browser partitions and the backend suite competed
+locally; its trace recorded successful revision completion. It passed unchanged
+when the first browser partition ran after the backend suite. Build and format
+checks pass. Final interface verification passed all 108 distinct browser cases
+across the supported two partitions: 49 in the isolated first partition and 59
+in the second. The first used `make interface-check BROWSER_SHARD=1
+BROWSER_SHARDS=2`; the second used `BROWSER_SHARD=2 BROWSER_SHARDS=2 pnpm --dir
+frontend test` against the same source and verified build. No case was skipped
+or accepted through a retry. No live or paid model call was executed.
+
+## Architecture review follow-up: transport imports and current main (#89)
+
+The transport role previously escaped external infrastructure checks. Extending
+the independent import matrices reproduced 24 failures: three asyncio cases,
+thirteen alternate infrastructure spellings and eight protocol-specific negative
+controls. These include native storage, provider SDKs, client HTTP imports and
+whole-server-module or helper-module re-exports. Legitimate named HTTP server
+classes, static-asset helpers, URL parsing and lifecycle coordination remain
+accepted. Transport now uses the same external-import gate with only its explicit
+protocol/startup allowances. The inventory and 31 temporary exceptions are unchanged.
+No transport implementation or business rules were changed for this follow-up.
+
+The feature branch was fast-forwarded from `cc61aa8` to `cd3d638`, incorporating
+the four reviewed-later commits, including sequence-review material reuse and
+CI support/gate changes. A named stash backup preserved the uncommitted work;
+applying it restored the six production import-normalization edits and untracked
+policy byte-for-byte. All current-main validation ledger lines were retained.
+Compatibility evidence below covers this combined updated-base worktree, not
+only the earlier branch base. The updated CI still runs the architecture gate
+and discovers its regression tests on supported Python versions.
+
+Verification on 16 November 2026: all 20 focused architecture tests passed.
+The required full `make test` run on base `cd3d638` plus the restored feature
+changes passed all 1,018 backend tests on Python 3.14 with loopback access in
+1,176.192 seconds. This includes the newer sequence-review and CI-tool regression
+cases, real SQLite, fresh processes and HTTP transport behavior. `make arch-check`
+and `git diff --check` passed with 170 classifications and the same 31 temporary
+exceptions. The frontend interface suite was not rerun because no frontend or
+transport implementation changed. No live model/provider calls were made.
+
+## Architecture review follow-up: unpacking and alternate imports (#89)
+
+The second review's two gaps reproduced independently. Six tuple/list, nested,
+starred and chained unpacking cases rebind a previously pure public export to a
+service in fresh Python processes, while the old checker still accepts the pure
+consumer. Sixty alternate infrastructure imports also passed: twelve native
+socket/SQLite, OS/process, foreign-function, filesystem, worker, logging,
+command-submodule and deserialization spellings across five restricted roles.
+The corrected pre-fix regression run reported all sixty-six failures.
+
+A related alias-retargeting probe also passed the old checker even though the
+export retained a service after its source name was rebound to a pure value.
+The converse pure-value control was falsely rejected. The independent fresh-
+process assertions distinguish the actual retained objects.
+
+Unpacking now invalidates every stored name in the target. Simple assignments
+capture bindings, including local declarations, at assignment time; subsequent
+source-name reassignments cannot change the recorded origin. Unaffected exports
+still resolve normally. Standard-library membership no longer grants access:
+core and entry-point roles use explicit exact-module and named-value allowances.
+This rejects low-level aliases and undeclared submodules without adding another
+denylist. Package from-imports cannot load undeclared children such as json.tool;
+five extra spelling probes reproduced that bypass before named-export checks.
+Mixed io/uuid namespaces require named value imports. Six existing
+StringIO callers now use the identical named class; campaign rules, storage,
+approval, learning and historical artifact formats are unchanged. The production
+inventory remains 170 modules with the same 31 temporary exceptions.
+
+Verification on 16 November 2026: the required full `make test` run passed all
+1,017 backend tests on Python 3.14 with loopback access in 1,336.121 seconds,
+including real SQLite, fresh-process, historical-artifact and HTTP checks. The
+final captured-binding refinement separately passed all 19 focused architecture
+tests. AST comparison against the branch base confirmed that the six production
+files differ only in equivalent StringIO import/name normalization. `make
+arch-check` and `git diff --check` passed with the same 170 classifications and
+31 dependency exceptions. No frontend or transport behavior was changed; the
+frontend interface suite was not rerun. No live model/provider calls were made.
+
+## Architecture review follow-up: package initialization and asyncio (#89)
+
+Both reported gaps reproduced before the fix. Three nested-submodule import
+forms passed the checker although fresh Python processes failed with a partially
+initialized module error: absolute import, relative symbol import and import
+from the parent package. Fifteen asyncio import cases passed across application,
+workflow, port, public-API and entry-point roles, including aliases and subprocess
+submodules. The regression run reported all eighteen failures before the fix.
+
+The initialization graph now includes target parent packages that Python must
+initialize outside the importer's already-entered ancestor chain. Existing parent
+packages are not given artificial back edges. A positive fixture proves that a
+package initializer can import a child that imports a sibling, both through the
+checker and in a fresh Python process. Asyncio is classified as infrastructure;
+core/application imports are rejected while the same adapter imports remain
+permitted. The production inventory and its 31 temporary exceptions are unchanged.
+No domain behavior, data schema, authority or provider call was changed.
+
+Verification on 16 November 2026: all 17 focused architecture tests passed.
+The required full `make test` run then passed all 1,015 backend tests on Python
+3.14 with loopback access in 1,926.800 seconds, including real SQLite, fresh-process
+and HTTP regressions. `make arch-check` and `git diff --check` passed with the
+same 170 production classifications and 31 recorded dependency exceptions.
+No frontend implementation changed, so `make interface-check` was not required.
+No live model/provider calls were made.
+
+## Complete production architecture inventory (#89)
+
+The static architecture gate now covers all 170 production modules through an
+explicit role inventory, including supporting pure files and all root utilities.
+Named public export origins, declared business dependencies, layer direction,
+infrastructure imports, eager module initialization cycles and all package
+cycles are checked without executing product code. New/unclassified or removed
+files, unknown targets and ambiguous file/package names fail classification.
+
+The independent regression fixtures exercise pure public values beside services,
+relative/re-export aliases and cycles, supporting-domain imports, forbidden
+SQLite/provider/bootstrap/entry-point dependencies, allowed adapter validators,
+and exact exception counts. A subprocess check proves a forbidden dependency
+returns a nonzero command status and its removal returns success. Production
+source and authority/storage behavior are unchanged by this tooling slice.
+
+The initial reviewed baseline had 31 temporary dependency exceptions. After the
+#90 extraction, 28 remain: fifteen assigned to #91 and thirteen to #92. An exception binds one module, rule,
+target and exact occurrence count, with a reason/removal issue. With the reviewed
+ledger, new/substituted dependencies, increased occurrence counts, duplicate or
+wildcard entries and stale exceptions are rejected. No baseline is silently
+regenerated. #93 owns their complete removal. Inventory/policy changes
+remain reviewable inputs, not self-proving architecture evidence.
+
+This gate does not prove transaction atomicity, effect authority or arbitrary
+Python behavior. Deferred intra-adapter imports are not eager initialization
+cycles. Real SQLite, process-restart and HTTP regressions remain the behavioral
+oracles.
+
+Verification: the required `make test` run passed all 1,011 discovered backend
+cases on Python 3.14 with loopback access in 1,470.701 seconds. The final focused
+architecture rerun passed all 14 tests, including 33 forbidden-dependency examples
+and the fresh-process CLI check, after checker/schema refinements. `make arch-check`
+and `git diff --check` passed. Existing CI already runs these checks; no new CI
+job is needed. No frontend/HTTP implementation changed, so `make interface-check`
+was not required. No live model/provider behavior is claimed.
+
+## Workspace control-store boundary, issue 90
+
+The control-store extraction leaves schema and ownership unchanged. The facade
+uses `WorkspaceControlStore`; only its SQLite adapter opens connections or
+executes compatibility-journal SQL. Bootstrap provides that port and preserves
+lazy construction of the existing application-owned environment service. The
+three #90 architecture exceptions are removed, with no replacement exceptions.
+`ContextManager` is admitted as a pure typing contract for storage-error
+translation; this admits no effectful contextlib infrastructure.
+
+| Invariant | Behavioral regression evidence | Limit |
+| --- | --- | --- |
+| Draft and follow-up admission are all-or-nothing | `test_workspace_control.py` injects a trigger failure on each request-mapping insert and asserts that neither mapping nor session survives; exact retries retain the original session. | Compatibility and domain stores still have independent commits. |
+| Report-clock advancement binds command admission | A command-insert trigger fault leaves the stored clock unchanged and no pending request. Exact replay after completion does not advance time; changed fingerprints and foreign organizations are rejected. | This port stores legacy metadata; verified clock authority stays in the application store. |
+| Concurrent admission binds one exact input | Two independent connections race different fingerprints for the same session/request; one session and matching mapping survive and the other request conflicts. | The HTTP server still intentionally has one worker per root. |
+| Lost control acknowledgement does not repeat acceptance | The existing conversation handoff test now injects failure in the extracted completion operation after domain acceptance. A fresh process replays the original receipt after a later conversation edit, with one acceptance event. | Replay reconciles through domain receipts; metadata alone is not current approval. |
+| Historical identities and projections stay separate | Adapter replay preserves original creation time and journal identity across a fresh process. Projection upserts preserve request hashes and expose corrupt payloads to the existing tolerant filter. Existing authority/projection tests cover loss, poisoning and interrupted projection writes. | No authority/schema migration is introduced. |
+| Storage failure remains recoverable and scoped | Trigger/storage faults become `WorkspaceStorageUnavailable`; value/authority errors and interrupts propagate unchanged. A restored table yields the original record. Foreign-scope case/session/command writes fail; blocker keys remain organization-scoped. | Existing domain adapters retain their own recovery contracts. |
+| Control transactions end before provider work | The existing mocked-model workspace test opens a real immediate SQLite writer during every provider call. It completes six calls and leaves generated copy unreviewed. | This is an offline effect-boundary probe, not evidence of live provider behavior. |
+
+Raw SQL corruption fixtures moved to a test-only helper, preserving existing
+legacy, projection, ancestry, checkpoint, revision and execution regressions.
+The saved-plan stop mutation probe now removes the domain fence around the
+named admission call, so it continues to test the same commit boundary.
+
+Verification: `make test` passed all 1,026 backend cases on Python 3.14.3
+with loopback access in 1,411.473 seconds. The final focused reruns passed the
+nine control-store/provider-lock cases and both strengthened checkpoint and
+monitoring storage-recovery cases. `make arch-check` passed with 175 classified
+modules and 28 remaining exceptions. The affected saved-plan stop mutation was
+detected (1/1). `make interface-check` passed the build, formatting check and all
+108 browser cases. `git diff --check` and whitespace checks for all seven new
+files passed. No live or paid model calls were made.
+
+The branch incorporates main's single-Python CI, monitoring-test and contact
+identity reconstruction follow-ups. After the final rebase, all 43 focused
+contact, control-store and workspace tests passed, both changed monitoring
+browser cases passed, and both affected provider-account and saved-plan stop
+mutations were detected. Architecture and whitespace checks also passed. The
+full backend and browser totals above refer to the implementation before those
+upstream follow-ups; those complete suites were not repeated after the rebase.
+
+### Command-identity mutation target after extraction
+
+PR #99's first CI run passed both backend shards and both browser shards, but
+mutation shard 2 stopped at `workspace-command-identity`: its source replacement
+still expected the pre-extraction double-quoted dictionary key. The live guard
+uses a single-quoted key. Updating the mutation's exact source target preserves
+its original change (`if False`) and behavioral oracle: reusing a completed
+command key for another action must raise a conflict and cannot advance the
+fixture clock or create beliefs. No production behavior or mutation criterion
+changes.
+
+The stale-target failure was reproduced independently before the fix. Afterwards,
+all 511 catalogue targets matched exactly once and their mutated sources compiled.
+The command-identity mutant was detected by the existing workspace regression;
+all five focused CI-tool and command-reuse tests passed. The architecture and
+whitespace checks passed. This source/compilation audit validates experiment
+setup; it is not a claim that all 511 mutants were executed in that audit.
+
+## Workspace composition boundary, issue 91
+
+The branch starts from merged #90 (`05f7d9a`). The documented offline smoke
+slice passed all three cases on that merge before implementation: real HTTP
+actions/artifacts, fresh-process acceptance replay and the restartable offline
+fixture journey. CI already runs on `main`; no extra post-merge workflow or live
+provider call is introduced.
+
+`build_workspace` now supplies all facade collaborators. Provider sessions live
+in the model adapter, preparation continuation in its workflow host, campaign
+use cases in the campaign workflow, and CLI dispatch in an injected command
+handler. HTTP transport is separate from startup, so its role still rejects
+bootstrap/provider wiring. Fifteen #91 dependency exceptions and the obsolete
+workspace constructor root-guard exception are removed. Twelve #92 exceptions
+remain; there are no new exceptions or weakened dependency rules.
+
+| Protected outcome | Evidence and failure boundary | Limit |
+| --- | --- | --- |
+| Construction and fixture work consume no model calls | An injected gateway factory stays unused through construction/listing/fixture preparation; explicit model preparation makes six mocked calls and remains unapproved. | Offline mock-provider evidence, not a live inference claim. |
+| Restart cannot repeat a completed generation | A fresh Python process replays the same model campaign with a gateway factory that fails on any construction; the exact subject is retained. Existing interrupted/uncertain reservation tests remain. | No automatic retry of uncertain paid work is introduced. |
+| Ephemeral provider scope remains bounded | Existing browser preparation tests now inject sessions at composition and retain exact frozen model/caps across reconnect. New clock-controlled tests reject expiry at 300 seconds and foreign handles, preserve the original binding after reconnect, and reject the 33rd live connection without revoking the first tab. | The server still supports one worker per root. |
+| Current configuration cannot rewrite historical context | Asset loading is deferred to new work. Existing historical-plan/action tests resume with current catalogue reads made unavailable; frozen admissions remain usable. | New requests continue to require current supported assets and freshness. |
+| Consent, store identity and environment authority keep their owners | Existing preparation, authority, stop/edit, projection-loss and HTTP guard regressions use real SQLite through the new factory/host. Model/key tests inject bootstrap or adapter factories rather than concrete providers inside use cases. | Existing verified execution remains paused apart from explicit offline fixtures. |
+| Relocation cannot silently invalidate mutation evidence | All 511 mutation targets still match once and their mutated sources compile. Four relocated guards retain the same harmful change and behavioral oracle. | Source/compilation checks alone do not establish mutant detection. |
+
+Verification: `make test` passed all 1,029 backend tests on Python 3.14.3
+with loopback access in 1,276.083 seconds. `make interface-check` passed the build,
+formatting check and all 108 browser cases. The two missing/restored-configuration
+browser cases passed again after the final shared CLI/workspace credential
+factory update. All eight affected mutation probes were detected; all 511
+catalogue targets matched once and their mutated sources compiled. The final
+architecture check passed with 181 modules and 12 remaining exceptions.
+`git diff --check` and whitespace checks for all eight new files passed. The
+three-case smoke on merged #90 passed before implementation. No live or paid
+model calls were made.
+
+Publishing verification after rebasing onto #100/#101: the two reusable fixture
+setups retain their isolated database/model copies and now inject through the
+bootstrap boundary. All 103 focused conversation-action, copy-revision, contact,
+CI-tool and workspace-composition cases passed. All nine affected mutation
+probes, including the new exact-payload contact-source probe, were detected.
+All 512 catalogue targets match once and compile; architecture and whitespace
+checks passed. The full backend/browser totals above were established before
+those upstream CI/performance changes and were not repeated after the rebase.
+
 ## Final sequence authority time follow-up
 
 Review of `137db62` found that `authorize` discarded the successful readiness
@@ -690,7 +1137,7 @@ These are bounded schedules and fake-model responses. They do not establish sema
 
 Pure domain tests use literal expected populations, money and posterior values. Persistence tests use real temporary SQLite databases, controlled clocks, concurrent connections and injected failures. CLI tests cross OS process boundaries to exercise restart, review, export, learning and replay. HTTP tests send real requests to the loopback server. Frontend client tests use the real backend, and Chromium tests inspect the rendered interface.
 
-CI runs the complete backend suite in two parallel shards on each Python version from 3.11 through 3.14. Standard unittest discovery supplies both shards. Whole modules stay together, and measured module runtimes balance the two groups. The first shard also runs the architecture check for its Python version. Run the same groups locally with `make test-shard SHARD=1` and `make test-shard SHARD=2`. The mutation suite runs once in a separate, parallel Python 3.12 job. The architecture checker still has a self-test with deliberately forbidden imports.
+CI runs the complete backend suite on Python 3.14 in two parallel shards. Standard unittest discovery supplies both shards. Whole modules stay together, and measured module runtimes balance the groups. The first shard also runs the architecture check. Run the same groups locally with `make test-shard SHARD=1` and `make test-shard SHARD=2`. The mutation and browser jobs also use Python 3.14. Other Python versions are not checked in CI. The architecture checker retains its self-test with deliberately forbidden imports.
 
 The mutation command creates temporary source copies and weakens selected enforcement points, including leases, reservations, uncertain-call fencing, retired-workflow admission, timestamp validation, migration locking, review expiry/epochs, cohort maturity/completeness, atomic finalization, snapshot memory, Origin checks, exact-subject binding, planning budget provenance, current-revision projection, conversation scope, targeted execution, stale-budget correction handling and relative-budget recognition. The results apply to the declared probes. They are not a general mutation score. Frontend regressions are reported separately.
 
@@ -1983,3 +2430,247 @@ before the correction and then passed. All four CI-tool tests and all four real
 historical-budget cases passed through the timing runner, retaining four timing
 records. Architecture and whitespace checks passed. This changes timing metadata
 only; the fixture and its product assertions are retained.
+
+## Report-local sequence material construction
+
+Sequence report construction can pass completed payload materials to its
+campaign validator within that report. The independent final current-proposal
+reconstruction remains mandatory. No material map, positive readiness report or
+approval authority is retained across reports or transactions. Failed payload
+checks leave the map absent and keep the campaign check's independent fallback.
+
+The existing required-check/checker-failure regression now injects changed
+artifact bytes after the payload checker returns. Payload validation has passed,
+but sequence-contract validation must fail and withhold readiness. A new mutation
+removes the final current-proposal reconstruction and is detected by this fault.
+The same regression first reproduced nine material constructions and now asserts
+six per passing report. Actor, epoch, final clock, expiry, lease and effect-commit
+paths are unchanged; their existing fault and mutation cases are retained.
+
+Three unprofiled serial repetitions of each unchanged benchmark method measured
+median case time reductions from 16.04 to 10.83 seconds (32.5%) for approval and
+restart, and 50.03 to 35.59 seconds (28.9%) for complete evidence-basis expiry.
+Measurements include per-case setup/cleanup; shared setup is recorded separately
+in suite elapsed samples. Source hashes and test-method AST equality bind the
+comparison. See the [raw samples](evaluations/sequence-review-material-reuse-2026-11-15.json).
+No hosted or whole-suite speedup is claimed from these case measurements.
+
+Verification passed all 999 backend tests (`make test`, with loopback access),
+all 80 selected sequence/review, contact and strategy mutations, architecture and
+whitespace checks. The new final-current mutation was also detected separately.
+The full 511-probe catalogue was retained but was not rerun in this slice. The
+full backend run took 1,117.5 seconds while mutation verification overlapped its
+early portion; that elapsed result is verification evidence, not the paired
+performance comparison. No frontend or schema changed and no live model call was
+made. Review of the changed call graph found no removed final authority boundary;
+input reuse is confined to the successful payload-to-campaign handoff in one
+report, with the existing independent current-source reconstruction retained.
+
+
+## CI support and gate audit, 15 November 2026
+
+Python 3.11 is removed from CI and the advertised minimum is now 3.12. The
+remaining runtime matrix is unchanged. Architecture scanning runs once and early;
+frontend formatting runs in one interface partition. Both isolated browser jobs
+still compile and serve their own production assets. Historical measurements and
+compatibility artifacts are preserved.
+
+The [gate audit](ci-gate-audit.md) summarizes the configured checks, their
+protected behaviors, costs and limitations. It distinguishes compatibility
+cadence and formatting policy from application behavior, and records the mutation
+harness limits and observed absence of required merge checks. Production code, repository protection settings and authority boundaries
+are unchanged.
+
+Backend shard weights use median case plus class-setup costs across 3.12, 3.13
+and 3.14 in PR #87. The [gate audit](ci-gate-audit.md) records the source run
+and measurement limits. Both groups together retain all 999 cases, with no
+missing or overlapping IDs. The existing coverage regression now also rejects loader
+errors instead of accepting failed imports as discovered coverage. All 511
+mutation targets remain in their existing four partitions. The new shard costs
+are projections until a hosted run measures the changed allocation.
+
+Verification passed all 999 backend cases with `make test` on Python 3.14.3
+(1,616.1 seconds), plus the final focused CI-tool and architecture self-tests.
+The backend run overlapped the initial browser runs, so its elapsed time is
+verification evidence rather than a performance comparison. Production build,
+formatting, `make arch-check`, workflow validation with actionlint 1.7.12,
+whitespace, support-contract and audit-link checks passed. The original 59 module
+weights reproduced the saved module medians; the current allocation retains the
+20 highest measured weights.
+
+The full mutation catalogue was not rerun for this CI configuration change.
+PR #87's recorded run passed all 511 variants on the unchanged production code,
+mutation harness and target regressions. No live model call was made.
+
+The two initial local browser partitions passed 97 of 108 cases, with eleven
+fixture-start, completion-wait and test-deadline failures while the full backend
+suite ran on the same machine. Initial reports and traces were preserved. After
+backend completion, only those failed IDs were rerun, one partition at a time:
+all four first-partition cases and all seven second-partition cases passed
+(31.6 and 42.3 seconds). Identity comparison verifies those reruns exactly cover
+the eleven initial failures, yielding passing evidence for all 108 distinct
+cases across the attempts. No assertion, timeout, retry configuration or
+application code was changed. This is consistent with resource contention; it
+is not a claim of a clean initial run or a measured CI speedup.
+
+
+## Mutation assertion evidence
+
+Mutation detection now requires a test assertion failure and rejects unexpected
+test-body and subtest errors, in addition to fixture and loader failures. The
+existing harness regression exercises both crash paths and a valid assertion
+failure. This narrows what a detected mutation means; it does not establish that
+every assertion is the intended behavioral oracle.
+
+The first strict hosted run reported 48 invalid experiments. Existing tests now
+make their expected result explicit at the relevant boundary, including the
+required rejection type, required fields, replay success and lock release. The
+workspace lock case prepares its fixture independently of the mutation before
+exercising the unpatched read under a real SQLite writer. Each of the 48 named
+mutations was detected in a targeted rerun, and the corresponding unmutated
+tests passed. These assertions establish the stated behavior and error contract;
+a wrong error type alone does not prove that an unauthorized effect occurred.
+The complete catalogue remains the final CI check.
+
+
+## Single Python runtime for CI
+
+The backend, mutation and browser jobs now use Python 3.14. The backend remains
+fully discovered across two shards, and the mutation catalogue and both browser
+partitions remain unchanged. Python 3.14 is the minimum required version; CI
+does not establish compatibility with other versions. The change removes four
+backend jobs, so it reduces repeated runner work. Because jobs run in parallel,
+its effect on the critical path depends on the remaining slowest job.
+
+Verification on Python 3.14.3 passed all 999 backend tests, all 511 declared
+mutation probes (run locally in two isolated partitions), the architecture and
+CI-tool checks, the frontend production build and two Chromium review flows.
+The workflow passed actionlint. The backend run overlapped the mutation and
+browser checks, so its 1,257.5-second duration is verification evidence, not a
+before/after timing comparison. The complete browser suite and hosted CI were not rerun for this change.
+
+The first hosted browser partition exposed an asynchronous test race after a
+monitoring pause: the server's new revision appeared before the browser had
+finished clearing its saved request. Reloading at that point correctly showed
+recovery instead of the resume control. The existing test now waits for the
+enabled resume control before checking pause persistence across reload. Its
+separate lost-pause-response branch still checks recovery. Both committed and
+uncommitted creation-response cases passed three focused Chromium runs each on
+Python 3.14; no production code or retry policy changed.
+
+## Contact identity reconstruction, 16 November 2026
+
+Connection validation and identity hashing read the same declared strings
+directly, without caching identity or authority. The existing alias/objection
+regression verifies literal historical connection and native IDs, scope, aliases
+and invalid values for each connection field. The provider-account mutation now
+targets the equivalent new expression.
+
+Three serial runs of two unchanged sequence-review cases measured median case
+times of 10.59 → 9.24 seconds and 34.41 → 30.06 seconds. The [performance
+record](ci-performance.md) includes all samples, source hashes, profile counts
+and limitations. Both profiles retained the same current-source,
+current-proposal, readiness and authorization call counts.
+
+Verification passed all 999 backend tests (`make test`, 1,139.0 seconds), the
+architecture check and the final focused identity tests. Six targeted mutations
+were detected: provider-account scoping, exact-row history reuse, final source
+attestation, final current-material validation, final clock and the complete
+readiness window. All 511 mutation definitions still match one source location
+and compile; the full mutation catalogue was not rerun. Full-suite elapsed time
+included overlapping focused verification and is not a before/after benchmark.
+No live model calls were made.
+
+
+## Exact installed snapshot reuse and four backend partitions, 16 November 2026
+
+Installed synthetic contact snapshots may be reused only after a scoped source
+lookup finds exactly the same serialized payload. The new contact regression
+warms reuse, checks nested immutability and organization/key/version separation,
+then replaces, corrupts and removes the installed payload. Replacement is
+revalidated; invalid or absent evidence cannot fall back to the old value.
+Source identities are still recalculated and final SQLite source, objection,
+reviewer, epoch, expiry, lease and acceptance checks retain their existing paths.
+
+The existing CI discovery regression now checks both two and four partitions
+against every discovered test ID with multiplicity. Modules stay intact, so
+class setup is not multiplied. Invalid partition selections are rejected.
+Architecture and focused CI/contact checks passed. All six selected harmful
+mutations were detected, including removal of exact-payload reuse binding,
+final installed attestation, exact durable row binding, final proposal
+reconstruction, final authority clock and complete readiness-window validation.
+The complete 512-probe catalogue is retained and was not rerun locally.
+
+Three serial repetitions of unchanged review methods measured median case
+reductions of 20.5% and 22.5%, without concurrent verification workloads.
+[Performance evidence and measurement limits](ci-performance.md#backend-critical-path-16-november-2026)
+separate those local case measurements from the four-partition replay estimate.
+
+Full backend verification passed all 1,019 discovered tests across the four
+proposed CI partitions. Recorded IDs matched fresh discovery exactly once,
+including real SQLite, process restart and authority tests. The initially
+started serial `make test` was intentionally stopped in favor of this complete
+four-partition verification; it is not recorded as a successful serial run.
+No browser or frontend code changed. No live model calls were made.
+
+
+## Prepared conversation fixture isolation, 16 November 2026
+
+Conversation-action and conversational copy-revision cases reuse only a prepared,
+quiescent workspace template, copied into a new root per case with independent
+fake provider state. They open the real SQLite stores and read base review state
+afresh. All 72 existing test methods and their assertions are unchanged; no
+production authority path was modified. Clarification and multi-segment setup
+remain fresh, and campaign preparation retains its own workflow tests.
+Execution-control and legacy-replay classes borrow the setup methods directly;
+their explicit fallback retains fresh preparation without requiring the owning
+class lifecycle. Full-suite verification caught this dependency before publication.
+
+A separate isolation experiment for each prepared class approved and amended
+one copy and changed its model history and filesystem. The other copy remained
+at revision 1 with a valid candidate and no approval, unchanged model history
+and no extra file. Template file hashes were unchanged. All 29 existing mutation
+probes targeting the two modules were detected, including exact preview/result
+binding, explicit consent, changed admission text, final confirmation authority,
+routing admission and atomic native confirmation. The full 512-probe catalogue
+was retained and was not rerun locally. Architecture checks passed with 175
+classified modules and 28 declared temporary exceptions.
+
+The serial before/after measurements include shared setup. The 72-case module
+run changed from 157.50s to 73.66s (one sample each); a four-case cohort changed
+from median 11.71s to 7.80s across three runs each. These are local measurements.
+[The performance record](ci-performance.md#conversation-preparation-fixtures-16-november-2026)
+retains evidence and partition-calibration limitations.
+
+Final verification passed all 1,027 backend cases across the refreshed four
+partitions (151, 280, 265 and 331 cases), including all borrowed-setup execution
+and legacy-replay cases. Recorded IDs matched fresh discovery exactly once.
+The complete backend discovery suite was verified with `make test-shard`
+for all four partitions instead of a separate serial `make test` rerun.
+Final architecture and CI-tool checks passed, and all 29 relevant mutations were
+detected again after the compatibility fix. No live model calls were made.
+
+
+## Routine CI cadence and prepared fixture extension, 17 November 2026
+
+The MVP policy keeps the entire backend authority regression suite, architecture,
+frontend build and browser checks on pull requests. The 512 mutation probes audit
+test strength and now run only through the explicit manual workflow. That audit
+keeps its existing strict rejection of fixture, cleanup and unexpected body errors.
+No application validator or authority check has been removed.
+
+Execution, execution-follow-up, native copy-revision and follow-up classes opt
+into quiescent prepared workspaces. Each case receives independent SQLite files,
+journals and fake provider state, opens a new Workspace and reads current base
+review state. The original fresh fixture paths remain for unconverted borrowers,
+source-fence interleavings and the original handoff workflow tests. Static AST
+comparison retained all 103 test methods across the four edited test modules.
+Architecture passed with 205 classified modules and no temporary exceptions.
+Full runtime and mutation verification is delegated to GitHub to avoid sustained
+local CPU load. Hosted results and aggregate compute are recorded in the PR.
+
+The hosted run exposed additional admission and workspace-authority classes
+borrowing follow-up setup directly. Every newly prepared class now explicitly
+retains fresh setup for external borrowers. The backend and strict mutation
+runner rejected the initial fixture errors; no invalid experiment was credited
+as a mutation detection. Final hosted reruns verify the corrected fallback.

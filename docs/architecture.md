@@ -11,7 +11,12 @@ flowchart LR
     UI[React workspace] --> HTTP[Loopback API]
     HTTP --> FACADE[Workspace facade]
     CLI[Python CLI] --> ROOT[Composition root]
-    FACADE --> ROOT
+    ROOT --> FACADE
+    FACADE --> MODELS[Model session port]
+    MODELS --> SESSIONS[Ephemeral OpenRouter sessions]
+    SESSIONS --> OR
+    FACADE --> CONTROL[Workspace control port]
+    CONTROL --> SQL
     ROOT --> WF[Explicit workflows]
     ROOT --> RT[Custom runtime]
     RT --> TASKS[Task store port]
@@ -44,6 +49,112 @@ The [local checkpoint adapter](workspace-checkpoints.md) uses the same root lock
 
 `workflows` composes public module APIs. Cross-module imports use the provider's `__init__.py`; domain code uses pure standard-library values, declared domain contracts and technical serialization helpers. The conversation application uses the campaign module's public, pure `CampaignScope` capability contract when recording requested requirements. Literal source resolution belongs to conversations; campaign construction and supported delivery values belong to campaigns. Runtime has no dependency on business modules. Adapters keep SQL private. The architecture checker rejects prohibited dependencies, private imports and cycles.
 
+## Enforced dependency contract
+
+`make arch-check` statically inspects every Python file under `src/acquisition`,
+without importing product code. `scripts/architecture_policy.json` is the reviewed,
+exact module-to-role inventory and temporary exception ledger. It currently
+classifies 205 modules, including workspace application/views, startup and HTTP adapters, compatibility wrappers, engagements and supporting
+files and every root utility. An added file needs an explicit classification;
+removed files must lose their classifications. A file/package name collision is
+rejected. Tests and scripts are outside this production inventory and cannot be
+imported by production code. Existing CI runs this gate and discovers its tests
+through the backend suite.
+
+| Role | Permitted production dependencies |
+| --- | --- |
+| Domain and technical contracts | Pure domain values/rules and technical contracts; technical contracts cannot depend on business modules |
+| Ports | Domain values, other narrow ports and technical contracts |
+| Business application | Own domain, ports and services; declared public provider-module APIs |
+| Workspace application | Public module APIs, application collaborators and workflow composition |
+| Public API | Explicit exports from the owning module's domain, ports and application code |
+| Workflows | Public business APIs, other workflow composition and technical contracts |
+| Adapters | Public business contracts/validators, adapter helpers, infrastructure and technical contracts |
+| Infrastructure helpers | Other infrastructure helpers and technical contracts |
+| Bootstrap composition | Concrete adapters, services, workflows and transport; no entrypoint or compatibility-wrapper dependencies |
+| Entry points | Bootstrap, public APIs, application/transport and startup helpers; delegate provider/SQLite I/O |
+| HTTP transport | Application/public APIs, infrastructure helpers and technical contracts; no bootstrap or concrete provider/store wiring |
+| Compatibility wrappers | Named exports from canonical entrypoints or public APIs, plus an optional `main()` launch; no behavior or composition |
+
+Business dependency directions remain explicitly declared in the checker:
+campaigns uses audiences/creative; creative uses reasoning/audiences; reviews uses
+audiences/campaigns/creative/runtime; conversations uses reasoning/runtime/audiences/
+campaigns; engagements uses campaigns. Runtime, audiences, reasoning and learning
+have no outbound business-module dependencies. Cross-module imports use named,
+non-private exports from the provider's `__init__.py`. Namespace and wildcard
+imports cannot hide which public contract a consumer uses.
+
+Purity applies to supporting domain files, not only files named `domain.py`.
+For example contacts, strategies, sequences, profiles and recipient-context values
+have explicit domain roles. Grounding, channel-generation and action files that
+coordinate services have application roles. Domain and port imports through a
+public facade are resolved to their defining modules, including relative imports
+and simple re-export aliases. Exporting a service beside a value does not make
+that service a domain dependency. Conditional, cyclic or computed exports that
+cannot be resolved are rejected as public dependencies. Tuple, list, nested and
+starred unpacking invalidate every reassigned export; an earlier pure alias
+cannot survive an unresolved replacement. Simple aliases capture their binding
+at assignment time; rebinding the source name cannot retarget a previously
+exported value or local declaration.
+
+Core/application imports use explicit value and coordination allowances, rather
+than allowing the standard library by default. This rejects alternate native
+SQLite/socket/process modules, foreign-function loaders, filesystem APIs,
+undeclared submodules and provider clients regardless of their stdlib status.
+Ports may use `pathlib.Path` as a value type. `asyncio` is treated as infrastructure because it exposes network and
+subprocess effects, including through aliased and submodule imports. It remains
+adapter-side, behind ports; HTTP transport has its own explicit protocol allowance. Pure code has a bounded
+standard-library import set with exact module paths and named exports; pure URL
+parsing is permitted separately from URL retrieval. Mixed modules require named values:
+`io.StringIO`/`io.BytesIO` and `uuid.UUID` are allowed, while namespace imports and
+file-opening or UUID-discovery APIs are not. Existing memory-buffer use imports
+`StringIO` directly. Ports and entry points may import the named `Path` type;
+entry points additionally admit `argparse`. The reviewed coordination allowance
+is limited to contextlib, contextvars, copy, secrets, threading and time. Package
+from-imports resolve only declared child modules, so `from json import tool`
+cannot bypass the module allowance. New standard-library dependencies or
+export names require an explicit policy review. Explicit dynamic import/code
+mechanisms are rejected across production roles. The checker also rejects eager module
+initialization cycles and package dependency cycles, including imports deferred
+inside functions. Module-level conditional imports are conservatively treated
+as initialization dependencies. Submodule imports also add edges to parent
+package initializers outside the importing module's already-entered ancestor
+chain. This catches initialization cycles hidden behind nested packages without
+adding false back edges for ordinary sibling imports. Deferred imports within
+an adapter package are allowed: they are not an eager initialization cycle. They
+still receive all ordinary import checks. This is a static dependency contract, not a sandbox, a call-graph analysis
+or proof that arbitrary Python code cannot perform I/O through an injected object.
+Transactions, current authority and real recovery remain behavioral test concerns.
+
+Transport is subject to the same explicit external-import checks. Its additional
+allowances cover the named `http.server.BaseHTTPRequestHandler` and
+`ThreadingHTTPServer` classes, named `Path` for confined static assets,
+`mimetypes.guess_type`, legacy startup argument parsing, `ExitStack`, and worker
+`Thread`/`Event` lifecycle helpers. HTTP server namespaces, client HTTP libraries,
+SQLite/native storage, provider SDKs and other undeclared infrastructure are
+rejected. A transport role is not a general adapter exemption.
+
+### Temporary exception ledger
+
+The initial #89 inventory recorded **31 exact dependency exceptions**. Issues
+#90, #91 and #92 removed all of them. Issue #93 closes the migration: the JSON
+ledger must be exactly `exceptions: []`. Even an exact former exception with a
+removal issue and reason now fails the gate. All import, export, classification
+and cycle diagnostics are unconditional. Legitimate startup wrappers retain
+explicit roles and strict forwarding shapes, not dependency exceptions. The
+checker has no baseline-refresh or migration-reopen command. Inventory and role
+changes require explicit review. The [integrated evidence contract](hexagonal-boundaries.md)
+records actual recovery scenarios, commands, source fingerprints and limits.
+
+The contact adapter uses the named public `evaluate_contact_eligibility` policy.
+Review's fact-pack and grounded-catalogue validators resolve to
+`creative/grounding_policy.py`; copy schemas live in `creative/copy_contracts.py`.
+Both are pure domain owners. Model orchestration remains in
+`creative/grounding.py`. Review and learning reports are bootstrap-injected output
+callbacks on the campaign application. Offline recovery commands receive a
+storage-error boundary from bootstrap; only its SQLite adapter imports native
+SQLite exceptions.
+
 ## Repository map
 
 The [organization/profile foundation](organization-profiles.md) adds explicit taxonomy, campaign, product/brand and planning contracts inside the existing modules. `ProfilePreparation` composes their public APIs and a narrow atomic proposal-publication port, reusing campaign calculation without adding marketing dependencies to runtime. The CLI prepares unapproved synthetic proposals for two companies; chat, model execution, review/handoff and learning keep their existing contracts. The [channel expansion plan](channel-expansion-plan.md) describes subsequent proposed work.
@@ -69,11 +180,15 @@ src/acquisition/
   workflows/                  integration through public contracts
   adapters/                   SQLite, OpenRouter, files and report projections
   bootstrap.py                composition root
-  workspace.py                local workspace facade
-  workspace_server.py         loopback transport and static asset serving
-  workspace_checkpoint.py     offline checkpoint capture, validation and restore
-  conversation_cli.py         explicit conversation and planner commands
-  __main__.py                 CLI entry point
+  application/workspace/      service, ports, state access and read-only views
+  adapters/http/              loopback routing, guards and static asset serving
+  entrypoints/                CLI dispatch, offline commands and server lifecycle
+  workspace.py                compatibility exports for the public facade
+  workspace_server.py         compatibility launch for the workspace server
+  *_cli.py, *_demo.py          compatibility exports for canonical entrypoints
+  workspace_*.py              compatibility launches for offline recovery commands
+  legacy_migration.py         compatibility launch for offline legacy recovery
+  __main__.py                 compatibility launch for the CLI
 config/                       editorial guidance, fact pack and evaluation cases
 tests/                        pure rules, SQLite, HTTP and process recovery
 frontend/tests/               real-backend client and Chromium regressions
@@ -105,6 +220,102 @@ Domain artifacts and runtime receipts are separate commits under stable operatio
 The workspace has a separate `workspace.sqlite` control store for session metadata, command fingerprints, scoped preparation records and scoped copy-revision blocker codes. Blocker metadata is a recoverable projection and grants no task, model or review authority. Each sandbox owns its application database; descendant experiments share their parent's organization/database to reuse learning. Paths and organizations resolve from server-owned metadata. The control and domain stores do not share a distributed transaction. Durable command admission precedes execution; after a lost metadata write, the same request reconciles through original domain receipts. Browser session storage preserves pending identity per command signature after uncertain responses.
 
 Unsealed compatibility stores still keep preparation intent, routing and sandbox time in `workspace.sqlite`. In schema 14, explicitly selected `verified-paused/v1` stores move new preparation intent and consent to `conversations.sqlite`, and new sandbox environments, clocks, command identities and run/case/cohort mappings to the campaign's application database. The root application store contains a server-owned location catalogue bound to each application's immutable store identity. This catalogue locates records; it cannot grant consent, advance time or authorize execution. Owned records override workspace projections, including after the projection database is lost. Legacy workspace records are never silently enrolled as authoritative environments.
+
+### Workspace composition and model sessions, issue 91
+
+`bootstrap.build_workspace` constructs the facade with its control/state ports,
+model-session interface, reviewed asset loaders, scoped application factory and
+preparation coordinators. `application/workspace/service.py` contains no bootstrap imports, provider
+construction, credential reads or filesystem configuration loading. The factory
+keeps existing authoritative environment routing, lazy verified-store selection
+and compatibility-store behavior. Construction does not dispatch a model or
+silently seal a store before the server's root lock is acquired.
+
+| Location | Responsibility |
+| --- | --- |
+| `application/workspace/ports.py` | Consumer-owned model-session and bounded scoped-construction interfaces, alongside the control-store ports |
+| `adapters/models/workspace_sessions.py` | OpenRouter catalogue caching, key validation, opaque tab handles, five-minute idle expiry, the 32-connection bound, frozen model matching and provider price-tier checks |
+| `workflows/preparation_host.py` | Implements the preparation host over injected conversation APIs and narrow campaign/generation continuations; preserves the existing consent, admission and stop rules in their owners |
+| `workflows/campaign_application.py` | Campaign creation/replay, frozen copy context preparation and export use cases over injected stores, population generation, reviewed assets and an export effect |
+| `application/cli_commands.py` | Executes CLI commands using the supplied application and explicit legacy review/learning delegates |
+| `application/workspace/service.py` | Injected workspace coordination and use cases, exported by `application/workspace/__init__.py` |
+| `application/workspace/views.py` | Read-only campaign/action/preparation progress and blocker wording |
+| `adapters/http/workspace_server.py` | Loopback routing, serialization, static assets and unchanged request guards |
+| `entrypoints/workspace.py` | Root lock, recovery, scheduler and request-draining shutdown lifetime |
+| `entrypoints/cli.py`, `entrypoints/*_cli.py` | Argument parsing, dispatch and presentation of results through bootstrap-built applications |
+
+`ScopedWorkspaceApplications` is bound to one server-owned root and constructs
+only campaign or fixed conversation applications. It accepts explicit resolved
+organization/store scope, clock and frozen model settings. It has no arbitrary
+service names, registration mechanism or caller-provided database path. New
+verified preparation construction is deferred only until that store scope is
+selected. The preparation coordinator receives `WorkspacePreparationHost`, not
+the workspace facade; bootstrap composes its narrow callbacks before exposing
+the completed facade. The facade retains thin method delegates for existing
+presentation/recovery callers, without selecting implementations.
+
+The model-session interface preserves OpenRouter-specific catalogue and price
+semantics. It does not claim that every provider supports the same catalogue,
+key validation or price tiers. Credentials stay in the adapter/composition
+boundary and never enter durable records or model inputs. Browser sessions remain
+ephemeral, scoped to their original tab/key binding, and unusable after expiry or
+restart until explicit reconnection. A restored binding can continue the frozen
+request; a new model selection does not rewrite that request's settings.
+
+Asset loaders are lazy. Historical admissions and receipts can be observed or
+resumed using their frozen inputs when current skill files are unavailable.
+New work still performs the existing freshness/configuration checks. Moving
+`bootstrap.Application` methods into the campaign workflow changes no schema,
+authority, task plan, reservation or legacy cutover rule. `bootstrap.Application`
+remains a compatibility export of that workflow owner.
+
+### Workspace control storage, issue 90
+
+`application/workspace/ports.py` owns the control-store contract and recoverable
+storage failure. `adapters/sqlite/workspace_control.py` implements its named
+operations. `bootstrap.build_workspace_state` composes that adapter, storage
+error translation and a lazy factory for the existing `conversations.WorkspaceState`
+service. Startup initializes the compatibility journal without opening or
+silently enrolling an authoritative application store. The workspace facade
+passes session candidates and receives plain records; it contains no SQLite
+imports, SQL or connection accessor. Its construction and provider dependencies
+are now supplied by `build_workspace`, as described above.
+
+The complete control-store inventory is:
+
+| Records | Ownership and readers | Writers and commit boundary |
+| --- | --- | --- |
+| `sessions` | Compatibility intent, routing, time and domain links for unsealed legacy roots; disposable navigation payloads for owned environments. Workspace listing, lookup, ancestry/recovery and command flows read through the control port. Offline checkpoint and legacy inventory adapters also inspect these records as evidence. | Control adapter session creation, save and case-link restoration; owned-state projection upsert. Creation rechecks fingerprints under a writer transaction. Projection updates preserve historical request hashes. Offline projection repair also writes this table. |
+| `commands` | Legacy command fingerprint and completion journal, read by workspace action replay. Owned commands instead use `WorkspaceStateStore` in application storage. | Control adapter admission and completion. A report-check clock update and pending command insert commit together. Domain execution occurs after this transaction closes. Offline projection repair can reconstruct owned command projections. |
+| `conversation_draft_requests` | Compatibility mapping for the fixed server-owned `local-conversations` scope. Draft replay and preparation generation read it through the port. | Session plus mapping admission is one control-store transaction, inside the existing conversation creation fence. Owned request mappings stay in application storage; offline repair can rebuild their projections. |
+| `followup_prepare_requests` | Organization-scoped legacy follow-up request mapping, read when admitting a continuation. | Session plus mapping admission commits together, with both original request and session fingerprints checked. Owned mappings remain in application storage; offline repair can reconstruct their projections. |
+| `copy_revision_blocks` | Organization/revision-scoped recoverable presentation metadata read by revision progress. It grants no inference permission. | Control adapter set/clear operations from revision recovery; offline projection repair clears diagnostics for positively owned keys. |
+| `checkpoint_recovery_blocks` | Organization/run-scoped recoverable presentation metadata read by checkpoint recovery/status. It grants no review or execution authority. | Control adapter set/clear operations after case recovery; offline projection repair clears diagnostics for positively owned keys. |
+| `preparations` | Existing organization-scoped legacy preparation intent/progress, consumed by `PreparationCoordinator` through `PreparationStore`. | Existing `SqlitePreparations` adapter, unchanged by this extraction. Authoritative preparation intents remain in `SqlitePreparationIntents`. |
+| `workspace_identity` | Immutable ancestry witness, read by existing ancestry, inventory and checkpoint adapters. It does not enroll a domain history or authorize execution. | Control adapter initialization establishes identity in the same initialization transaction as the existing control tables. Ancestry and offline repair keep their existing identity checks. |
+
+Global session IDs and legacy conversation mappings are confined to the
+server-owned root; they are not a caller-selected organization catalogue.
+Session mutations and commands check the stored organization, follow-up
+mappings and blockers include organization in their keys, and paths never enter
+from browser or model input. Authoritative environment ownership, clocks,
+consent and run/case/cohort integrity still belong to the existing
+`conversations.WorkspaceStateStore` implementation. Projection loss or poisoned
+legacy rows cannot promote themselves into that authority.
+
+Each multiwrite port operation owns its whole SQLite transaction. Conversation
+creation and report-clock validation keep their existing domain guards held
+through the control commit. New legacy session candidates and follow-up checks
+are prepared before admission; the adapter rechecks request/session identity
+inside the write transaction. No caller callback, connection or generic SQL
+operation crosses the port, and no provider call occurs under a control-store
+transaction. Domain receipts still reconcile lost command acknowledgements;
+there is no distributed transaction between the compatibility and domain stores.
+Storage faults become `WorkspaceStorageUnavailable`; existing checkpoint and
+monitoring recovery policies retain their narrow failure handling. Corrupt
+projection payloads remain readable as raw records for the existing tolerant
+filter, rather than being promoted or silently repaired during lookup.
+
 
 `conversations` owns the environment contract and narrow storage port; `workflows` verifies campaign source relationships; SQLite adapters verify scoped facts and implement transactions; `bootstrap.py` wires them together. A simulation clock advance and its exact command admission commit together in the same application database. Review, acceptance and learning still make their own current-authority decisions. No environment or command record grants approval.
 
@@ -212,3 +423,34 @@ The [exact sequence review slice](sequence-review.md) composes domain-owned vali
 ## Conversational multichannel composition
 
 The [conversation sequence journey](conversational-sequences.md) composes the existing public module APIs behind conversations-owned interpreter, persistence and host ports. Schema 23 persists revision/consent, original command bindings and continuation in the conversation store. Optional origin metadata on new channel contexts/tasks binds generation to the shared conversation allowance. Native adapters recheck source lineage at their write/effect boundaries; runtime remains business-agnostic. Exact human confirmation continues through the existing sequence review and simulator, with explicit human task observations and a persisted synthetic clock. Existing postal and historical formats are preserved. Verified-admission execution remains paused.
+
+Workspace coordination lives in `application/workspace/service.py`. Bootstrap
+injects the lazy sequence-journey factory, and the HTTP adapter delegates guarded
+commands to that application. The root compatibility modules remain forwarding
+exports. The architecture inventory classifies all four sequence-journey modules
+without temporary exceptions.
+
+### Compatibility wrapper inventory
+
+These root modules contain named forwarding imports and, where previously
+supported, an `if __name__ == "__main__": main()` launch. They contain no command,
+policy, storage or startup behavior. The checker gives them a separate `wrapper`
+role and rejects reverse dependencies from application, adapters, bootstrap and
+canonical entrypoints. Root `contracts.py`, `local_root.py` and `bootstrap.py`
+retain their technical-contract, infrastructure and composition responsibilities.
+
+| Root compatibility module(s) | Canonical owner |
+| --- | --- |
+| `__main__.py` | `entrypoints/cli.py` |
+| `workspace.py` | Public `application/workspace` exports |
+| `workspace_server.py` | `entrypoints/workspace.py` |
+| `channel_cli.py`, `contact_cli.py`, `conversation_cli.py`, `decision_cli.py`, `profile_cli.py`, `recipient_cli.py`, `sequence_cli.py` | Matching `entrypoints/*_cli.py` modules |
+| `learning_cli.py`, `review_cli.py`, `learning_demo.py`, `review_demo.py` | Matching `entrypoints/` command and scripted demonstration modules |
+| `workspace_checkpoint.py`, `workspace_rebuild.py`, `workspace_fixture.py`, `legacy_migration.py` | Matching `entrypoints/` offline command modules |
+
+The former internal `transport/workspace_http.py` implementation is replaced by
+`adapters/http/workspace_server.py`. Supported public launch commands retain
+identical names and arguments. Root-lock scope, fixed server-side identity,
+Host/token/Origin checks, body/path limits and exact-subject download validation
+retain their existing behavioral tests. This layout adds no model inference,
+sending authority, schema migration or deployment topology.

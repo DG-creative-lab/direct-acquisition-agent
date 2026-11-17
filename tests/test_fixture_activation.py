@@ -19,7 +19,7 @@ from acquisition.creative import fixture_catalog
 from acquisition.reasoning import CallScope, ModelConfig, ModelError
 from acquisition.reviews import ActorUnavailable
 from acquisition.runtime import LeaseLost, Outcome
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from test_workspace_checkpoint import tree
 
 
@@ -36,7 +36,7 @@ class FixtureActivationTests(unittest.TestCase):
         result = self.process('-m', 'acquisition.workspace_fixture', '--root', self.root)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.w = self.workspace()
-        gateway = patch('acquisition.workspace.OpenRouter', side_effect=AssertionError('Provider initialized'))
+        gateway = patch('acquisition.bootstrap.workspace_gateway', side_effect=AssertionError('Provider initialized'))
         gateway.start()
         self.addCleanup(gateway.stop)
 
@@ -64,12 +64,22 @@ class FixtureActivationTests(unittest.TestCase):
         return cid, session
 
     def test_offline_journey_restarts_after_draft_commit_and_finishes_once(self):
+        from scripts.boundary_journey_fixture import verify_rebuild_replay
+
+        evidence = self.offline_journey()
+        self.assertEqual(evidence['population'], evidence['received'])
+        self.assertEqual(evidence['model_calls'], 0)
+        result = verify_rebuild_replay(self, self.parent, evidence)
+        self.assertTrue(result['projection_preserved_authority'])
+        self.assertTrue(result['fresh_process_replay']['changed_input_rejected'])
+
+    def offline_journey(self):
         cid, session = self.start_campaign()
         sid, run, scope = session['id'], session['run_id'], session['organization']
         interrupted = self.process('-c', """
 import os,sys
 from unittest.mock import patch
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from acquisition.adapters.sqlite.tasks import SqliteTasks
 
 def exit_after_draft(self, claim, outcome, now):
@@ -184,6 +194,12 @@ with patch.object(SqliteTasks, 'settle', exit_after_draft):
             self.assertEqual(db.execute('SELECT count(*) FROM draft_operations WHERE organization=?', (scope,)).fetchone()[0], 1)
             self.assertEqual(db.execute('SELECT count(*) FROM simulated_agency_jobs WHERE organization=?', (scope,)).fetchone()[0], 1)
             self.assertEqual(db.execute('SELECT count(*) FROM model_calls').fetchone()[0], 0)
+        return {'session_id': sid, 'run_id': run, 'draft_id': draft_id, 'subject_id': subject,
+                'cohort_id': cohort_id, 'organization': scope, 'checkpoint_id': manifest['checkpoint_id'],
+                'handoff': accepted, 'handoff_command': handoff_command,
+                'finalize_command': {'request_id': 'finalize', **targets},
+                'population': complete['learning']['enrolled'], 'received': complete['learning']['received'],
+                'model_calls': 0, 'restored_bytes_unchanged': tree(restored) == before}
 
     def test_recorded_monitoring_keeps_exact_fixture_time_and_restores_for_inspection(self):
         _, session = self.start_campaign()
@@ -233,6 +249,10 @@ with patch.object(SqliteTasks, 'settle', exit_after_draft):
             # Simulate a stop after the fixture clock commits but before the runner checks.
             self.w.action(sid, 'advance-report-check', payload)
         self.w = self.workspace()
+        with patch('acquisition.learning.application.LearningService.check_reports',
+                   side_effect=sqlite3.OperationalError('report storage unavailable')):
+            self.w.advance_report_monitoring()
+        self.assertEqual(self.w.view(sid)['learning']['monitoring']['status'], 'scheduled')
         self.w.advance_report_monitoring()
         state = self.w.view(sid)
         plan = state['learning']['monitoring']
@@ -471,7 +491,7 @@ with patch.object(SqliteTasks, 'settle', exit_after_draft):
         self.assertEqual(reopened.comment_artifact(cid, **inputs)['artifact_comments'], [comment])
         observed = self.process('-c', """
 import sys
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 comments = Workspace(sys.argv[1]).conversation(sys.argv[2])['artifact_comments']
 assert len(comments) == 1 and comments[0]['request_id'] == 'copy-comment'
 """, self.root, cid)
@@ -576,7 +596,7 @@ assert len(comments) == 1 and comments[0]['request_id'] == 'copy-comment'
                 db.execute('DELETE FROM writing_preference_versions')
         observed = self.process('-c', """
 import sys
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 p, = Workspace(sys.argv[1]).conversation(sys.argv[2])['writing_preferences']
 assert p['status'] == 'retired' and len(p['history']) == 3
 """, self.root, cid)
@@ -621,7 +641,10 @@ assert p['status'] == 'retired' and len(p['history']) == 3
             db.execute("UPDATE review_events SET payload=? WHERE organization=? AND kind='artifact_commented'",
                        (canonical(first['source']), session['organization']))
         self.w.change_writing_preference(cid, **correction)
-        with self.assertRaises(Conflict): self.w.change_writing_preference(cid, **(correction | {'request_id': 'stale'}))
+        try:
+            with self.assertRaises(Conflict): self.w.change_writing_preference(cid, **(correction | {'request_id': 'stale'}))
+        except sqlite3.IntegrityError as exc:
+            self.fail(f'A stale preference edit must be rejected before writing history: {exc}')
         with self.assertRaises(Conflict): self.w.change_writing_preference(cid, **(inputs | {'request_id': 'confirm-again'}))
         with app.tasks.database.transaction() as db:
             db.execute("CREATE TRIGGER reject_preference BEFORE INSERT ON writing_preference_versions BEGIN SELECT RAISE(ABORT,'preference interrupted'); END")

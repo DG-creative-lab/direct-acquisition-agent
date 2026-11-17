@@ -18,7 +18,7 @@ from acquisition.bootstrap import build
 from acquisition.contracts import Conflict, NotFound, digest
 from acquisition.learning import counts_for, posterior, recommend, WINDOW_SECONDS
 from acquisition.local_root import CHECKPOINT_FILE
-from acquisition.review_demo import run_review_demo
+from acquisition.entrypoints.review_demo import run_review_demo
 from acquisition.adapters.learning_report import render_learning
 from acquisition.reasoning import ModelConfig
 from test_model_copy import FakeModel
@@ -153,10 +153,11 @@ class LearningTests(unittest.TestCase):
         path = self.root / "provider-report.json"
         path.write_text(json.dumps(report))
         script = '''import sys
-import acquisition.__main__ as cli
+import acquisition.entrypoints.cli as cli
+import acquisition.bootstrap as composition
 from functools import partial
 now = float(sys.argv.pop(1))
-cli.build = partial(cli.build, clock=lambda: now)
+composition.build = partial(composition.build, clock=lambda: now)
 cli.main()
 '''
         child = subprocess.run([sys.executable, "-c", script, str(self.now), "--db", str(self.path),
@@ -219,17 +220,18 @@ cli.main()
 import os
 import sys
 from unittest.mock import patch
-import acquisition.__main__ as cli
+import acquisition.entrypoints.cli as cli
+import acquisition.bootstrap as composition
 from acquisition.adapters.sqlite.report_monitoring import SqliteReportMonitoring
 
 now, lease_time, crash = sys.argv[1:4]
 del sys.argv[1:4]
-real_build = cli.build
+real_build = composition.build
 def build(*args, **kwargs):
     app = real_build(*args, **kwargs, clock=lambda: float(now))
     app.learning.monitoring.lease_clock = lambda: float(lease_time)
     return app
-cli.build = build
+composition.build = build
 if crash == 'True':
     # The normal importer has already returned from its committed transaction.
     with patch.object(SqliteReportMonitoring, 'finish', lambda *args: os._exit(91)):
@@ -365,7 +367,10 @@ else:
         receipt = self.import_report(report)
         (self.root / "provider-report.json").unlink()
         reopened = build(self.path, clock=lambda: self.now).learning.store
-        source = reopened.report_snapshot(self.scope, self.cohort, "provenance")
+        try:
+            source = reopened.report_snapshot(self.scope, self.cohort, "provenance")
+        except NotFound as exc:
+            self.fail(f'The imported snapshot must survive reopening: {exc}')
         self.assertEqual(source["snapshot"], report)
         self.assertEqual(digest(source["snapshot"]), receipt["report_sha256"])
         self.assertEqual(source["import_receipt"], receipt | {"actor": self.actor})

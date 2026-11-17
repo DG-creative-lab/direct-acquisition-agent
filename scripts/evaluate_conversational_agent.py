@@ -8,7 +8,7 @@ Fake responses exercise orchestration and fault handling, not semantic accuracy.
 Exit 1 means an acceptance expectation failed; results are still written.
 """
 import argparse
-from contextlib import ExitStack
+from contextlib import ExitStack, nullcontext
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -21,40 +21,8 @@ import time
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path[:0] = [str(ROOT / 'src'), str(ROOT / 'tests')]
-
-
-def source_state(root=ROOT):
-    """Record actual import/configuration inputs, including uncommitted files."""
-    def git(*args):
-        return subprocess.check_output(['git', *args], cwd=root, stderr=subprocess.PIPE).decode()
-
-    prefixes = ('src', 'tests', 'config', 'scripts')
-    head = git('rev-parse', 'HEAD').strip()
-    tracked = {entry.split('\t', 1)[1]: entry.split('\t', 1)[0].split()[2]
-               for entry in git('ls-tree', '-r', '-z', 'HEAD', '--', *prefixes).split('\0') if entry}
-    object_format = git('rev-parse', '--show-object-format').strip()
-    paths = set(tracked)
-    for prefix in prefixes:
-        paths.update(p.relative_to(root).as_posix() for p in (root / prefix).rglob('*')
-                     if (p.is_file() or p.is_symlink()) and '__pycache__' not in p.parts
-                     and p.suffix not in {'.pyc', '.pyo'})
-    files = {}
-    changes_to_head = []
-    for relative in sorted(paths):
-        path = root / relative
-        content = path.read_bytes() if path.is_file() else None
-        record = {'sha256': hashlib.sha256(content).hexdigest() if content is not None else None}
-        blob = hashlib.new(object_format, b'blob ' + str(len(content)).encode() + b'\0' + content).hexdigest() if content is not None else None
-        if blob != tracked.get(relative) or relative not in tracked or path.is_symlink():
-            changes_to_head.append(relative)
-        if path.is_symlink():
-            record['symlink_target'] = str(path.readlink())
-        files[relative] = record
-    status = list(filter(None, git('status', '--porcelain=v1', '-z', '--untracked-files=all', '--', *prefixes).split('\0')))
-    digest = hashlib.sha256(json.dumps(files, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
-    return {'head_commit': head, 'worktree_dirty': bool(status or changes_to_head),
-            'git_status': status, 'changes_to_head': changes_to_head, 'files_sha256': digest, 'files': files}
+sys.path[:0] = [str(ROOT), str(ROOT / 'src'), str(ROOT / 'tests')]
+from scripts.evaluation_evidence import source_state
 
 
 # Capture before importing production modules or test providers. A later
@@ -70,7 +38,7 @@ except subprocess.CalledProcessError:
 from acquisition.contracts import Conflict, canonical
 from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.reasoning import ModelError
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace
 from acquisition.bootstrap import initialize_fixture_workspace
 from test_conversations import proposal
 from test_conversational_copy_revision import CopyRoutingModel
@@ -101,8 +69,8 @@ class RecordedFake:
 
 
 def fake_provider(stack, model):
-    stack.enter_context(patch('acquisition.workspace.openrouter_key', return_value='offline-sentinel'))
-    stack.enter_context(patch('acquisition.workspace.OpenRouter', return_value=model))
+    stack.enter_context(patch('acquisition.bootstrap.workspace_key', return_value='offline-sentinel'))
+    stack.enter_context(patch('acquisition.bootstrap.workspace_gateway', return_value=model))
     # Fail closed if a future refactor bypasses the injected provider. These
     # direct-workspace scenarios need neither remote nor loopback connections.
     stack.enter_context(patch.object(socket.socket, 'connect', side_effect=AssertionError('Network disabled in evaluation')))
@@ -255,7 +223,7 @@ def complete_journey(w, cid, state, model):
             'Retired preference remained active')
     for s, identity in p['contexts'].items():
         require(app.memory.get_context(session['organization'], identity) == frozen[s], 'Retirement rewrote a frozen context')
-    replay = Workspace(w.root, real_clock=lambda: NOW).propose_followup(sid, 'next-experiment', cohort)
+    replay = build_workspace(w.root, real_clock=lambda: NOW).propose_followup(sid, 'next-experiment', cohort)
     require(replay == p, 'Restart or lost-response retry changed the proposal')
     require(w.conversation(cid)['execution']['used'] == len(model.trace), 'Trace and shared reservations disagree')
     before_edit = len(model.trace)
@@ -287,14 +255,23 @@ def complete_journey(w, cid, state, model):
             'confirmed_amendment_budget_pence': 51200}
 
 
-def run_case(case):
+def retained_directory(directory, prefix):
+    """A caller can retain evidence in a fresh directory; defaults stay temporary."""
+    if directory is None:
+        return tempfile.TemporaryDirectory(prefix=prefix)
+    path = Path(directory)
+    path.mkdir(parents=True, exist_ok=False)
+    return nullcontext(str(path))
+
+
+def run_case(case, *, directory=None):
     model = RecordedFake(case['scripted_brief'])
     started = time.perf_counter()
     result = {'id': case['id'], 'expected': case['expected'], 'passed': False}
     try:
-        with tempfile.TemporaryDirectory(prefix='issue25-offline-') as root, ExitStack() as stack:
+        with retained_directory(directory, 'issue25-offline-') as root, ExitStack() as stack:
             fake_provider(stack, model)
-            w = Workspace(root, real_clock=lambda: NOW)
+            w = build_workspace(root, real_clock=lambda: NOW)
             cid = w.create_conversation('chat', case['id'])['id']
             for revision, message in enumerate(case['messages']):
                 w.message_conversation(cid, 'message-' + str(revision), revision, message)
@@ -322,14 +299,14 @@ def run_case(case):
     return result
 
 
-def verified_boundary():
+def verified_boundary(*, directory=None):
     started = time.perf_counter()
     model = RecordedFake({})
-    with tempfile.TemporaryDirectory(prefix='issue25-verified-') as parent, ExitStack() as stack:
+    with retained_directory(directory, 'issue25-verified-') as parent, ExitStack() as stack:
         fake_provider(stack, model)
         root = Path(parent) / 'fresh'
         initialize_fixture_workspace(root, clock=lambda: NOW)
-        w = Workspace(root, real_clock=lambda: NOW)
+        w = build_workspace(root, real_clock=lambda: NOW)
         cid = w.create_conversation('chat', 'Verified offline journey')['id']
         w.message_conversation(cid, 'brief', 0, FIXTURE_MESSAGE)
         w.start_preparation(cid, 'prepare', 1, True, False, True)
@@ -353,7 +330,7 @@ def verified_boundary():
         inspection = build(restored / 'conversations.sqlite', clock=lambda: NOW)
         inspection.tasks.inspect('local-conversations', run)
         try:
-            Workspace(restored, real_clock=lambda: NOW).message_conversation(cid, 'forbidden', 1, 'Use £700 instead.')
+            build_workspace(restored, real_clock=lambda: NOW).message_conversation(cid, 'forbidden', 1, 'Use £700 instead.')
         except Conflict:
             pass
         else:
@@ -364,13 +341,13 @@ def verified_boundary():
                 'elapsed_seconds': round(time.perf_counter() - started, 3)}
 
 
-def uncertain_restart():
+def uncertain_restart(*, directory=None):
     started = time.perf_counter()
     model = RecordedFake({'budget_pence': 55300, 'copy_mode': 'fixture'})
     model.uncertain = True
-    with tempfile.TemporaryDirectory(prefix='issue25-uncertain-') as root, ExitStack() as stack:
+    with retained_directory(directory, 'issue25-uncertain-') as root, ExitStack() as stack:
         fake_provider(stack, model)
-        w = Workspace(root, real_clock=lambda: NOW)
+        w = build_workspace(root, real_clock=lambda: NOW)
         cid = w.create_conversation('chat', 'Unknown planner response')['id']
         w.message_conversation(cid, 'brief', 0, 'Prepare a £553 UK contractor postal response experiment.')
         w.start_preparation(cid, 'prepare', 1, False, False, True)
@@ -379,7 +356,7 @@ def uncertain_restart():
         require(not state['campaigns'] and len(model.trace) == 1, 'Uncertain inference continued or retried')
         used = state['execution']['used']
         w.stop_execution(cid, 'stop', 1)
-        w = Workspace(root, real_clock=lambda: NOW)
+        w = build_workspace(root, real_clock=lambda: NOW)
         w.start_preparation(cid, 'prepare', 1, False, False, True)
         w.recover_execution()
         w.advance_preparations()

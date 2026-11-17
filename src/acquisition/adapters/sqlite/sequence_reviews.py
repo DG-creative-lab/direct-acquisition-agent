@@ -137,11 +137,14 @@ class SqliteSequenceReviews:
             materials[stage] = self.proposals._material(db,organization,request_key)
         return materials
 
-    def _campaign(self, db, organization, proposal):
+    def _campaign(self, db, organization, proposal, *, materials=None):
         decision, identities = self.proposals._decision(db,organization,proposal['request']['decision_request'])
-        materials = {stage:self.proposals._material(db,organization,proposal['request'][key]) for stage,key in
-            (('initial','initial_content'),('call','call_content'),('followup','followup_content'))}
+        if materials is None:
+            materials = {stage:self.proposals._material(db,organization,proposal['request'][key]) for stage,key in
+                (('initial','initial_content'),('call','call_content'),('followup','followup_content'))}
         validate_sequence_proposal(proposal,decision,materials,self.proposals.connections,identities)
+        # Independently reconstruct current sources after using the report-local
+        # inputs. Sharing material construction grants no current authority.
         self.proposals.current(db,organization,proposal)
 
     def _readiness_window(self, db, organization, subject, started_at):
@@ -167,10 +170,16 @@ class SqliteSequenceReviews:
             if self._basis(db,organization)!=subject['basis']: raise Conflict('Evidence or suppression epoch changed')
             return self._readiness_window(db,organization,subject,started_at)
         checks = []
+        materials = None
+        def payloads():
+            nonlocal materials
+            # Assign only after every payload check succeeds. This value lives
+            # for this report only; failed checks cannot leave reusable inputs.
+            materials = self._payloads(db,organization,proposal)
         validators = {'artifact_identity':lambda:self._identity(db,organization,subject),
             'audience_permissions':lambda:self.proposals._decision(db,organization,proposal['request']['decision_request']),
-            'recipient_payloads':lambda:self._payloads(db,organization,proposal),
-            'sequence_contract':lambda:self._campaign(db,organization,proposal), 'current_epochs':epochs}
+            'recipient_payloads':payloads,
+            'sequence_contract':lambda:self._campaign(db,organization,proposal,materials=materials), 'current_epochs':epochs}
         for name in sorted(SEQUENCE_CHECKS):
             metadata = {}
             try:

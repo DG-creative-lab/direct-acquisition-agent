@@ -233,6 +233,20 @@ class SequenceReviewTests(unittest.TestCase):
         app,proposal,approval=self.reviewed()
         other=self.prepare(app,'other')
         before=self.durable_counts()
+        # Isolate proposal binding from the independent latest-decision guard.
+        # Even if the later lookup returns this approval, it cannot authorize a
+        # different proposal. The real SQLite integration checks remain below.
+        from types import SimpleNamespace
+        class DecisionLookup:
+            def __init__(self,db): self.db=db
+            def execute(self,sql,*args):
+                if sql.startswith('SELECT id FROM sequence_review_decisions WHERE organization=? AND proposal_id=?'):
+                    return SimpleNamespace(fetchone=lambda:(approval['id'],))
+                return self.db.execute(sql,*args)
+            def __getattr__(self,name): return getattr(self.db,name)
+        with app.reviews.store.database.connect() as db:
+            with self.assertRaises(Conflict):
+                app.reviews.store.authorize(DecisionLookup(db),'one',other['proposal_id'],approval['id'])
         for identity in (None,'confidence_0.99','validation_passed','skill_contextual-email/v1','decision_postal',approval['id']):
             with self.subTest(identity=identity),self.assertRaises((Conflict,NotFound)):
                 app.engagements.start('one','blocked',other['proposal_id'],identity)
@@ -290,7 +304,10 @@ print(json.dumps(app.engagements.advance('one',sys.argv[2])))'''
             for status in ('failed','unknown','not_evaluated','omitted'):
                 with self.subTest(check=name,status=status):
                     checks=[c|{'status':status} if c['id']==name else c for c in passed if status!='omitted' or c['id']!=name]
-                    report=sequence_validation(subject,checks,self.now)
+                    try:
+                        report=sequence_validation(subject,checks,self.now)
+                    except KeyError as exc:
+                        self.fail(f'Missing required check must produce an unready report: {exc}')
                     self.assertFalse(report['review_ready'])
                     self.assertEqual({c['id'] for c in report['checks']},set(SEQUENCE_CHECKS))
                     with self.assertRaises(Conflict):validate_sequence_output(subject,report,{})
@@ -310,6 +327,32 @@ print(json.dumps(app.engagements.advance('one',sys.argv[2])))'''
             view=app.reviews.view('one',approval['subject_id'])
             self.assertFalse(view['validation']['review_ready']);self.assertIsNone(view['summary'])
             self.assertEqual(next(c for c in view['validation']['checks'] if c['id']=='current_epochs')['status'],'unknown')
+
+        # One report may share reconstructed inputs, but its final current-source
+        # check must reject bytes changed after the payload checker succeeded.
+        with store.database.connect() as db:
+            with patch.object(store.proposals,'_material',wraps=store.proposals._material) as material:
+                self.assertTrue(store._report(db,'one',subject)['review_ready'])
+            reconstructions = material.call_count
+            payloads = store._payloads
+            def corrupt_after_payloads(connection, organization, proposal):
+                result = payloads(connection,organization,proposal)
+                connection.execute('DROP TRIGGER channel_artifacts_immutable_update')
+                row = connection.execute('SELECT id,payload FROM channel_artifacts LIMIT 1').fetchone()
+                value = json.loads(row['payload']);value['rendered'][0]['id'] = 'changed-after-payload-check'
+                connection.execute('UPDATE channel_artifacts SET payload=? WHERE id=?',(canonical(value),row['id']))
+                return result
+            db.execute('BEGIN')
+            try:
+                with patch.object(store,'_payloads',side_effect=corrupt_after_payloads):
+                    changed = store._report(db,'one',subject)
+                self.assertFalse(changed['review_ready'])
+                indexed = {c['id']:c['status'] for c in changed['checks']}
+                self.assertEqual(indexed['recipient_payloads'],'passed')
+                self.assertEqual(indexed['sequence_contract'],'failed')
+            finally:
+                db.rollback()
+        self.assertEqual(reconstructions,6)
 
     def test_exact_operator_facts_reject_praise_missing_population_and_stale_subject(self):
         app,proposal,approval=self.reviewed()
@@ -593,7 +636,11 @@ class SequenceReadinessDomainTests(unittest.TestCase):
         window=readiness_window(subject,contact_readiness_boundaries((shifted,)),fixtures.NOW)
         self.assertEqual(window['until'],fixtures.NOW+100)
         dates=channel_readiness_boundaries(({'product_facts':{'checked_on':'2026-11-13','review_by':'2026-11-14'}},))
-        self.assertEqual(readiness_window(subject,dates,fixtures.NOW)['until'],fixtures.NOW+86400)
+        try:
+            calendar_window=readiness_window(subject,dates,fixtures.NOW)
+        except Conflict as exc:
+            self.fail(f'The product remains valid through its review day: {exc}')
+        self.assertEqual(calendar_window['until'],fixtures.NOW+86400)
 
 
 if __name__=='__main__':unittest.main()

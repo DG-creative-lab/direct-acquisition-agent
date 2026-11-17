@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 from acquisition.contracts import Conflict
 from acquisition.conversations import FIXTURE_MESSAGE
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from test_conversations import PlannerModel, proposal
 
 
@@ -22,8 +22,8 @@ class ConversationCampaignTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.workspace = Workspace(self.root, real_clock=lambda: 1792972800.0)
         self.model = PlannerModel()
-        self.key = patch("acquisition.workspace.openrouter_key", return_value="fixture")
-        self.gateway = patch("acquisition.workspace.OpenRouter", return_value=self.model)
+        self.key = patch("acquisition.bootstrap.workspace_key", return_value="fixture")
+        self.gateway = patch("acquisition.bootstrap.workspace_gateway", return_value=self.model)
         self.key.start()
         self.gateway.start()
         self.addCleanup(self.key.stop)
@@ -142,7 +142,7 @@ class ConversationCampaignTests(unittest.TestCase):
         plan = self.workspace.plan_conversation(self.conversation, "p2", 2)["current_plan"]["result"]
         from test_model_copy import FakeModel
         model = FakeModel()
-        with patch("acquisition.workspace.OpenRouter", return_value=model):
+        with patch("acquisition.bootstrap.workspace_gateway", return_value=model):
             state = self.workspace.draft_conversation(self.conversation, "model-draft", 2, plan["id"])
         self.assertEqual(state["session"]["mode"], "model")
         self.assertTrue(state["review"]["candidate_valid"], state["review"]["blocked_reasons"])
@@ -182,7 +182,7 @@ class ConversationCampaignTests(unittest.TestCase):
             if session["case_id"]:
                 raise OSError("lost case metadata")
             original(session)
-        with patch("acquisition.workspace.OpenRouter", return_value=model):
+        with patch("acquisition.bootstrap.workspace_gateway", return_value=model):
             with patch.object(self.workspace, "_save", side_effect=fail_case), self.assertRaises(OSError):
                 self.workspace.draft_conversation(self.conversation, "model-draft", 2, plan["id"])
             restarted = Workspace(self.root, real_clock=lambda: 1792972800.0)
@@ -215,7 +215,7 @@ class ConversationCampaignTests(unittest.TestCase):
                         other = Workspace(self.root, real_clock=lambda: 1792972800.0)
                         other.message_conversation(conversation, "edit", 1, "Use £200 instead.")
                     return result
-                with patch("acquisition.workspace.OpenRouter", return_value=model), patch.object(model, "complete", side_effect=edit_during_call):
+                with patch("acquisition.bootstrap.workspace_gateway", return_value=model), patch.object(model, "complete", side_effect=edit_during_call):
                     with self.assertRaises(Conflict):
                         self.workspace.draft_conversation(conversation, "draft", 1, plan["id"])
                 self.assertEqual(len(model.requests), phase)
@@ -271,7 +271,7 @@ class ConversationCampaignTests(unittest.TestCase):
         self.model.results = [proposal(budget_pence=30000, segments=["inventory", "contractors"], copy_mode="model")]
         plan = self.workspace.plan_conversation(self.conversation, "p2", 2)["current_plan"]["result"]
         model = FakeModel()
-        with patch("acquisition.workspace.OpenRouter", return_value=model):
+        with patch("acquisition.bootstrap.workspace_gateway", return_value=model):
             state = self.workspace.draft_conversation(self.conversation, "model-draft", 2, plan["id"])
         self.assertTrue(state["review"]["candidate_valid"], state["review"]["blocked_reasons"])
         self.assertEqual(len(state["review"]["manifest"]["creatives"]), 4)
@@ -285,7 +285,7 @@ class ConversationCampaignTests(unittest.TestCase):
         self.model.results = [proposal(budget_pence=30000, copy_mode="model")]
         plan = self.workspace.plan_conversation(self.conversation, "p2", 2)["current_plan"]["result"]
         model = FakeModel()
-        with patch("acquisition.workspace.OpenRouter", return_value=model), patch.object(model, "complete", side_effect=ModelError("provider_outcome_unknown")) as calls:
+        with patch("acquisition.bootstrap.workspace_gateway", return_value=model), patch.object(model, "complete", side_effect=ModelError("provider_outcome_unknown")) as calls:
             with self.assertRaises(Conflict):
                 self.workspace.draft_conversation(self.conversation, "model-draft", 2, plan["id"])
             with self.assertRaises(Conflict):

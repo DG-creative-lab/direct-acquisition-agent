@@ -3,19 +3,21 @@ import io
 import json
 import http.client
 import tempfile
+import sqlite3
 import threading
 import unittest
 import urllib.request
 import urllib.error
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlencode
-from contextlib import redirect_stderr
+from contextlib import closing, redirect_stderr
 from pathlib import Path
 from unittest.mock import patch
 from uuid import uuid4
 
-from acquisition.workspace import MonitoringRejected, Workspace
-from acquisition.workspace_server import WorkspaceServer, main
+from acquisition.bootstrap import build_workspace as Workspace
+from acquisition.application.workspace import MonitoringRejected
+from acquisition.entrypoints.workspace import WorkspaceServer, main
 from acquisition.contracts import Conflict, NotFound
 from acquisition.reasoning import ModelConfig
 from acquisition.bootstrap import build
@@ -203,13 +205,19 @@ class WorkspaceTests(unittest.TestCase):
         self.assertEqual(len([e for e in recovered["learning"]["events"] if e["kind"] == "cohort_opened"]), 1)
 
     def test_model_preparation_uses_existing_agent_and_checks_without_paid_calls(self):
-        model = FakeModel()
+        root = self.root
+        class UnlockedModel(FakeModel):
+            def complete(self, request):
+                with closing(sqlite3.connect(root / 'workspace.sqlite', timeout=0)) as db:
+                    db.execute('BEGIN IMMEDIATE')
+                return super().complete(request)
+        model = UnlockedModel()
         real_build = build
         def model_build(path, clock, gateway, model_config, workspace_organization=None, *, verified_admissions=False, preference_organization=None):
             return real_build(path, clock, model if gateway else None, model_config,
                               workspace_organization=workspace_organization,verified_admissions=verified_admissions,
                               preference_organization=preference_organization)
-        with patch("acquisition.workspace.openrouter_key", return_value="fixture"), patch("acquisition.workspace.OpenRouter", return_value=model), patch("acquisition.workspace.build", side_effect=model_build):
+        with patch("acquisition.bootstrap.workspace_key", return_value="fixture"), patch("acquisition.bootstrap.workspace_gateway", return_value=model), patch("acquisition.bootstrap.build", side_effect=model_build):
             live = self.workspace.create("model", "model")
         self.assertEqual(len(model.requests), 6)
         self.assertTrue(all(c["status"] == "generated_unreviewed" for c in live["review"]["manifest"]["creatives"]))
@@ -222,7 +230,7 @@ class WorkspaceTests(unittest.TestCase):
             if session["run_id"] and not session["case_id"]:
                 raise OSError("Injected lost run metadata")
             original_save(session)
-        with patch("acquisition.workspace.openrouter_key", return_value="fixture"), patch("acquisition.workspace.OpenRouter", return_value=model):
+        with patch("acquisition.bootstrap.workspace_key", return_value="fixture"), patch("acquisition.bootstrap.workspace_gateway", return_value=model):
             with patch.object(self.workspace, "_save", side_effect=fail_before_run_receipt), self.assertRaises(OSError):
                 self.workspace.create("lost-run", "model")
             saved = next(s for s in self.workspace.listing()["sessions"] if s["mode"] == "model")
@@ -240,7 +248,7 @@ class WorkspaceTests(unittest.TestCase):
     def test_next_experiment_uses_mature_memory_without_inheriting_approval(self):
         self.learned()
         model = FakeModel()
-        with patch("acquisition.workspace.openrouter_key", return_value="fixture"), patch("acquisition.workspace.OpenRouter", return_value=model):
+        with patch("acquisition.bootstrap.workspace_key", return_value="fixture"), patch("acquisition.bootstrap.workspace_gateway", return_value=model):
             following = self.workspace.create("next-model", "model", self.id)
         self.assertFalse(following["review"]["approval_valid"])
         self.assertIsNone(following["review"]["handoff"])
@@ -253,10 +261,28 @@ class WorkspaceTests(unittest.TestCase):
 
 
 class WorkspaceStartupTests(unittest.TestCase):
+    def test_failed_recovery_releases_socket_and_root_lock_for_restart(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            workspace = Workspace(root / "data")
+            from acquisition.bootstrap import build_workspace_http
+            ports = []
+            def listen(*args):
+                transport = build_workspace_http(*args)
+                ports.append(transport.server_port)
+                return transport
+            with patch('acquisition.entrypoints.workspace.build_workspace_http', side_effect=listen), patch.object(
+                    workspace, 'recover_actions', side_effect=RuntimeError('interrupted recovery')):
+                with self.assertRaisesRegex(RuntimeError, 'interrupted recovery'):
+                    WorkspaceServer(0, workspace, root)
+            reopened = WorkspaceServer(ports[0], workspace, root)
+            reopened.server_close()
+            self.assertFalse(reopened.preparation_worker.is_alive())
+
     def test_missing_assets_report_the_reproducible_pnpm_build_commands(self):
         error = io.StringIO()
         with (
-            patch("acquisition.workspace_server.Path.exists", return_value=False),
+            patch("acquisition.entrypoints.workspace.Path.exists", return_value=False),
             patch("sys.argv", ["workspace-server"]),
             redirect_stderr(error),
             self.assertRaises(SystemExit) as stopped,
@@ -356,7 +382,7 @@ class WorkspaceHttpTests(unittest.TestCase):
         key = "fixture-key-" + "x" * 40
         headers = {"Authorization": "Bearer " + key, "X-OpenRouter-Session": str(uuid4())}
         path = "/api/openrouter/check"
-        with patch("acquisition.workspace_models.OpenRouter") as adapter:
+        with patch("acquisition.adapters.models.workspace_sessions.OpenRouter") as adapter:
             for invalid in ({"Origin": "https://attacker.invalid"}, {"Host": "attacker.invalid"},
                             {"X-Workspace-Token": ""}):
                 self.assertEqual(self.request(path, {}, headers | invalid)[0], 403)
@@ -400,8 +426,8 @@ class WorkspaceHttpTests(unittest.TestCase):
 
         gateway.complete = delayed
         tab, model = str(uuid4()), "vendor/selected"
-        with patch("acquisition.workspace_models.OpenRouter", return_value=gateway), patch(
-            "acquisition.workspace_models.workspace_models", return_value=[{"id": model, "tier": "Standard"}]
+        with patch("acquisition.adapters.models.workspace_sessions.OpenRouter", return_value=gateway), patch(
+            "acquisition.adapters.models.workspace_sessions.workspace_models", return_value=[{"id": model, "tier": "Standard"}]
         ), ThreadPoolExecutor(max_workers=2) as pool:
             connection = workspace.models.connect("fixture-key-" + "x" * 40, tab)
             headers = {"X-OpenRouter-Handle": connection["handle"], "X-OpenRouter-Session": tab}
@@ -581,7 +607,7 @@ class WorkspaceHttpTests(unittest.TestCase):
     def test_conversation_http_planning_is_explicit_and_creates_no_campaign(self):
         from test_conversations import PlannerModel
         model = PlannerModel()
-        with patch("acquisition.workspace.openrouter_key", return_value="fixture"), patch("acquisition.workspace.OpenRouter", return_value=model):
+        with patch("acquisition.bootstrap.workspace_key", return_value="fixture"), patch("acquisition.bootstrap.workspace_gateway", return_value=model):
             status, body, _ = self.request("/api/conversations", {"request_id": "new", "title": "Contractors"})
             self.assertEqual(status, 200)
             identity = json.loads(body)["id"]
@@ -605,7 +631,7 @@ class WorkspaceHttpTests(unittest.TestCase):
         from test_conversations import PlannerModel
         model = PlannerModel()
         workspace = self.server.workspace
-        with patch("acquisition.workspace.openrouter_key", return_value="fixture"), patch("acquisition.workspace.OpenRouter", return_value=model):
+        with patch("acquisition.bootstrap.workspace_key", return_value="fixture"), patch("acquisition.bootstrap.workspace_gateway", return_value=model):
             first = workspace.create_conversation("first", "First")
             workspace.message_conversation(first["id"], "message", 0, "Plan a £600 contractor experiment.")
             completed = workspace.plan_conversation(first["id"], "plan", 1)

@@ -152,3 +152,7 @@ def validate_result(candidate, frozen, organization):
     if clarification is not None and scope_response(scope) is None:
         payload['budget_clarification'] = clarification
     return payload | {'id': 'brief_' + digest({'organization': organization, 'request_id': frozen['request_id'], 'result': payload})}
+
+
+def sequence_language(content):
+    return bool(re.search(r'\b(?:multichannel|multi.channel|e-?mails?|human calls?|call scripts?|phone calls?)\b',content,re.I))

@@ -1,7 +1,7 @@
 """Contact identity, source authority, permission and immutable history boundaries."""
 
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import asdict, replace
+from dataclasses import FrozenInstanceError, asdict, replace
 from datetime import datetime, timezone
 import json
 from pathlib import Path
@@ -12,7 +12,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from acquisition.audiences import ContactDirectory, ContactAccount, contact_snapshot_from
+from acquisition.audiences import ContactDirectory, ContactAccount, ContactConnection, NativeReference, contact_snapshot_from
 from acquisition.bootstrap import build_contact_directory
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.adapters.contact_fixtures import RecordedContactSource, synthetic_contact_snapshots
@@ -111,10 +111,44 @@ class ContactTests(unittest.TestCase):
         with self.assertRaises(NotFound):
             service.object('other','foreign',snapshot.contacts[0].ref.id,'all','all','An explicit objection.')
 
+    def test_installed_source_reuse_is_immutable_scoped_and_bound_to_exact_payload(self):
+        source = self.service().source
+        snapshot = source.read('one', 'fielddesk-crm-a', 1)
+        from acquisition.adapters import contact_fixtures
+        with patch.object(contact_fixtures, 'contact_snapshot_from',
+                          wraps=contact_fixtures.contact_snapshot_from) as decode:
+            self.assertEqual(source.read('one', 'fielddesk-crm-a', 1), snapshot)
+            self.assertEqual(source.identity('one', 'fielddesk-crm-a', 1), snapshot.id)
+            decode.assert_not_called()
+        with self.assertRaises(FrozenInstanceError):
+            snapshot.contacts[0].email = 'changed@example.invalid'
+        with self.assertRaises(FrozenInstanceError):
+            snapshot.permissions[0].status = 'denied'
+        for organization, key, version in (('other', 'fielddesk-crm-a', 1),
+                                           ('one', 'unknown', 1), ('one', 'fielddesk-crm-a', True)):
+            with self.subTest(organization=organization, key=key, version=version), self.assertRaises(NotFound):
+                source.read(organization, key, version)
+        self.assertNotEqual(source.read('one', 'fielddesk-crm-a', 2).id, snapshot.id)
+        self.assertNotEqual(source.read('one', 'fielddesk-crm-b', 1).id, snapshot.id)
+        changed = replace(snapshot, contacts=(replace(snapshot.contacts[0], email='changed@example.invalid'),
+                                             *snapshot.contacts[1:]))
+        source._payloads[('fielddesk-crm-a', 1)] = canonical(asdict(changed))
+        self.assertEqual(source.read('one', 'fielddesk-crm-a', 1), changed)
+        self.assertEqual(source.identity('one', 'fielddesk-crm-a', 1), changed.id)
+        source._payloads[('fielddesk-crm-a', 1)] = canonical(asdict(changed) | {'mode': 'INVALID'})
+        with self.assertRaises(ValueError):
+            source.read('one', 'fielddesk-crm-a', 1)
+        del source._payloads[('fielddesk-crm-a', 1)]
+        with self.assertRaises(NotFound):
+            source.read('one', 'fielddesk-crm-a', 1)
+
     def test_new_request_for_identical_frozen_evidence_reuses_immutable_assessment(self):
         service = self.service()
         first = self.prepare(service)
-        second = self.prepare(service,request='another-observation')
+        try:
+            second = self.prepare(service,request='another-observation')
+        except sqlite3.IntegrityError as exc:
+            self.fail(f'Identical evidence must reuse its immutable assessment: {exc}')
         self.assertEqual(first['assessment_id'],second['assessment_id'])
         self.assertEqual(first['report'],second['report'])
         self.assertEqual(self.counts(service)['contact_assessments'],1)
@@ -124,8 +158,8 @@ class ContactTests(unittest.TestCase):
     def test_missing_ambiguous_partial_or_expired_evidence_cannot_claim_complete_readiness(self):
         snapshot = self.service().source.read('one','fielddesk-crm-a',1)
         variants = {
-            'missing_permission':replace(snapshot,permissions=()),
             'unknown_permission':replace(snapshot,permissions=tuple(replace(p,status='unknown') for p in snapshot.permissions)),
+            'missing_permission':replace(snapshot,permissions=()),
             'expired_permission':replace(snapshot,permissions=tuple(replace(p,expires_at=NOW) for p in snapshot.permissions)),
             'partial_population':replace(snapshot,contacts=snapshot.contacts[:2],complete=False,cursor='next',
                 permissions=tuple(p for p in snapshot.permissions if p.contact.id!=snapshot.contacts[2].ref.id),
@@ -234,6 +268,18 @@ class ContactTests(unittest.TestCase):
         self.assertEqual(self.counts(service),before)
 
     def test_connection_alias_cannot_erase_native_objections_or_retired_identity(self):
+        # Historical external-account and native IDs are durable contracts.
+        connection=ContactConnection('one','alias-a','provider','account-a','v1')
+        reference=NativeReference(connection,'Person','abc','contact')
+        self.assertEqual(connection.id,'connection_692a89816649bfa7947cffc43d52b695e561a89fae6e9b74b2a4b70860624183')
+        self.assertEqual(reference.id,'native_97c86a1b0f0404c7b10ff6bdfe1203b4281f6059c261bea4fb66c4238bb33852')
+        self.assertEqual(replace(connection,key='alias-b',mapping_version='v2').id,connection.id)
+        for field, value in (('organization','two'),('provider','other-provider'),('provider_account','account-b')):
+            self.assertNotEqual(replace(connection,**{field:value}).id,connection.id)
+        self.assertNotEqual(replace(reference,native_id='def').id,reference.id)
+        for field in ('organization','key','provider','provider_account','mapping_version'):
+            with self.subTest(invalid_connection_field=field),self.assertRaises(ValueError):
+                replace(connection,**{field:''})
         profiles = LocalProfiles('one','fielddesk',ROOT/'config/profiles')
         history = tuple(synthetic_contact_snapshots('one',profiles.profile))[:3]
         alias = contact_snapshot_from(json.loads(canonical(asdict(history[0])).replace('fielddesk-crm-a','fielddesk-crm-alias')))

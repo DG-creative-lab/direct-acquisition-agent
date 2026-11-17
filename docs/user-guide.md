@@ -184,3 +184,22 @@ Keep model-copy permission explicit for that request. Reloading after a lost res
 ## Prepare an email and human call sequence
 
 Send `Prepare a Fielddesk email and human call sequence for UK contacts with a £100 total budget.` in chat, or substitute Iwoca. The agent uses the installed primary synthetic CRM unless another installed source is named, prepares and validates a proposal, then waits for your exact review. Open optional recipient/copy/evidence inspection and use **Review and approve simulation** followed by **Approve and simulate**. The agent continues the bounded synthetic schedule. Record accepted synthetic human call tasks completed only when that observation is intended. Inspection and reload do not repeat work. Use **Stop this sequence** or send `stop` to stop further work. Status questions preserve the proposal; material edits require new review. This uses at most 15 offline calls at $0 within the shared allowance, with no model setup. See [scope, recovery and limitations](conversational-sequences.md).
+## Rechecking the integrated architecture
+
+Developers can run `make boundary-check` from the repository root. Each run uses
+fresh synthetic stores, deterministic gateways and real SQLite/fresh processes.
+It records JSON results, the exact evaluated input hashes, preserved historical
+artifact hashes and retained per-scenario stores/logs in a new directory under
+`.local/boundary-evidence/`. An existing evidence directory is never overwritten.
+The output path is printed at the end; `BOUNDARY_OUTPUT` selects a new empty
+location. This command is local control evidence, not model-quality or live
+provider evidence. Run `make test`, `make arch-check` and `make interface-check`
+for the full gates. [Boundary verification](hexagonal-boundaries.md) maps each
+scenario to its owner and limitations.
+
+Supported `python -m acquisition` and standalone command names still launch
+through root compatibility wrappers. New application imports use canonical
+`application/workspace` and public business packages; startup code uses
+`entrypoints`. The [wrapper inventory](architecture.md#compatibility-wrapper-inventory)
+lists the supported names. Projection repair and restore retain their existing
+offline commands and inspection-only restrictions.

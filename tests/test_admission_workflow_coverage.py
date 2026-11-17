@@ -19,7 +19,7 @@ from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.reasoning import CallScope, ModelConfig, ModelError
 from acquisition.runtime import TaskSpec
 from acquisition.reviews import ActorUnavailable
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from acquisition.adapters.sqlite.database import Database, WORKFLOW_ADMISSIONS, ADMISSION_CUTOVER, WRITING_PREFERENCES, SIMULATED_DELIVERY, REPORT_MONITORING
 from acquisition.adapters.sqlite.contacts import CONTACT_DIRECTORY
 from acquisition.adapters.sqlite.recipient_contexts import RECIPIENT_CONTEXTS

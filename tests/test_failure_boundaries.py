@@ -86,8 +86,11 @@ class FailureBoundaryTests(unittest.TestCase):
                 raise OSError("sensitive-provider-body-and-credential")
         self.app.inference.gateway = Unknown()
         for _ in range(2):
-            with self.assertRaises(ModelError) as error:
-                self.app.inference.call(self.scope, "uncertain", [], [])
+            try:
+                with self.assertRaises(ModelError) as error:
+                    self.app.inference.call(self.scope, "uncertain", [], [])
+            except Conflict as exc:
+                self.fail(f'An uncertain call must replay its sanitized model error: {exc}')
             self.assertNotIn("sensitive", str(error.exception))
         records = self.app.calls.inspect("one", self.run)
         self.assertEqual(len(calls), 1)

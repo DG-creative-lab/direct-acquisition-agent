@@ -1,11 +1,15 @@
 """Copy-only scope, immutable admission, paid-call fencing and exact publication."""
+from workspace_control_fixture import control_connection
+from prepared_workspace_fixture import prepared_workspace
 
+import copy
 import csv
 import io
 import json
 import os
 import subprocess
 import sys
+from shutil import copytree
 import tempfile
 from threading import Event
 import unittest
@@ -18,7 +22,7 @@ from acquisition.creative.grounding import product_suffix
 from acquisition.reasoning import ModelError
 from acquisition.reviews import ReviewPolicy
 from acquisition.runtime import LeaseLost, TaskSpec
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from test_preparations import CombinedModel
 from test_model_copy import reply
 
@@ -55,13 +59,15 @@ class RevisionModel(CombinedModel):
         return super().complete(request)
 
 
-def _set_up_workspace(self):
+def _set_up_workspace(self, template=None):
     self.temp = tempfile.TemporaryDirectory()
     self.addCleanup(self.temp.cleanup)
     self.root = Path(self.temp.name)
     self.now = 1792972800.0
-    self.model = RevisionModel()
-    for p in (patch("acquisition.workspace.openrouter_key", return_value="fake"), patch("acquisition.workspace.OpenRouter", return_value=self.model)):
+    if template:
+        copytree(template['root'], self.root, dirs_exist_ok=True)
+    self.model = copy.deepcopy(template['model']) if template else RevisionModel()
+    for p in (patch("acquisition.bootstrap.workspace_key", return_value="fake"), patch("acquisition.bootstrap.workspace_gateway", return_value=self.model)):
         p.start(); self.addCleanup(p.stop)
     self.w = Workspace(self.root, real_clock=lambda: self.now)
 
@@ -101,7 +107,23 @@ class CopyRevisionSourceFenceTests(unittest.TestCase):
 
 
 class CopyRevisionTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.template = prepared_workspace(cls, cls._prepare_workspace, 'model')
+
     def setUp(self):
+        # Admission and legacy tests borrow this method without this class lifecycle.
+        if not isinstance(self, CopyRevisionTests):
+            CopyRevisionTests._prepare_workspace(self)
+            return
+        _set_up_workspace(self, self.template)
+        self.c, self.sid = self.template['c'], self.template['sid']
+        self.base = self.w.view(self.sid)
+        self.scope = self.w._session(self.sid)['organization']
+        self.app = self.w._app(self.w._session(self.sid))
+        self.target = next(c for c in self.base['review']['manifest']['creatives'] if c['arm'] == 'B')
+
+    def _prepare_workspace(self):
         _set_up_workspace(self)
         self.c = self.w.create_conversation("conversation", "Revision campaign")["id"]
         self.w.message_conversation(self.c, "message", 0, "Prepare a £600 contractor campaign with model copy.")
@@ -162,7 +184,7 @@ class CopyRevisionTests(unittest.TestCase):
     def test_replay_uses_original_receipt_without_keys_calls_or_another_subject(self):
         self.admit(); result = self.finish()
         before = len(self.model.revision_calls)
-        with patch("acquisition.workspace.OpenRouter", side_effect=AssertionError("No model adapter is needed on replay")):
+        with patch("acquisition.bootstrap.workspace_gateway", side_effect=AssertionError("No model adapter is needed on replay")):
             replay = self.admit()
         self.assertTrue(replay["command_replayed"])
         self.assertEqual(replay["review"]["subject"], result["review"]["subject"])
@@ -237,7 +259,7 @@ class CopyRevisionTests(unittest.TestCase):
         from acquisition.adapters.openrouter import OpenRouter
         self.admit()
         receipt = self.app.reviews.store.revision_request(self.scope, "revision")
-        with patch("acquisition.workspace.openrouter_key", return_value=""), patch("acquisition.workspace.OpenRouter", side_effect=OpenRouter):
+        with patch("acquisition.bootstrap.workspace_key", return_value=""), patch("acquisition.bootstrap.workspace_gateway", side_effect=OpenRouter):
             self.w.advance_copy_revisions()
             self.w.advance_copy_revisions()
         reopened = Workspace(self.root, real_clock=lambda: self.now)
@@ -258,7 +280,7 @@ class CopyRevisionTests(unittest.TestCase):
 
     def test_restored_configuration_exposes_running_progress_during_a_delayed_provider_call(self):
         self.admit()
-        with patch("acquisition.workspace.openrouter_key", side_effect=ModelError("missing-key")):
+        with patch("acquisition.bootstrap.workspace_key", side_effect=ModelError("missing-key")):
             self.w.advance_copy_revisions()
         blocked = self.w.view(self.sid)["copy_revisions"][0]
         self.assertEqual(blocked["status"], "blocked")
@@ -334,7 +356,10 @@ class CopyRevisionTests(unittest.TestCase):
         session = self.w._session(self.sid)
         session["clock"] = self.now + 31 * 86400
         self.w._save(session)
-        for _ in range(4): self.w.advance_copy_revisions()
+        try:
+            for _ in range(4): self.w.advance_copy_revisions()
+        except ValueError as exc:
+            self.fail(f'Expired evidence must block one revision without halting the worker: {exc}')
         blocked = Workspace(self.root, real_clock=lambda: self.now).view(self.sid)["copy_revisions"][0]
         self.assertEqual(blocked["status"], "blocked")
         self.assertEqual(blocked["block"]["code"], "evidence_unavailable")
@@ -343,7 +368,7 @@ class CopyRevisionTests(unittest.TestCase):
         self.assertEqual(self.app.reviews.store.revision_request(self.scope, "revision"), receipt)
         self.assertEqual(self.w.view(later)["copy_revisions"][0]["status"], "complete")
         later_scope = self.w._session(later)["organization"]
-        with self.w.control() as db:
+        with control_connection(self.w) as db:
             self.assertIsNone(db.execute("SELECT code FROM copy_revision_blocks WHERE organization=? AND revision_id=?", (later_scope, blocked["id"])).fetchone())
 
     def test_expired_publication_lease_cannot_publish(self):
@@ -415,9 +440,9 @@ class CopyRevisionTests(unittest.TestCase):
         code = '''
 import sys
 from unittest.mock import patch
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from test_copy_revisions import RevisionModel
-with patch('acquisition.workspace.openrouter_key', return_value='fake'), patch('acquisition.workspace.OpenRouter', return_value=RevisionModel()):
+with patch('acquisition.bootstrap.workspace_key', return_value='fake'), patch('acquisition.bootstrap.workspace_gateway', return_value=RevisionModel()):
     w=Workspace(sys.argv[1], real_clock=lambda:1792972800.0)
     [w.advance_copy_revisions() for _ in range(3)]
 '''

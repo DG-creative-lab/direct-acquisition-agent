@@ -3,11 +3,14 @@
 Initial measurements below use baseline `0ffba90` (PR #84). The CI branch is
 now rebased onto `b88e632` (PR #85), including exact sequence review.
 
-CI retains the full Python 3.11–3.14 matrix. Backend shards keep modules together,
-record case and class setup durations and report estimated versus actual time.
+CI runs on Python 3.14 only, including backend, mutation and browser jobs.
+Python 3.14 is the minimum required runtime; other versions are not tested in CI. The [gate audit](ci-gate-audit.md) records the justification
+and limits of each remaining check, including the cost of compatibility testing.
+Backend shards keep modules together, record case and class setup durations and
+report estimated versus actual time.
 Mutation jobs partition the entire catalogue and reject fixture/loader failures.
-No test coverage is removed. Reducing Python compatibility checks remains a
-policy decision rather than an execution optimization.
+All behavioral test cases are retained. Further changes to compatibility cadence
+remain explicit support-policy decisions.
 
 ## Browser isolation
 
@@ -110,3 +113,230 @@ Rebased verification passed 998 backend tests, all 108 browser tests, architectu
 build, formatting and 79 relevant mutation probes. The complete 510-probe
 catalogue was retained but was not rerun in this follow-up. Results and experiment
 reruns are recorded in [the validation ledger](validation.md).
+
+## Report-local material reuse
+
+A successful sequence readiness report previously reconstructed the three
+channel materials three times: payload validation, campaign validation and the
+final current-proposal reconstruction. The report now passes the payload
+checker's completed material map to campaign validation. A failed payload
+checker leaves no reusable map, so campaign validation retains its independent
+fallback. The map belongs only to that report and is never stored on the adapter
+or reused by another report, organization, proposal or transaction.
+
+The final `proposals.current()` call still reconstructs every material from
+current sources. Final actor, evidence/suppression epoch, approval expiry,
+readiness-window, lease and acceptance checks retain their original paths.
+The existing checker-failure regression now also changes durable payload bytes
+after payload validation succeeds and verifies that the final current check
+rejects readiness. A mutation that removes that last reconstruction is detected.
+A passing report is bounded to six material reconstructions, down from nine.
+
+Serial local measurements on the same machine and Python used three repetitions
+of each unchanged test method, without concurrent verification workloads:
+
+| Case | Before median | After median | Reduction |
+| --- | ---: | ---: | ---: |
+| Approval, both arms/controls and restart | 16.04 s | 10.83 s | 32.5% |
+| Full readiness basis and final expiry phases | 50.03 s | 35.59 s | 28.9% |
+
+Case timings include per-case setup and cleanup and exclude shared class setup.
+The [raw measurements](evaluations/sequence-review-material-reuse-2026-11-15.json)
+retain all samples, suite elapsed times, Python/platform details, source hashes
+and unchanged benchmark-method AST hashes. These are local case improvements,
+not a measured whole-suite or hosted CI improvement.
+
+The helper was added before collecting the baseline. When reproducing against
+the parent commit, copy the unchanged helper into that checkout first; the
+parent already contains its `TimingResult` dependency. Run each phase from the
+repository root, on the corresponding source:
+
+```sh
+PYTHONPATH=src:tests python3 -m scripts.benchmark_sequence_review \
+  --output .local/benchmarks/sequence-review-before.json
+# Apply the candidate change, then run serially without other test processes.
+PYTHONPATH=src:tests python3 -m scripts.benchmark_sequence_review \
+  --output .local/benchmarks/sequence-review-after.json
+```
+
+
+## Contact identity reconstruction, 16 November 2026
+
+Contact connection validation and identity hashing now use their declared string
+fields directly instead of converting the entire dataclass. Identity still hashes
+the same organization, provider and provider-account values on every access.
+Aliases and mapping revisions stay excluded. No authority or identity is cached.
+
+Three unprofiled serial repetitions on the same macOS arm64 machine and Python
+3.14.3 measured unchanged test methods. Times include case setup and cleanup but
+exclude shared class setup.
+
+| Case | Before samples (s) | After samples (s) | Median before → after |
+| --- | --- | --- | --- |
+| Approval, both arms/controls and restart | 13.27, 10.44, 10.59 | 13.05, 9.24, 9.18 | 10.59 → 9.24 s (12.8% lower) |
+| Full evidence-basis expiry | 35.82, 34.41, 33.53 | 31.88, 29.45, 30.06 | 34.41 → 30.06 s (12.6% lower) |
+
+These are local case timings, not hosted CI timings; three samples with
+overlapping ranges are limited evidence. The baseline was `cd3d638`. The
+contact-domain SHA-256 changed from `2dde9ffd3f86a15eaec1202db09e31fcafef4d73cc0b0cdfcb62c37af936b61c`
+to `c666b08e185b381379f24295bd13ea3ece93d8e57be0a6c123038dcd6f8eaff3`;
+the unchanged sequence-review test file hash was
+`acd0e9152286afb078b1ffc503cddb13663b63f009be81e24be8c470d26f7f89`.
+Run each version separately without concurrent verification:
+
+```sh
+PYTHONPATH=src:tests python3 -m scripts.benchmark_sequence_review \
+  --output .local/benchmarks/sequence-review.json
+```
+
+For the profiled approval/restart case, `asdict` calls fell from 853,572 to
+69,205. Both profiles retained 180 material reconstructions, 2,408 contact
+evidence checks, 4,822 current-source reads, 29 current-proposal reconstructions,
+25 readiness reports and 22 authorizations. Profile timings overlap and are not
+a separate elapsed comparison. Final source, reviewer, epoch, expiry, lease and
+acceptance checks stay in their original paths.
+
+
+## Backend critical path, 16 November 2026
+
+The completed Python 3.14 run [43849270917](https://github.com/DG-creative-lab/direct-acquisition-agent/actions/runs/43849270917)
+finished in a 12m23s job window. The backend jobs took 11m54s and 12m23s;
+the test runners themselves took 703.72s and 734.30s. Sequence cases used
+281.08s and review cases 167.90s, excluding class setup. The longest mutation
+job took 6m45s; the longest browser job took 5m33s.
+
+CI now distributes backend modules across four partitions using refreshed
+Python 3.14 weights from that run. Every test and class fixture runs once,
+and each module stays intact. Local callers retain the two-partition default;
+CI passes `BACKEND_SHARDS=4`. The existing coverage check verifies both layouts
+against complete discovery, including test multiplicity. Replaying that run's
+case and class setup durations against the four new groups gives 353.23,
+363.59, 364.28 and 356.83 seconds. This is a partition estimate, excluding runner
+setup and the production improvement below. It is not a new hosted timing.
+The mutation job could become the next critical path. Two extra runner setups
+add overhead; four partitions do not reduce total test work by themselves.
+
+`RecordedContactSource` now retains one decoded, validated immutable snapshot
+per installed key/version. Each read first resolves organization, version and
+installed payload. Reuse requires exact payload bytes; replacement bytes are
+decoded and validated again, and missing sources still fail. Nested domain
+values and tuples are immutable. Decoded values stay within that adapter
+instance. Source identity is still recomputed, and SQLite source integrity,
+objections, evidence freshness, reviewer, epoch, expiry, lease and final
+acceptance checks retain their existing paths. This optimization applies to
+the installed synthetic source adapter, not to future live source readers.
+
+Three serial unprofiled local repetitions on Python 3.14.3 used unchanged
+review test methods, including their original assertions and expiry phases:
+
+| Case | Before samples (s) | After samples (s) | Median reduction |
+| --- | --- | --- | --- |
+| Approval/restart | 9.312, 9.297, 10.313 | 7.286, 7.405, 8.214 | 9.312 → 7.405 (20.5%) |
+| Full readiness expiry | 30.207, 36.193, 31.061 | 24.084, 24.280, 24.009 | 31.061 → 24.084 (22.5%) |
+
+[Raw samples, environment, source and test hashes](evaluations/ci-critical-path-2026-11-16.json)
+record the comparison. Case times include case setup/cleanup and exclude shared
+class setup. Three samples on one local machine do not establish a whole-suite
+or hosted CI speedup. No concurrent verification ran during either measurement.
+
+Against the retained post-contact-identity profile of the same approval/restart
+case, snapshot deserializations fell from 7,324 to 2,499. Both profiles record
+4,839 installed source reads, 4,824 source identity calls, 2,408 contact evidence
+checks, 180 material reconstructions, 29 current-proposal reconstructions,
+25 readiness reports and 22 authorizations, including shared setup. These are
+operation counts, not another elapsed-time comparison.
+
+Full local verification passed all 1,019 backend tests across four concurrent
+partitions, with 176, 277, 314 and 252 cases. Runner times were 266.40, 313.07,
+367.01 and 360.45 seconds. Fresh discovery matched every executed ID exactly
+once. The longest local runner took 6m07s; this measures the candidate on one
+shared machine and does not establish a hosted before/after speedup.
+
+
+## Conversation preparation fixtures, 16 November 2026
+
+A profile of the copy clarification and approved-campaign inspection cases
+spent 3.44 of 6.84 profiled test-runner seconds in their two setup methods.
+Each case prepared a complete campaign before testing a later follow-up.
+Only the two common prepared-campaign classes now share initial preparation.
+The planner-clarification and multi-segment preparation classes remain fresh.
+Execution-control and legacy-replay classes that borrow these setup methods
+also retain their original fresh preparation via an explicit fallback.
+No production source, assertion or test method changed.
+
+Each class prepares its template through the original real workflow and closes
+all SQLite connections before copying it. A remaining SQLite WAL causes fixture
+creation to fail. Every case copies the entire closed workspace, including
+SQLite stores and journals, into an independent temporary root, deep-copies the
+fake provider state, and opens a new Workspace. The seed's provider patches and
+original root are cleaned up immediately. Base review state is read afresh in
+each case. Approval, suppression, epochs, source/admission integrity, consent,
+lease and acceptance checks continue through the original application paths.
+
+Serial measurements on the same Python 3.14.3/macOS arm64 machine used identical
+ordered test IDs and unchanged ASTs for all 72 test methods:
+
+| Measurement, including setup and cleanup | Before | After | Reduction |
+| --- | ---: | ---: | ---: |
+| Complete two modules, 72 cases | 157.50 s | 73.66 s | 53.2% |
+| Four-case cohort, median of three runs | 11.71 s | 7.80 s | 33.4% |
+
+The complete modules have one sample per phase, so their observed reduction
+is limited evidence. The repeated four-case suite includes a new class template
+on each repetition; its lower amortization deliberately keeps setup cost visible.
+[Raw samples, targets, source hashes and AST/ID fingerprints](evaluations/conversation-ci-performance-2026-11-16.json)
+record the measurements. No concurrent verification ran during either phase.
+Run the complete module measurement from each corresponding checkout with:
+
+```sh
+PYTHONPATH=src:tests python3 -m unittest test_conversation_actions test_conversational_copy_revision
+```
+
+For the repeated cohort, pass the four recorded `cohort_targets` to the same
+unittest command three times in order. Class setup and cleanup must stay inside
+each measurement; case timings alone would conceal the shared preparation cost.
+A single-case mutation process still pays class preparation plus a copy, so this
+change does not promise faster mutation jobs.
+
+Partition weights now use case and class setup durations from successful main
+run [43902416003](https://github.com/DG-creative-lab/direct-acquisition-agent/actions/runs/43902416003),
+which includes both PR #99 and PR #100. The two affected module weights are
+scaled by the measured full-module factor 73.6574 / 157.4971 = 0.46767.
+This is a scheduling estimate, not a hosted speedup claim; the other modules use
+the observed hosted durations. The four jobs and whole-module grouping remain.
+Replaying estimated candidate costs against the old layout gives 340.33,
+309.16, 358.92 and 298.75 seconds. The refreshed layout gives 314.08, 326.67,
+323.68 and 342.73 seconds, excluding runner setup. Variability and differing
+module speedups require validation in the next hosted run.
+
+Final full-backend verification passed all 1,027 discovered cases exactly once
+across the new partitions, with runner times of 261.45, 310.06, 322.41 and
+321.44 seconds. These concurrent local verification runs overlapped mutation
+checks; they are not an additional controlled before/after suite benchmark.
+Hosted end-to-end timing remains unmeasured for this candidate.
+
+
+## MVP routine compute and remaining fixtures, 17 November 2026
+
+Baseline main run 44033513092 (commit 1c88b42) completed 1,033 distinct backend
+cases. Its backend runners used 1,154.56 seconds of test-process elapsed time;
+backend jobs including setup used 1,190 seconds, and all ten jobs used 3,004
+seconds. The first-job-start to last-job-completion window was 394 seconds.
+The full 512-probe mutation audit used another 1,180 seconds within that total.
+Routine CI now has six jobs: four backend and two browser partitions. The four
+mutation partitions are retained as an explicit manual audit, separately counted
+from routine CI. See the [gate audit](ci-gate-audit.md#mvp-gate-cadence-and-aion-comparison-17-november-2026).
+
+Four more prepared classes now reuse a quiescent template: native copy revision,
+execution controls, execution follow-ups and follow-up preparation. The original
+98 per-case campaign preparations become four class preparations plus independent
+filesystem/SQLite copies. Every case reopens Workspace and rereads base review
+state; mutable fake-model state is copied where inference fixtures are used.
+The handoff fixture also supports template restoration while retaining its
+original fresh path for callers that do not opt in. Native copy-revision setup
+retains a fresh fallback for admission and legacy classes that borrow it.
+No production source, authority check, test method or assertion was changed.
+
+Weights were refreshed from the observed baseline module durations without
+assuming a speedup for the new fixtures. Hosted timing artifacts will establish
+the candidate module costs. Heavy verification runs on GitHub, not locally.

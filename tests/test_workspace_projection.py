@@ -1,4 +1,5 @@
 """Projection recovery must conserve independent application facts and legacy bytes."""
+from workspace_control_fixture import control_connection
 import fcntl
 import json
 import os
@@ -13,7 +14,7 @@ from unittest.mock import patch
 
 from acquisition.bootstrap import build_workspace_projection
 from acquisition.contracts import Conflict, canonical
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.reasoning import ModelConfig, ModelError
 from acquisition.adapters.sqlite.database import Database
@@ -49,7 +50,7 @@ class WorkspaceProjectionTests(TestCase):
             (self.root/('workspace.sqlite'+suffix)).unlink(missing_ok=True)
 
     def legacy(self):
-        with self.w.control() as db:
+        with control_connection(self.w) as db:
             db.execute('INSERT INTO sessions VALUES(?,?,?)',('legacy-opaque','legacy-hash','{unreadable legacy payload'))
             db.execute('INSERT INTO commands VALUES(?,?,?,?)',('legacy-opaque','command','original',1))
             db.execute('INSERT INTO preparations VALUES(?,?,?,?,?,?,?)',('old-org','legacy-preparation','legacy-request','old-conversation',1,0,'{old frozen consent'))
@@ -71,7 +72,7 @@ class WorkspaceProjectionTests(TestCase):
         self.create();self.prepare()
         before=self.facts();control=records(self.root/'workspace.sqlite')
         with patch.object(Database,'transaction',side_effect=AssertionError('Authority write')), \
-             patch('acquisition.workspace.OpenRouter',side_effect=AssertionError('Provider loaded')), \
+             patch('acquisition.bootstrap.workspace_gateway',side_effect=AssertionError('Provider loaded')), \
              patch('acquisition.bootstrap.agent_catalogue',side_effect=AssertionError('Current guidance loaded')):
             a=self.rebuild();b=self.rebuild()
         self.assertEqual(a,b);self.assertEqual(a['status'],'inspected');self.assertFalse(a['legacy_migration'])
@@ -100,22 +101,25 @@ class WorkspaceProjectionTests(TestCase):
         self.assertTrue(reopened.conversation(cid)['execution']['stopped'])
         self.assertEqual(reopened._session(parent['id'])['clock'],start+7*86400)
         self.assertEqual(reopened._session(child['id'])['parent_id'],parent['id'])
-        with reopened.control() as db:
+        with control_connection(reopened) as db:
             self.assertEqual(db.execute('SELECT done FROM commands WHERE session_id=? AND request_id=?',(parent['id'],'observe')).fetchone()[0],1)
         self.assertEqual(app.worker.drain(parent['organization']),0)
         self.assertEqual(self.facts(),before)
 
     def test_corrupt_owned_rows_are_rebuilt_without_touching_any_legacy_rows(self):
         session=self.create();legacy=self.legacy();before=self.facts()
-        with self.w.control() as db:
+        with control_connection(self.w) as db:
             db.execute("UPDATE sessions SET payload='{broken',request_hash='stale' WHERE id=?",(session['id'],))
             rowid=db.execute("SELECT rowid FROM sessions WHERE id='legacy-opaque'").fetchone()[0]
-        result=self.rebuild(apply=True)
+        try:
+            result=self.rebuild(apply=True)
+        except Conflict as exc:
+            self.fail(f'Owned projection recovery must preserve legacy records: {exc}')
         self.assertEqual(result['protected_records']['sessions'],1)
         after=records(self.root/'workspace.sqlite')
         for table,rows in legacy.items():
             self.assertEqual([r for r in after[table] if r[0]!=session['id']], [r for r in rows if r[0]!=session['id']])
-        with self.w.control() as db:
+        with control_connection(self.w) as db:
             self.assertEqual(db.execute('SELECT payload FROM sessions WHERE id=?',(session['id'],)).fetchone()[0],canonical(session))
             self.assertEqual(db.execute("SELECT rowid FROM sessions WHERE id='legacy-opaque'").fetchone()[0],rowid)
         self.assertEqual(self.facts(),before)
@@ -123,7 +127,7 @@ class WorkspaceProjectionTests(TestCase):
     def test_original_conversation_request_lookup_survives_rebuild_and_rejects_changed_inputs(self):
         cid,plan,session=self.conversation_environment();before=self.facts()
         self.remove_projection();self.rebuild(apply=True)
-        with self.w.control() as db:
+        with control_connection(self.w) as db:
             row=db.execute('SELECT session_id FROM conversation_draft_requests WHERE conversation_id=? AND request_id=?',(cid,'original-draft')).fetchone()
             self.assertEqual(row[0],session['id'])
         replay=self.w.draft_conversation(cid,'original-draft',1,plan)
@@ -133,7 +137,7 @@ class WorkspaceProjectionTests(TestCase):
 
     def test_conflicting_legacy_request_is_reported_and_apply_changes_nothing(self):
         cid,_,session=self.conversation_environment()
-        with self.w.control() as db:
+        with control_connection(self.w) as db:
             db.execute('INSERT INTO conversation_draft_requests VALUES(?,?,?,?)',(cid,'original-draft','old-hash','legacy-owner'))
         before=records(self.root/'workspace.sqlite');facts=self.facts()
         report=self.rebuild();self.assertEqual(report['status'],'blocked')
@@ -143,7 +147,7 @@ class WorkspaceProjectionTests(TestCase):
 
     def test_crash_before_commit_rolls_back_and_fresh_process_retries(self):
         session=self.create();self.legacy();before=self.facts()
-        with self.w.control() as db:db.execute("UPDATE sessions SET payload='stale' WHERE id=?",(session['id'],))
+        with control_connection(self.w) as db:db.execute("UPDATE sessions SET payload='stale' WHERE id=?",(session['id'],))
         control=records(self.root/'workspace.sqlite')
         code='''import os,sys
 from unittest.mock import patch
@@ -191,15 +195,15 @@ os._exit(74)
         self.create();service=build_workspace_projection(self.root);original=service.projection.inspect
         def changed(rows):
             result=original(rows)
-            with self.w.control() as db:db.execute('INSERT INTO sessions VALUES(?,?,?)',('late-legacy','original','{}'))
+            with control_connection(self.w) as db:db.execute('INSERT INTO sessions VALUES(?,?,?)',('late-legacy','original','{}'))
             return result
         with patch.object(service.projection,'inspect',side_effect=changed),self.assertRaisesRegex(Conflict,'Projection changed'):
             service.run(apply=True)
-        with self.w.control() as db:self.assertEqual(db.execute("SELECT request_hash FROM sessions WHERE id='late-legacy'").fetchone()[0],'original')
+        with control_connection(self.w) as db:self.assertEqual(db.execute("SELECT request_hash FROM sessions WHERE id='late-legacy'").fetchone()[0],'original')
 
     def test_stale_inspection_plan_is_rejected_and_lock_is_released_immediately(self):
         session=self.create();plan=self.rebuild()['plan_id']
-        with self.w.control() as db:db.execute("UPDATE sessions SET payload='changed' WHERE id=?",(session['id'],))
+        with control_connection(self.w) as db:db.execute("UPDATE sessions SET payload='changed' WHERE id=?",(session['id'],))
         with self.assertRaisesRegex(Conflict,'inspection changed'):self.rebuild(apply=True,expected_plan=plan)
         with (self.root/'server.lock').open('a+') as lock:
             fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
@@ -239,7 +243,7 @@ os._exit(74)
 
     def test_unknown_projection_layout_is_blocked_without_deleting_legacy_rows(self):
         self.create()
-        with self.w.control() as db:db.execute('ALTER TABLE commands ADD COLUMN unsupported TEXT')
+        with control_connection(self.w) as db:db.execute('ALTER TABLE commands ADD COLUMN unsupported TEXT')
         control=records(self.root/'workspace.sqlite')
         report=self.rebuild()
         self.assertEqual(report['status'],'blocked');self.assertEqual(report['projection'],'blocked')
@@ -276,7 +280,7 @@ os._exit(74)
         report=self.rebuild(apply=True)
         self.assertEqual(report['pending_locations'],[key])
         self.assertNotIn(key,report['sessions']);self.assertEqual(self.facts(),before)
-        with self.w.control() as db:self.assertIsNone(db.execute('SELECT 1 FROM sessions WHERE id=?',(key,)).fetchone())
+        with control_connection(self.w) as db:self.assertIsNone(db.execute('SELECT 1 FROM sessions WHERE id=?',(key,)).fetchone())
 
     def test_invalid_source_releases_root_lock_and_cannot_repair_authority(self):
         session=self.create();app=self.app(session)
@@ -303,14 +307,17 @@ os._exit(74)
         with app.tasks.database.transaction() as db:
             db.execute('INSERT INTO review_commands VALUES(?,?,?,?)',(org,'revision','hash',canonical(
                 {'kind':'copy_revision_admission','id':'owned-revision','inputs':{'case_id':'case'}})))
-        with self.w.control() as db:
+        with control_connection(self.w) as db:
             db.execute('INSERT INTO checkpoint_recovery_blocks VALUES(?,?,?)',(org,session['run_id'],'checkpoint_storage_unavailable'))
             db.execute('INSERT INTO checkpoint_recovery_blocks VALUES(?,?,?)',(org,'legacy-run','checkpoint_authority_unavailable'))
             db.execute('INSERT INTO copy_revision_blocks VALUES(?,?,?)',(org,'owned-revision','configuration_unavailable'))
             db.execute('INSERT INTO copy_revision_blocks VALUES(?,?,?)',(org,'legacy-revision','configuration_unavailable'))
         before=self.facts()
-        self.rebuild(apply=True)
-        with self.w.control() as db:
+        try:
+            self.rebuild(apply=True)
+        except Conflict as exc:
+            self.fail(f'Owned diagnostic cleanup must leave legacy diagnostics intact: {exc}')
+        with control_connection(self.w) as db:
             self.assertIsNone(db.execute('SELECT 1 FROM checkpoint_recovery_blocks WHERE organization=? AND run_id=?',(org,session['run_id'])).fetchone())
             self.assertIsNone(db.execute('SELECT 1 FROM copy_revision_blocks WHERE organization=? AND revision_id=?',(org,'owned-revision')).fetchone())
             self.assertIsNotNone(db.execute('SELECT 1 FROM checkpoint_recovery_blocks WHERE organization=? AND run_id=?',(org,'legacy-run')).fetchone())

@@ -5,7 +5,7 @@ import json
 
 from acquisition.audiences import (contact_snapshot_from, related_identities, channel_purpose, bounded,
                                   timestamp, contact_evidence_conflicts)
-from acquisition.campaigns import contact_eligibility
+from acquisition.campaigns import evaluate_contact_eligibility
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from .admission_guard import verified_required
 
@@ -188,7 +188,7 @@ class SqliteContactDirectory:
         blocked &= {r.ref.id for r in snapshot.contacts}
         permission_conflicts, pressure_conflicts = contact_evidence_conflicts(snapshot,history,channel,purpose)
         profile = self._profile(organization)
-        report = contact_eligibility(snapshot,profile,channel,purpose,self._now(),blocked,suppressed,
+        report = evaluate_contact_eligibility(snapshot,profile,channel,purpose,self._now(),blocked,suppressed,
                                      retired,permission_conflicts,pressure_conflicts)
         authority = db.execute('SELECT audience_epoch FROM review_authorities WHERE organization=?',(organization,)).fetchone()
         report['basis']['review_audience_epoch'] = authority[0] if authority else None

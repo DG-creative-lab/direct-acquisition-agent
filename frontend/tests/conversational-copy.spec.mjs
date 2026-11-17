@@ -11,13 +11,13 @@ async function workspace(scenario, run) {
 import sys
 from pathlib import Path
 from unittest.mock import patch
-from acquisition.workspace import Workspace
-from acquisition.workspace_server import WorkspaceServer
+from acquisition.bootstrap import build_workspace as Workspace
+from acquisition.entrypoints.workspace import WorkspaceServer
 from acquisition.reasoning import ModelError
 from test_conversational_copy_revision import CopyRoutingModel
 root=Path(sys.argv[1]);scenario=sys.argv[2];model=CopyRoutingModel()
-patch('acquisition.workspace.openrouter_key',return_value='fixture').start()
-patch('acquisition.workspace.OpenRouter',return_value=model).start()
+patch('acquisition.bootstrap.workspace_key',return_value='fixture').start()
+patch('acquisition.bootstrap.workspace_gateway',return_value=model).start()
 w=Workspace(root,real_clock=lambda:1793404800.)
 c=w.create_conversation('c','Copy campaign')['id']
 w.message_conversation(c,'m',0,'Prepare a £600 contractor campaign with model copy.')
@@ -552,7 +552,7 @@ for (const schedule of ["ready-progress", "cancelled-progress"]) {
             "-c",
             `
 import sys
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 w=Workspace(sys.argv[1],real_clock=lambda:1793404800.)
 s=w._session(w.conversation(sys.argv[2])['campaigns'][0]['session_id'])
 w._app(s).reviews.store.register_actor(s['organization'],'local-operator',('operator',),True)

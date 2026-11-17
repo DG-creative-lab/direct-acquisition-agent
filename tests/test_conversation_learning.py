@@ -1,4 +1,5 @@
 """Bound conversational simulation commands and immutable accepted learning."""
+from workspace_control_fixture import control_connection
 import json
 import os
 import subprocess
@@ -58,10 +59,10 @@ class ConversationLearningTests(unittest.TestCase):
         self.assertEqual({b['arm'] for b in l['beliefs']}, {'A','B','no_mail'})
         self.assertEqual(final['review']['handoff'],receipt)
         self.assertFalse(final['review']['candidate_valid'])
-        with self.w.control() as db:
+        with control_connection(self.w) as db:
             db.execute('UPDATE commands SET done=0 WHERE session_id=? AND request_id=?',(self.sid,'final'))
         code = """import sys,json
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 w=Workspace(sys.argv[1],real_clock=lambda:1792972800.0)
 s=w.action(sys.argv[2],'finalize',json.loads(sys.argv[3]))
 print(json.dumps(s['learning']))

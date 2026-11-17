@@ -11,7 +11,7 @@ from acquisition.contracts import Conflict
 from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.reasoning import CallScope, ModelConfig
 from acquisition.reviews import ReviewPolicy
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 import test_workspace_checkpoint as checkpoint_tests
 from test_conversations import PlannerModel
 
@@ -220,6 +220,7 @@ class CheckpointReconciliationTests(TestCase):
         self.legacy()
         second = self.later()
         report = self.report(first, second)
+        self.assertIn('reason', self.by_store(report)[LEGACY], 'Expected a conflict for application_store_identity_mismatch')
         self.assertEqual(self.by_store(report)[LEGACY]['reason'], 'application_store_identity_mismatch')
         self.assertFalse(report['activation_allowed'])
         with self.assertRaisesRegex(Conflict, 'later bundle differs'):
@@ -250,6 +251,7 @@ class CheckpointReconciliationTests(TestCase):
             changed = row[:7] + ('{"usage":{"cost":0.15}}', row[8])
             db.execute('INSERT INTO model_calls VALUES(?,?,?,?,?,?,?,?,?)', changed)
         report = self.report(first, self.later('changed-history'))
+        self.assertIn('reason',self.by_store(report)[LEGACY])
         self.assertEqual(self.by_store(report)[LEGACY]['reason'], 'earlier_record_changed')
 
     def test_simulated_acceptance_without_corresponding_audit_is_a_conflict(self):
@@ -260,6 +262,7 @@ class CheckpointReconciliationTests(TestCase):
         with legacy.tasks.database.transaction() as db:
             db.execute("DELETE FROM review_events WHERE organization=? AND kind='simulated_handoff_accepted'", (ORG,))
         report = self.report(first, self.later())
+        self.assertIn('reason', self.by_store(report)[LEGACY], 'Expected a conflict for review_effect_lacks_audit_or_receipt')
         self.assertEqual(self.by_store(report)[LEGACY]['reason'], 'review_effect_lacks_audit_or_receipt')
         self.assertFalse(report['activation_allowed'])
 

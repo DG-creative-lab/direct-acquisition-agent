@@ -8,8 +8,8 @@ import { fileURLToPath } from "node:url";
 async function isolated(run, scenario = "default") {
   const root = await mkdtemp(join(tmpdir(), "acquisition-sequence-chat-"));
   const script = `
-from acquisition.workspace import Workspace
-from acquisition.workspace_server import WorkspaceServer
+from acquisition.bootstrap import build_workspace as Workspace
+from acquisition.entrypoints.workspace import WorkspaceServer
 from pathlib import Path
 import sys
 w=Workspace(sys.argv[1],real_clock=lambda:1792972800. if sys.argv[2]=='postal-budget' else 1794700800.)
@@ -18,8 +18,7 @@ if sys.argv[2]=='return-postal':
  from test_preparations import CombinedModel
  from test_conversations import proposal
  model=CombinedModel(proposal())
- patch('acquisition.workspace.openrouter_key',return_value='fixture').start()
- patch('acquisition.workspace.OpenRouter',return_value=model).start()
+ w=Workspace(sys.argv[1],real_clock=lambda:1792972800. if sys.argv[2]=='postal-budget' else 1794700800.,gateway_factory=lambda:model)
  c=w.create_conversation('sequence','Return to postal')['id']
  w.message_conversation(c,'sequence-message',0,'Prepare an email sequence with a £100 budget.')
 if sys.argv[2]=='postal-budget':
@@ -27,8 +26,7 @@ if sys.argv[2]=='postal-budget':
  from test_preparations import CombinedModel
  from test_conversations import proposal
  model=CombinedModel(proposal(budget_pence=40000))
- patch('acquisition.workspace.openrouter_key',return_value='fixture').start()
- patch('acquisition.workspace.OpenRouter',return_value=model).start()
+ w=Workspace(sys.argv[1],real_clock=lambda:1792972800. if sys.argv[2]=='postal-budget' else 1794700800.,gateway_factory=lambda:model)
  c=w.create_conversation('postal','Postal budget clarification')['id']
  w.message_conversation(c,'postal-message',0,'Prepare a UK postal response experiment for contractors with £437 or £683.')
  w.start_preparation(c,'postal-preparation',1,False,True)

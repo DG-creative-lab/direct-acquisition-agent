@@ -6,15 +6,9 @@ from acquisition.reasoning import CallScope, Inference, ModelError
 
 from .domain import Creative, model_editorial_memory
 from .ports import CreativeMemory
+from .copy_contracts import tool, READ
 
 
-def tool(name: str, description: str, properties: dict, required: list[str]) -> dict:
-    return {"type": "function", "function": {"name": name, "description": description,
-            "parameters": {"type": "object", "properties": properties, "required": required,
-                           "additionalProperties": False}}}
-
-
-READ = tool("read_editorial_context", "Read the frozen editorial guidance and relevant reviewer examples.", {}, [])
 SUBMIT = tool("submit_copy_variants", "Submit contrasting A/B drafts for this segment. Neither is approved.", {
     **{field + "_" + arm: {"type": "string", "maxLength": maximum}
        for arm in ("a", "b") for field, maximum in (("headline", 80), ("opening", 600), ("hypothesis", 240))},

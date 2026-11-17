@@ -16,7 +16,7 @@ from acquisition.adapters.sqlite.database import Database
 from acquisition.adapters.sqlite.sequence_journeys import SEQUENCE_JOURNEYS
 from acquisition.contracts import Conflict, NotFound
 from acquisition.conversations import journey_request, journey_commands
-from acquisition.workspace import Workspace
+from acquisition.bootstrap import build_workspace as Workspace
 from acquisition.reasoning import ModelError
 
 NOW=1794700800.
@@ -123,12 +123,12 @@ class SequenceRoutingTests(unittest.TestCase):
         first=self.w.message_conversation(c,'sequence',0,OBJECTIVE.format(profile='iwoca'))
         self.w.message_conversation(c,'postal',1,FIXTURE_MESSAGE)
         model=CombinedModel(proposal())
-        with patch('acquisition.workspace.openrouter_key',return_value='fixture'),patch('acquisition.workspace.OpenRouter',return_value=model):
-            self.w.start_preparation(c,'postal-preparation',2,False,False)
-            for _ in range(8):
-                self.w.advance_preparations()
-                view=self.w.conversation(c)
-                if view['preparations'][0]['status']=='review_ready':break
+        self.w=Workspace(self.root,real_clock=lambda:NOW,gateway_factory=lambda:model)
+        self.w.start_preparation(c,'postal-preparation',2,False,False)
+        for _ in range(8):
+            self.w.advance_preparations()
+            view=self.w.conversation(c)
+            if view['preparations'][0]['status']=='review_ready':break
         self.assertEqual(view['preparations'][0]['status'],'review_ready')
         self.assertEqual(len(view['sequence_journeys']),1)
         self.assertFalse(view['sequence_journeys'][0]['current'])

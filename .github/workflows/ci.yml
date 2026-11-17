@@ -3,6 +3,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -10,33 +11,7 @@ permissions:
   contents: read
 jobs:
   test:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python: ['3.11', '3.12', '3.13', '3.14']
-        shard: [1, 2]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '${{ matrix.python }}'
-      - run: make test-shard
-        env:
-          SHARD: ${{ matrix.shard }}
-          BACKEND_TIMINGS: backend-timings.json
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: backend-timings-${{ matrix.python }}-${{ matrix.shard }}
-          path: backend-timings.json
-          if-no-files-found: ignore
-          retention-days: 14
-      - run: make arch-check
-        if: matrix.shard == 1
-  mutation:
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -48,9 +23,38 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.14'
+      - run: make arch-check
+        if: matrix.shard == 1
+      - run: make test-shard
+        env:
+          SHARD: ${{ matrix.shard }}
+          BACKEND_SHARDS: 4
+          BACKEND_TIMINGS: backend-timings.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-timings-3.14-${{ matrix.shard }}
+          path: backend-timings.json
+          if-no-files-found: ignore
+          retention-days: 14
+  mutation:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
       - run: python3 scripts/check_failure_mutations.py --shard "${{ matrix.shard }}" --shards 4
   interface:
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -70,10 +74,13 @@ jobs:
           cache-dependency-path: frontend/pnpm-lock.yaml
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.14'
       - run: pnpm --dir frontend install --frozen-lockfile
       - run: pnpm --dir frontend exec playwright install --with-deps chromium
-      - run: make interface-check
+      - run: pnpm --dir frontend run build
+      - run: pnpm --dir frontend run format:check
+        if: matrix.shard == 1
+      - run: pnpm --dir frontend test
         env:
           BROWSER_SHARD: ${{ matrix.shard }}
           BROWSER_SHARDS: 2
