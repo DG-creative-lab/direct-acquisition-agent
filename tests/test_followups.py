@@ -5,13 +5,21 @@ import unittest
 from unittest.mock import patch
 from pathlib import Path
 import test_conversation_learning as learning_tests
+import test_conversation_handoff as handoff_tests
+from prepared_workspace_fixture import prepared_workspace
 from acquisition.bootstrap import build_workspace as Workspace
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from test_copy_revisions import RevisionModel
 
 
 class FollowupTests(unittest.TestCase):
-    setUp=learning_tests.ConversationLearningTests.setUp
+    @classmethod
+    def setUpClass(cls):
+        cls.template = prepared_workspace(cls, handoff_tests.ConversationHandoffTests.setUp)
+
+    def setUp(self):
+        handoff_tests._set_up_workspace(self, self.template)
+
     approve=learning_tests.ConversationLearningTests.approve
     accept=learning_tests.ConversationLearningTests.accept
 

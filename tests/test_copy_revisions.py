@@ -1,12 +1,15 @@
 """Copy-only scope, immutable admission, paid-call fencing and exact publication."""
 from workspace_control_fixture import control_connection
+from prepared_workspace_fixture import prepared_workspace
 
+import copy
 import csv
 import io
 import json
 import os
 import subprocess
 import sys
+from shutil import copytree
 import tempfile
 from threading import Event
 import unittest
@@ -56,12 +59,14 @@ class RevisionModel(CombinedModel):
         return super().complete(request)
 
 
-def _set_up_workspace(self):
+def _set_up_workspace(self, template=None):
     self.temp = tempfile.TemporaryDirectory()
     self.addCleanup(self.temp.cleanup)
     self.root = Path(self.temp.name)
     self.now = 1792972800.0
-    self.model = RevisionModel()
+    if template:
+        copytree(template['root'], self.root, dirs_exist_ok=True)
+    self.model = copy.deepcopy(template['model']) if template else RevisionModel()
     for p in (patch("acquisition.bootstrap.workspace_key", return_value="fake"), patch("acquisition.bootstrap.workspace_gateway", return_value=self.model)):
         p.start(); self.addCleanup(p.stop)
     self.w = Workspace(self.root, real_clock=lambda: self.now)
@@ -102,7 +107,23 @@ class CopyRevisionSourceFenceTests(unittest.TestCase):
 
 
 class CopyRevisionTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.template = prepared_workspace(cls, cls._prepare_workspace, 'model')
+
     def setUp(self):
+        # Admission and legacy tests borrow this method without this class lifecycle.
+        if not isinstance(self, CopyRevisionTests):
+            CopyRevisionTests._prepare_workspace(self)
+            return
+        _set_up_workspace(self, self.template)
+        self.c, self.sid = self.template['c'], self.template['sid']
+        self.base = self.w.view(self.sid)
+        self.scope = self.w._session(self.sid)['organization']
+        self.app = self.w._app(self.w._session(self.sid))
+        self.target = next(c for c in self.base['review']['manifest']['creatives'] if c['arm'] == 'B')
+
+    def _prepare_workspace(self):
         _set_up_workspace(self)
         self.c = self.w.create_conversation("conversation", "Revision campaign")["id"]
         self.w.message_conversation(self.c, "message", 0, "Prepare a £600 contractor campaign with model copy.")

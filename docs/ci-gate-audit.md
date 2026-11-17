@@ -10,7 +10,7 @@ are in [validation.md](validation.md).
 | --- | --- | --- |
 | Backend on 3.14 | Domain behavior, scoped SQLite transactions, restart/replay, approval and final authority, inference budgets and synthetic learning | Keep the full suite in four module partitions on the selected runtime. Other Python versions are not checked. |
 | Architecture | Module boundaries, private imports and cycles | Keep once, before backend tests. |
-| Mutation catalogue | Measures whether selected tests fail for declared harmful changes | Keep, but an assertion failure is evidence of the asserted contract, not proof of complete coverage. |
+| Mutation catalogue | Audits whether existing regression tests detect deliberately damaged implementations | Manual full audit for the MVP. Run on approval/isolation/lease/replay changes or before release. It is not a routine PR gate. |
 | Build and type check | Broken frontend types, imports and production assets | Keep for each isolated browser runner. |
 | Browser partitions | Displayed subjects, user decisions, reloads and lost responses against the real loopback API | Keep. One worker per isolated root preserves fixture sequencing. |
 | Formatting | Source consistency | Optional quality policy; run once. |
@@ -67,3 +67,49 @@ Further work should reduce repeated material reconstruction and move pure rules
 out of full workflow fixtures, preserving fresh evidence and authority checks at
 commit. Add compatibility coverage only when a product or deployment need is
 identified.
+
+
+## MVP gate cadence and Aion comparison, 17 November 2026
+
+The full mutation catalogue duplicated selected backend executions 512 times
+per routine CI run, each in a fresh interpreter and temporary source copy.
+This assesses test strength; it does not add 512 distinct application scenarios.
+The ordinary backend suite already runs the target regression tests. Full
+mutation checking now runs only on explicit `workflow_dispatch`; that invocation
+runs the four mutation partitions without also repeating backend/browser jobs.
+Normal pull requests and main pushes run the four backend and two browser jobs.
+Application authority checks, all regression cases and the full catalogue remain.
+
+Run a full audit explicitly for changes to approval, scope isolation, leases or
+replay behavior, or before a release:
+
+```sh
+gh workflow run ci.yml --repo DG-creative-lab/direct-acquisition-agent --ref main
+```
+
+The successful main run [44033513092](https://github.com/DG-creative-lab/direct-acquisition-agent/actions/runs/44033513092)
+used 50m04s of summed runner job time: backend 19m50s, mutation 19m40s and
+browser 10m34s. The job window was 6m34s. Moving the mutation audit changes
+routine compute cadence, not the runtime authority contract. It removes that
+19m40s component from routine runs; the remaining backend/browser work still
+needs execution improvements. Summed job time is a compute proxy, not measured
+CPU use or a billed charge; GitHub's usage endpoint reported zero billable time.
+
+Aion's inspected workflow runs Python/API tests, lint/architecture checks,
+Docker validation and vulnerability scanning; its inspected runs also include
+access-contract/composition checks. It does not run this mutation catalogue or
+Playwright browser suites. The latest inspected [Aion run](https://github.com/DG-creative-lab/agentic-auth/actions/runs/44036682897)
+passed 1,504 tests, versus 1,033 backend tests here. Its summed job time was
+11m42s and its test job took 8m41s; the preceding test job took 8m01s.
+Those latest wall times are not faster than this app, but Aion uses substantially
+less aggregate runner time. Its test portfolio includes many in-memory use-case
+tests and session-scoped database fixtures; this app puts many permutations
+through complete real-SQLite workflows, including process restart and final
+commit checks. Test counts alone therefore do not describe the workload.
+
+The additional browser workload here is 108 cases (49 and 59), exercising real
+loopback API workflows. Keep exact displayed-subject, consent, lost-response,
+reload and HTTP-boundary regressions. Further browser reductions need a mapping
+from each candidate case to retained protection; no browser cases are removed
+in this change. Build/type checks and the cheap architecture scan remain useful
+PR checks. Formatting is optional policy and is not the main source of delay.

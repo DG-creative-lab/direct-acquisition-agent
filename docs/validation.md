@@ -2442,3 +2442,22 @@ The complete backend discovery suite was verified with `make test-shard`
 for all four partitions instead of a separate serial `make test` rerun.
 Final architecture and CI-tool checks passed, and all 29 relevant mutations were
 detected again after the compatibility fix. No live model calls were made.
+
+
+## Routine CI cadence and prepared fixture extension, 17 November 2026
+
+The MVP policy keeps the entire backend authority regression suite, architecture,
+frontend build and browser checks on pull requests. The 512 mutation probes audit
+test strength and now run only through the explicit manual workflow. That audit
+keeps its existing strict rejection of fixture, cleanup and unexpected body errors.
+No application validator or authority check has been removed.
+
+Execution, execution-follow-up, native copy-revision and follow-up classes opt
+into quiescent prepared workspaces. Each case receives independent SQLite files,
+journals and fake provider state, opens a new Workspace and reads current base
+review state. The original fresh fixture paths remain for unconverted borrowers,
+source-fence interleavings and the original handoff workflow tests. Static AST
+comparison retained all 103 test methods across the four edited test modules.
+Architecture passed with 205 classified modules and no temporary exceptions.
+Full runtime and mutation verification is delegated to GitHub to avoid sustained
+local CPU load. Hosted results and aggregate compute are recorded in the PR.

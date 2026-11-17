@@ -8,33 +8,28 @@ import unittest
 
 
 # Module case + class setup durations on Python 3.14 in main Actions run
-# 43902416003. The two prepared-workspace modules are scaled by the measured
-# local full-module ratio, including shared setup. See docs/ci-performance.md.
+# 44033513092, before the additional prepared-workspace fixtures.
+# Source and limitations: docs/ci-performance.md.
 # These guide partitioning, not performance assertions; new modules use fallback.
 MODULE_SECONDS = {
-    'test_admission_workflow_coverage': 21.2,
-    'test_architecture': 15.5,
-    'test_budget_clarification': 27.3,
-    'test_channel_content': 15.1,
-    'test_conversation_actions': 51.9,
-    'test_conversation_audiences': 47.0,
-    'test_conversation_campaign': 15.6,
-    'test_conversational_copy_revision': 42.2,
-    'test_copy_revisions': 72.1,
-    'test_execution_controls': 146.7,
-    'test_fixture_activation': 56.2,
-    'test_followups': 59.0,
-    'test_learning': 30.7,
-    'test_legacy_followup_scope': 15.8,
-    'test_legacy_inventory': 16.4,
-    'test_preparations': 26.5,
-    'test_reviews': 14.6,
-    'test_sequence_reviews': 124.3,
-    'test_sequences': 276.2,
-    'test_typed_chat_routing': 26.1,
-    'test_workspace': 30.7,
-    'test_workspace_authority': 20.8,
-    'test_workspace_checkpoint': 16.8,
+    'test_architecture': 17.0,
+    'test_budget_clarification': 17.9,
+    'test_conversation_actions': 31.4,
+    'test_conversation_audiences': 47.1,
+    'test_conversation_campaign': 15.7,
+    'test_conversational_copy_revision': 45.6,
+    'test_copy_revisions': 43.7,
+    'test_execution_controls': 144.0,
+    'test_fixture_activation': 65.3,
+    'test_followups': 34.0,
+    'test_learning': 18.7,
+    'test_preparations': 31.1,
+    'test_sequence_reviews': 167.0,
+    'test_sequences': 204.2,
+    'test_typed_chat_routing': 24.5,
+    'test_workspace': 29.1,
+    'test_workspace_authority': 21.8,
+    'test_workspace_checkpoint': 15.7,
 }
 SECONDS_PER_CASE = 0.43
 

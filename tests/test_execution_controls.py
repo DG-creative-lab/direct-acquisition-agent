@@ -1,5 +1,6 @@
 """Shared resources and cancellation tested at actual SQLite effect boundaries."""
 from workspace_control_fixture import control_connection
+from prepared_workspace_fixture import prepared_workspace
 
 import json
 import os
@@ -19,7 +20,15 @@ import test_conversation_handoff as handoff_tests
 
 
 class ExecutionTests(unittest.TestCase):
-    setUp = copy_tests.ConversationalCopyRevisionTests.setUp
+    @classmethod
+    def setUpClass(cls):
+        cls.template = prepared_workspace(cls, copy_tests.ConversationalCopyRevisionTests._prepare_workspace, 'model')
+
+    def setUp(self):
+        copy_tests._set_up_workspace(self, self.template)
+        self.c, self.sid = self.template['c'], self.template['sid']
+        self.base = self.w.view(self.sid)
+
     route = copy_tests.ConversationalCopyRevisionTests.route
     confirm = copy_tests.ConversationalCopyRevisionTests.confirm
 
@@ -281,7 +290,13 @@ class ExecutionTests(unittest.TestCase):
         self.assertEqual(self.w.conversation(other)['execution']['used'],0)
 
 class ExecutionFollowupTests(unittest.TestCase):
-    setUp=handoff_tests.ConversationHandoffTests.setUp
+    @classmethod
+    def setUpClass(cls):
+        cls.template = prepared_workspace(cls, handoff_tests.ConversationHandoffTests.setUp)
+
+    def setUp(self):
+        handoff_tests._set_up_workspace(self, self.template)
+
     usage=ExecutionTests.usage
     lower_limit=ExecutionTests.lower_limit
 
