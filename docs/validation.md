@@ -1,5 +1,21 @@
 # Validation and limits
 
+## Run ownership contract, issue 108
+
+The stage 1 comparator requires positive, consistent ownership for all required
+source lineages. Contract tests cover matching standalone and conversation
+owners, mixed ownership, missing evidence and substituted scope or revision.
+The 38 focused admission tests passed, including the existing atomic SQLite,
+replay and paused-execution checks. The architecture check passed with 205
+classified modules and zero temporary exceptions. The full backend suite passed
+all 1,039 tests with local loopback access.
+
+Four existing integration tests also passed in the separate #68 candidate
+worktree. Those checks cover independently admitted runs, detached continuation,
+reassessment and missing accounting evidence. They establish behavior for that
+candidate's compatibility bridge. The [reuse inventory and rollout plan](run-ownership-admission.md)
+identifies the candidate and the later writer and reader work.
+
 ## CI and evidence cleanup, issue 93
 
 The initial proposal repeated the architecture check and eight tests already in

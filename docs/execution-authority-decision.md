@@ -5,6 +5,9 @@ The design covers admission, inference, cancellation and recovery across the
 workspace, CLI and direct workers. It preserves the modular monolith and the
 existing campaign, review and learning boundaries.
 
+The [run ownership admission contract](run-ownership-admission.md) describes
+the channel and conversation journey follow-up under #107.
+
 **Implementation status:** the schema-13 entry-point cutover remains selected by
 `verified-paused/v1`; new-format tasks cannot run or reserve inference. Schema 14
 moves new preparation intent, sandbox environment, time, command identity and
