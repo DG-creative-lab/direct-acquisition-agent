@@ -24,6 +24,28 @@ def intent(**changes):
 
 
 class AdmissionContractTests(unittest.TestCase):
+    def test_composed_admission_requires_consistent_positive_ownership_evidence(self):
+        proposal = intent()
+        conversation = proposal.ownership
+        standalone = ExecutionOwnership('standalone', proposal.organization, 'approved-root')
+        independent = replace(proposal, ownership=standalone)
+        proposal.validate_source_ownership([conversation, conversation])
+        independent.validate_source_ownership([standalone, standalone])
+
+        for proposed, evidence in (
+            (independent, [conversation]),
+            (independent, [standalone, conversation]),
+            (independent, [standalone, None]),
+            (independent, []),
+            (independent, [replace(standalone, scope_id='different-root')]),
+            (independent, [replace(standalone, organization='other-org')]),
+            (proposal, [replace(conversation, revision=2)]),
+            (proposal, [conversation, replace(conversation, scope_id='other-chat')]),
+        ):
+            with self.subTest(proposed=proposed.ownership, evidence=evidence):
+                with self.assertRaises(Conflict):
+                    proposed.validate_source_ownership(evidence)
+
     def test_ownership_is_explicit_and_revision_does_not_reset_account(self):
         owner=ExecutionOwnership('conversation','org','chat',1)
         self.assertEqual(owner.account_key,replace(owner,revision=2).account_key)
