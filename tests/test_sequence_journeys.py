@@ -1,6 +1,8 @@
 """Conversation-to-effect invariants, with cheap interpretation cases and shared real-store templates."""
 
+from collections import Counter
 from contextlib import closing
+from dataclasses import asdict
 import json
 from pathlib import Path
 import sqlite3
@@ -10,11 +12,14 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from acquisition.bootstrap import build, build_sequence_journeys
+from acquisition.bootstrap import build, build_channel_preparation, build_sequence_journeys
+from acquisition.adapters.contact_fixtures import RecordedContactSource
 from acquisition.adapters.sequence_interpreter import OfflineSequenceInterpreter
+from acquisition.audiences import contact_snapshot_from
+from acquisition.adapters.sqlite.admission_guard import binding
 from acquisition.adapters.sqlite.database import Database
 from acquisition.adapters.sqlite.sequence_journeys import SEQUENCE_JOURNEYS
-from acquisition.contracts import Conflict, NotFound
+from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.conversations import journey_request, journey_commands
 from acquisition.bootstrap import build_workspace as Workspace
 from acquisition.reasoning import ModelError
@@ -344,6 +349,14 @@ class SequenceJourneyTests(unittest.TestCase):
         for version in (1,2):
             with self.subTest(source_version=version), self.assertRaises(Conflict):
                 directory.prepare(native,'refreshed-assessment-'+str(version),'fielddesk-crm-a',version,'email')
+        original = directory.source.read(native,'fielddesk-crm-a',1)
+        alias_key = 'fielddesk-crm-alias'
+        alias = contact_snapshot_from(json.loads(canonical(asdict(original)).replace(original.connection.key,alias_key)))
+        self.assertEqual(alias.connection.id,original.connection.id)
+        self.assertNotEqual(alias.id,original.id)
+        source = RecordedContactSource(native,(original,alias))
+        with patch.object(directory,'source',source),patch.object(directory.store,'source',source),self.assertRaises(Conflict):
+            directory.prepare(native,'aliased-assessment',alias_key,1,'email')
         self.assertEqual(before,self.counts())
         with closing(sqlite3.connect(self.path)) as db:
             self.assertEqual(db.execute('SELECT count(*) FROM contact_assessments').fetchone()[0],assessments)
@@ -382,7 +395,7 @@ class SequenceJourneyTests(unittest.TestCase):
     def test_earlier_detached_run_rechecks_source_before_resume_reservation_and_publication(self):
         from acquisition.bootstrap import build_recipient_contexts, build_channel_preparation
         from acquisition.reasoning import CallScope
-        for stage in ('resume','reservation','publication','uncertain'):
+        for stage in ('resume','reservation','cached','publication','uncertain','in-flight'):
             with self.subTest(stage=stage):
                 self.copy_template()
                 row=self.app.store.get('one',self.journey);native=row['inputs']['native_organization']
@@ -400,6 +413,11 @@ class SequenceJourneyTests(unittest.TestCase):
                         scope=CallScope(native,run,claim.task_id,claim.token)
                         handler=channels.worker.capabilities[claim.capability]
                         if stage=='publication':outcome=handler(claim)
+                        if stage in {'cached','in-flight'}:
+                            journal=channels.inference.journal
+                            self.assertIsNone(journal.reserve(scope,'recorded-probe',digest('fixture request'),5,self.now))
+                            if stage=='cached':
+                                journal.record(scope,'recorded-probe',{'observation':'synthetic fixture'},None)
                         if stage=='uncertain':
                             with patch.object(channels.inference.gateway,'complete',side_effect=ModelError('provider_timeout')), self.assertRaises(ModelError):
                                 handler(claim)
@@ -408,15 +426,22 @@ class SequenceJourneyTests(unittest.TestCase):
                     conversation=build(self.path,clock=lambda:self.now).conversations.create('one','another-owner','Later journey')['id']
                     later=self.app.send('one',conversation,'another-owner-message',0,OBJECTIVE.format(profile='fielddesk'))
                     self.app.stop('one',later['id'],'stop-another-owner',1)
-                if stage=='publication':
-                    self.assertFalse(build(self.path,clock=lambda:self.now).execution.view('one',self.conversation)['accounting_complete'])
+                execution=build(self.path,clock=lambda:self.now).execution
+                usage=execution.view('one',self.conversation)
+                has_detached_receipt=stage in {'cached','publication','uncertain','in-flight'}
+                self.assertEqual(usage['accounting_complete'],not has_detached_receipt)
+                self.assertEqual(usage['used'],9)
+                self.assertEqual(usage['remaining'],None if has_detached_receipt else usage['limit']-9)
                 before=self.counts()
-                if stage=='reservation':
+                if stage!='resume':
                     with self.assertRaises(Conflict):
-                        channels.inference.journal.reserve(scope,'new-call','hash',5,self.now)
+                        key='recorded-probe' if stage=='cached' else 'new-call'
+                        channels.inference.journal.reserve(scope,key,digest('fixture request'),5,self.now)
+                if stage=='in-flight':
+                    channels.inference.journal.record(scope,'recorded-probe',{'observation':'late synthetic receipt'},None)
                 elif stage=='publication':
                     with self.assertRaises(Conflict):channels.tasks.settle(claim,outcome,self.now)
-                else:
+                elif stage in {'resume','uncertain'}:
                     self.now+=181
                     restarted=build_channel_preparation(self.path,native,'fielddesk',lambda:self.now)
                     restarted.worker.drain(native,run_id=run)
@@ -424,25 +449,51 @@ class SequenceJourneyTests(unittest.TestCase):
                 with closing(sqlite3.connect(self.path)) as db:
                     self.assertEqual(db.execute('SELECT count(*) FROM channel_artifacts WHERE organization=? AND run_id=?',(native,run)).fetchone()[0],0)
                 view=channels.inspect(native,'old-detached-run')
+                self.assertEqual(channels.ownership(native,run)['status'],'unresolved')
+                with self.assertRaises(Conflict):
+                    channels.reconcile_ownership(native,run,'0'*64)
+                recovered_usage=execution.view('one',self.conversation)
+                for field in ('used','remaining','accounting_complete'):
+                    self.assertEqual(recovered_usage[field],usage[field])
                 self.assertEqual(view['run_id'],run)
                 self.assertFalse(view['currently_applicable'])
                 self.assertEqual(channels.start(native,'old-detached-run','fielddesk',['old-detached-recipient'],'email'),run)
-                if stage=='uncertain':self.assertEqual([r['status'] for r in view['model_calls']],['unknown'])
+                if stage=='uncertain':
+                    self.assertEqual([r['status'] for r in view['model_calls']],['unknown'])
+                if stage=='in-flight':
+                    with closing(sqlite3.connect(self.path)) as db:
+                        calls=db.execute('SELECT call_key,status,response FROM model_calls WHERE organization=? AND run_id=?',
+                                         (native,run)).fetchall()
+                    self.assertEqual(calls,[('recorded-probe','recorded',canonical({'observation':'late synthetic receipt'}))])
+                    process=subprocess.run([sys.executable,'-m','acquisition.channel_cli','--db',str(self.path),
+                        '--organization',native,'--profile','fielddesk','ownership','--run',run],
+                        cwd=ROOT,text=True,capture_output=True,timeout=20)
+                    self.assertEqual(process.returncode,0,process.stderr)
+                    self.assertEqual(json.loads(process.stdout),channels.ownership(native,run))
 
     def test_standalone_admission_precedes_later_journey_without_losing_its_run(self):
         from acquisition.bootstrap import build_contact_directory, build_recipient_contexts, build_channel_preparation
-        for stage in ('queued','unknown','legacy-queued','legacy-ambiguous'):
-            with self.subTest(stage=stage):
-                path=Path(self.temp.name)/(stage+'.sqlite')
+        cases=tuple(('fielddesk',stage) for stage in ('queued','unknown','legacy-queued','legacy-ambiguous','paused','paused-legacy'))
+        for profile,stage in (*cases,('iwoca','queued')):
+            with self.subTest(profile=profile,stage=stage):
+                path=Path(self.temp.name)/(profile+'-'+stage+'.sqlite')
                 journeys=build_sequence_journeys(path,lambda:self.now)
-                profile=next(p for p in journeys.host.catalogue('one')['profiles'] if p['key']=='fielddesk')
-                native=profile['organization']
-                directory=build_contact_directory(path,native,'fielddesk',lambda:self.now)
-                assessment=directory.prepare(native,'independent-assessment','fielddesk-crm-a',1,'email')
-                contexts=build_recipient_contexts(path,native,'fielddesk',lambda:self.now)
+                native=next(p['organization'] for p in journeys.host.catalogue('one')['profiles'] if p['key']==profile)
+                connection=profile+'-crm-a'
+                directory=build_contact_directory(path,native,profile,lambda:self.now)
+                assessment=directory.prepare(native,'independent-assessment',connection,1,'email')
+                contexts=build_recipient_contexts(path,native,profile,lambda:self.now)
                 contexts.prepare(native,'independent-context',assessment['assessment_id'],assessment['report']['eligible'][0],'reviewed-context-a',1)
-                channels=build_channel_preparation(path,native,'fielddesk',lambda:self.now)
-                run=channels.start(native,'independent-run','fielddesk',['independent-context'],'email')
+                paused=stage.startswith('paused')
+                channels=build_channel_preparation(path,native,profile,lambda:self.now,stage_ownership=paused)
+                run=channels.start(native,'independent-run',profile,['independent-context'],'email')
+                if paused:
+                    admitted=channels.ownership(native,run)
+                    self.assertEqual(admitted['status'],'bound')
+                if stage=='queued':
+                    proof=channels.ownership(native,run)
+                    self.assertEqual(proof['status'],'legacy_proven')
+                    receipt=channels.reconcile_ownership(native,run,proof['fingerprint'])
                 if stage=='unknown':
                     with patch.object(channels.inference.gateway,'complete',side_effect=ModelError('provider_timeout')):
                         channels.worker.drain(native,run_id=run)
@@ -450,23 +501,60 @@ class SequenceJourneyTests(unittest.TestCase):
                 if stage=='legacy-queued':self.now+=1
                 original_event=journeys.store._event
                 def legacy_event(db,organization,kind,value):
-                    if stage.startswith('legacy-'):value={k:v for k,v in value.items() if k!='prior_channel_runs'}
+                    if stage.startswith('legacy-') or stage=='paused-legacy':
+                        value={k:v for k,v in value.items() if k!='prior_channel_runs'}
                     return original_event(db,organization,kind,value)
                 with patch.object(journeys.store,'_event',side_effect=legacy_event):
-                    later=journeys.send('one',conversation,'later-message',0,OBJECTIVE.format(profile='fielddesk'))
+                    later=journeys.send('one',conversation,'later-message',0,OBJECTIVE.format(profile=profile))
                 if stage.startswith('legacy-'):journeys.stop('one',later['id'],'stop-later',1)
-                restarted=build_channel_preparation(path,native,'fielddesk',lambda:self.now)
+                restarted=build_channel_preparation(path,native,profile,lambda:self.now)
                 restarted.worker.drain(native,run_id=run)
                 view=restarted.inspect(native,'independent-run')
                 self.assertEqual(view['currently_applicable'],not stage.startswith('legacy-'))
                 self.assertEqual(view['run_id'],run)
-                self.assertEqual(restarted.start(native,'independent-run','fielddesk',['independent-context'],'email'),run)
+                self.assertEqual(restarted.start(native,'independent-run',profile,['independent-context'],'email'),run)
+                if stage.startswith('legacy-'):
+                    self.assertEqual(restarted.ownership(native,run)['status'],'unresolved')
                 if stage=='queued':
+                    self.assertEqual(restarted.ownership(native,run)['status'],'legacy_reconciled')
+                    self.assertEqual(restarted.reconcile_ownership(native,run,proof['fingerprint']),receipt)
                     self.assertTrue(view['ready_for_review'])
                     self.assertEqual(len(view['model_calls']),3)
                 else:
                     self.assertFalse(view['ready_for_review'])
                     self.assertEqual([r['status'] for r in view['model_calls']],['unknown'] if stage=='unknown' else [])
+                if paused:
+                    database = channels.store.database
+                    with database.connect() as db:
+                        intent = binding(db,native,run)
+                    self.assertEqual(intent.ownership.kind,'standalone')
+                    self.assertEqual(restarted.ownership(native,run),admitted)
+                    self.assertEqual(view['run_status'],'queued')
+                    with database.transaction() as db:
+                        db.execute('DROP TRIGGER sequence_journey_bindings_no_delete')
+                    for request_id,role in (('independent-run','initial'),('independent-context','email-context-0')):
+                        with self.subTest(conflicting_binding=role):
+                            with database.transaction() as db:
+                                db.execute('INSERT INTO sequence_journey_bindings VALUES(?,?,?,?,?)',
+                                           (native,request_id,'one',later['id'],role))
+                            try:
+                                with database.connect() as db,self.assertRaises(Conflict):
+                                    binding(db,native,run)
+                                self.assertEqual(restarted.ownership(native,run)['status'],'unresolved')
+                                damaged = restarted.inspect(native,'independent-run')
+                                self.assertFalse(damaged['currently_applicable'])
+                                self.assertEqual(damaged['model_calls'],[])
+                                self.assertFalse(restarted.tasks.inspect(native,run)['admission']['binding_valid'])
+                                with self.assertRaises(Conflict):
+                                    restarted.start(native,'independent-run',profile,['independent-context'],'email')
+                                self.assertIsNone(restarted.tasks.claim(native,self.now,10,run_id=run))
+                            finally:
+                                with database.transaction() as db:
+                                    db.execute('DELETE FROM sequence_journey_bindings WHERE organization=? AND request_id=?',
+                                               (native,request_id))
+                    with database.connect() as db:
+                        self.assertEqual(binding(db,native,run),intent)
+                    self.assertTrue(restarted.inspect(native,'independent-run')['currently_applicable'])
                 if not stage.startswith('legacy-'):
                     usage=build(path,clock=lambda:self.now).execution.view('one',conversation)
                     self.assertTrue(usage['accounting_complete'])
@@ -474,6 +562,8 @@ class SequenceJourneyTests(unittest.TestCase):
                     advanced=build_sequence_journeys(path,lambda:self.now).advance('one',later['id'])
                     self.assertEqual(advanced['stage'],1)
                     self.assertEqual(advanced['status'],'preparing')
+                    if paused:
+                        continue
                     recovered=build_sequence_journeys(path,lambda:self.now)
                     for _ in range(20):
                         advanced=recovered.advance('one',later['id'])
@@ -482,10 +572,131 @@ class SequenceJourneyTests(unittest.TestCase):
                     usage=build(path,clock=lambda:self.now).execution.view('one',conversation)
                     self.assertTrue(usage['accounting_complete'])
                     self.assertEqual(usage['used'],9)
-                    self.assertFalse(recovered.view('one',later['id'])['review']['approval_valid'])
+                    review=recovered.view('one',later['id'])['review']
+                    self.assertTrue(review['validation']['review_ready'])
+                    self.assertFalse(review['approval_valid'])
+                    if stage=='queued':
+                        journey_runs={advanced['outputs'][name+'-run'] for name in ('initial','call','followup')}
+                        self.assertEqual(len(journey_runs),3)
+                        with closing(sqlite3.connect(path)) as db:
+                            calls=db.execute("""SELECT c.run_id,c.status,e.owner_organization,e.conversation_id,e.revision
+                                FROM model_calls c LEFT JOIN execution_runs e
+                                ON e.organization=c.organization AND e.run_id=c.run_id
+                                WHERE c.organization=?""",(native,)).fetchall()
+                            artifacts={r[0] for r in db.execute(
+                                'SELECT run_id FROM channel_artifacts WHERE organization=?',(native,))}
+                            self.assertIsNone(db.execute(
+                                'SELECT 1 FROM sequence_review_decisions WHERE organization=?',(native,)).fetchone())
+                        expected=Counter({(r,'recorded','one',conversation,1):3 for r in journey_runs})
+                        expected[run,'recorded',None,None,None]=3
+                        self.assertEqual(Counter(calls),expected)
+                        self.assertEqual(artifacts,journey_runs | {run})
+                        self.assertEqual(restarted.inspect(native,'independent-run')['context_id'],view['context_id'])
                     journeys.stop('one',later['id'],'stop-later',1)
                 with self.assertRaises(Conflict):
-                    directory.prepare(native,'detached-after-journey','fielddesk-crm-a',1,'email')
+                    directory.prepare(native,'detached-after-journey',connection,1,'email')
+
+    def test_paused_journey_channel_binds_original_owner_and_rechecks_stop_at_commit(self):
+        for profile in ('fielddesk','iwoca'):
+            with self.subTest(profile=profile):
+                path = Path(self.temp.name)/(profile+'-paused.sqlite')
+                native = build(path,clock=lambda:self.now)
+                conversation = native.conversations.create('one','stage-test','Stage test')['id']
+                journeys = build_sequence_journeys(path,lambda:self.now,stage_ownership=True)
+                row = journeys.send('one',conversation,'staged-message',0,OBJECTIVE.format(profile=profile))
+                for _ in range(3):
+                    row = journeys.advance('one',row['id'])
+                self.assertEqual(row['stage'],3)
+                frozen = row['inputs']
+                organization = frozen['native_organization']
+                key = journey_commands(row['id'])['initial']
+                recipients = row['outputs']['email-contexts']
+                channels = journeys.host.capabilities(frozen,False).channels
+                db = channels.store.database
+                with self.assertRaises(Conflict):
+                    channels.start(organization,'unbound-key',profile,recipients,'email')
+
+                def count(connection):
+                    return tuple(connection.execute(f'SELECT count(*) FROM {table}').fetchone()[0]
+                                 for table in ('runs','tasks','execution_runs','channel_preparations',
+                                               'admission_requests','execution_admissions','creative_contexts'))
+                with db.connect() as connection:
+                    before = count(connection)
+                failures = (
+                    ("AFTER INSERT ON execution_runs", "SELECT RAISE(ABORT,'late link fault')",
+                     sqlite3.IntegrityError, 'late link fault'),
+                    ("AFTER INSERT ON channel_preparations", """UPDATE sequence_journeys
+                    SET state=json_set(state,'$.status','cancelled')""", Conflict, 'stopped'),
+                    ("AFTER INSERT ON channel_preparations", """UPDATE conversations
+                    SET revision=revision+1 WHERE organization='one'""", Conflict, 'changed'),
+                )
+                for event,statement,error,message in failures:
+                    with self.subTest(event=event,error=message):
+                        with db.transaction() as connection:
+                            connection.execute(f'CREATE TRIGGER interrupt_channel {event} BEGIN {statement}; END')
+                        try:
+                            with self.assertRaisesRegex(error,message):
+                                channels.start(organization,key,profile,recipients,'email')
+                            with db.connect() as connection:
+                                self.assertEqual(count(connection),before)
+                        finally:
+                            with db.transaction() as connection:
+                                connection.execute('DROP TRIGGER interrupt_channel')
+
+                advanced = journeys.advance('one',row['id'])
+                run = advanced['outputs']['initial-run']
+                with db.connect() as connection:
+                    intent = binding(connection,organization,run)
+                    receipt = connection.execute('SELECT receipt FROM execution_admissions WHERE run_id=?',(run,)).fetchone()[0]
+                    self.assertEqual(intent.ownership.account_key,('conversation','one',conversation))
+                    self.assertEqual(intent.ownership.revision,1)
+                    self.assertEqual(intent.model_config.payload(),frozen['model_config'])
+                    self.assertEqual(count(connection),tuple(value+1 for value in before))
+                self.assertEqual(native.execution.view('one',conversation)['used'],0)
+                self.assertEqual(advanced['stage'],3)
+                self.assertEqual(channels.ownership(organization,run)['status'],'bound')
+                self.assertTrue(channels.inspect(organization,key)['currently_applicable'])
+                with db.transaction() as connection:
+                    connection.execute('DROP TRIGGER sequence_journey_bindings_no_delete')
+                    connection.execute('DROP TRIGGER sequence_journey_bindings_no_update')
+                assessment_key = journey_commands(row['id'])['email-assessment']
+                for binding_key,damage in ((recipients[0],'missing'),(recipients[0],'conflicting'),(assessment_key,'missing')):
+                    with self.subTest(binding_key=binding_key,damage=damage):
+                        with db.transaction() as connection:
+                            original = tuple(connection.execute(
+                                'SELECT * FROM sequence_journey_bindings WHERE organization=? AND request_id=?',
+                                (organization,binding_key)).fetchone())
+                            if damage=='missing':
+                                connection.execute('DELETE FROM sequence_journey_bindings WHERE organization=? AND request_id=?',
+                                                   (organization,binding_key))
+                            else:
+                                connection.execute("UPDATE sequence_journey_bindings SET role='initial' WHERE organization=? AND request_id=?",
+                                                   (organization,binding_key))
+                        try:
+                            with db.connect() as connection,self.assertRaises(Conflict):
+                                binding(connection,organization,run)
+                            self.assertEqual(channels.ownership(organization,run)['status'],'unresolved')
+                            view = channels.inspect(organization,key)
+                            self.assertFalse(view['currently_applicable'])
+                            self.assertEqual(view['model_calls'],[])
+                            self.assertFalse(channels.tasks.inspect(organization,run)['admission']['binding_valid'])
+                            self.assertIsNone(channels.tasks.claim(organization,self.now,10,run_id=run))
+                        finally:
+                            with db.transaction() as connection:
+                                connection.execute('DELETE FROM sequence_journey_bindings WHERE organization=? AND request_id=?',
+                                                   (organization,binding_key))
+                                connection.execute('INSERT INTO sequence_journey_bindings VALUES(?,?,?,?,?)',original)
+                self.assertEqual(channels.ownership(organization,run)['status'],'bound')
+                journeys.stop('one',row['id'],'stopped',1)
+                restarted = build_channel_preparation(path,organization,profile,lambda:self.now)
+                self.assertEqual(restarted.start(organization,key,profile,recipients,'email'),run)
+                view = restarted.inspect(organization,key)
+                self.assertFalse(view['currently_applicable'])
+                self.assertEqual(view['model_calls'],[])
+                self.assertIsNone(restarted.tasks.claim(organization,self.now,10,run_id=run))
+                with db.connect() as connection:
+                    self.assertEqual(binding(connection,organization,run),intent)
+                    self.assertEqual(connection.execute('SELECT receipt FROM execution_admissions WHERE run_id=?',(run,)).fetchone()[0],receipt)
 
     def test_stop_after_confirmation_and_disabled_reviewer_cannot_dispatch(self):
         subject=self.app.view('one',self.journey)['review']['subject_id']
@@ -546,6 +757,11 @@ class SequenceJourneyTests(unittest.TestCase):
                 with patch.object(self.app.host,'capabilities',side_effect=capabilities):self.app.advance('one',row['id'])
                 after=self.counts();self.assertEqual(len(called),1)
                 self.assertEqual(after['model_calls'],before+1)
+                usage=build(self.path,clock=lambda:self.now).execution.view('one',conv)
+                self.assertTrue(usage['accounting_complete'])
+                self.assertEqual(usage['used'],1)
+                self.assertEqual(usage['remaining'],usage['limit']-1)
+                self.assertEqual([call['revision'] for call in usage['calls']],[1])
                 self.app.advance('one',row['id'])
                 self.assertEqual(after,self.counts())
                 with closing(sqlite3.connect(self.path)) as db:

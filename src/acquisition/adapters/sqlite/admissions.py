@@ -55,6 +55,39 @@ def generation_decision(intent):
             'intent_fingerprint':intent.fingerprint}
 
 
+def persist_workflow_request(db, intent, inputs, source, now):
+    if digest(source)!=intent.source_fingerprint:
+        raise Conflict('Workflow source differs from its admission')
+    db.execute('INSERT INTO admission_requests VALUES(?,?,?,?,?,?,?,?,NULL,NULL)',
+               (intent.organization,intent.request_id,canonical(inputs),canonical(intent.payload()),intent.fingerprint,
+                canonical(source),canonical(generation_decision(intent)),now))
+
+
+def commit_admission(db, intent, now):
+    """Write the shared paused binding and runtime plan in the caller's transaction."""
+    owner=intent.ownership
+    execution_account=account(db,owner.organization,owner.scope_id) if owner.kind=='conversation' else None
+    specs=intent.tasks
+    run='run_'+uuid4().hex
+    receipt=AdmissionReceipt(intent.organization,intent.id,run,intent.fingerprint,now)
+    # The deferred FK permits admission first so sealed-store triggers can
+    # enforce the binding even when a cached writer attempts a runtime insert.
+    required=verified_required(db)
+    values=(intent.organization,intent.id,intent.request_id,run,canonical(intent.payload()),
+            intent.fingerprint,canonical(asdict(receipt)))
+    statement="INSERT INTO execution_admissions VALUES(?,?,?,?,?,?,?,'paused')"
+    if required:db.execute(statement,values)
+    insert_run(db,intent.organization,specs[0].inputs['run_request_id'],specs,now,
+               reservation_owner=(intent.request_id,intent.fingerprint),run_id=run)
+    if execution_account is not None:
+        db.execute('INSERT INTO execution_runs VALUES(?,?,?,?,?)',
+                   (intent.organization,run,owner.organization,owner.scope_id,owner.revision))
+    if not required:db.execute(statement,values)
+    event(db,run,None,'execution_admitted',{'admission_id':intent.id,'status':'paused',
+          'policy':execution_account['policy'] if execution_account else 'standalone-per-run'},now)
+    return receipt
+
+
 class SqliteAdmissions:
     def __init__(self, database, preflight, clock=time.time, *, workflow_source=None, workflow_intent=None):
         self.database,self.preflight,self.clock=database,preflight,clock
@@ -141,10 +174,7 @@ class SqliteAdmissions:
                 raise Conflict('Runtime key already belongs to another paused request')
             now=self.clock();finite_time(now)
             require_owner(db,source['owner']);freshness_fence(source,now)
-            inputs=canonical(json.loads(command)|{'operation_key':operation})
-            db.execute('INSERT INTO admission_requests VALUES(?,?,?,?,?,?,?,?,NULL,NULL)',
-                (organization,request_id,inputs,canonical(intent.payload()),intent.fingerprint,canonical(source),
-                 canonical(generation_decision(intent)),now))
+            persist_workflow_request(db,intent,json.loads(command)|{'operation_key':operation},source,now)
             return intent
 
     def request_planning(self, organization, conversation_id, request_id, revision, context, *,
@@ -322,8 +352,7 @@ class SqliteAdmissions:
             if row is None:raise NotFound('Save the exact scoped request and consent before admission')
             expected=self._request_intent(row)
             owner=intent.ownership
-            specs=intent.tasks
-            frozen=specs[0].inputs
+            frozen=intent.tasks[0].inputs
             command=json.loads(row['inputs'])
             if 'kind' in command:
                 if self.workflow_source is None or self.workflow_intent is None:
@@ -347,30 +376,13 @@ class SqliteAdmissions:
             now=self.clock();finite_time(now)  # Include lock wait and validation time.
             if 'kind' in command:
                 require_owner(db,source['owner']);freshness_fence(source,now)
-            a=account(db,owner.organization,owner.scope_id) if owner.kind=='conversation' else None
-            run='run_'+uuid4().hex
-            receipt=AdmissionReceipt(intent.organization,intent.id,run,intent.fingerprint,now)
-            # A deferred FK permits admission first, while commit still requires
-            # the exact runtime row. SQL guards reject old cached writers too.
-            def record_admission():
-                db.execute("INSERT INTO execution_admissions VALUES(?,?,?,?,?,?,?,'paused')",
-                           (intent.organization,intent.id,intent.request_id,run,canonical(intent.payload()),intent.fingerprint,canonical(asdict(receipt))))
-            required=verified_required(db)
-            if required:record_admission()
-            run=insert_run(db,intent.organization,frozen['run_request_id'],specs,now,
-                           reservation_owner=(intent.request_id,intent.fingerprint),run_id=run)
-            if owner.kind=='conversation':
-                db.execute('INSERT INTO execution_runs VALUES(?,?,?,?,?)',
-                           (intent.organization,run,owner.organization,owner.scope_id,owner.revision))
+            receipt=commit_admission(db,intent,now)
             if 'kind' not in command:
                 db.execute('INSERT INTO conversation_plans VALUES(?,?,?,?,?,?)',
                            (intent.organization,owner.scope_id,frozen['request_id'],owner.revision,canonical(frozen),now))
-            if not required:record_admission()
-            event(db,run,None,'execution_admitted',{'admission_id':intent.id,'status':'paused',
-                  'policy':a['policy'] if a else 'standalone-per-run'},now)
-            if required and grant_fixture_execution(db, intent, run):
-                event(db, run, None, 'fixture_execution_granted',
-                      {'admission_id': intent.id, 'policy': FIXTURE_POLICY}, now)
+            if verified_required(db) and grant_fixture_execution(db,intent,receipt.run_id):
+                event(db,receipt.run_id,None,'fixture_execution_granted',
+                      {'admission_id':intent.id,'policy':FIXTURE_POLICY},now)
             return receipt
 
     def _receipt(self, db, row):
