@@ -1,5 +1,30 @@
 # Validation and limits
 
+## Ownership stack integration after PR #95, 18 November 2026
+
+Four post-merge smoke tests passed on `main` at `6fb2920`. They exercised
+both companies' sequence journeys, the schema-22 upgrade, channel worker
+recovery, and the workspace HTTP flow.
+
+The feature branch merges ownership PRs #113 through #115 at `20b3c48`.
+The shared channel verifier enforces PR #95's original preparation and run
+requirement, and the copied-task regression remains in the suite.
+A fresh SQLite probe confirmed that default preparation completes with
+three synthetic calls and zero ownership admissions. Explicitly staged
+preparation remains queued with one ownership admission and zero calls.
+The default-writer cutover remains open in #109.
+
+`make test` passed all 1,063 backend tests. `make arch-check` passed with
+209 classified modules and zero exceptions.
+`make boundary-check` passed all five synthetic cases with zero external
+network attempts and preserved historical evidence bytes. Its evaluated
+commit is `20b3c48d5c49e78dc7db916408fc17b893279140` and source fingerprint is
+`24a9fd868705b260e64c6bf13167fc9d38112cb3ef3bbf7ea1226b2d2e1d302c`.
+`make interface-check` passed the production build, formatting and all 114
+Chromium cases, including six sequence journeys. All 526 mutation definitions
+match one source location and compile. All four targeted ownership mutations
+were detected.
+
 ## Composed channel ownership conformance, issue 111
 
 The existing SQLite suite now verifies seven prior-admission variants, with
