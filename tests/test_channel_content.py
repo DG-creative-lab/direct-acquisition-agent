@@ -261,16 +261,37 @@ print(json.dumps(view))
         self.assertEqual(app.ownership('one',run),report)
         with app.store.database.transaction() as db:
             db.execute('DROP TRIGGER interrupted_ownership')
+            db.execute("""CREATE TRIGGER change_ownership_evidence AFTER INSERT ON events
+                WHEN NEW.kind='channel_ownership_reconciled'
+                BEGIN UPDATE model_calls SET error='changed_after_report'
+                WHERE organization='one' AND run_id=NEW.run_id; END""")
+        with self.assertRaisesRegex(Conflict,'evidence changed before reconciliation commit'):
+            app.reconcile_ownership('one',run,report['fingerprint'])
+        self.assertEqual(app.ownership('one',run),report)
+        self.assertEqual(app.inspect('one','legacy'),before)
+        with app.store.database.transaction() as db:
+            db.execute('DROP TRIGGER change_ownership_evidence')
         code = """
-import json,sys
+import json,os,sys
 from acquisition.bootstrap import build_channel_preparation
 app=build_channel_preparation(sys.argv[1],'one','fielddesk',lambda:1794614400.)
-print(json.dumps(app.reconcile_ownership('one',sys.argv[2],sys.argv[3])))
+receipt=app.reconcile_ownership('one',sys.argv[2],sys.argv[3])
+if sys.argv[4]=='interrupt':
+    os._exit(73)
+print(json.dumps(receipt))
 """
-        retry = subprocess.run([sys.executable,'-c',code,str(self.path),run,report['fingerprint']],
-                               cwd=ROOT,text=True,capture_output=True,timeout=20)
+        command = [sys.executable,'-c',code,str(self.path),run,report['fingerprint']]
+        interrupted = subprocess.run([*command,'interrupt'],cwd=ROOT,text=True,capture_output=True,timeout=20)
+        self.assertEqual(interrupted.returncode,73,interrupted.stderr)
+        self.assertEqual(interrupted.stdout,'')
+        with app.store.database.connect() as db:
+            committed = db.execute("SELECT data FROM events WHERE run_id=? AND kind='channel_ownership_reconciled'",
+                                   (run,)).fetchone()
+            self.assertIsNotNone(committed)
+        retry = subprocess.run([*command,'replay'],cwd=ROOT,text=True,capture_output=True,timeout=20)
         self.assertEqual(retry.returncode,0,retry.stderr)
         receipt = json.loads(retry.stdout)
+        self.assertEqual(receipt,json.loads(committed[0]))
         next_app = self.app(model=RecordingModel())
         self.assertEqual(next_app.ownership('one',run),report | {'status':'legacy_reconciled'})
         self.assertEqual(next_app.reconcile_ownership('one',run,report['fingerprint']),receipt)

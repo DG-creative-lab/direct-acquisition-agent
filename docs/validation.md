@@ -1,5 +1,43 @@
 # Validation and limits
 
+## Composed channel ownership conformance, issue 111
+
+The existing SQLite suite now verifies seven prior-admission variants, with
+exact positive call and artifact counts for both Fielddesk and Iwoca. Each
+queued independent run records three calls against its own run, and the
+later journey records nine against its original conversation and revision.
+Both later journeys reach review without approval. Six detached continuation
+variants exercise queued resume, reservation, cached replay, publication,
+uncertainty and late observations. They preserve the original accounting
+and leave ambiguous history unresolved. A fresh CLI process agrees on the
+in-flight case after the late receipt arrives.
+
+The stopped-source alias fixture uses the same provider-account identity with
+a distinct source ID. It cannot obtain a new assessment. The reconciliation
+checks observe rollback on a receipt-write fault and on drift after the audit
+write. A process then exits after the transaction commits and a second
+process returns the exact original receipt. The original call history
+remains byte-for-byte intact.
+
+The six focused methods ran in 33.414 seconds. Four selected mutations were
+detected by behavioral assertions in 28.88 seconds wall time. All 526 manual
+catalogue entries matched once and compiled. The focused timings include
+overlapping verification workloads and are single-run observations. The
+frontend build and the six existing Chromium sequence tests passed. The
+browser suite took 1.2 minutes. The architecture check passed with 209
+classified modules and zero exceptions, and the whitespace check passed.
+
+`make boundary-check` passed all five synthetic cases with zero external
+network attempts and preserved historical bytes. The report records base
+`dcc80861a4a31ca5ccf919634c0a657ddf017718` and source fingerprint
+`65f9f1785f2a68513c87be3ca4196002cd7aba533fadd382abd5d15065a0f1ee`. The full `make test` suite
+passed all 1,063 tests in 978.893 seconds.
+
+The [conformance matrix](run-ownership-admission.md#composed-ownership-conformance-in-111)
+records denominators, retained legacy coverage, CI cadence and reuse for #74
+and #77. The checks measure synthetic authority and recovery behavior. Live
+model quality, delivery and customer outcomes require separate executed trials.
+
 ## Verified standalone ownership across legacy journeys, issue 110
 
 The SQLite regression reproduced a committed standalone run becoming
