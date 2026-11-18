@@ -1,5 +1,33 @@
 # Validation and limits
 
+## Refreshed #68 integration candidate for PR #95, 18 November 2026
+
+The refreshed candidate combines the workspace architecture on main
+(`e66245e`) and the reviewed #68 provenance compatibility snapshot
+(`17bd908`). The architecture closure under #88 is present. The
+ownership stack from PRs #113 through #115 is the separate promotion after
+the #68 baseline is accepted. The default-writer cutover remains open in #109.
+
+A real SQLite regression reproduced a reservation reaching the call journal
+through a runtime task that reused another run's frozen channel context.
+The reservation now requires the original scoped preparation and run. A
+copied task cannot reserve calls, and the original run reuses its three
+recorded observations after worker loss and publishes one artifact.
+
+`make interface-check` passed the production build, formatting and all 114
+Chromium cases, with zero skips, unexpected results or flaky retries.
+`make arch-check` passed with 209 modules and zero exceptions.
+`make boundary-check` passed all five synthetic cases with zero external
+network attempts and preserved historical evidence bytes. Its evaluated
+commit is `207e84049616d3da667cf2e950733d5a3436f2b5` and source fingerprint is
+`baf3d759b3fcbdd2354eee62856a869f3658a06f35f9615f5b442743b4b426e9`.
+
+Three selected mutations were detected by behavioral assertions. They cover
+loss of the original preparation check, detached recipient lineage and
+recovery of the shared scope when account links are missing. All 522 manual
+mutation definitions match a single source location and compile. The full
+`make test` suite passed all 1,059 tests.
+
 ## Run ownership contract, issue 108
 
 The stage 1 comparator requires positive, consistent ownership for all required
