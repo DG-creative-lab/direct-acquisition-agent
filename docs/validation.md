@@ -1,5 +1,193 @@
 # Validation and limits
 
+## Ownership stack integration after PR #95, 18 November 2026
+
+Four post-merge smoke tests passed on `main` at `6fb2920`. They exercised
+both companies' sequence journeys, the schema-22 upgrade, channel worker
+recovery, and the workspace HTTP flow.
+
+The feature branch merges ownership PRs #113 through #115 at `20b3c48`.
+The shared channel verifier enforces PR #95's original preparation and run
+requirement, and the copied-task regression remains in the suite.
+A fresh SQLite probe confirmed that default preparation completes with
+three synthetic calls and zero ownership admissions. Explicitly staged
+preparation remains queued with one ownership admission and zero calls.
+The default-writer cutover remains open in #109.
+
+`make test` passed all 1,063 backend tests. `make arch-check` passed with
+209 classified modules and zero exceptions.
+`make boundary-check` passed all five synthetic cases with zero external
+network attempts and preserved historical evidence bytes. Its evaluated
+commit is `20b3c48d5c49e78dc7db916408fc17b893279140` and source fingerprint is
+`24a9fd868705b260e64c6bf13167fc9d38112cb3ef3bbf7ea1226b2d2e1d302c`.
+`make interface-check` passed the production build, formatting and all 114
+Chromium cases, including six sequence journeys. All 526 mutation definitions
+match one source location and compile. All four targeted ownership mutations
+were detected.
+
+## Composed channel ownership conformance, issue 111
+
+The existing SQLite suite now verifies seven prior-admission variants, with
+exact positive call and artifact counts for both Fielddesk and Iwoca. Each
+queued independent run records three calls against its own run, and the
+later journey records nine against its original conversation and revision.
+Both later journeys reach review without approval. Six detached continuation
+variants exercise queued resume, reservation, cached replay, publication,
+uncertainty and late observations. They preserve the original accounting
+and leave ambiguous history unresolved. A fresh CLI process agrees on the
+in-flight case after the late receipt arrives.
+
+The stopped-source alias fixture uses the same provider-account identity with
+a distinct source ID. It cannot obtain a new assessment. The reconciliation
+checks observe rollback on a receipt-write fault and on drift after the audit
+write. A process then exits after the transaction commits and a second
+process returns the exact original receipt. The original call history
+remains byte-for-byte intact.
+
+The six focused methods ran in 33.414 seconds. Four selected mutations were
+detected by behavioral assertions in 28.88 seconds wall time. All 526 manual
+catalogue entries matched once and compiled. The focused timings include
+overlapping verification workloads and are single-run observations. The
+frontend build and the six existing Chromium sequence tests passed. The
+browser suite took 1.2 minutes. The architecture check passed with 209
+classified modules and zero exceptions, and the whitespace check passed.
+
+`make boundary-check` passed all five synthetic cases with zero external
+network attempts and preserved historical bytes. The report records base
+`dcc80861a4a31ca5ccf919634c0a657ddf017718` and source fingerprint
+`65f9f1785f2a68513c87be3ca4196002cd7aba533fadd382abd5d15065a0f1ee`. The full `make test` suite
+passed all 1,063 tests in 978.893 seconds.
+
+The [conformance matrix](run-ownership-admission.md#composed-ownership-conformance-in-111)
+records denominators, retained legacy coverage, CI cadence and reuse for #74
+and #77. The checks measure synthetic authority and recovery behavior. Live
+model quality, delivery and customer outcomes require separate executed trials.
+
+## Verified standalone ownership across legacy journeys, issue 110
+
+The SQLite regression reproduced a committed standalone run becoming
+inapplicable after a later same-source journey whose requested event lacked
+`prior_channel_runs`. The committed admission now supplies the ownership proof.
+After reopening the store, the run remains bound and applicable, with the
+same run ID, ownership fingerprint and zero calls. Its frozen contexts and
+explicit channel and recipient bindings are still checked. The paired
+legacy run has no committed binding and remains unresolved without ordering
+evidence, including when the clocks differ.
+
+Three focused mutation probes detected reintroducing source ownership inference
+for an admitted standalone run, skipping its explicit channel binding check
+and skipping its explicit recipient binding check. The architecture and
+whitespace checks passed. All five integrated boundary cases passed with zero
+external network attempts and preserved historical bytes. The boundary report
+records source fingerprint
+`e44ef0b2486695e6b0eea6b12cbd27ad3b59c3bb956dddb83d9df1f898ef95de`. The full `make test` suite
+passed all 1,063 tests.
+
+## Standalone journey link review, issue 110
+
+The real SQLite regression reproduced an admitted standalone run remaining
+bound when its channel command or recipient request gained a conflicting
+journey binding. Both ownership kinds now use the same frozen-lineage check.
+Conflicting links make the standalone run unresolved and inapplicable, block
+exact replay and keep its zero-call pause intact.
+
+A genuine later journey on the same source leaves the standalone binding valid
+when its snapshot names the exact earlier run and context. The regression uses
+equal clocks. A separate probe changed only the context in that snapshot and
+verified the ownership became unresolved until the exact pair was restored.
+A targeted mutation that skipped the lineage check for standalone runs was
+detected.
+
+`make arch-check` and `git diff --check` passed. The five integrated boundary
+cases passed with zero external network attempts and preserved historical bytes.
+The boundary report records source fingerprint
+`71afad34c21a1c95eab8c2db0697e9f9a0a2275705d259b795dcae3662c6a268`. The full `make test` suite
+passed all 1,063 tests.
+
+## Admitted recipient lineage review, issue 110
+
+The paused journey regression reproduced missing and conflicting recipient
+bindings on both Fielddesk and Iwoca. The canonical reader now corroborates the
+frozen recipient context and assessment IDs, the recipient's original journey
+origin and the original assessment command binding. The historical read uses
+the original journey revision. Effect boundaries still check current stop and
+consent independently.
+
+Both profiles now report damaged runs as unresolved and inapplicable while
+claim and inference remain paused. The regression restores the link, then
+verifies the original binding and receipt after a stop. A separate SQLite
+probe removed a native recipient context receipt and observed unresolved
+ownership, an inapplicable run and zero calls. Independent mutations removing
+either the recipient-origin check or the assessment-binding check were detected.
+
+`make arch-check` and `git diff --check` passed. The five integrated boundary
+cases passed with zero external network attempts and preserved historical
+bytes. The final report records source fingerprint
+`b9e2dc17605d8c104fdea9efe12dd7b1b644cf51ab99e087c2e238e504f26806`. The full `make test` suite
+passed all 1,063 tests.
+
+## Channel ownership readers and legacy reconciliation, issue 110
+
+Real SQLite checks verified that a surviving admission event fences a run
+after both admission rows and the task marker are removed. The channel read
+and exact-request replay reject the missing binding. Detached legacy runs stay
+unresolved through inspection, reservation and publication.
+
+Legacy inspection and reconciliation ran in separate CLI processes. A fault
+between the ownership receipt and audit event rolled back both writes. A stale
+report could not reconcile a changed run. Exact retry returned one original
+receipt after restart, including for an unknown call that was never repeated.
+An in-flight reservation blocked reconciliation and its late observation still
+recorded on the original call. A previously independent run completed after a later journey without adding to
+the conversation allowance. A stopped conversation retained its original
+account, revision and complete call journal. The checkpoint round trip allowed
+inspection and blocked reconciliation writes.
+
+`make arch-check` passed with 209 classified modules and zero exceptions.
+`make boundary-check` passed 5 synthetic cases with zero external network
+attempts and preserved historical bytes. The report records integration base
+`ec5c0a373aa731d2187cbcab2e0aa9c715909d11` and stable source fingerprint
+`d9d8439cb01190f21b5802310b37882e447f533944f59559345547eac3494467`. Both updated mutation probes detected
+their target failures. Two additional mutation probes detected removal of the
+surviving admission-event fence and bypass of stale-report rejection. All 522
+catalogue definitions match once and compile. The full `make test` suite passed
+all 1,063 tests.
+
+## Universal writer review, issue 109
+
+On 18 November 2026, a real SQLite probe compared two fresh stores using
+the installed channel fixture. Default native preparation succeeded with
+three synthetic calls and zero scoped `execution_admissions` rows. Explicit
+paused composition left one committed binding, a queued run and zero calls.
+This verifies the paused writer and the outstanding coverage gap. The
+default native and workspace cutover remains open in #109.
+
+## Preparatory paused channel ownership admission, issue 109
+
+The staged writer verifies native assessment and recipient receipts, installed
+source versions and provider accounts, and the original journey stage and
+consent inside the same SQLite write transaction as its runtime and ownership
+records. The paused receipt grants no execution authority. A native replay
+uses the original run identity, and a cloned runtime task cannot use that
+run's preparation to reserve a model call.
+
+Real SQLite regressions passed for statement faults at each durable admission
+table, concurrent identical commands, changed request rejection, restart,
+late stop and revision changes on both profiles, and standalone ownership
+after a later journey. A staged rewrite preserved the exact completed parent's
+standalone operation root. The checkpoint round trip preserved the binding and
+blocked resumed writes. The verified-paused writer fence also passed.
+
+`make arch-check` passed with 209 classified modules and zero exceptions.
+`make boundary-check` passed five synthetic journeys with zero external
+network attempts and preserved historical evidence bytes. The JSON report
+records local #68/#108 baseline `17bd908f5afc6ef088f5f09927c4cf3e700804c9`
+and stable source fingerprint
+`67219bdee2a0900feb6386e404b1402d5c218b0e78fc4df62e68a441ce7374a1`.
+The two adjusted mutation probes both detected their target faults. All 522
+probe definitions match one source location and compile. The full `make test`
+suite passed all 1,061 tests.
+
 ## Refreshed #68 integration candidate for PR #95, 18 November 2026
 
 The refreshed candidate combines the workspace architecture on main

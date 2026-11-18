@@ -111,11 +111,12 @@ def build_recipient_contexts(path, organization, profile_key, clock=time.time, *
     return RecipientContexts(source,store,selected_guidance)
 
 
-def build_channel_preparation(path, organization, profile_key, clock=time.time, *, gateway=None, read_only=False):
+def build_channel_preparation(path, organization, profile_key, clock=time.time, *, gateway=None, read_only=False,
+                              stage_ownership=False):
     """Installed offline model simulation only; no paid model, sender or review capability."""
     from acquisition.adapters.channel_fixtures import OfflineChannelModel
     from acquisition.adapters.sqlite.channel_content import SqliteChannelContent, SqliteChannelTasks
-    from acquisition.workflows.channel_content import ChannelContentWorkflow, ChannelPreparation
+    from acquisition.workflows.channel_content import ChannelContentWorkflow, ChannelPreparation, compose_paused_channel_admission
     from acquisition.reasoning import ModelConfig
     from acquisition.creative import CHANNEL_CONTENT_CAPABILITY
     recipients = build_recipient_contexts(path,organization,profile_key,clock,read_only=read_only)
@@ -127,7 +128,8 @@ def build_channel_preparation(path, organization, profile_key, clock=time.time, 
     catalogue = json.loads((Path(__file__).resolve().parents[2]/'config/channel-skills-v1.json').read_text())
     database = recipients.store.contacts.database
     store = SqliteChannelContent(recipients.store,recipients.store.contacts.profiles,profile_key,catalogue,
-        SqliteCreative(database),config,clock,read_only=read_only)
+        SqliteCreative(database),config,clock,read_only=read_only,
+        compose_admission=compose_paused_channel_admission if stage_ownership else None)
     tasks = SqliteChannelTasks(store)
     inference = Inference(gateway if gateway is not None else OfflineChannelModel(),SqliteCalls(database,clock),config,clock)
     workflow = ChannelContentWorkflow(store,inference)
@@ -160,7 +162,7 @@ def build_sequence_simulation(path, organization, profile_key, clock=time.time, 
     return SequenceSimulation(SequenceCampaigns(proposals),simulator,SequenceReviews(reviews))
 
 
-def build_sequence_journeys(path,clock=time.time):
+def build_sequence_journeys(path,clock=time.time,*,stage_ownership=False):
     """Wire bounded conversation continuation to installed synthetic module APIs."""
     from acquisition.adapters.local_profiles import LocalProfiles
     from acquisition.adapters.contact_fixtures import synthetic_contact_snapshots
@@ -201,7 +203,8 @@ def build_sequence_journeys(path,clock=time.time):
         directory=build_contact_directory(path,native,key,scoped_clock,read_only=inspection)
         audiences=build_audience_decisions(path,native,key,clock=scoped_clock,read_only=inspection)
         contexts=build_recipient_contexts(path,native,key,scoped_clock,read_only=inspection)
-        channels=build_channel_preparation(path,native,key,scoped_clock,read_only=inspection)
+        channels=build_channel_preparation(path,native,key,scoped_clock,read_only=inspection,
+                                           stage_ownership=stage_ownership)
         sequence=build_sequence_simulation(path,native,key,scoped_clock,read_only=inspection)
         def initialize_reviewers():
             roles=SqliteReviews(sequence.campaigns.store.database,scoped_clock,SqliteSimulatedDelivery)

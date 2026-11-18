@@ -3,8 +3,14 @@
 Stage 1 of [epic #107](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/107)
 defines the contract for [#108](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/108).
 The executable source-ownership comparison lives on `AdmissionIntent`.
-Capability-specific loaders, persistence changes and reader adoption are future
-work under #109 and #110.
+#109 prepares the atomic writer, #110 adopts the ownership readers and legacy
+reconciliation, and #111 verifies their behavior together. The ownership stack
+is based on `main` after PR #95 merged the #68 baseline at `6fb2920`.
+Universal channel admission remains an open acceptance criterion for #109.
+Default native and workspace composition still use the existing writer.
+Explicitly staged admissions retain the paused execution policy.
+
+## Original reuse inventory baseline
 
 The inventory uses main at `ff2e1ff9238de0520464a5265cfb8ed2f9e486e9`.
 [PR #95](https://github.com/DG-creative-lab/direct-acquisition-agent/pull/95)
@@ -29,6 +35,81 @@ changing production writers.
 | Inference and allowance | `SqliteCalls.reserve` checks lease, ancestry, idempotency and run limit before writing the reservation. `execution.reserve_execution` charges the linked conversation account. `unreconciled_call_exists` checks receipt completeness. The local #68 candidate also rechecks derived origin and recognizes proven prior standalone runs. | Read one verified owner before charging its allowance. Corroborate auxiliary links against the admission. Recheck stop, consent, evidence and lease at reservation. `SqliteCalls.record` may record an existing in-flight result without creating any new authority. |
 | Publication and downstream approval | `SqliteChannelTasks.settle` checks the exact task lease and atomically calls `SqliteChannelContent.publish`, which validates frozen inputs and recorded model observations. Reviews and engagements own exact approval and acceptance checks. | Verify the same committed owner and current eligibility at publication and before commit. A sequence assembled from channel artifacts must retain their bound lineage. Approval and execution checks still belong to the modules that own those effects. |
 | Inspection and recovery | `admission_guard.binding` validates stored intent, request, source, consent, receipt, runtime plan and accounting link. `SqliteAdmissions._receipt` validates replay. `execution.run_origin` reconstructs older links, and `independent_resolution` verifies traditional standalone recovery evidence. Legacy migration and checkpoint adapters enforce their own evidence and restore fences. | Share the verified binding reader for adopted capabilities. Make recovery a read-only classification plus explicit evidence-checked reconciliation. Missing history stays inspectable and fenced. |
+
+## Preparatory paused channel writer in #109
+
+The stacked #109 implementation uses local integration snapshot `17bd908`,
+which includes the #68 review fixes and the #108 merge `e66245e`. Treat this
+snapshot as a development baseline until the #68 integration is accepted.
+
+The internal `stage_ownership` composition option selects the
+`paused-channel-admission/v1` task composer for native preparation and
+conversation journey stages. The SQLite writer verifies scoped recipient
+receipts, current source and provider-account identities, and the original
+journey command when present. A rewrite proves its exact completed parent and
+preserves its owner. The same transaction commits the frozen context, native
+preparation, admission request and receipt, runtime plan, and conversation
+account link. An exact retry reads the original binding after a restart or stop.
+
+The staged task uses the existing paused execution fence. An ordinary native
+replay of a staged run returns the same run, and a copied task cannot reserve
+calls against that preparation. New requests through the default native
+and workspace entry points still use the existing synthetic writer. That
+writer can complete a run without an ownership binding.
+
+The staged writer gives #110 a concrete binding to adopt. The default
+writer switch requires an accepted #68 integration baseline, a reviewed
+execution policy for supported synthetic work in unsealed stores, and the
+claim, reservation and publication readers for that policy.
+
+- [ ] Verify universal admission through the default native and workspace
+  entry points. Every new standalone channel run and conversation journey
+  stage must commit exactly one provenance-validated binding with its runtime
+  work. Verify allowed synthetic continuation in unsealed stores, the
+  verified-paused and inspection-only fences, and exact replay after restart.
+
+## Ownership readers and legacy reconciliation in #110
+
+The binding reader checks the exact channel preparation, context, task plan,
+consent and accounting link for a committed channel admission. It checks
+frozen recipient contexts and assessment references for both ownership kinds.
+Conversation-owned work must retain its original journey bindings. A committed
+standalone admission proves independent ownership and must have no conflicting
+channel or recipient binding. For legacy work without a committed admission,
+a journey's snapshot establishes prior admission when it names the exact run
+and context.
+Generation, inference reservation, publication and accounting use that binding. A
+surviving runtime marker, reserved request key or admission event keeps work
+fenced if its binding disappears. Current stop, evidence and lease checks
+still govern the corresponding effects.
+
+The read-only channel inspection classifies a scoped run as `bound`,
+`legacy_proven`, `legacy_reconciled` or `unresolved`. A legacy proof checks
+the original task plan, native recipient and assessment receipts, frozen
+source, parent lineage and account where applicable. A later journey can
+establish ordering through its captured prior-admission receipt. Missing
+or conflicting evidence leaves the run unresolved.
+
+Use the local channel CLI to inspect a saved run and explicitly record its
+proven legacy ownership. Supply the profile, native organization and run ID
+from the original work.
+
+```sh
+PYTHONPATH=src python3 -m acquisition.channel_cli --db "$store" \
+  --organization "$native_organization" --profile "$profile" ownership --run "$run_id"
+
+PYTHONPATH=src python3 -m acquisition.channel_cli --db "$store" \
+  --organization "$native_organization" --profile "$profile" reconcile-ownership \
+  --run "$run_id" --fingerprint "$inspection_fingerprint"
+```
+
+Reconciliation rechecks the report under the write lock and atomically
+records an ownership receipt and audit event. Exact replay returns the
+original receipt. A changed report requires fresh inspection. An active
+lease or reserved inference must be resolved before applying the report.
+Reconciliation preserves the run, context, task and call identities and
+receipts. Inspection is available on restored checkpoints, where writes
+remain blocked. The default admission cutover stays open in #109.
 
 ## Provenance and transition rules
 
@@ -64,6 +145,41 @@ changing production writers.
 | Mixed owners, foreign scope, different revision or conflicting parent | Reject admission | No run, reservation or publication follows the proposed owner. |
 | Restart or lost acknowledgement after admission, with an unknown call | Original run and owner | Existing receipts replay. An uncertain call is never automatically dispatched again. |
 | Legacy evidence absent or ambiguous | Inspectable and unresolved | Recovery must prove the original binding. Ordering or independence cannot be guessed from a timestamp or an empty link. |
+
+## Composed ownership conformance in #111
+
+The conformance cases exercise public preparation and journey paths, the SQLite
+task and call journals, and ownership inspection from a fresh process. The
+matrix pairs cases by the effects each state can reach.
+
+| Scenario | Tested behavior |
+| --- | --- |
+| Independent run admitted first | Fielddesk and Iwoca each record three independent calls, then nine calls across the later journey's three owned stages. The four exact runs publish four artifacts. The later journey reaches unapproved review and its allowance counts only its nine calls. |
+| Later commands on owned sources | Fielddesk rejects new channel and recipient keys, reassessment, refreshed versions and an installed access alias for the same provider account. An unrelated account and an independent organization can still generate. |
+| Earlier detached run | Six Fielddesk cases cover queued resume, an active lease, a cached call, publication with a completed result, an unknown call and an in-flight observation. No new calls or artifacts appear. Unlinked call receipts make accounting incomplete and block recovery. A late observation records on its existing reservation, including after stop. |
+| Original owned call interrupted | Stop, revision edit and unknown outcome retain the one call on the original account and revision. The run produces no artifact and replay adds no calls. |
+| Atomic ownership and recovery | Both paused company fixtures roll back late stop and edit during admission. Legacy reconciliation rolls back a receipt-write fault and drift after the audit write. Fresh processes recover the original receipt and unknown call when the writer exits after commit. |
+
+The existing prior-admission snapshot reader remains necessary for unbound
+legacy channel runs, including when both clocks agree. The verified standalone
+reader has independent ownership proof and checks explicit links. Further
+retirement requires the accepted #68 baseline, the #109 default-writer switch,
+and equivalent validation through claims, reservation, publication and recovery
+for the exact records being migrated. Ambiguous legacy history stays
+inspectable and unresolved.
+
+The backend cases extend existing test methods. Four selected fault mutations
+use the existing manual mutation audit. The browser evidence runs the six
+existing sequence cases against the loopback workspace. Coverage is limited
+to the listed profile, capability, policy and failure combinations.
+
+Use the journal, allowance, stop, replay and artifact checks as deterministic
+control evidence in the release corpus. Live semantic quality, spending and
+provider behavior require separate executed trials. [Issue #74](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/74)
+
+Reuse the ownership and uncertain-call checks as portability invariants when
+testing a second integration. Evidence for either real integration requires
+executing its provider and operational checks. [Issue #77](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/77)
 
 ## Format and rollout
 
