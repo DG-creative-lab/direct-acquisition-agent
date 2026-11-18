@@ -32,7 +32,7 @@ class ChannelContentWorkflow:
     def generate(self, claim):
         if (not self.eligible(claim.capability,claim.inputs) or claim.inputs.get('workflow_version')!='channel-content/v1'):
             raise ModelError('configure_original_channel_model_and_limits')
-        context = self.store.load(claim.organization,claim.inputs['context_id'])
+        context = self.store.load(claim.organization,claim.inputs['context_id'],run_id=claim.run_id)
         from datetime import datetime, timezone
         today = datetime.fromtimestamp(self.inference.clock(),timezone.utc).date()
         result = ChannelContentAgent(self.inference).generate(CallScope(claim.organization,claim.run_id,claim.task_id,claim.token),
@@ -53,3 +53,8 @@ class ChannelPreparation:
         return self.store.inspect(organization,request_id)
 
     def inspect(self, organization, request_id): return self.store.inspect(organization,request_id)
+
+    def ownership(self, organization, run_id): return self.store.ownership(organization,run_id)
+
+    def reconcile_ownership(self, organization, run_id, fingerprint):
+        return self.store.reconcile_ownership(organization,run_id,fingerprint)

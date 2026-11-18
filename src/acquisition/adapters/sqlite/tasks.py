@@ -11,7 +11,7 @@ from acquisition.runtime import Claim, LeaseLost, Outcome, TaskSpec
 
 from .database import Database, stored_plan_hash
 from .execution import bind_run, ancestry_pending
-from .admission_guard import binding, verified_required, require_legacy_writer
+from .admission_guard import binding, has_admission_evidence, verified_required, require_legacy_writer
 from .fixture_execution import POLICY as FIXTURE_POLICY, fixture_active, fixture_enabled, fixture_granted
 from .fixture_execution import require_fixture_deadline
 
@@ -72,12 +72,10 @@ def insert_run(connection, organization, request_id, specs, now, *, reservation_
 
 
 def admission_paused(connection, organization, run_id):
-    # An admission marker alone never permits execution in an unsealed store.
+    # Admission evidence cannot activate work in an unsealed store.
     return (connection.execute('SELECT 1 FROM execution_admissions WHERE organization=? AND run_id=?',
                                (organization,run_id)).fetchone() is not None or
-            connection.execute('''SELECT 1 FROM tasks t JOIN runs r ON r.id=t.run_id
-                WHERE r.organization=? AND r.id=? AND json_type(t.inputs,'$.execution_admission_id') IS NOT NULL''',
-                (organization,run_id)).fetchone() is not None)
+            has_admission_evidence(connection,organization,run_id))
 
 
 class SqliteTasks:

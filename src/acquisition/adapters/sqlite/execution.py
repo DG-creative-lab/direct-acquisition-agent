@@ -7,6 +7,7 @@ from sqlite3 import Row
 
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.conversations import EXECUTION_POLICY, CONVERSATION_CALL_LIMIT
+from acquisition.creative import CHANNEL_CONTENT_CAPABILITY
 from acquisition.reasoning import ModelError
 from .workspace_ancestry import workspace_ancestry_guard, workspace_ancestry, verify_workspace_binding, pre_history_binding
 
@@ -135,7 +136,7 @@ def native_execution_exists(db, organization, conversation_id, new_run_id):
 
 def unreconciled_call_exists(db, organization, conversation_id, *, account_exists):
     """Check receipt ownership against the index used to spend and display allowance."""
-    from .admission_guard import binding
+    from .admission_guard import binding, channel_reconciliation
     from .database import stored_plan_hash
 
     scope = (organization, conversation_id)
@@ -191,13 +192,18 @@ def unreconciled_call_exists(db, organization, conversation_id, *, account_exist
             if not row['complete_tasks'] or not row['request_hash'] or stored_plan_hash(db, run_id) != row['request_hash']:
                 return True
             if owner is None and not independent_resolution(db, run_scope, run_id):
-                from .sequence_journeys import prior_standalone_channel_run
-                if prior_standalone_channel_run(db,run_scope,run_id,organization,conversation_id):
-                    continue
-                # Pre-admission schemas have no verified standalone records.
+                # Canonical standalone ownership takes precedence over a
+                # compatibility inference based on later journeys.
                 has_admissions = db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='execution_admissions'").fetchone()
                 intent = binding(db, run_scope, run_id) if has_admissions else None
-                if intent is None or intent.ownership.kind != 'standalone':
+                if intent is not None and intent.ownership.kind=='standalone':
+                    continue
+                if channel_reconciliation(db,run_scope,run_id) is not None:
+                    from .admission_guard import read_channel_run
+                    read_channel_run(db,run_scope,run_id)
+                    continue
+                from .sequence_journeys import prior_standalone_channel_run
+                if not prior_standalone_channel_run(db,run_scope,run_id,organization,conversation_id):
                     return True
         except (Conflict, NotFound, KeyError, TypeError, ValueError, AttributeError):
             return True
@@ -271,8 +277,25 @@ def run_origin(db, organization, run_id, ancestors=(), memo=None):
     memo = {} if memo is None else memo
     if (organization, run_id) in memo:
         return memo[organization, run_id]
+    tasks = db.execute('SELECT capability,inputs FROM tasks WHERE run_id=?',(run_id,)).fetchall()
+    if any(row['capability']==CHANNEL_CONTENT_CAPABILITY for row in tasks):
+        from .admission_guard import binding, channel_reconciliation, read_channel_run
+        intent = binding(db,organization,run_id)
+        if intent is not None:
+            owner = intent.ownership
+            origin = (owner.organization,owner.scope_id,owner.revision) if owner.kind=='conversation' else None
+            memo[organization,run_id] = origin
+            return origin
+        if channel_reconciliation(db,organization,run_id) is not None:
+            from .sequence_journeys import require_channel_context_origin
+            _,context,_ = read_channel_run(db,organization,run_id)
+            require_channel_context_origin(db,organization,context,current=False)
+            journey = context.get('journey')
+            origin = (journey['organization'],journey['conversation_id'],journey['revision']) if journey else None
+            memo[organization,run_id] = origin
+            return origin
     origins = set()
-    for row in db.execute('SELECT capability,inputs FROM tasks WHERE run_id=?', (run_id,)):
+    for row in tasks:
         inputs = json.loads(row['inputs'])
         if row['capability'] in {'conversations.plan.v1', 'conversations.fixture_plan.v1'}:
             origin = (organization, inputs['conversation_id'], inputs['revision'])
@@ -453,6 +476,12 @@ class SqliteExecution:
 
     def for_run(self, organization, run_id):
         with self.database.connect() as db:
+            db.execute('BEGIN')
+            if db.execute("""SELECT 1 FROM tasks t JOIN runs r ON r.id=t.run_id
+                WHERE r.organization=? AND r.id=? AND t.capability=?""",
+                (organization,run_id,CHANNEL_CONTENT_CAPABILITY)).fetchone():
+                from .admission_guard import read_channel_run
+                read_channel_run(db,organization,run_id)
             row = db.execute('SELECT owner_organization,conversation_id,revision FROM execution_runs WHERE organization=? AND run_id=?',
                              (organization, run_id)).fetchone()
         return self.view(row['owner_organization'],row['conversation_id']) | {'run_revision':row['revision']} if row else None
@@ -598,6 +627,7 @@ class SqliteExecution:
 
     def stop(self, organization, conversation_id, request_id, revision, now):
         from .tasks import finite_time, event
+        from .admission_guard import CHANNEL_OWNERSHIP_KEY
         finite_time(now)
         inputs = {'conversation_id':conversation_id, 'revision':revision}
         with self.database.transaction() as db:
@@ -612,7 +642,7 @@ class SqliteExecution:
                     raise Conflict('Stop request already binds different inputs')
                 return json.loads(previous['receipt'])
             account(db, organization, conversation_id)
-            if request_id.startswith((DESCENDANT_PREFIX,INDEPENDENT_PREFIX,RESOLUTION_PREFIX,'workspace:')):
+            if request_id.startswith((DESCENDANT_PREFIX,INDEPENDENT_PREFIX,RESOLUTION_PREFIX,CHANNEL_OWNERSHIP_KEY,'workspace:')):
                 raise ValueError('Use a stop request identity outside the internal execution namespaces')
             if source[0] != revision:
                 raise Conflict('The brief changed. Stop the exact displayed revision.')

@@ -194,6 +194,10 @@ class WorkspaceCheckpointTests(TestCase):
                                              read_only=True,stage_ownership=True)
         self.assertEqual(restored.inspect('contact-scope','paused-channel')['run_id'],paused_run)
         self.assertTrue(restored.tasks.inspect('contact-scope',paused_run)['admission']['binding_valid'])
+        proof = restored.ownership('contact-scope',paused_run)
+        self.assertEqual(proof['status'],'bound')
+        with self.assertRaisesRegex(Conflict,'inspection-only'):
+            restored.reconcile_ownership('contact-scope',paused_run,proof['fingerprint'])
         self.assertEqual(restored.inference.journal.inspect('contact-scope',paused_run),[])
         with self.assertRaisesRegex(Conflict,'inspection-only'):
             build_channel_preparation(self.restore / legacy_key,'contact-scope','fielddesk',lambda:1794528000.,
