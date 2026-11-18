@@ -141,6 +141,41 @@ remain blocked. The default admission cutover stays open in #109.
 | Restart or lost acknowledgement after admission, with an unknown call | Original run and owner | Existing receipts replay. An uncertain call is never automatically dispatched again. |
 | Legacy evidence absent or ambiguous | Inspectable and unresolved | Recovery must prove the original binding. Ordering or independence cannot be guessed from a timestamp or an empty link. |
 
+## Composed ownership conformance in #111
+
+The conformance cases exercise public preparation and journey paths, the SQLite
+task and call journals, and ownership inspection from a fresh process. The
+matrix pairs cases by the effects each state can reach.
+
+| Scenario | Tested behavior |
+| --- | --- |
+| Independent run admitted first | Fielddesk and Iwoca each record three independent calls, then nine calls across the later journey's three owned stages. The four exact runs publish four artifacts. The later journey reaches unapproved review and its allowance counts only its nine calls. |
+| Later commands on owned sources | Fielddesk rejects new channel and recipient keys, reassessment, refreshed versions and an installed access alias for the same provider account. An unrelated account and an independent organization can still generate. |
+| Earlier detached run | Six Fielddesk cases cover queued resume, an active lease, a cached call, publication with a completed result, an unknown call and an in-flight observation. No new calls or artifacts appear. Unlinked call receipts make accounting incomplete and block recovery. A late observation records on its existing reservation, including after stop. |
+| Original owned call interrupted | Stop, revision edit and unknown outcome retain the one call on the original account and revision. The run produces no artifact and replay adds no calls. |
+| Atomic ownership and recovery | Both paused company fixtures roll back late stop and edit during admission. Legacy reconciliation rolls back a receipt-write fault and drift after the audit write. Fresh processes recover the original receipt and unknown call when the writer exits after commit. |
+
+The existing prior-admission snapshot reader remains necessary for unbound
+legacy channel runs, including when both clocks agree. The verified standalone
+reader has independent ownership proof and checks explicit links. Further
+retirement requires the accepted #68 baseline, the #109 default-writer switch,
+and equivalent validation through claims, reservation, publication and recovery
+for the exact records being migrated. Ambiguous legacy history stays
+inspectable and unresolved.
+
+The backend cases extend existing test methods. Four selected fault mutations
+use the existing manual mutation audit. The browser evidence runs the six
+existing sequence cases against the loopback workspace. Coverage is limited
+to the listed profile, capability, policy and failure combinations.
+
+Use the journal, allowance, stop, replay and artifact checks as deterministic
+control evidence in the release corpus. Live semantic quality, spending and
+provider behavior require separate executed trials. [Issue #74](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/74)
+
+Reuse the ownership and uncertain-call checks as portability invariants when
+testing a second integration. Evidence for either real integration requires
+executing its provider and operational checks. [Issue #77](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/77)
+
 ## Format and rollout
 
 - Keep the strict `execution-admission/v1` envelope and existing

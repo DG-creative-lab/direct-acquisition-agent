@@ -1,6 +1,8 @@
 """Conversation-to-effect invariants, with cheap interpretation cases and shared real-store templates."""
 
+from collections import Counter
 from contextlib import closing
+from dataclasses import asdict
 import json
 from pathlib import Path
 import sqlite3
@@ -11,11 +13,13 @@ import unittest
 from unittest.mock import patch
 
 from acquisition.bootstrap import build, build_channel_preparation, build_sequence_journeys
+from acquisition.adapters.contact_fixtures import RecordedContactSource
 from acquisition.adapters.sequence_interpreter import OfflineSequenceInterpreter
+from acquisition.audiences import contact_snapshot_from
 from acquisition.adapters.sqlite.admission_guard import binding
 from acquisition.adapters.sqlite.database import Database
 from acquisition.adapters.sqlite.sequence_journeys import SEQUENCE_JOURNEYS
-from acquisition.contracts import Conflict, NotFound
+from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.conversations import journey_request, journey_commands
 from acquisition.bootstrap import build_workspace as Workspace
 from acquisition.reasoning import ModelError
@@ -345,6 +349,14 @@ class SequenceJourneyTests(unittest.TestCase):
         for version in (1,2):
             with self.subTest(source_version=version), self.assertRaises(Conflict):
                 directory.prepare(native,'refreshed-assessment-'+str(version),'fielddesk-crm-a',version,'email')
+        original = directory.source.read(native,'fielddesk-crm-a',1)
+        alias_key = 'fielddesk-crm-alias'
+        alias = contact_snapshot_from(json.loads(canonical(asdict(original)).replace(original.connection.key,alias_key)))
+        self.assertEqual(alias.connection.id,original.connection.id)
+        self.assertNotEqual(alias.id,original.id)
+        source = RecordedContactSource(native,(original,alias))
+        with patch.object(directory,'source',source),patch.object(directory.store,'source',source),self.assertRaises(Conflict):
+            directory.prepare(native,'aliased-assessment',alias_key,1,'email')
         self.assertEqual(before,self.counts())
         with closing(sqlite3.connect(self.path)) as db:
             self.assertEqual(db.execute('SELECT count(*) FROM contact_assessments').fetchone()[0],assessments)
@@ -383,7 +395,7 @@ class SequenceJourneyTests(unittest.TestCase):
     def test_earlier_detached_run_rechecks_source_before_resume_reservation_and_publication(self):
         from acquisition.bootstrap import build_recipient_contexts, build_channel_preparation
         from acquisition.reasoning import CallScope
-        for stage in ('resume','reservation','publication','uncertain'):
+        for stage in ('resume','reservation','cached','publication','uncertain','in-flight'):
             with self.subTest(stage=stage):
                 self.copy_template()
                 row=self.app.store.get('one',self.journey);native=row['inputs']['native_organization']
@@ -401,6 +413,11 @@ class SequenceJourneyTests(unittest.TestCase):
                         scope=CallScope(native,run,claim.task_id,claim.token)
                         handler=channels.worker.capabilities[claim.capability]
                         if stage=='publication':outcome=handler(claim)
+                        if stage in {'cached','in-flight'}:
+                            journal=channels.inference.journal
+                            self.assertIsNone(journal.reserve(scope,'recorded-probe',digest('fixture request'),5,self.now))
+                            if stage=='cached':
+                                journal.record(scope,'recorded-probe',{'observation':'synthetic fixture'},None)
                         if stage=='uncertain':
                             with patch.object(channels.inference.gateway,'complete',side_effect=ModelError('provider_timeout')), self.assertRaises(ModelError):
                                 handler(claim)
@@ -409,15 +426,22 @@ class SequenceJourneyTests(unittest.TestCase):
                     conversation=build(self.path,clock=lambda:self.now).conversations.create('one','another-owner','Later journey')['id']
                     later=self.app.send('one',conversation,'another-owner-message',0,OBJECTIVE.format(profile='fielddesk'))
                     self.app.stop('one',later['id'],'stop-another-owner',1)
-                if stage=='publication':
-                    self.assertFalse(build(self.path,clock=lambda:self.now).execution.view('one',self.conversation)['accounting_complete'])
+                execution=build(self.path,clock=lambda:self.now).execution
+                usage=execution.view('one',self.conversation)
+                has_detached_receipt=stage in {'cached','publication','uncertain','in-flight'}
+                self.assertEqual(usage['accounting_complete'],not has_detached_receipt)
+                self.assertEqual(usage['used'],9)
+                self.assertEqual(usage['remaining'],None if has_detached_receipt else usage['limit']-9)
                 before=self.counts()
-                if stage=='reservation':
+                if stage!='resume':
                     with self.assertRaises(Conflict):
-                        channels.inference.journal.reserve(scope,'new-call','hash',5,self.now)
+                        key='recorded-probe' if stage=='cached' else 'new-call'
+                        channels.inference.journal.reserve(scope,key,digest('fixture request'),5,self.now)
+                if stage=='in-flight':
+                    channels.inference.journal.record(scope,'recorded-probe',{'observation':'late synthetic receipt'},None)
                 elif stage=='publication':
                     with self.assertRaises(Conflict):channels.tasks.settle(claim,outcome,self.now)
-                else:
+                elif stage in {'resume','uncertain'}:
                     self.now+=181
                     restarted=build_channel_preparation(self.path,native,'fielddesk',lambda:self.now)
                     restarted.worker.drain(native,run_id=run)
@@ -426,26 +450,43 @@ class SequenceJourneyTests(unittest.TestCase):
                     self.assertEqual(db.execute('SELECT count(*) FROM channel_artifacts WHERE organization=? AND run_id=?',(native,run)).fetchone()[0],0)
                 view=channels.inspect(native,'old-detached-run')
                 self.assertEqual(channels.ownership(native,run)['status'],'unresolved')
+                with self.assertRaises(Conflict):
+                    channels.reconcile_ownership(native,run,'0'*64)
+                recovered_usage=execution.view('one',self.conversation)
+                for field in ('used','remaining','accounting_complete'):
+                    self.assertEqual(recovered_usage[field],usage[field])
                 self.assertEqual(view['run_id'],run)
                 self.assertFalse(view['currently_applicable'])
                 self.assertEqual(channels.start(native,'old-detached-run','fielddesk',['old-detached-recipient'],'email'),run)
-                if stage=='uncertain':self.assertEqual([r['status'] for r in view['model_calls']],['unknown'])
+                if stage=='uncertain':
+                    self.assertEqual([r['status'] for r in view['model_calls']],['unknown'])
+                if stage=='in-flight':
+                    with closing(sqlite3.connect(self.path)) as db:
+                        calls=db.execute('SELECT call_key,status,response FROM model_calls WHERE organization=? AND run_id=?',
+                                         (native,run)).fetchall()
+                    self.assertEqual(calls,[('recorded-probe','recorded',canonical({'observation':'late synthetic receipt'}))])
+                    process=subprocess.run([sys.executable,'-m','acquisition.channel_cli','--db',str(self.path),
+                        '--organization',native,'--profile','fielddesk','ownership','--run',run],
+                        cwd=ROOT,text=True,capture_output=True,timeout=20)
+                    self.assertEqual(process.returncode,0,process.stderr)
+                    self.assertEqual(json.loads(process.stdout),channels.ownership(native,run))
 
     def test_standalone_admission_precedes_later_journey_without_losing_its_run(self):
         from acquisition.bootstrap import build_contact_directory, build_recipient_contexts, build_channel_preparation
-        for stage in ('queued','unknown','legacy-queued','legacy-ambiguous','paused','paused-legacy'):
-            with self.subTest(stage=stage):
-                path=Path(self.temp.name)/(stage+'.sqlite')
+        cases=tuple(('fielddesk',stage) for stage in ('queued','unknown','legacy-queued','legacy-ambiguous','paused','paused-legacy'))
+        for profile,stage in (*cases,('iwoca','queued')):
+            with self.subTest(profile=profile,stage=stage):
+                path=Path(self.temp.name)/(profile+'-'+stage+'.sqlite')
                 journeys=build_sequence_journeys(path,lambda:self.now)
-                profile=next(p for p in journeys.host.catalogue('one')['profiles'] if p['key']=='fielddesk')
-                native=profile['organization']
-                directory=build_contact_directory(path,native,'fielddesk',lambda:self.now)
-                assessment=directory.prepare(native,'independent-assessment','fielddesk-crm-a',1,'email')
-                contexts=build_recipient_contexts(path,native,'fielddesk',lambda:self.now)
+                native=next(p['organization'] for p in journeys.host.catalogue('one')['profiles'] if p['key']==profile)
+                connection=profile+'-crm-a'
+                directory=build_contact_directory(path,native,profile,lambda:self.now)
+                assessment=directory.prepare(native,'independent-assessment',connection,1,'email')
+                contexts=build_recipient_contexts(path,native,profile,lambda:self.now)
                 contexts.prepare(native,'independent-context',assessment['assessment_id'],assessment['report']['eligible'][0],'reviewed-context-a',1)
                 paused=stage.startswith('paused')
-                channels=build_channel_preparation(path,native,'fielddesk',lambda:self.now,stage_ownership=paused)
-                run=channels.start(native,'independent-run','fielddesk',['independent-context'],'email')
+                channels=build_channel_preparation(path,native,profile,lambda:self.now,stage_ownership=paused)
+                run=channels.start(native,'independent-run',profile,['independent-context'],'email')
                 if paused:
                     admitted=channels.ownership(native,run)
                     self.assertEqual(admitted['status'],'bound')
@@ -464,14 +505,14 @@ class SequenceJourneyTests(unittest.TestCase):
                         value={k:v for k,v in value.items() if k!='prior_channel_runs'}
                     return original_event(db,organization,kind,value)
                 with patch.object(journeys.store,'_event',side_effect=legacy_event):
-                    later=journeys.send('one',conversation,'later-message',0,OBJECTIVE.format(profile='fielddesk'))
+                    later=journeys.send('one',conversation,'later-message',0,OBJECTIVE.format(profile=profile))
                 if stage.startswith('legacy-'):journeys.stop('one',later['id'],'stop-later',1)
-                restarted=build_channel_preparation(path,native,'fielddesk',lambda:self.now)
+                restarted=build_channel_preparation(path,native,profile,lambda:self.now)
                 restarted.worker.drain(native,run_id=run)
                 view=restarted.inspect(native,'independent-run')
                 self.assertEqual(view['currently_applicable'],not stage.startswith('legacy-'))
                 self.assertEqual(view['run_id'],run)
-                self.assertEqual(restarted.start(native,'independent-run','fielddesk',['independent-context'],'email'),run)
+                self.assertEqual(restarted.start(native,'independent-run',profile,['independent-context'],'email'),run)
                 if stage.startswith('legacy-'):
                     self.assertEqual(restarted.ownership(native,run)['status'],'unresolved')
                 if stage=='queued':
@@ -505,7 +546,7 @@ class SequenceJourneyTests(unittest.TestCase):
                                 self.assertEqual(damaged['model_calls'],[])
                                 self.assertFalse(restarted.tasks.inspect(native,run)['admission']['binding_valid'])
                                 with self.assertRaises(Conflict):
-                                    restarted.start(native,'independent-run','fielddesk',['independent-context'],'email')
+                                    restarted.start(native,'independent-run',profile,['independent-context'],'email')
                                 self.assertIsNone(restarted.tasks.claim(native,self.now,10,run_id=run))
                             finally:
                                 with database.transaction() as db:
@@ -531,10 +572,29 @@ class SequenceJourneyTests(unittest.TestCase):
                     usage=build(path,clock=lambda:self.now).execution.view('one',conversation)
                     self.assertTrue(usage['accounting_complete'])
                     self.assertEqual(usage['used'],9)
-                    self.assertFalse(recovered.view('one',later['id'])['review']['approval_valid'])
+                    review=recovered.view('one',later['id'])['review']
+                    self.assertTrue(review['validation']['review_ready'])
+                    self.assertFalse(review['approval_valid'])
+                    if stage=='queued':
+                        journey_runs={advanced['outputs'][name+'-run'] for name in ('initial','call','followup')}
+                        self.assertEqual(len(journey_runs),3)
+                        with closing(sqlite3.connect(path)) as db:
+                            calls=db.execute("""SELECT c.run_id,c.status,e.owner_organization,e.conversation_id,e.revision
+                                FROM model_calls c LEFT JOIN execution_runs e
+                                ON e.organization=c.organization AND e.run_id=c.run_id
+                                WHERE c.organization=?""",(native,)).fetchall()
+                            artifacts={r[0] for r in db.execute(
+                                'SELECT run_id FROM channel_artifacts WHERE organization=?',(native,))}
+                            self.assertIsNone(db.execute(
+                                'SELECT 1 FROM sequence_review_decisions WHERE organization=?',(native,)).fetchone())
+                        expected=Counter({(r,'recorded','one',conversation,1):3 for r in journey_runs})
+                        expected[run,'recorded',None,None,None]=3
+                        self.assertEqual(Counter(calls),expected)
+                        self.assertEqual(artifacts,journey_runs | {run})
+                        self.assertEqual(restarted.inspect(native,'independent-run')['context_id'],view['context_id'])
                     journeys.stop('one',later['id'],'stop-later',1)
                 with self.assertRaises(Conflict):
-                    directory.prepare(native,'detached-after-journey','fielddesk-crm-a',1,'email')
+                    directory.prepare(native,'detached-after-journey',connection,1,'email')
 
     def test_paused_journey_channel_binds_original_owner_and_rechecks_stop_at_commit(self):
         for profile in ('fielddesk','iwoca'):
@@ -697,6 +757,11 @@ class SequenceJourneyTests(unittest.TestCase):
                 with patch.object(self.app.host,'capabilities',side_effect=capabilities):self.app.advance('one',row['id'])
                 after=self.counts();self.assertEqual(len(called),1)
                 self.assertEqual(after['model_calls'],before+1)
+                usage=build(self.path,clock=lambda:self.now).execution.view('one',conv)
+                self.assertTrue(usage['accounting_complete'])
+                self.assertEqual(usage['used'],1)
+                self.assertEqual(usage['remaining'],usage['limit']-1)
+                self.assertEqual([call['revision'] for call in usage['calls']],[1])
                 self.app.advance('one',row['id'])
                 self.assertEqual(after,self.counts())
                 with closing(sqlite3.connect(self.path)) as db:
