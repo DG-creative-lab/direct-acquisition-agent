@@ -89,9 +89,9 @@ class SqliteLegacyMigration(SqliteLegacyInventory):
             # Existing ancestry reconciliation takes these locks in this order.
             lock(self.root / 'workspace.sqlite')
             target = lock(self.root / MIGRATION_STORE)
-            if (target.execute('PRAGMA user_version').fetchone()[0] not in {14, 15, 16, 17, 18, 19, 20, 21, 22}
+            if (target.execute('PRAGMA user_version').fetchone()[0] not in {14, 15, 16, 17, 18, 19, 20, 21, 22, 23}
                     or not verified_required(target)):
-                raise Conflict('Apply requires an already sealed schema-14 through schema-22 conversation store')
+                raise Conflict('Apply requires an already sealed schema-14 through schema-23 conversation store')
             Database._validate_workspace_schema(target)
             yield MigrationTransaction(target, lambda: self.snapshot(open_source=lock))
             for path, (_, original) in opened.items():

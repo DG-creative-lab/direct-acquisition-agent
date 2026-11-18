@@ -68,8 +68,9 @@ class SqliteAudienceDecisions:
             return self._capture(db,organization,request)[0]
 
     def publish(self, organization, request_id, request, batch, run):
+        from .sequence_journeys import journey_transaction
         inputs = self._inputs(request)
-        with self.contacts.database.transaction() as db:
+        with journey_transaction(self.contacts.database,organization,request_id) as db:
             self.contacts._writable(db)
             # A racing request cannot replace the first result or re-attest current authority.
             replay = self.contacts._replay(db,organization,request_id,inputs)

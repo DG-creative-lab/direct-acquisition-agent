@@ -954,9 +954,10 @@ test("restored configuration keeps polling through a delayed provider call to co
     } finally {
       await writeFile(join(root, "release-provider"), "released");
     }
+    // Rewriting, screening and publication continue after the provider is released.
     await expect(
       region.getByText("Revised copy is ready for review", { exact: true }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 10000 });
     await expect(
       region.getByText("Revision outcome is uncertain", { exact: true }),
     ).toHaveCount(0);
@@ -1618,15 +1619,30 @@ test("requested scope is visible and unsupported facets never prepare a substitu
       await page
         .getByRole("button", { name: "Send to agent", exact: true })
         .click();
-      await expect(page.getByText(/Unsupported requested scope/)).toBeVisible();
+      const emailSequence = text.includes("email-only");
+      await expect(
+        emailSequence
+          ? page.getByRole("heading", {
+              name: "Requested scope is unavailable",
+              exact: true,
+            })
+          : page.getByText(/Unsupported requested scope/),
+      ).toBeVisible();
       const cid = await page.evaluate(() =>
         localStorage.getItem("conversation-selected"),
       );
       const state = (await backend(page, `/api/conversations/${cid}`)).body;
-      expect(state.current_plan.result.outcome).toBe("unsupported");
-      expect(state.current_plan.result.requested_scope.status).toBe(
-        "unsupported",
-      );
+      if (emailSequence) {
+        expect(state.sequence_journeys.at(-1).interpretation.outcome).toBe(
+          "unsupported",
+        );
+        expect(state.current_plan).toBeNull();
+      } else {
+        expect(state.current_plan.result.outcome).toBe("unsupported");
+        expect(state.current_plan.result.requested_scope.status).toBe(
+          "unsupported",
+        );
+      }
       expect(state.execution.used).toBe(0);
       expect(state.campaigns).toHaveLength(0);
       await expect(

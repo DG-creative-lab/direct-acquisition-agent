@@ -1,5 +1,33 @@
 # Validation and limits
 
+## Refreshed #68 integration candidate for PR #95, 18 November 2026
+
+The refreshed candidate combines the workspace architecture on main
+(`e66245e`) and the reviewed #68 provenance compatibility snapshot
+(`17bd908`). The architecture closure under #88 is present. The
+ownership stack from PRs #113 through #115 is the separate promotion after
+the #68 baseline is accepted. The default-writer cutover remains open in #109.
+
+A real SQLite regression reproduced a reservation reaching the call journal
+through a runtime task that reused another run's frozen channel context.
+The reservation now requires the original scoped preparation and run. A
+copied task cannot reserve calls, and the original run reuses its three
+recorded observations after worker loss and publishes one artifact.
+
+`make interface-check` passed the production build, formatting and all 114
+Chromium cases, with zero skips, unexpected results or flaky retries.
+`make arch-check` passed with 209 modules and zero exceptions.
+`make boundary-check` passed all five synthetic cases with zero external
+network attempts and preserved historical evidence bytes. Its evaluated
+commit is `207e84049616d3da667cf2e950733d5a3436f2b5` and source fingerprint is
+`baf3d759b3fcbdd2354eee62856a869f3658a06f35f9615f5b442743b4b426e9`.
+
+Three selected mutations were detected by behavioral assertions. They cover
+loss of the original preparation check, detached recipient lineage and
+recovery of the shared scope when account links are missing. All 522 manual
+mutation definitions match a single source location and compile. The full
+`make test` suite passed all 1,059 tests.
+
 ## Run ownership contract, issue 108
 
 The stage 1 comparator requires positive, consistent ownership for all required
@@ -15,6 +43,169 @@ worktree. Those checks cover independently admitted runs, detached continuation,
 reassessment and missing accounting evidence. They establish behavior for that
 candidate's compatibility bridge. The [reuse inventory and rollout plan](run-ownership-admission.md)
 identifies the candidate and the later writer and reader work.
+
+## Standalone accounting interaction review, issue 68
+
+A prior standalone run could continue using its immutable admission-order
+receipt, but conversation accounting did not recognize that evidence and marked
+the shared native scope unresolved. The extended regression failed for both a
+completed prior run and a prior unknown call with `accounting_complete: false`.
+
+Accounting now uses the same validated prior-admission classifier as channel
+continuation. The exact run/context must precede every relevant journey, retain
+valid saved source provenance and have no contradictory native binding. Runtime
+task completeness and plan-hash checks still run before this exception. No new
+ownership is inferred from an absent link, a timestamp or the shared source.
+After-journey detached calls and missing task-origin/index/account evidence stay
+unresolved.
+
+The composed test checks complete accounting with zero journey usage before
+preparation, restart, a validated unapproved sequence and exactly nine counted
+journey calls. Prior standalone calls, including an unknown call, remain on their
+original run and outside the journey allowance. The detached late-publication
+case independently verifies incomplete accounting. The three focused interaction,
+detached-run and lost-link tests passed. The design assessment and proposed
+immutable per-run ownership migration are recorded in
+`docs/conversational-sequences.md`; that migration is not implemented here.
+
+`make test` passed all 1,058 tests in 1,016.051 seconds. `make arch-check`
+passed with 209 modules and zero exceptions. The selected omission and overly
+broad accounting-exemption mutations were detected (2/2); all 522 catalogue
+anchors still match once and compile. `git diff --check` passed.
+
+## Independent standalone admission ordering review, issue 68
+
+Dynamic source ownership incorrectly applied a later journey to a standalone
+channel run admitted before it. The regression failed for both a queued run and
+an unknown-call run because they became inapplicable after the later journey.
+
+A journey's immutable requested event now records existing scoped channel
+run/context identities inside its admission transaction. Continuation excludes
+that later journey from ownership of those exact prior admissions, including
+when both clocks are equal. Earlier source-owning journeys still fence detached
+runs; being listed by a still-later journey cannot erase the original owner.
+New preparation commands remain subject to current ownership checks. Existing
+run and context identities are preserved.
+
+For historical requested events without the snapshot, timestamps alone do not
+establish transaction ordering. Missing admission events, missing snapshots and
+malformed ordering receipts grant no exemption.
+No historical artifact or event is rewritten and no schema migration is added.
+
+The regression covers queued continuation, the original unknown-call fence,
+equal-clock transactional ordering and older receipts without ordering evidence
+under both equal and different clocks. The detached-run regression also creates a still-later
+journey to prove it cannot legitimize the detached admission. All 19 focused
+channel-content and journey tests passed.
+
+`make test` passed all 1,058 backend tests in 1,607.226 seconds. The architecture
+check passed with 209 classified modules and zero exceptions. Removing the
+ordering receipt or incorrectly dropping earlier journey ownership was detected
+(2/2 selected mutations). All 522 mutation anchors match once and compile.
+`git diff --check` passed.
+
+## Existing channel run provenance review, issue 68
+
+An earlier writer could admit a detached channel run whose immutable context had
+no journey field. Checking provenance only at new admission did not fence that
+run when it later resumed. The new real-SQLite regression reproduced three new
+calls after its source journey stopped. It also failed independently for direct
+call reservation, late publication and an uncertain run still shown as applicable.
+
+A shared derived-origin check reconstructs ownership from the saved recipient
+assessments and original preparation command. Channel load/current inspection and
+artifact publication invoke it regardless of the optional saved journey field.
+The call journal repeats it before reservation and at the reservation commit
+boundary. Existing contexts, run IDs and immutable receipts are preserved; the
+late-call recording path remains available and does not grant continuation.
+
+The regression retains an earlier-writer fixture for four positions: queued
+resume, reservation from cached inputs, publication after calls completed and
+restart with an unknown call. It verifies zero new calls or artifacts after the
+stop, historical applicability, the same run on exact replay and the original
+unknown-call fence. All 17 focused channel-content and continuation tests passed.
+
+`make test` passed all 1,057 backend tests in 1,659.241 seconds. The architecture
+check passed with 209 classified modules and zero exceptions. Independent removal
+of the channel load/publication check or the reservation check was detected
+(2/2 selected mutations). All 522 existing mutation anchors still match once and
+compile. `git diff --check` passed.
+
+## Reassessed contact source ownership review, issue 68
+
+The first provenance fix followed an exact assessment identity. Reassessing a
+journey-owned source at a later timestamp produced another identity and could
+therefore detach its recipient contexts. The new regression failed before the
+fix because a stopped journey's source accepted a fresh assessment command.
+
+Ownership is now derived from each journey's immutable discovery catalogue and
+selected source, using the scoped provider-account connection identity. It does
+not depend on the mutable assessment timestamp, source version, access alias,
+mapping revision or command-binding index. Contact assessment admission rejects
+new unbound commands for that owned source. Recipient publication and channel
+admission also derive the source ownership when reading older saved assessments
+and contexts. No historical rows or schemas are rewritten.
+
+The regression covers reassessment at a later time, a newer source version,
+older-writer assessment/context fixtures, zero new generation on rejection and
+the unchanged original conversation allowance. As positive controls, standalone
+requests on an unowned connection within the same native scope and on the same
+connection within a separate organization each produce a review-ready artifact
+with three synthetic calls. These controls prevent a blanket ban on standalone
+preparation. The 46 focused contact, recipient-context and journey tests passed.
+
+`make test` passed all 1,056 backend tests in 999.072 seconds. The architecture
+check passed with 209 classified modules and zero exceptions. Independent removal
+of either reassessment admission fencing or downstream source ownership was
+detected (2/2 selected mutations). `git diff --check` passed.
+
+## Derived recipient-context provenance review, issue 68
+
+The review reproduced a detached recipient-context key derived from a journey-owned
+contact assessment. The previous context publication guard checked only the new
+request key; channel admission therefore treated its source as standalone.
+The extended real-SQLite regression failed for both active and stopped journeys
+before the fix, with `Conflict not raised`.
+
+Recipient context publication now resolves the assessment through scoped immutable
+contact receipts and journey bindings. It requires the original bound context
+command and its journey's assessment. Channel admission repeats that provenance
+check on saved recipient inputs, so contexts persisted by the earlier writer cannot
+be used under a fresh standalone generation key. No historical payload is rewritten.
+The same regression retains an earlier-writer fixture and checks that rejected
+publication/admission adds no context commands, runs, inference receipts or journey
+events. Existing exact-key, material-edit and cross-organization checks remain.
+
+`make test` passed all 1,055 tests in 996.201 seconds. `make arch-check` passed
+with 209 classified modules and zero exceptions. The focused recipient-context
+and journey regression run passed 21 tests. Independent removal of either the
+publication guard or the channel provenance lookup was detected by the extended
+regression (2/2 selected mutations). `git diff --check` passed.
+
+## Multichannel workspace architecture integration, issue 68
+
+The existing conversational multichannel branch is integrated with merged
+architecture and CI-cleanup work through main commit `ff2e1ff`. Sequence message
+coordination and progress now live in `application/workspace/service.py`, HTTP
+commands in `adapters/http/workspace_server.py`, and construction in bootstrap.
+The injected journey factory preserves lazy store construction. Root workspace
+and server modules remain forwarding wrappers. The new pure language predicate
+lives in the public conversations contract; the checker permits only the named
+`difflib.get_close_matches` value helper for fuzzy company matching.
+
+`make test` passed all 1,055 backend tests in 1,018.407 seconds on Python 3.14.
+The 17 focused sequence-journey tests passed. The 25 architecture and CI-tool
+tests passed, and `make arch-check` classifies 209 modules with zero exceptions.
+All 522 mutation anchors match once and produce compilable variants; the selected
+company-binding, budget-binding and cancellation-fence mutations were detected
+by their target assertions (3/3). This is selected evidence, not a full mutation run.
+
+`make interface-check` passed its build, formatting and all 114 browser cases,
+including the six multichannel journey cases. The on-demand boundary command
+passed all five cases at integrated commit `512e82d`; its report at
+`/private/tmp/iwoca-68-integrated-boundary-evidence` records stable source inputs
+and unchanged historical evidence bytes. All generation and engagement effects
+in these checks are deterministic and synthetic.
 
 ## CI and evidence cleanup, issue 93
 
@@ -2271,6 +2462,51 @@ Verification for workspace monitoring controls passed with 864 backend tests,
 385 declared mutation probes. The committed-request rejection assertion also
 passed in its final focused run. Reports and outcomes in these checks are synthetic.
 
+
+## Conversational multichannel authority and recovery
+
+See the [bounded validation model](conversational-sequences.md#validation-model). The new real-SQLite tests cover both installed companies from one objective to unapproved review, one exact confirmation through synthetic completion, explicit human task observations, read-only replay, subprocess recovery, atomic message admission, original consent and keys, stale material revisions, cancellation during a reserved model call, late usage without publication, detached native inputs, reviewer disablement, organization scope, verified-mode rejection and schema-22 history preservation. Cheap interpretation cases cover fuzzy uniqueness, focused ambiguity, unsupported scope and complete replacement objectives. Browser cases exercise the same server authorities through chat. Existing approval, full-basis expiry and transactional acceptance regressions are retained. Verification results and the bounded invariant ledger follow.
+
+
+| Protected invariant | Trigger and independent observable evidence |
+| --- | --- |
+| Installed scope is retained | Pure cases resolve both profiles and a unique typo; ambiguous scope asks one question. Country, provider, company, connection and budget substitutions are rejected rather than replaced. |
+| Preparation and publication retain their source | Material edits and stop during a reserved call retain one recorded usage receipt, produce no artifact and admit no next call. Unknown outcomes retain the original run and reservation. |
+| Conversation allowance cannot reset through native scope | A real prepared journey loses task origin fields, execution links and optionally its account. Immutable journey scope still locates receipts; allowance stays unknown and a new message/admission cannot commit. |
+| Human review binds the exact proposal | Both company journeys reach an unapproved subject. One confirmation completes their bounded simulation; a different subject/reason, source revision, tenant or disabled reviewer cannot acquire authority. Existing full-basis expiry and native acceptance checks remain in force. |
+| Restart reuses original effects and observations | A subprocess resumes original review and simulation keys. Failure after native human-task observation and clock advancement replays its frozen time. A stale tab's second key remains the same logical observation and the journey completes. |
+| An unfinished call holds only its dependent follow-up | A real SQLite journey accepts the day 1 call, restarts, and accepts another account's day 2 call without any completion observations. Completing only the second call permits its day 4 follow-up while the first account still waits. A later explicit observation completes the remaining follow-up with six total submissions, two observations and no additional model calls. The workflow uses the native simulator's dependency assessment rather than treating any open call as a global pause. |
+| History survives schema changes | A real schema-22 store retains original artifact bytes and legacy cutoff. Failure after schema-23 DDL rolls the migration back; successful reopening adds the new tables. Existing checkpoint and v1/v2 compatibility cases remain intact. |
+| Paused formats cannot gain execution | Verified mode rejects sequence admission before message, journey or run commit. Restored roots retain their inspection-only boundary. |
+| Presentation cannot create authority | Browser reload reads progress without inference or repeated acceptance. Exact confirmation freezes the displayed subject/revision. A late response cannot replace a newly opened chat. An email/call objective starts a new revision rather than answering an earlier postal budget question. |
+
+Verification recorded on 2026-11-15 in the isolated #68 worktree:
+
+- `make test`: 1,005 tests passed in 2,089 seconds. This broad run was followed by the final 13-case journey suite and focused changed-surface checks, including the two durability cases added after its discovery.
+- Final journey suite: 13 tests passed. The final human-task recovery/duplicate-observation refinement also passed its complete two-company path separately.
+- Execution regression suite: 58 cases passed in the restricted run; its one loopback case passed when rerun with socket access. The full broad run had loopback access and passed.
+- Database initialization and orphan-receipt checks: 10 cases passed. Two fresh standalone channel-content compatibility/uncertain-call checks passed.
+- `make arch-check`: passed. `git diff --check`: passed.
+- `make interface-check`: production build, formatting and 111 browser cases passed. The subsequently added postal-budget-to-sequence transition regression passed separately. In-app browser inspection also reached completed synthetic simulation after one approval and explicit human task observations.
+- Six selected, valid #68 mutations were detected: company binding, budget binding, detached generation input, cancellation fence, frozen task-observation time and immutable receipt-scope discovery. The full repository mutation suite was not rerun for this slice.
+
+Fault probes cover admission rollback, confirmation acknowledgement loss, stop/edit during a reserved call, unknown provider outcome, native observation/clock commit before continuation progress, and migration interruption after DDL. These are bounded offline control checks, not live-provider, arbitrary-language, multi-worker or commercial-outcome evidence. Local Python verification used 3.14; other versions remain covered by the existing CI matrix when this branch is published.
+
+
+## Returning a sequence conversation to postal preparation
+
+The `d37c43a` review found that any historical sequence row permanently selected sequence routing in the server and browser. Routing now considers only the request's source revision, and an affirmative, unambiguous postal objective goes through native message admission and existing postal preparation. The literal-scope v1 resolver and all immutable historical inputs remain unchanged. Read-only questions and mixed channel requests cannot select postal preparation through this shortcut.
+
+Cheap real-SQLite routing tests reproduce the original failure, then verify both message/action entry points, original command replay after restart, preserved sequence inputs, historical presentation, native postal status routing, and existing postal preparation reaching fresh unapproved review with its shared call accounting. Pure cases cover affirmative, negated, mixed and read-only channel wording. Browser cases exercise fresh submission and a recovered sequence-routed command, reload at audience confirmation, unapproved postal review and subsequent native postal follow-ups. Two selected mutations remove the postal escape and current-revision filter independently.
+
+
+Postal-return fix verification on 2026-11-15: `make test` passed all 1,010 backend cases; `make interface-check` passed build, formatting and all 114 browser cases. The six focused scope/routing checks also passed after the final request-validation refinement. Both postal-return mutation probes were detected, and `make arch-check` and `git diff --check` passed. No native binding, execution-account, approval or historical artifact format changed.
+
+## Independent schedules while a call awaits completion
+
+The conversation workflow now waits only when the native simulator reports that every remaining pending step needs human task completion. Another account's scheduled call and follow-up can proceed while an unfinished call continues to hold its own follow-up. Dependency rules, exact native acceptance checks, synthetic clock persistence and historical artifact formats remain in their existing modules.
+
+Verification on 2026-11-15: all 17 focused journey tests passed. `make test` passed all 1,011 backend cases in 2,043 seconds, including all 19 workspace HTTP cases with loopback access enabled. `make arch-check` and `git diff --check` passed. The selected `sequence-journey-independent-schedules` mutation restored the original global pause and was detected by the new real-SQLite restart regression. No frontend files changed; the browser suite was not rerun for this fix.
 ## CI performance and mutation experiment boundaries
 
 Backend discovery remains partitioned by module, so class fixtures and isolated

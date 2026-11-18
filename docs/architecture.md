@@ -361,9 +361,9 @@ These are local transport controls. Organization flags and configured actors are
 
 ## Schema and compatibility
 
-The application database is schema v22. Initialization takes a write lock before reading `user_version` and holds it through the entire migration chain. DDL and version changes roll back together. Statements execute individually because `executescript` can commit an outer transaction. WAL activation runs after migration and retries only busy errors on fresh connections with a bounded deadline.
+The application database is schema v23. Initialization takes a write lock before reading `user_version` and holds it through the entire migration chain. DDL and version changes roll back together. Statements execute individually because `executescript` can commit an outer transaction. WAL activation runs after migration and retries only busy errors on fresh connections with a bounded deadline.
 
-Schema v15 added immutable writing preferences, v16 simulated delivery observations, v17 recorded-report monitoring and v18 scoped contact evidence, current source pointers, objections, immutable assessments and exact request receipts. Schema v19 adds creative-owned recipient evidence manifests, source pointers, immutable contexts and exact receipts. Schema v20 adds immutable channel preparation receipts and complete email/call content bundles. Schema v21 adds campaign sequence proposals and the synthetic engagement lifecycle. Schema v22 adds exact multichannel review subjects, decisions and simulation bindings without changing older artifacts. Schema-14 through schema-22 checkpoint readers preserve inspection-only behavior; older binaries reject newer database schemas. These migrations preserve the original legacy admission cutoff and grant no new execution capability.
+Schema v15 added immutable writing preferences, v16 simulated delivery observations, v17 recorded-report monitoring and v18 scoped contact evidence, current source pointers, objections, immutable assessments and exact request receipts. Schema v19 adds creative-owned recipient evidence manifests, source pointers, immutable contexts and exact receipts. Schema v20 adds immutable channel preparation receipts and complete email/call content bundles. Schema v21 adds campaign sequence proposals and the synthetic engagement lifecycle. Schema v22 adds exact multichannel review subjects, decisions and simulation bindings without changing older artifacts. Schema v23 adds immutable conversation sequence inputs, native command bindings, confirmation/interaction receipts and continuation events. Schema-14 through schema-23 checkpoint readers preserve inspection-only behavior; older binaries reject newer database schemas. These migrations preserve the original legacy admission cutoff and grant no new execution capability.
 
 The [channel content workflow](channel-content.md) uses creative's public preparation/rendering API and narrow store port. Bootstrap wires an offline model gateway and SQLite adapter. Creative v5 contexts freeze separately versioned channel skills, exact recipients, v3 product grounding and policy. The channel task adapter composes artifact publication with the existing runtime settlement transaction, including final lease/source checks. Postal contexts, skill catalogue and approval purposes are unchanged; runtime remains business-agnostic.
 
@@ -418,6 +418,17 @@ The runtime executes `conversations.route.v1` without business-specific scheduli
 [Execution controls](execution-controls.md) supplement capability consent and per-run limits with one conversation-wide reservation allowance. Run relationships are established at admission, including descendant experiments. Reservation checks the allowance in the call-journal transaction. Exact-revision cancellation, runtime fencing and stop receipts commit in the domain database; the separate coordinator journal observes that authority after partial failure. Draft writes and revision admission/publication remain fenced. Existing review checkpoints and approvals are preserved.
 
 The [exact sequence review slice](sequence-review.md) composes domain-owned validators through reviews and an engagements-owned transaction authority port. One approval binds the complete immutable synthetic sequence and current evidence basis. The SQLite engagement adapter requires it for new enrollment, reservation and settlement, while retaining late provider observations separately. Bootstrap wires these adapters; the runtime and frontend do not gain business rules or new authority.
+
+
+## Conversational multichannel composition
+
+The [conversation sequence journey](conversational-sequences.md) composes the existing public module APIs behind conversations-owned interpreter, persistence and host ports. Schema 23 persists revision/consent, original command bindings and continuation in the conversation store. Optional origin metadata on new channel contexts/tasks binds generation to the shared conversation allowance. Native adapters recheck source lineage at their write/effect boundaries; runtime remains business-agnostic. Exact human confirmation continues through the existing sequence review and simulator, with explicit human task observations and a persisted synthetic clock. Existing postal and historical formats are preserved. Verified-admission execution remains paused.
+
+Workspace coordination lives in `application/workspace/service.py`. Bootstrap
+injects the lazy sequence-journey factory, and the HTTP adapter delegates guarded
+commands to that application. The root compatibility modules remain forwarding
+exports. The architecture inventory classifies all four sequence-journey modules
+without temporary exceptions.
 
 ### Compatibility wrapper inventory
 

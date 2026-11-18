@@ -61,6 +61,8 @@ class ArchitectureTests(unittest.TestCase):
                                             'acquisition.creative.recipient_context'))
         self.assertFalse(CHECKER.violations('from acquisition.campaigns import SequenceConnection',
                                             'acquisition.engagements.domain'))
+        self.assertFalse(CHECKER.violations('from difflib import get_close_matches',
+                                            'acquisition.conversations.sequence_journey'))
 
 
 class ArchitectureRepositoryTests(unittest.TestCase):

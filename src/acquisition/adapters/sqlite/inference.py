@@ -42,6 +42,20 @@ class SqliteCalls:
                     or task["token"] != scope.lease_token or task["lease_until"] <= now):
                 raise LeaseLost("Inference attempt has no active task lease")
             inputs = json.loads(task["inputs"])
+            if 'journey' in inputs:
+                from .sequence_journeys import require_journey_origin
+                require_journey_origin(connection,scope.organization,inputs['journey'])
+            channel_context = None
+            if task['capability']=='creative.channel_content.v1':
+                from .creative import read_context
+                from .sequence_journeys import require_channel_context_origin
+                preparation=connection.execute('SELECT request_id,context_id FROM channel_preparations '
+                    'WHERE organization=? AND run_id=?',(scope.organization,scope.run_id)).fetchone()
+                if (preparation is None or preparation['context_id']!=inputs['context_id']
+                        or run['request_id']!='channel:'+preparation['request_id']):
+                    raise Conflict('Channel inference requires its original preparation and run')
+                channel_context=read_context(connection,scope.organization,inputs['context_id'])
+                require_channel_context_origin(connection,scope.organization,channel_context)
             audience_source = None
             if inputs.get("workflow_version") == "copy-revision/v3":
                 try:
@@ -90,6 +104,10 @@ class SqliteCalls:
                 raise LeaseLost("Inference requires a finite clock reading")
             if task["lease_until"] <= reservation_time:
                 raise LeaseLost("Inference attempt expired before reservation")
+            if 'journey' in inputs:
+                require_journey_origin(connection,scope.organization,inputs['journey'])
+            if channel_context is not None:
+                require_channel_context_origin(connection,scope.organization,channel_context)
             if audience_source is not None:
                 try:
                     validate_dataset_freshness(audience_source, datetime.fromtimestamp(reservation_time, timezone.utc).date())

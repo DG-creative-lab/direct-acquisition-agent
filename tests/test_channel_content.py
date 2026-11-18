@@ -22,7 +22,7 @@ from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.creative import (ChannelContentAgent, validate_channel_context, validate_rendered_channel,
                                   render_channel_rows, proposal_rows, RecipientContextRequest)
 from acquisition.reasoning import CallScope, ModelError, source_manifest, validate_assets
-from acquisition.runtime import Outcome, LeaseLost
+from acquisition.runtime import Outcome, LeaseLost, TaskSpec
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -185,6 +185,12 @@ with patch('acquisition.adapters.channel_fixtures.OfflineChannelModel.complete',
         run=app.start('one','content','fielddesk',ids,'email')
         claim=app.tasks.claim('one',self.now,1,run_id=run)
         context=app.store.load('one',claim.inputs['context_id'])
+        copied=app.tasks.create('one','unbound-copy',[TaskSpec(claim.capability,claim.inputs,max_attempts=3)],self.now)
+        copied_claim=app.tasks.claim('one',self.now,1,run_id=copied)
+        with self.assertRaisesRegex(Conflict,'original preparation'):
+            app.inference.journal.reserve(CallScope('one',copied,copied_claim.task_id,copied_claim.token),
+                                          'fixture-call',digest('fixture request'),5,self.now)
+        self.assertEqual(app.inference.journal.inspect('one',copied),[])
         ChannelContentAgent(app.inference).generate(CallScope('one',run,claim.task_id,claim.token),claim.inputs['context_id'],
             context,datetime.fromtimestamp(self.now,timezone.utc).date())
         self.assertEqual(len(model.requests),3)
@@ -387,7 +393,7 @@ class ChannelMigrationTests(unittest.TestCase):
                 self.assertEqual(db.execute('SELECT payload FROM recipient_contexts').fetchone()[0],saved)
             Database(path)
             with database.connect() as db:
-                self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],22)
+                self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],23)
                 self.assertEqual(db.execute('SELECT payload FROM recipient_contexts').fetchone()[0],saved)
                 self.assertEqual(tuple(db.execute('SELECT * FROM legacy_task_admissions').fetchone()),('one','old','old-hash'))
 

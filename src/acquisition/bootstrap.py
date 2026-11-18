@@ -160,6 +160,58 @@ def build_sequence_simulation(path, organization, profile_key, clock=time.time, 
     return SequenceSimulation(SequenceCampaigns(proposals),simulator,SequenceReviews(reviews))
 
 
+def build_sequence_journeys(path,clock=time.time):
+    """Wire bounded conversation continuation to installed synthetic module APIs."""
+    from acquisition.adapters.local_profiles import LocalProfiles
+    from acquisition.adapters.contact_fixtures import synthetic_contact_snapshots
+    from acquisition.adapters.sequence_interpreter import OfflineSequenceInterpreter
+    from acquisition.adapters.sqlite.sequence_journeys import SqliteSequenceJourneys
+    from acquisition.conversations import SequenceJourneys
+    from acquisition.workflows.sequence_journey import JourneyCapabilities, SequenceJourneyWorkflow
+    database=Database(path)
+    store=SqliteSequenceJourneys(database,clock)
+    config_root=Path(__file__).resolve().parents[2]/'config/profiles'
+    def catalogue(organization):
+        profiles=[]
+        for key in ('iwoca','fielddesk'):
+            native='sequence_scope_'+digest({'owner_organization':organization,'profile_key':key})[:40]
+            installed=LocalProfiles(native,key,config_root)
+            profile=installed.campaign_profile(native,key,'v1')
+            connections=[]
+            for snapshot in synthetic_contact_snapshots(native,profile):
+                if snapshot.version!=1:continue
+                primary=snapshot.connection.key.endswith('-a')
+                connections.append({'key':snapshot.connection.key,'version':snapshot.version,
+                    'source_id':snapshot.id,'connection_id':snapshot.connection.id,'primary':primary,
+                    'label':('Primary' if primary else 'Secondary')+' synthetic CRM',
+                    'aliases':['primary crm','crm a'] if primary else ['secondary crm','crm b']})
+            profiles.append({'key':key,'organization':native,'profile_id':profile.id,
+                'product_profile_id':installed.product.id,'label':installed.product.brand_name,
+                'aliases':['iwoca','flexi loan','flexi-loan'] if key=='iwoca' else ['fielddesk','field desk'],
+                'connections':connections,'segments':[{'key':s.key,'label':s.label} for s in profile.taxonomy.segments]})
+        return {'schema':'installed-conversational-sequences/v1','organization':organization,'profiles':profiles,
+            'mode':'SYNTHETIC_ONLY','strategy':'taxonomy-order','channels':['email','human_call','followup'],
+            'model_config':ModelConfig('offline/channel-content-v1',max_calls=5,max_output_tokens=2400,
+                max_input_bytes=32000,max_prompt_usd_per_million=0,max_completion_usd_per_million=0,
+                force_tool_choice=True).payload(),
+            'max_content_runs':3,'max_calls':15,'shared_conversation_call_limit':48,'authority':'none'}
+    def capabilities(frozen,inspection):
+        native=frozen['native_organization'];key=frozen['interpretation']['profile_key']
+        scoped_clock=lambda:store.simulation_time(frozen['organization'],frozen['id'])
+        directory=build_contact_directory(path,native,key,scoped_clock,read_only=inspection)
+        audiences=build_audience_decisions(path,native,key,clock=scoped_clock,read_only=inspection)
+        contexts=build_recipient_contexts(path,native,key,scoped_clock,read_only=inspection)
+        channels=build_channel_preparation(path,native,key,scoped_clock,read_only=inspection)
+        sequence=build_sequence_simulation(path,native,key,scoped_clock,read_only=inspection)
+        def initialize_reviewers():
+            roles=SqliteReviews(sequence.campaigns.store.database,scoped_clock,SqliteSimulatedDelivery)
+            roles.initialize_actor(native,'local-operator',('operator',))
+            roles.initialize_actor(native,'local-reviewer',('reviewer',))
+        return JourneyCapabilities(directory,audiences,contexts,channels,sequence,initialize_reviewers)
+    host=SequenceJourneyWorkflow(store,catalogue,capabilities)
+    return SequenceJourneys(store,host,OfflineSequenceInterpreter(),clock)
+
+
 def build_profile_preparation(path, organization, profile_key, clock=time.time):
     """Explicit unapproved fixture preparation. No tasks, model or release capabilities."""
     require_live_root(path)
@@ -512,7 +564,7 @@ def build_workspace(root, real_clock=time.time, *, verified_admissions=False, mo
                           state_access=state, models=models, assets=_workspace_assets(), lock=lock,
                           legacy_preparations=legacy,
                           owned_preparations=lambda: build_preparations(root / 'conversations.sqlite', host, authoritative=True),
-                          preparation_host=host, verified_admissions=verified_admissions)
+                          preparation_host=host, sequence_journeys=lambda: build_sequence_journeys(root / "conversations.sqlite", real_clock), verified_admissions=verified_admissions)
     return workspace
 
 

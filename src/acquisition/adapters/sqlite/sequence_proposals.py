@@ -163,6 +163,8 @@ class SqliteSequenceProposals:
                 raise Conflict('Frozen treatment population contains an objected native recipient or account')
         materials={stage:self._material(db,organization,key) for stage,key in (
             ('initial',request.initial_content),('call',request.call_content),('followup',request.followup_content))}
+        from .sequence_journeys import sequence_journey_origin
+        sequence_journey_origin(db,organization,request_id,request)
         return build_sequence_proposal(organization,request_id,request,decision,materials,self.connections,identities)
 
     def get(self, db, organization, identity):
@@ -189,8 +191,9 @@ class SqliteSequenceProposals:
         if step['content'] not in materials: raise Conflict('Step content is no longer current for the exact recipient')
 
     def prepare(self, organization, request_id, request):
+        from .sequence_journeys import journey_transaction
         sequence_text(request_id)
-        with self.database.transaction() as db:
+        with journey_transaction(self.database,organization,request_id) as db:
             self.writable(db)
             old=db.execute('SELECT * FROM sequence_commands WHERE organization=? AND request_id=?',(organization,request_id)).fetchone()
             if old:

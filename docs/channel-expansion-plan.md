@@ -332,3 +332,8 @@ Checked 13 November 2026. Provider terms and APIs must be rechecked during imple
 - **R11. [Gmail sender guidelines](https://support.google.com/mail/answer/81126?hl=en)**: documents requirements for personal Gmail delivery, including authentication and additional bulk-sender requirements. Sender readiness is an operational capability with provider-specific scope, not a generic promise of inbox placement.
 
 This proposal changes no installed capability, application code, existing approval purpose, model budget or external account.
+
+
+## Implemented conversational simulation slice
+
+[Issue #68](conversational-sequences.md) now joins the installed contact, strategy, context, copy, sequence and exact-review modules in chat for both company fixtures. It uses bounded offline interpretation and generation, one exact approval and explicit synthetic human-task observations. Live providers, enterprise administration, arbitrary language handling and the later plan gates remain proposals. Existing postal and historical artifacts retain their contracts.

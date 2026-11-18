@@ -41,6 +41,7 @@ VALUE_IMPORTS = {
     'csv': {'DictReader', 'DictWriter', 'reader', 'writer'},
     'dataclasses': {'asdict', 'dataclass', 'replace'},
     'datetime': {'date', 'datetime', 'timedelta', 'timezone'},
+    'difflib': {'get_close_matches'},
     'hashlib': {'sha256'}, 'html': {'escape'},
     'json': {'loads', 'dumps', 'load', 'dump', 'JSONDecodeError'},
     'math': {'isfinite', 'isclose', 'ceil', 'floor'}, 'random': {'Random'},

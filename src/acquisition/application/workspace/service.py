@@ -9,7 +9,7 @@ import time
 from datetime import datetime, timezone
 
 from acquisition.conversations import ACTIVE_PREPARATION, AudienceSelectionRejected, ActionNotSaved, pending_copy_clarification, EnvironmentIntent, FIXTURE_MESSAGE, TYPED_ACTION_ALIASES, action_alias
-from acquisition.conversations import MessageRejectedConflict, MessageRejectedInvalid, MessageRejectedNotFound
+from acquisition.conversations import MessageRejectedConflict, MessageRejectedInvalid, MessageRejectedNotFound, postal_request, sequence_language
 from .ports import WorkspaceStorageUnavailable, WorkspaceApplications, WorkspaceModelSessions
 from .state import WorkspaceStateAccess
 from .views import WorkspaceViews, REVISION_BLOCKS, CHECKPOINT_BLOCKS, _partial_delivery
@@ -32,7 +32,7 @@ class MonitoringRejected(ValueError):
 
 class Workspace(WorkspaceViews):
     def __init__(self, root, real_clock, *, applications: WorkspaceApplications, state_access: WorkspaceStateAccess, models: WorkspaceModelSessions, assets, lock,
-                 legacy_preparations, owned_preparations, preparation_host, verified_admissions=False):
+                 legacy_preparations, owned_preparations, preparation_host, sequence_journeys, verified_admissions=False):
         if type(verified_admissions) is not bool:raise ValueError('Choose an explicit admission mode')
         self._requested_verified = verified_admissions
         self.real_clock = real_clock
@@ -47,6 +47,8 @@ class Workspace(WorkspaceViews):
         self._legacy_preparations = legacy_preparations
         self._owned_preparation_factory = owned_preparations
         self._owned_preparations = None
+        self._sequence_journey_factory = sequence_journeys
+        self._sequence_journeys = None
         self.preparation_host = preparation_host
         self._authority = None
         self.pack = assets['product_facts']
@@ -163,6 +165,40 @@ class Workspace(WorkspaceViews):
         gateway = self._model_gateway(config) if with_model and not verified else None
         return self._applications.conversation(verified=verified, gateway=gateway, model_config=config)
 
+    @property
+    def sequence_journeys(self):
+        if self._sequence_journeys is None:
+            self._sequence_journeys = self._sequence_journey_factory()
+        return self._sequence_journeys
+
+    def _sequence_rows(self,conversation_id):
+        return self.sequence_journeys.store.listing('local-conversations',conversation_id)
+
+    def _sequence_message(self,conversation_id,request_id,expected_revision,content,allow_generation=True):
+        rows=[row for row in self._sequence_rows(conversation_id) if row['inputs']['revision']==expected_revision]
+        if postal_request(content) or (not rows and not sequence_language(content)):return None
+        # These exact questions inspect the same proposal. Other text is a material
+        # revision and cannot carry an earlier proposal's confirmation forward.
+        stopping=bool(re.fullmatch(r'(?:stop|cancel)(?: (?:this|the) sequence)?[.! ]*',content.strip(),re.I))
+        if rows and (stopping or re.fullmatch(r"(?:what(?:'s| is) (?:the )?status|status|show(?: me)?(?: the)? (?:proposal|sequence|progress)|inspect|help|approve|approve it)[?.! ]*",content.strip(),re.I)):
+            self.sequence_journeys.store.interaction('local-conversations',conversation_id,rows[-1]['id'],
+                request_id,expected_revision,content,stop=stopping)
+            return self.conversation(conversation_id)
+        row=self.sequence_journeys.send('local-conversations',conversation_id,request_id,expected_revision,content,allow_generation)
+        return self.conversation(conversation_id)|{'message_receipt':{'id':request_id,'revision':row['inputs']['revision']}}
+
+    def sequence_command(self,conversation_id,kind,journey_id,request_id,expected_revision,**fields):
+        row=self.sequence_journeys.store.get('local-conversations',journey_id)
+        if row['inputs']['conversation_id']!=conversation_id:raise NotFound('Sequence belongs to another conversation')
+        if kind=='sequence-approve':
+            self.sequence_journeys.approve('local-conversations',journey_id,request_id,expected_revision,**fields)
+        elif kind=='sequence-stop':
+            self.sequence_journeys.stop('local-conversations',journey_id,request_id,expected_revision)
+        elif kind=='sequence-task-completed':
+            self.sequence_journeys.observe_task('local-conversations',journey_id,request_id,expected_revision,**fields)
+        else:raise ValueError('Unsupported sequence command')
+        return self.conversation(conversation_id)
+
     def conversations(self):
         return {"conversations": self._conversation_app().conversations.store.listing("local-conversations")}
 
@@ -192,7 +228,9 @@ class Workspace(WorkspaceViews):
         # between reads; a terminal preparation must include its saved question.
         preparations = self.preparation_progress(conversation_id)
         view = application.conversations.view("local-conversations", conversation_id)
-        return view | {"typed_action_shortcuts": list(TYPED_ACTION_ALIASES), "writing_preferences": application.memory.preferences('local-conversations'),
+        return view | {"sequence_journeys": self.sequence_journeys.listing("local-conversations",conversation_id),
+                       "sequence_interactions": self.sequence_journeys.store.interactions("local-conversations",conversation_id),
+                       "typed_action_shortcuts": list(TYPED_ACTION_ALIASES), "writing_preferences": application.memory.preferences('local-conversations'),
                        "artifact_comments": comments, "execution":application.execution.view('local-conversations',conversation_id), "actions":actions, "preparations": preparations, "campaigns": [{"session_id": s["id"], "plan_id": s["conversation_plan"]["id"],
                                       "revision": s["conversation_plan"]["revision"], "case_id": s["case_id"],
                                       "generation": self._generation(s)}
@@ -392,6 +430,12 @@ class Workspace(WorkspaceViews):
         }
 
     def route_followup(self, conversation_id, request_id, expected_revision, content, allow_model_copy):
+        try:
+            postal_transition=postal_request(content) and any(row['inputs']['revision']==expected_revision for row in self._sequence_rows(conversation_id))
+            sequence=None if postal_transition else self._sequence_message(conversation_id,request_id,expected_revision,content,allow_generation=True)
+        except (Conflict,ValueError,NotFound) as error:raise ActionNotSaved(str(error)) from error
+        if postal_transition:return self.message_conversation(conversation_id,request_id,expected_revision,content)
+        if sequence is not None:return sequence
         app=self._conversation_app();old=app.actions.store.request('local-conversations',conversation_id,request_id)
         try:
             context=old['context'] if old else self.action_context(conversation_id,expected_revision)
@@ -800,6 +844,11 @@ class Workspace(WorkspaceViews):
             if row["status"] in ACTIVE_PREPARATION and self.models.matches(row['planning_context'].get('model_config')):
                 self.preparations.step("local-conversations", row["id"])
         self.advance_copy_revisions()
+        for journey_id in self.sequence_journeys.store.pending('local-conversations'):
+            try:
+                with self._storage_faults.guard():
+                    self.sequence_journeys.advance('local-conversations',journey_id)
+            except (OSError,NotFound):continue
 
     def advance_report_monitoring(self):
         with self.lock:
@@ -892,6 +941,11 @@ class Workspace(WorkspaceViews):
                     self._set_revision_block(scope, row["id"], blocker)
 
     def message_conversation(self, conversation_id, request_id, expected_revision, content):
+        try:sequence=self._sequence_message(conversation_id,request_id,expected_revision,content)
+        except (Conflict,NotFound,ValueError) as error:
+            kind=MessageRejectedConflict if isinstance(error,Conflict) else MessageRejectedNotFound if isinstance(error,NotFound) else MessageRejectedInvalid
+            raise kind(str(error)) from error
+        if sequence is not None:return sequence
         return self._conversation_app().conversations.message("local-conversations", conversation_id, request_id, expected_revision, content)
 
     def reply_budget_conversation(self, conversation_id, request_id, expected_revision, plan_id, content):

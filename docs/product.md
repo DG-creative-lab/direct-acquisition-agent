@@ -63,3 +63,8 @@ Synthetic mailing cost and provider inference cost are separate. Neither demonst
 Start with the [user guide](user-guide.md), then inspect [architecture](architecture.md) and the [scaling path](scalability.md). The [validation guide](validation.md) states what the existing tests establish and what remains unproven.
 
 Follow-up questions can inspect progress and explain the saved audience, exclusions and validation without changing the current brief. A requested brief amendment is a typed proposal requiring exact confirmation before existing work is superseded. The first slice uses authored shortcuts and a bounded model classifier; its live semantic accuracy has not been evaluated. See [conversational follow-ups](conversational-actions.md).
+
+
+## Conversational synthetic multichannel journey
+
+[Issue #68](conversational-sequences.md) adds an agent-led email, human call-task and follow-up journey for the two installed company fixtures. One supported chat objective reaches an exact unapproved proposal without a setup wizard. One exact approval continues bounded synthetic simulation; human call-task completion remains an explicit observation. Routine source/context preparation is automatic. The current interpreter and copy model are bounded offline fixtures at $0, not live-provider quality evidence. Unsupported scope remains explicit. The postal flow and historical artifacts retain their existing contracts.

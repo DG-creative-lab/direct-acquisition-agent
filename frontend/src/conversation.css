@@ -752,3 +752,56 @@
 .writing-preference .modal fieldset {
   margin-top: 16px;
 }
+
+.sequence-proposal {
+  border-left: 3px solid var(--brand-ink);
+  padding-left: 1rem;
+}
+.sequence-proposal h3 {
+  margin-block: 0.5rem 1rem;
+}
+.sequence-eyebrow,
+.sequence-compose-help {
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+.sequence-proposal code,
+.sequence-confirmation code {
+  overflow-wrap: anywhere;
+}
+.sequence-proposal pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  line-height: 1.6;
+}
+.sequence-proposal summary {
+  min-height: 44px;
+  padding-block: 0.7rem;
+  cursor: pointer;
+}
+.sequence-recipient {
+  border-top: 1px solid var(--brand-rule);
+  margin-top: 1rem;
+}
+.sequence-proposal button,
+.sequence-confirmation button {
+  min-height: 44px;
+  margin: 0.5rem 0.5rem 0.5rem 0;
+}
+.sequence-confirmation {
+  max-width: min(40rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  padding: 2rem;
+  color: var(--brand-ink);
+  background: var(--brand-paper);
+  border: 1px solid var(--brand-rule);
+}
+.sequence-confirmation:modal {
+  overscroll-behavior: contain;
+}
+.sequence-confirmation::backdrop {
+  background: #12181280;
+  overflow: hidden;
+  overscroll-behavior: contain;
+}

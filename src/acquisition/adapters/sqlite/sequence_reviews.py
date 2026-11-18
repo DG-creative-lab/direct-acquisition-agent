@@ -117,7 +117,8 @@ class SqliteSequenceReviews:
             if (run is None or run['status'] != 'succeeded' or len(tasks)!=1
                     or tasks[0]['capability'] != CHANNEL_CONTENT_CAPABILITY or tasks[0]['status']!='succeeded'
                     or json.loads(tasks[0]['inputs'])!={'workflow_version':'channel-content/v1',
-                        'context_id':row['context_id'],'model_config':context['model_config']}
+                            'context_id':row['context_id'],'model_config':context['model_config'],
+                            **({'journey':context['journey']} if 'journey' in context else {})}
                     or json.loads(tasks[0]['output']).get('artifact_id')!=artifact['id']):
                 raise Conflict('Content lacks its exact completed source run')
             matched = False
@@ -284,6 +285,8 @@ class SqliteSequenceReviews:
         if (self._basis(db,organization)!=subject['basis']
                 or require_actor(db,organization,approval['actor'],'reviewer')['generation']!=approval['actor_generation']):
             raise Conflict('Sequence authority changed while validation was running')
+        from .sequence_journeys import require_journey_approval
+        require_journey_approval(db,organization,subject['sequence'],approval)
         # Epoch and reviewer lookups can outlive the complete checked evidence.
         # Evaluate both approval and report at the final authority-check time.
         now = self.proposals._now()

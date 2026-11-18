@@ -238,6 +238,10 @@ Native dialogs support focus containment, return focus and Escape. Audience/copy
 
 Historical creative previews retain their original styling and bundled Inter font independently of workspace tokens. The shared mark, accessible navigation name and brand provenance are documented in [branding](branding.md).
 
+
+## Conversational sequences
+
+The chat workspace now presents [installed synthetic multichannel journeys](conversational-sequences.md). The first message can admit a bounded offline journey instead of the postal preparation path. Material follow-ups create new revisions; inspection questions preserve the displayed proposal. Exact subject/revision confirmation, stop and human-task completion use guarded server routes. The native approval services continue to enforce evidence, reviewer generation and expiry. Native dialog confirmation freezes the original displayed target, and reload reads saved progress without admitting work.
 ## Integrated boundary verification
 
 The [bounded offline corpus](hexagonal-boundaries.md) exercises the merged

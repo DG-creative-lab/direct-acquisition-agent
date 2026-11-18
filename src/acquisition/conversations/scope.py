@@ -98,6 +98,19 @@ def requested_scope(organization, conversation_id, revision, messages):
     return payload | {'id': 'request_scope_' + digest(payload)}
 
 
+def postal_request(content):
+    """Recognize an affirmative postal channel without changing frozen v1 scope rules."""
+    from .domain import text
+    text(content)
+    request_prefix=r'\s*(?:(?:please|now|actually)[,\s]+)*(?:(?:can|could|would)\s+you\s+(?:please\s+)?)?'
+    if not re.match(request_prefix+r'(?:prepare|create|build|plan|run|start|use|switch|change|return|back|make)\b',content,re.I):
+        return False
+    for match in re.finditer(r'\b(?:multichannel|multi.channel|e-?mails?|human calls?|call scripts?|phone calls?)\b',content,re.I):
+        if not _negated(content,match.start()):return False
+    channel=requested_scope('routing','routing',1,[{'id':'message','revision':1,'content':content}])['requirements']['channel']
+    return channel['basis']=='explicit_request' and channel['value']=='direct_mail'
+
+
 def bind_requested_scope(frozen, organization):
     scope = frozen.get('requested_scope')
     if scope is not None and scope != requested_scope(organization, frozen.get('conversation_id', scope['conversation_id']),
@@ -139,3 +152,7 @@ def validate_result(candidate, frozen, organization):
     if clarification is not None and scope_response(scope) is None:
         payload['budget_clarification'] = clarification
     return payload | {'id': 'brief_' + digest({'organization': organization, 'request_id': frozen['request_id'], 'result': payload})}
+
+
+def sequence_language(content):
+    return bool(re.search(r'\b(?:multichannel|multi.channel|e-?mails?|human calls?|call scripts?|phone calls?)\b',content,re.I))
