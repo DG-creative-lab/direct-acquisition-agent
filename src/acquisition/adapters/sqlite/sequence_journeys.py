@@ -110,6 +110,8 @@ def journey_owned_source(db,organization,source_id,connection_id=None,*,journey_
             (organization,source_id)).fetchone()
         if source is None:raise Conflict('Restore the original scoped contact source')
         connection_id=ContactConnection(**json.loads(source['payload'])['connection']).id
+    if journey_ids is not None and not journey_ids:
+        return False
     for row in db.execute("SELECT organization,id FROM sequence_journeys WHERE json_extract(inputs,'$.native_organization')=?",(organization,)):
         if journey_ids is not None and row['id'] not in journey_ids:continue
         frozen=saved_journey(db,row['organization'],row['id'])['inputs']
@@ -133,9 +135,9 @@ def assessment_journey_origin(db,organization,request_id,snapshot):
     return origin
 
 
-def recipient_journey_origin(db,organization,request_id,request,*,journey_ids=None):
+def recipient_journey_origin(db,organization,request_id,request,*,journey_ids=None,current=True):
     """Assessment provenance survives a new recipient-context request key."""
-    origin=journey_command(db,organization,request_id)
+    origin=journey_command(db,organization,request_id,current=current)
     if db.execute('PRAGMA user_version').fetchone()[0]<23:return None
     assessment=request.assessment_id if not isinstance(request,dict) else request['assessment_id']
     source=db.execute("SELECT json_extract(payload,'$.request.source_id') FROM contact_assessments WHERE organization=? AND id=?",
@@ -143,7 +145,7 @@ def recipient_journey_origin(db,organization,request_id,request,*,journey_ids=No
     if source is None:raise Conflict('Restore the original scoped contact assessment')
     if not journey_owned_source(db,organization,source[0],journey_ids=journey_ids) and origin is None:return None
     if origin is None:raise Conflict('Recipient context must retain its original conversation assessment binding')
-    row=require_journey(db,origin['organization'],origin['journey_id'])
+    row=(require_journey if current else saved_journey)(db,origin['organization'],origin['journey_id'])
     commands=journey_commands(row['id'])
     channels=[channel for channel in ('email','human_call')
               if request_id in [commands[channel+'-context-'+str(i)] for i in range(6)]]
@@ -157,16 +159,27 @@ def recipient_journey_origin(db,organization,request_id,request,*,journey_ids=No
     return origin
 
 
-def channel_journey_origin(db,organization,request_id,command,*,journey_ids=None,recipient_origins=None):
+def channel_journey_origin(db,organization,request_id,command,*,journey_ids=None,recipient_origins=None,
+                           current=True,frozen_recipients=None):
     """A new generation key cannot detach conversation-owned recipient inputs."""
-    origin=journey_command(db,organization,request_id)
+    origin=journey_command(db,organization,request_id,current=current)
     sources=[]
-    for key in command.recipient_requests:
-        context=db.execute("""SELECT r.payload FROM recipient_context_commands c JOIN recipient_contexts r
+    if frozen_recipients is not None and [item['request_id'] for item in frozen_recipients]!=list(command.recipient_requests):
+        raise Conflict('Channel recipient requests differ from the frozen lineage')
+    for position,key in enumerate(command.recipient_requests):
+        context=db.execute("""SELECT r.id,r.payload FROM recipient_context_commands c JOIN recipient_contexts r
             ON r.organization=c.organization AND r.id=json_extract(c.receipt,'$.context_id')
             WHERE c.organization=? AND c.request_id=?""",(organization,key)).fetchone()
-        source=(recipient_journey_origin(db,organization,key,json.loads(context['payload'])['request'],journey_ids=journey_ids)
-                if context is not None else journey_command(db,organization,key))
+        recipient = json.loads(context['payload']) if context is not None else None
+        frozen = frozen_recipients[position] if frozen_recipients is not None else None
+        if frozen is not None and (recipient is None or context['id']!=frozen['context_id']
+                or context['id']!='recipient_context_'+digest(recipient) or recipient['organization']!=organization
+                or recipient['request']['assessment_id']!=frozen['assessment_id']):
+            raise Conflict('Restore the original scoped recipient context and assessment')
+        source=(recipient_journey_origin(db,organization,key,recipient['request'],journey_ids=journey_ids,current=current)
+                if context is not None else journey_command(db,organization,key,current=current))
+        if frozen is not None and source!=frozen['origin']:
+            raise Conflict('Recipient origin differs from the frozen channel lineage')
         sources.append(source)
     if recipient_origins is not None:recipient_origins.extend(sources)
     bound=[o for o in sources if o is not None]
@@ -176,12 +189,13 @@ def channel_journey_origin(db,organization,request_id,command,*,journey_ids=None
     root={k:v for k,v in origin.items() if k!='request_id'}
     if any({k:v for k,v in source.items() if k!='request_id'}!=root for source in bound):
         raise Conflict('Recipient context belongs to a different conversation sequence')
-    row=require_journey(db,origin['organization'],origin['journey_id'])
+    row=(require_journey if current else saved_journey)(db,origin['organization'],origin['journey_id'])
     commands=journey_commands(row['id'])
     stage=next((s for s in ('initial','call','followup') if commands[s]==request_id),None)
     if stage is None:raise Conflict('Use the original bound channel stage command')
     channel='human_call' if stage=='call' else 'email'
-    if (command.profile_key!=row['inputs']['interpretation']['profile_key'] or command.channel!=channel
+    if (row['inputs']['allow_generation'] is not True
+            or command.profile_key!=row['inputs']['interpretation']['profile_key'] or command.channel!=channel
             or list(command.recipient_requests)!=row['outputs'].get(channel+'-contexts')
             or command.style!=('practical' if stage=='followup' else 'explore')
             or command.parent_id!=(row['outputs'].get('initial-artifact') if stage=='followup' else None)):
@@ -214,12 +228,17 @@ def channel_admission_journeys(db,organization,context):
     return applicable
 
 
-def require_channel_context_origin(db,organization,context,*,recipient_origins=None):
-    """Reconstruct saved input ownership even when an old context has no origin."""
+def require_channel_context_origin(db,organization,context,*,recipient_origins=None,current=True,
+                                   frozen_recipients=None,admitted_standalone=False):
+    """Check explicit links and derive source ownership when the run lacks a standalone admission."""
     from acquisition.creative import ChannelContentRequest
     command=ChannelContentRequest(**(context['command'] | {'recipient_requests':tuple(context['command']['recipient_requests'])}))
+    # The verified admission proves independence. Direct channel and recipient
+    # links still go through the checks in channel_journey_origin.
+    source_journeys=() if admitted_standalone else channel_admission_journeys(db,organization,context)
     origin=channel_journey_origin(db,organization,context['preparation_request_id'],command,
-        journey_ids=channel_admission_journeys(db,organization,context),recipient_origins=recipient_origins)
+        journey_ids=source_journeys,recipient_origins=recipient_origins,current=current,
+        frozen_recipients=frozen_recipients)
     if origin!=context.get('journey'):
         raise Conflict('Channel context differs from its derived conversation origin')
 

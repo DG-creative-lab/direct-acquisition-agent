@@ -63,6 +63,49 @@ claim, reservation and publication readers for that policy.
   work. Verify allowed synthetic continuation in unsealed stores, the
   verified-paused and inspection-only fences, and exact replay after restart.
 
+## Ownership readers and legacy reconciliation in #110
+
+The binding reader checks the exact channel preparation, context, task plan,
+consent and accounting link for a committed channel admission. It checks
+frozen recipient contexts and assessment references for both ownership kinds.
+Conversation-owned work must retain its original journey bindings. A committed
+standalone admission proves independent ownership and must have no conflicting
+channel or recipient binding. For legacy work without a committed admission,
+a journey's snapshot establishes prior admission when it names the exact run
+and context.
+Generation, inference reservation, publication and accounting use that binding. A
+surviving runtime marker, reserved request key or admission event keeps work
+fenced if its binding disappears. Current stop, evidence and lease checks
+still govern the corresponding effects.
+
+The read-only channel inspection classifies a scoped run as `bound`,
+`legacy_proven`, `legacy_reconciled` or `unresolved`. A legacy proof checks
+the original task plan, native recipient and assessment receipts, frozen
+source, parent lineage and account where applicable. A later journey can
+establish ordering through its captured prior-admission receipt. Missing
+or conflicting evidence leaves the run unresolved.
+
+Use the local channel CLI to inspect a saved run and explicitly record its
+proven legacy ownership. Supply the profile, native organization and run ID
+from the original work.
+
+```sh
+PYTHONPATH=src python3 -m acquisition.channel_cli --db "$store" \
+  --organization "$native_organization" --profile "$profile" ownership --run "$run_id"
+
+PYTHONPATH=src python3 -m acquisition.channel_cli --db "$store" \
+  --organization "$native_organization" --profile "$profile" reconcile-ownership \
+  --run "$run_id" --fingerprint "$inspection_fingerprint"
+```
+
+Reconciliation rechecks the report under the write lock and atomically
+records an ownership receipt and audit event. Exact replay returns the
+original receipt. A changed report requires fresh inspection. An active
+lease or reserved inference must be resolved before applying the report.
+Reconciliation preserves the run, context, task and call identities and
+receipts. Inspection is available on restored checkpoints, where writes
+remain blocked. The default admission cutover stays open in #109.
+
 ## Provenance and transition rules
 
 1. Resolve the run organization from the server-scoped operation. Load every

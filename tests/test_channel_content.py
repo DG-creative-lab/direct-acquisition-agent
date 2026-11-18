@@ -209,6 +209,77 @@ print(json.dumps(view))
         self.assertEqual(app.inference.gateway.requests,[])
         self.assertEqual(app.inference.journal.inspect('one',clone),[])
 
+    def test_channel_binding_cannot_fall_back_after_coordinated_record_loss(self):
+        ids,_ = self.seed(count=1)
+        app = self.app(model=RecordingModel(),stage_ownership=True)
+        run = app.start('one','missing-binding','fielddesk',ids,'email')
+        view = app.inspect('one','missing-binding')
+        with app.store.database.transaction() as db:
+            intent = binding(db,'one',run)
+            old = intent.tasks[0]
+            inputs = {k:v for k,v in old.inputs.items() if k not in {'execution_admission_id','run_request_id'}}
+            db.execute('DROP TRIGGER execution_admissions_no_delete')
+            db.execute('DROP TRIGGER admission_requests_no_delete')
+            db.execute('DELETE FROM execution_admissions WHERE organization=? AND run_id=?',('one',run))
+            db.execute('DELETE FROM admission_requests WHERE organization=? AND request_id=?',('one',intent.request_id))
+            db.execute('UPDATE tasks SET inputs=? WHERE run_id=?',(canonical(inputs),run))
+            db.execute('UPDATE runs SET request_hash=? WHERE organization=? AND id=?',
+                       (digest([asdict(TaskSpec(old.capability,inputs,max_attempts=old.max_attempts))]),'one',run))
+        restarted = self.app(model=RecordingModel())
+        self.assertEqual(restarted.ownership('one',run)['status'],'unresolved')
+        self.assertFalse(restarted.inspect('one','missing-binding')['currently_applicable'])
+        with self.assertRaisesRegex(Conflict,'missing its committed admission'):
+            restarted.store.load('one',view['context_id'],run_id=run)
+        with self.assertRaisesRegex(Conflict,'missing its committed admission'):
+            restarted.start('one','missing-binding','fielddesk',ids,'email')
+        self.assertIsNone(restarted.tasks.claim('one',self.now,10,run_id=run))
+        self.assertEqual(restarted.inference.gateway.requests,[])
+
+    def test_proven_legacy_reconciliation_is_atomic_and_preserves_unknown_call_after_restart(self):
+        ids,_ = self.seed(count=1)
+        app = self.app(model=RecordingModel())
+        run = app.start('one','legacy','fielddesk',ids,'email')
+        queued = app.ownership('one',run)
+        with patch.object(app.inference.gateway,'complete',side_effect=ModelError('provider_timeout')):
+            app.worker.drain('one',run_id=run)
+        before = app.inspect('one','legacy')
+        self.assertEqual([call['status'] for call in before['model_calls']],['unknown'])
+        report = app.ownership('one',run)
+        self.assertEqual(report['status'],'legacy_proven')
+        self.assertEqual(report['ownership']['kind'],'standalone')
+        self.assertNotEqual(report['fingerprint'],queued['fingerprint'])
+        with self.assertRaisesRegex(Conflict,'exact proven legacy'):
+            app.reconcile_ownership('one',run,queued['fingerprint'])
+        with self.assertRaises(NotFound):
+            app.ownership('other',run)
+        with app.store.database.transaction() as db:
+            db.execute("""CREATE TRIGGER interrupted_ownership BEFORE INSERT ON events
+                WHEN NEW.kind='channel_ownership_reconciled'
+                BEGIN SELECT RAISE(ABORT,'interrupted ownership'); END""")
+        with self.assertRaisesRegex(sqlite3.IntegrityError,'interrupted ownership'):
+            app.reconcile_ownership('one',run,report['fingerprint'])
+        self.assertEqual(app.ownership('one',run),report)
+        with app.store.database.transaction() as db:
+            db.execute('DROP TRIGGER interrupted_ownership')
+        code = """
+import json,sys
+from acquisition.bootstrap import build_channel_preparation
+app=build_channel_preparation(sys.argv[1],'one','fielddesk',lambda:1794614400.)
+print(json.dumps(app.reconcile_ownership('one',sys.argv[2],sys.argv[3])))
+"""
+        retry = subprocess.run([sys.executable,'-c',code,str(self.path),run,report['fingerprint']],
+                               cwd=ROOT,text=True,capture_output=True,timeout=20)
+        self.assertEqual(retry.returncode,0,retry.stderr)
+        receipt = json.loads(retry.stdout)
+        next_app = self.app(model=RecordingModel())
+        self.assertEqual(next_app.ownership('one',run),report | {'status':'legacy_reconciled'})
+        self.assertEqual(next_app.reconcile_ownership('one',run,report['fingerprint']),receipt)
+        self.assertEqual(next_app.prepare('one','legacy','fielddesk',ids,'email'),before)
+        self.assertEqual(next_app.inference.gateway.requests,[])
+        with next_app.store.database.connect() as db:
+            events = db.execute("SELECT data FROM events WHERE run_id=? AND kind='channel_ownership_reconciled'",(run,)).fetchall()
+            self.assertEqual([json.loads(row[0]) for row in events],[receipt])
+
     def test_missing_last_recipient_unsafe_html_familiarity_and_foreign_fact_cannot_be_ready(self):
         ids,_ = self.seed()
         for attack in ('omission','html','familiarity','foreign_fact','foreign_recipient'):
