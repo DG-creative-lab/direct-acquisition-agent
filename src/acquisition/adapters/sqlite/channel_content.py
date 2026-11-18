@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 import json
 
 from acquisition.contracts import Conflict, NotFound, canonical, digest
+from acquisition.conversations import ExecutionOwnership
 from acquisition.creative import (ChannelContentRequest, channel_source_payloads, channel_tool_contracts,
     validate_channel_context, channel_recipient_wording, recipient_fact_from, validate_rendered_channel,
     validate_channel_screen, channel_arguments, synthetic_channel_policy, CHANNEL_CONTENT_CAPABILITY as CAPABILITY, CHANNEL_FRAMES as FRAMES)
@@ -12,8 +13,10 @@ from acquisition.reasoning import source_manifest, freeze_assets
 from acquisition.runtime import TaskSpec, Outcome, LeaseLost
 from .creative import read_context
 from .tasks import SqliteTasks, insert_run
+from .database import stored_plan_hash
+from .admissions import commit_admission, persist_workflow_request
 from .execution import bind_run
-from .admission_guard import verified_required
+from .admission_guard import binding, verified_required
 
 
 CHANNEL_CONTENT = '''
@@ -41,9 +44,11 @@ def validate_channel_schema(db):
 
 
 class SqliteChannelContent:
-    def __init__(self, recipients, profiles, profile_key, catalogue, memory, config, clock, *, read_only=False):
+    def __init__(self, recipients, profiles, profile_key, catalogue, memory, config, clock, *,
+                 read_only=False, compose_admission=None):
         self.recipients, self.profiles, self.profile_key = recipients, profiles, profile_key
         self.database = recipients.contacts.database
+        self.compose_admission = compose_admission
         self.catalogue, self.memory, self.config, self.clock, self.read_only = catalogue, memory, config, clock, read_only
 
     def _now(self): return self.recipients.contacts._now()
@@ -51,7 +56,7 @@ class SqliteChannelContent:
     def _writable(self, db):
         if self.read_only or verified_required(db): raise Conflict('Channel preparation has no verified execution capability; execution stays paused')
 
-    def _recipients(self, db, organization, command):
+    def _recipients(self, db, organization, command, *, lineage=None):
         result = []
         for request_id in command.recipient_requests:
             view = self.recipients._inspection(db,organization,request_id)
@@ -65,6 +70,22 @@ class SqliteChannelContent:
             row = db.execute('SELECT * FROM recipient_context_sources WHERE organization=? AND id=?',
                              (organization,saved['manifest_id'])).fetchone()
             manifest = self.recipients._manifest(row,organization,attest=True)
+            if lineage is not None:
+                assessment = self.recipients.contacts.assessment(db,organization,basis['assessment_id'])
+                if assessment['request']['source_id']!=source.id:
+                    raise Conflict('Channel admission requires assessment of the exact current source version')
+                receipt = {'kind':'contact_assessment_prepared','assessment_id':basis['assessment_id'],
+                           'report':assessment['report']}
+                assessment_keys = [r[0] for r in db.execute('''SELECT request_id FROM contact_commands
+                    WHERE organization=? AND inputs=? AND receipt=? ORDER BY request_id''',
+                    (organization,canonical(assessment['request']),canonical(receipt)))]
+                if not assessment_keys:
+                    raise Conflict('Channel admission requires the original native assessment receipt')
+                lineage.append({'request_id':request_id,'context_id':view['context_id'],
+                                'assessment_id':basis['assessment_id'],'assessment_request_ids':assessment_keys,
+                                'source_id':source.id,
+                                'connection_id':source.connection.id,'source_version':source.version,
+                                'manifest_id':saved['manifest_id']})
             selected = []
             for item in context['selected']:
                 observation = next(i for i in manifest['facts'] if i['fact_id']==item['fact_id'])
@@ -77,17 +98,21 @@ class SqliteChannelContent:
         if len({r['contact_id'] for r in result})!=len(result): raise Conflict('One content payload per intended native recipient')
         return result
 
-    def _current(self, db, organization, context):
+    def _current(self, db, organization, context, *, lineage=None):
         from .sequence_journeys import require_channel_context_origin
         validate_channel_context(context,organization,self._today())
-        require_channel_context_origin(db,organization,context)
+        origins = [] if lineage is not None else None
+        require_channel_context_origin(db,organization,context,recipient_origins=origins)
         command = ChannelContentRequest(**(context['command'] | {'recipient_requests':tuple(context['command']['recipient_requests'])}))
         profile = self.profiles.campaign_profile(organization,command.profile_key,'v1')
         product = self.profiles.product_profile(organization,profile.product_profile_id)
         if (profile.id!=context['campaign_profile_id'] or canonical(asdict(product))!=canonical(context['product_profile'])
                 or self.profiles.product_material(organization,product.id)['pack']!=context['product_facts']
-                or self._recipients(db,organization,command)!=context['recipients']):
+                or self._recipients(db,organization,command,lineage=lineage)!=context['recipients']):
             raise Conflict('Channel sources changed from the exact frozen inputs')
+        if lineage is not None:
+            for record, origin in zip(lineage,origins,strict=True):
+                record['origin']=origin
 
     def _artifact(self, db, organization, identity):
         row = db.execute('SELECT payload FROM channel_artifacts WHERE organization=? AND id=?',(organization,identity)).fetchone()
@@ -96,17 +121,149 @@ class SqliteChannelContent:
         if value['organization']!=organization or identity!='channel_bundle_'+digest(value): raise Conflict('Channel artifact integrity failure')
         return value
 
+    def _binding(self, db, organization, preparation):
+        intent = binding(db,organization,preparation['run_id'])
+        if intent is not None:
+            context = read_context(db,organization,preparation['context_id'])
+            if (intent.workflow_version!='paused-channel-admission/v1' or len(intent.tasks)!=1
+                    or intent.tasks[0].capability!=CAPABILITY or intent.source_id!=preparation['context_id']
+                    or intent.tasks[0].inputs['context_id']!=preparation['context_id']
+                    or context['preparation_request_id']!=preparation['request_id']
+                    or canonical(context['command'])!=preparation['inputs']
+                    or digest(context)!=intent.context_fingerprint):
+                raise Conflict('Channel preparation differs from its committed admission')
+        return intent
+
+    @staticmethod
+    def _owner(organization, request_id, origin):
+        if origin is not None:
+            return ExecutionOwnership('conversation',origin['organization'],origin['conversation_id'],origin['revision'])
+        root = 'channel_operation_'+digest({'organization':organization,'request_id':request_id})
+        return ExecutionOwnership('standalone',organization,root)
+
+    def _parent_proof(self, db, organization, artifact_id, ancestors=()):
+        # Legacy rewrites have no declared standalone root. Prove each original
+        # parent in order and retain the initial operation as the root.
+        if artifact_id in ancestors or len(ancestors)>=20:
+            raise Conflict('Channel rewrite ancestry is cyclic or too deep')
+        artifact = self._artifact(db,organization,artifact_id)
+        row = db.execute("""SELECT p.*, r.request_hash, r.request_id AS runtime_key
+            FROM channel_artifacts a JOIN channel_preparations p
+                ON p.organization=a.organization AND p.run_id=a.run_id
+            JOIN runs r ON r.organization=p.organization AND r.id=p.run_id
+            JOIN tasks t ON t.run_id=r.id AND t.position=0
+            WHERE a.organization=? AND a.id=? AND r.status='succeeded' AND t.status='succeeded'
+                AND t.capability=? AND json_extract(t.output,'$.artifact_id')=?""",
+            (organization,artifact_id,CAPABILITY,artifact_id)).fetchone()
+        if (row is None or row['context_id']!=artifact['context_id']
+                or row['runtime_key']!='channel:'+row['request_id']
+                or row['request_hash']!=stored_plan_hash(db,row['run_id'])):
+            raise Conflict('Rewrite requires the exact completed parent channel run')
+        context = read_context(db,organization,row['context_id'])
+        lineage = []
+        self._current(db,organization,context,lineage=lineage)
+        admitted = self._binding(db,organization,row)
+        if admitted is not None:
+            owner = admitted.ownership
+        else:
+            inputs = {'workflow_version':'channel-content/v1','context_id':row['context_id'],
+                      'model_config':context['model_config']}
+            origin = context.get('journey')
+            if origin is not None:
+                inputs['journey']=origin
+            if (row['request_hash']!=digest([asdict(TaskSpec(CAPABILITY,inputs,max_attempts=3))])
+                    or row['request_id']!=context['preparation_request_id']
+                    or row['inputs']!=canonical(context['command'])):
+                raise Conflict('Legacy parent differs from its exact channel preparation')
+            owner = self._owner(organization,row['request_id'],origin)
+            link = db.execute('SELECT owner_organization,conversation_id,revision FROM execution_runs '
+                              'WHERE organization=? AND run_id=?',(organization,row['run_id'])).fetchone()
+            expected_link = (owner.organization,owner.scope_id,owner.revision) if origin else None
+            if (tuple(link) if link else None)!=expected_link:
+                raise Conflict('Parent accounting link differs from its ownership')
+            prior = context['command']['parent_id']
+            if prior is not None:
+                older = ExecutionOwnership(**self._parent_proof(db,organization,prior,ancestors+(artifact_id,))['owner'])
+                if older.kind!=owner.kind or (origin and older!=owner):
+                    raise Conflict('Legacy rewrite differs from its parent ownership')
+                owner = older
+        return {'run_id':row['run_id'],'plan_fingerprint':row['request_hash'],'artifact_id':artifact_id,
+                'context_id':row['context_id'],'owner':asdict(owner)}
+
+    def _admission_source(self, db, organization, request_id, command, context, lineage):
+        from acquisition.conversations import journey_commands
+        from .sequence_journeys import require_journey
+        if context['model_config']!=self.config.payload():
+            raise Conflict('Channel model settings changed before admission commit')
+        origin = context.get('journey')
+        owner = self._owner(organization,request_id,origin)
+        parent = self._parent_proof(db,organization,command.parent_id) if command.parent_id else None
+        if parent is not None:
+            inherited = ExecutionOwnership(**parent['owner'])
+            if inherited.kind!=owner.kind or (origin is not None and inherited!=owner):
+                raise Conflict('Channel inputs and parent have different execution owners')
+            owner = inherited
+        permission = {'mode':'SYNTHETIC_ONLY','request_id':request_id,'command_fingerprint':digest(context['command']),
+                      'model_config':context['model_config']}
+        if origin is not None:
+            journey = require_journey(db,origin['organization'],origin['journey_id'])['inputs']
+            if (journey['mode']!='SYNTHETIC_ONLY' or journey['model_config']!=context['model_config']):
+                raise Conflict('Channel configuration differs from the original journey consent')
+            commands = journey_commands(origin['journey_id'])
+            key = commands['email-assessment' if command.channel=='email' else 'call-assessment']
+            if any(key not in item['assessment_request_ids'] for item in lineage):
+                raise Conflict('Channel inputs differ from the original journey assessment receipts')
+            permission['journey_id']=origin['journey_id']
+        return {'schema':'paused-channel-source/v1','organization':organization,'owner':asdict(owner),
+                'recipients':lineage,'parent':parent,'permission':permission}
+
+    def _admit_paused(self, db, organization, request_id, command, context, identity, lineage, inputs):
+        source = self._admission_source(db,organization,request_id,command,context,lineage)
+        intent = self.compose_admission(organization,request_id,source,identity,context)
+        # The validated native receipt and source are positive evidence for
+        # each recipient. A bound input must identify the original revision.
+        owner = ExecutionOwnership(**source['owner'])
+        recipient_owners = [self._owner(organization,request_id,item['origin']) if item['origin']
+                            else owner if owner.kind=='standalone' else None for item in lineage]
+        intent.validate_source_ownership(recipient_owners)
+        if source['parent'] is not None:
+            parent = source['parent']
+            intent.validate_parent(organization=organization,run_id=parent['run_id'],
+                                   ownership=ExecutionOwnership(**parent['owner']))
+        if db.execute('SELECT 1 FROM runs WHERE organization=? AND request_id=?',
+                      (organization,'channel:'+request_id)).fetchone():
+            raise Conflict('Existing channel work cannot be adopted into a staged admission')
+        now = self._now()
+        persist_workflow_request(db,intent,{'kind':'paused-channel','operation_key':'channel:'+request_id,
+                                           'command':json.loads(inputs)},source,now)
+        receipt = commit_admission(db,intent,now)
+        db.execute('INSERT INTO channel_preparations VALUES(?,?,?,?,?)',
+                   (organization,request_id,inputs,receipt.run_id,identity))
+        preparation = db.execute('SELECT * FROM channel_preparations WHERE organization=? AND request_id=?',
+                                 (organization,request_id)).fetchone()
+        if self._binding(db,organization,preparation)!=intent:
+            raise Conflict('Channel ownership was not committed with its preparation')
+        current_lineage = []
+        self._current(db,organization,context,lineage=current_lineage)
+        if self._admission_source(db,organization,request_id,command,context,current_lineage)!=source:
+            raise Conflict('Channel provenance changed before admission commit')
+        return receipt.run_id
+
     def admit(self, organization, request_id, command):
-        from .sequence_journeys import journey_transaction, channel_journey_origin
+        from .sequence_journeys import journey_command, channel_journey_origin
         from acquisition.audiences import bounded
         bounded(request_id)
         inputs = canonical(asdict(command))
-        with journey_transaction(self.database,organization,request_id) as db:
+        with self.database.transaction() as db:
             self._writable(db)
-            old = db.execute('SELECT inputs,run_id FROM channel_preparations WHERE organization=? AND request_id=?',
+            old = db.execute('SELECT * FROM channel_preparations WHERE organization=? AND request_id=?',
                              (organization,request_id)).fetchone()
             if old:
                 if old['inputs']!=inputs: raise Conflict('Channel request already binds different exact inputs')
+                if self._binding(db,organization,old) is None:
+                    journey_command(db,organization,request_id)
+                    if self.compose_admission is not None:
+                        raise Conflict('Existing channel work needs original history reconciliation')
                 return old['run_id']
             if command.profile_key!=self.profile_key: raise Conflict('Use the installed scoped channel profile')
             profile = self.profiles.campaign_profile(organization,command.profile_key,'v1')
@@ -136,11 +293,16 @@ class SqliteChannelContent:
             skill = 'contextual-email/v1' if command.channel=='email' else 'call-guidance/v1'
             context['agent_assets'] = freeze_assets(organization,self.catalogue,channel_tool_contracts(command.channel),[skill],sources,
                                                    model_projection='channel-context/v1')
-            self._current(db,organization,context)
+            lineage = [] if self.compose_admission is not None else None
+            self._current(db,organization,context,lineage=lineage)
             identity = 'context_'+digest({'organization':organization,**context})
             existing = db.execute('SELECT payload FROM creative_contexts WHERE organization=? AND id=?',(organization,identity)).fetchone()
             if existing is None: db.execute('INSERT INTO creative_contexts VALUES(?,?,?)',(organization,identity,canonical(context)))
             elif existing[0]!=canonical(context): raise Conflict('Channel context identity collision')
+            if lineage is not None:
+                run_id = self._admit_paused(db,organization,request_id,command,context,identity,lineage,inputs)
+                self._writable(db)
+                return run_id
             task_inputs={'workflow_version':'channel-content/v1','context_id':identity,'model_config':self.config.payload()}
             if origin is not None:task_inputs['journey']=origin
             spec = TaskSpec(CAPABILITY,task_inputs,max_attempts=3)
@@ -192,7 +354,10 @@ class SqliteChannelContent:
             run = db.execute('SELECT status FROM runs WHERE organization=? AND id=?',(organization,row['run_id'])).fetchone()
             artifact = db.execute('SELECT id FROM channel_artifacts WHERE organization=? AND run_id=?',(organization,row['run_id'])).fetchone()
             value = self._artifact(db,organization,artifact['id']) if artifact else None
-            try: self._current(db,organization,read_context(db,organization,row['context_id'])); applicable=True
+            try:
+                self._binding(db,organization,row)
+                self._current(db,organization,read_context(db,organization,row['context_id']))
+                applicable=True
             except (Conflict,NotFound,ValueError): applicable=False
             return {'run_id':row['run_id'],'run_status':run['status'],'context_id':row['context_id'],
                 'artifact_id':artifact['id'] if artifact else None,'saved':value,'currently_applicable':applicable,

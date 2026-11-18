@@ -1,5 +1,40 @@
 # Validation and limits
 
+## Universal writer review, issue 109
+
+On 18 November 2026, a real SQLite probe compared two fresh stores using
+the installed channel fixture. Default native preparation succeeded with
+three synthetic calls and zero scoped `execution_admissions` rows. Explicit
+paused composition left one committed binding, a queued run and zero calls.
+This verifies the paused writer and the outstanding coverage gap. The
+default native and workspace cutover remains open in #109.
+
+## Preparatory paused channel ownership admission, issue 109
+
+The staged writer verifies native assessment and recipient receipts, installed
+source versions and provider accounts, and the original journey stage and
+consent inside the same SQLite write transaction as its runtime and ownership
+records. The paused receipt grants no execution authority. A native replay
+uses the original run identity, and a cloned runtime task cannot use that
+run's preparation to reserve a model call.
+
+Real SQLite regressions passed for statement faults at each durable admission
+table, concurrent identical commands, changed request rejection, restart,
+late stop and revision changes on both profiles, and standalone ownership
+after a later journey. A staged rewrite preserved the exact completed parent's
+standalone operation root. The checkpoint round trip preserved the binding and
+blocked resumed writes. The verified-paused writer fence also passed.
+
+`make arch-check` passed with 209 classified modules and zero exceptions.
+`make boundary-check` passed five synthetic journeys with zero external
+network attempts and preserved historical evidence bytes. The JSON report
+records local #68/#108 baseline `17bd908f5afc6ef088f5f09927c4cf3e700804c9`
+and stable source fingerprint
+`67219bdee2a0900feb6386e404b1402d5c218b0e78fc4df62e68a441ce7374a1`.
+The two adjusted mutation probes both detected their target faults. All 522
+probe definitions match one source location and compile. The full `make test`
+suite passed all 1,061 tests.
+
 ## Run ownership contract, issue 108
 
 The stage 1 comparator requires positive, consistent ownership for all required

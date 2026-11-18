@@ -3,8 +3,9 @@
 Stage 1 of [epic #107](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/107)
 defines the contract for [#108](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/108).
 The executable source-ownership comparison lives on `AdmissionIntent`.
-Capability-specific loaders, persistence changes and reader adoption are future
-work under #109 and #110.
+The current #109 branch contains preparatory work for the atomic writer.
+Universal channel admission is an open acceptance criterion for #109.
+Issue #110 owns reader adoption and historical reconciliation.
 
 The inventory uses main at `ff2e1ff9238de0520464a5265cfb8ed2f9e486e9`.
 [PR #95](https://github.com/DG-creative-lab/direct-acquisition-agent/pull/95)
@@ -29,6 +30,38 @@ changing production writers.
 | Inference and allowance | `SqliteCalls.reserve` checks lease, ancestry, idempotency and run limit before writing the reservation. `execution.reserve_execution` charges the linked conversation account. `unreconciled_call_exists` checks receipt completeness. The local #68 candidate also rechecks derived origin and recognizes proven prior standalone runs. | Read one verified owner before charging its allowance. Corroborate auxiliary links against the admission. Recheck stop, consent, evidence and lease at reservation. `SqliteCalls.record` may record an existing in-flight result without creating any new authority. |
 | Publication and downstream approval | `SqliteChannelTasks.settle` checks the exact task lease and atomically calls `SqliteChannelContent.publish`, which validates frozen inputs and recorded model observations. Reviews and engagements own exact approval and acceptance checks. | Verify the same committed owner and current eligibility at publication and before commit. A sequence assembled from channel artifacts must retain their bound lineage. Approval and execution checks still belong to the modules that own those effects. |
 | Inspection and recovery | `admission_guard.binding` validates stored intent, request, source, consent, receipt, runtime plan and accounting link. `SqliteAdmissions._receipt` validates replay. `execution.run_origin` reconstructs older links, and `independent_resolution` verifies traditional standalone recovery evidence. Legacy migration and checkpoint adapters enforce their own evidence and restore fences. | Share the verified binding reader for adopted capabilities. Make recovery a read-only classification plus explicit evidence-checked reconciliation. Missing history stays inspectable and fenced. |
+
+## Preparatory paused channel writer in #109
+
+The stacked #109 implementation uses local integration snapshot `17bd908`,
+which includes the #68 review fixes and the #108 merge `e66245e`. Treat this
+snapshot as a development baseline until the #68 integration is accepted.
+
+The internal `stage_ownership` composition option selects the
+`paused-channel-admission/v1` task composer for native preparation and
+conversation journey stages. The SQLite writer verifies scoped recipient
+receipts, current source and provider-account identities, and the original
+journey command when present. A rewrite proves its exact completed parent and
+preserves its owner. The same transaction commits the frozen context, native
+preparation, admission request and receipt, runtime plan, and conversation
+account link. An exact retry reads the original binding after a restart or stop.
+
+The staged task uses the existing paused execution fence. An ordinary native
+replay of a staged run returns the same run, and a copied task cannot reserve
+calls against that preparation. New requests through the default native
+and workspace entry points still use the existing synthetic writer. That
+writer can complete a run without an ownership binding.
+
+The staged writer gives #110 a concrete binding to adopt. The default
+writer switch requires an accepted #68 integration baseline, a reviewed
+execution policy for supported synthetic work in unsealed stores, and the
+claim, reservation and publication readers for that policy.
+
+- [ ] Verify universal admission through the default native and workspace
+  entry points. Every new standalone channel run and conversation journey
+  stage must commit exactly one provenance-validated binding with its runtime
+  work. Verify allowed synthetic continuation in unsealed stores, the
+  verified-paused and inspection-only fences, and exact replay after restart.
 
 ## Provenance and transition rules
 
