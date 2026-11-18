@@ -157,7 +157,7 @@ def recipient_journey_origin(db,organization,request_id,request,*,journey_ids=No
     return origin
 
 
-def channel_journey_origin(db,organization,request_id,command,*,journey_ids=None):
+def channel_journey_origin(db,organization,request_id,command,*,journey_ids=None,recipient_origins=None):
     """A new generation key cannot detach conversation-owned recipient inputs."""
     origin=journey_command(db,organization,request_id)
     sources=[]
@@ -168,6 +168,7 @@ def channel_journey_origin(db,organization,request_id,command,*,journey_ids=None
         source=(recipient_journey_origin(db,organization,key,json.loads(context['payload'])['request'],journey_ids=journey_ids)
                 if context is not None else journey_command(db,organization,key))
         sources.append(source)
+    if recipient_origins is not None:recipient_origins.extend(sources)
     bound=[o for o in sources if o is not None]
     if not bound and origin is None:return None
     if origin is None or len(bound)!=len(sources):
@@ -213,12 +214,12 @@ def channel_admission_journeys(db,organization,context):
     return applicable
 
 
-def require_channel_context_origin(db,organization,context):
+def require_channel_context_origin(db,organization,context,*,recipient_origins=None):
     """Reconstruct saved input ownership even when an old context has no origin."""
     from acquisition.creative import ChannelContentRequest
     command=ChannelContentRequest(**(context['command'] | {'recipient_requests':tuple(context['command']['recipient_requests'])}))
     origin=channel_journey_origin(db,organization,context['preparation_request_id'],command,
-        journey_ids=channel_admission_journeys(db,organization,context))
+        journey_ids=channel_admission_journeys(db,organization,context),recipient_origins=recipient_origins)
     if origin!=context.get('journey'):
         raise Conflict('Channel context differs from its derived conversation origin')
 

@@ -1,8 +1,26 @@
 """Explicit content-only orchestration over creative, reasoning and runtime public APIs."""
 
 from acquisition.creative import (ChannelContentRequest, ChannelContentAgent, ChannelContentStore, CHANNEL_CONTENT_CAPABILITY)
-from acquisition.reasoning import CallScope, ModelError
-from acquisition.runtime import Outcome
+from acquisition.contracts import digest
+from acquisition.conversations import AdmissionIntent, ExecutionOwnership
+from acquisition.reasoning import CallScope, ModelConfig, ModelError
+from acquisition.runtime import Outcome, TaskSpec
+
+
+def compose_paused_channel_admission(organization, request_id, source, context_id, context):
+    admission_key='channel_admission_'+digest({'request_id':request_id})
+    marker='admission_'+digest({'organization':organization,'request_id':admission_key})
+    config=ModelConfig(**context['model_config'])
+    inputs={'workflow_version':'channel-content/v1','context_id':context_id,'model_config':config.payload(),
+            'run_request_id':'channel:'+request_id,'execution_admission_id':marker}
+    if 'journey' in context:
+        inputs['journey']=context['journey']
+    parent=source['parent']
+    return AdmissionIntent.from_tasks(organization=organization,request_id=admission_key,
+        workflow_version='paused-channel-admission/v1',ownership=ExecutionOwnership(**source['owner']),
+        source_id=context_id,source_fingerprint=digest(source),context_fingerprint=digest(context),
+        parent_run_id=parent['run_id'] if parent else None,consent_id='consent_'+digest(source['permission']),
+        model_config=config,tasks=[TaskSpec(CHANNEL_CONTENT_CAPABILITY,inputs,max_attempts=3)])
 
 
 class ChannelContentWorkflow:

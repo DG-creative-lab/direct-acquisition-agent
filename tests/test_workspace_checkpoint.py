@@ -85,6 +85,9 @@ class WorkspaceCheckpointTests(TestCase):
         channel_content = build_channel_preparation(self.source / legacy_key,'contact-scope','fielddesk',lambda:1794528000.).prepare(
             'contact-scope','channel-request','fielddesk',('context-request',),'email')
         self.assertTrue(channel_content['ready_for_review'])
+        staged = build_channel_preparation(self.source / legacy_key,'contact-scope','fielddesk',lambda:1794528000.,
+                                           stage_ownership=True)
+        paused_run = staged.start('contact-scope','paused-channel','fielddesk',('context-request',),'email')
         # Preserve a partially submitted multichannel strategy and its control/treatment identity.
         decisions=build_audience_decisions(self.source / legacy_key,'contact-scope','fielddesk',clock=lambda:1794528000.)
         for seed in range(10):
@@ -187,6 +190,14 @@ class WorkspaceCheckpointTests(TestCase):
         channel_view = self.command('--db',self.restore / legacy_key,'--organization','contact-scope',
             '--profile','fielddesk','inspect','--request-id','channel-request',module='acquisition.channel_cli')
         self.assertEqual(channel_view['saved'],channel_content['saved'])
+        restored = build_channel_preparation(self.restore / legacy_key,'contact-scope','fielddesk',lambda:1794528000.,
+                                             read_only=True,stage_ownership=True)
+        self.assertEqual(restored.inspect('contact-scope','paused-channel')['run_id'],paused_run)
+        self.assertTrue(restored.tasks.inspect('contact-scope',paused_run)['admission']['binding_valid'])
+        self.assertEqual(restored.inference.journal.inspect('contact-scope',paused_run),[])
+        with self.assertRaisesRegex(Conflict,'inspection-only'):
+            build_channel_preparation(self.restore / legacy_key,'contact-scope','fielddesk',lambda:1794528000.,
+                                      stage_ownership=True)
         sequence_view=self.command('--db',self.restore / legacy_key,'--organization','contact-scope',
             '--profile','fielddesk','inspect','--simulation-id',simulation,module='acquisition.sequence_cli')
         # Waiting diagnostics reflect current time, while frozen work and observations retain their bytes.

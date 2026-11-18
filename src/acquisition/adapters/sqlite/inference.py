@@ -49,6 +49,11 @@ class SqliteCalls:
             if task['capability']=='creative.channel_content.v1':
                 from .creative import read_context
                 from .sequence_journeys import require_channel_context_origin
+                preparation=connection.execute('SELECT request_id,context_id FROM channel_preparations '
+                    'WHERE organization=? AND run_id=?',(scope.organization,scope.run_id)).fetchone()
+                if (preparation is None or preparation['context_id']!=inputs['context_id']
+                        or run['request_id']!='channel:'+preparation['request_id']):
+                    raise Conflict('Channel inference requires its original preparation and run')
                 channel_context=read_context(connection,scope.organization,inputs['context_id'])
                 require_channel_context_origin(connection,scope.organization,channel_context)
             audience_source = None

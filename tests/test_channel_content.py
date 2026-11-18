@@ -1,20 +1,24 @@
 """Grounded recipient rendering, exact inference receipts and atomic lifecycle boundaries."""
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, replace
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 import copy
 import json
 from pathlib import Path
+import sqlite3
 import subprocess
 import sys
 import tempfile
+from threading import Barrier
 import unittest
 from unittest.mock import patch
 
 from acquisition.bootstrap import build_contact_directory, build_recipient_contexts, build_channel_preparation
 from acquisition.adapters.channel_fixtures import OfflineChannelModel
 from acquisition.adapters.recipient_fixtures import RecordedRecipientContextSource
+from acquisition.adapters.sqlite.admission_guard import binding
 from acquisition.adapters.sqlite.channel_content import SqliteChannelTasks
 from acquisition.adapters.sqlite.database import Database
 from acquisition.adapters.sqlite.creative import read_context
@@ -22,7 +26,7 @@ from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.creative import (ChannelContentAgent, validate_channel_context, validate_rendered_channel,
                                   render_channel_rows, proposal_rows, RecipientContextRequest)
 from acquisition.reasoning import CallScope, ModelError, source_manifest, validate_assets
-from acquisition.runtime import Outcome, LeaseLost
+from acquisition.runtime import Outcome, LeaseLost, TaskSpec
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -54,8 +58,9 @@ class ChannelContentTests(unittest.TestCase):
                 ids.append(key)
                 if len(ids)==count: return tuple(ids), contacts
 
-    def app(self, profile='fielddesk', model=None, read_only=False):
-        return build_channel_preparation(self.path,'one',profile,lambda:self.now,gateway=model,read_only=read_only)
+    def app(self, profile='fielddesk', model=None, read_only=False, *, stage_ownership=False):
+        return build_channel_preparation(self.path,'one',profile,lambda:self.now,gateway=model,read_only=read_only,
+                                         stage_ownership=stage_ownership)
 
     def result(self, app, recipients, key='content', channel='email', profile='fielddesk', **kwargs):
         return app.prepare('one',key,profile,recipients,channel,**kwargs)
@@ -128,6 +133,81 @@ with patch('acquisition.adapters.channel_fixtures.OfflineChannelModel.complete',
             with self.assertRaises(Conflict):
                 app.start('one','content','fielddesk',changes.get('recipient_requests',ids),changes.get('channel','email'),
                           style=changes.get('style','explore'))
+
+    def test_paused_channel_admission_rolls_back_at_every_write_and_replays_across_restart(self):
+        ids,_ = self.seed(count=1)
+        app = self.app(model=RecordingModel(),stage_ownership=True)
+        db = app.store.database
+        tables = ('creative_contexts','admission_requests','runs','tasks','events','execution_admissions','channel_preparations')
+
+        def snapshot():
+            with db.connect() as connection:
+                return {table:connection.execute(f'SELECT count(*) FROM {table}').fetchone()[0] for table in tables}
+
+        before = snapshot()
+        for table in tables:
+            for timing in ('BEFORE','AFTER'):
+                with self.subTest(table=table,timing=timing):
+                    with db.transaction() as connection:
+                        connection.execute(f"CREATE TRIGGER interrupt_admission {timing} INSERT ON {table} "
+                                           "BEGIN SELECT RAISE(ABORT,'interrupted admission'); END")
+                    try:
+                        with self.assertRaisesRegex(sqlite3.IntegrityError,'interrupted admission'):
+                            app.start('one','paused','fielddesk',ids,'email')
+                        self.assertEqual(snapshot(),before)
+                    finally:
+                        with db.transaction() as connection:
+                            connection.execute('DROP TRIGGER interrupt_admission')
+
+        barrier = Barrier(2)
+        def start():
+            barrier.wait(timeout=10)
+            return app.start('one','paused','fielddesk',ids,'email')
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            first,second = (pool.submit(start) for _ in range(2))
+            run = first.result(timeout=30)
+            self.assertEqual(second.result(timeout=30),run)
+        after = snapshot()
+        self.assertEqual(after,{table:count+(2 if table=='events' else 1) for table,count in before.items()})
+        with db.connect() as connection:
+            intent = binding(connection,'one',run)
+            self.assertEqual(intent.ownership.kind,'standalone')
+            admitted = connection.execute('SELECT receipt FROM execution_admissions WHERE run_id=?',(run,)).fetchone()[0]
+        self.assertEqual(app.tasks.inspect('one',run)['admission']['binding_valid'],True)
+        code = '''
+import json, sys
+from acquisition.bootstrap import build_channel_preparation
+app = build_channel_preparation(sys.argv[1],'one','fielddesk',lambda:1794614400.)
+view = app.prepare('one','paused','fielddesk',sys.argv[2:],'email')
+print(json.dumps(view))
+'''
+        process = subprocess.run([sys.executable,'-c',code,str(self.path),*ids],cwd=ROOT,text=True,capture_output=True)
+        self.assertEqual(process.returncode,0,process.stderr)
+        view = json.loads(process.stdout)
+        self.assertEqual((view['run_id'],view['run_status'],view['model_calls']),(run,'queued',[]))
+        with self.assertRaises(Conflict):
+            app.start('one','paused','fielddesk',ids,'email',style='practical')
+        with db.connect() as connection:
+            self.assertEqual(connection.execute('SELECT receipt FROM execution_admissions WHERE run_id=?',(run,)).fetchone()[0],admitted)
+            self.assertIsNone(connection.execute('SELECT 1 FROM admission_store_policy').fetchone())
+            self.assertIsNone(connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='fixture_execution_grants'").fetchone())
+        self.assertEqual(snapshot(),after)
+        self.assertEqual(app.inference.gateway.requests,[])
+
+        # A generic task writer cannot use the paused task's scoped context to
+        # reach the provider through a different runtime request or lease.
+        copied = {k:v for k,v in intent.tasks[0].inputs.items()
+                  if k not in {'execution_admission_id','run_request_id'}}
+        spec = TaskSpec(intent.tasks[0].capability,copied,max_attempts=3)
+        with self.assertRaises(Conflict):
+            app.tasks.create('one','channel:paused',[spec],self.now)
+        clone = app.tasks.create('one','new-native-run',[spec],self.now)
+        claim = app.tasks.claim('one',self.now,10,run_id=clone)
+        with self.assertRaisesRegex(Conflict,'original preparation'):
+            app.inference.journal.reserve(CallScope('one',clone,claim.task_id,claim.token),'probe',digest('probe'),1,self.now)
+        self.assertEqual(app.inference.gateway.requests,[])
+        self.assertEqual(app.inference.journal.inspect('one',clone),[])
 
     def test_missing_last_recipient_unsafe_html_familiarity_and_foreign_fact_cannot_be_ready(self):
         ids,_ = self.seed()
@@ -280,6 +360,13 @@ with patch('acquisition.adapters.channel_fixtures.OfflineChannelModel.complete',
         self.assertTrue(set(r['id'] for r in first['saved']['rendered']).isdisjoint(r['id'] for r in second['saved']['rendered']))
         self.assertEqual(second['saved']['parent_id'],first['artifact_id'])
         self.assertEqual(second['saved']['outcome_support'],'none')
+        staged = self.app(stage_ownership=True)
+        third = staged.start('one','paused-rewrite','fielddesk',ids,'email',style='practical',parent_id=second['artifact_id'])
+        with staged.store.database.connect() as db:
+            ownership = binding(db,'one',third)
+            self.assertEqual(ownership.parent_run_id,second['run_id'])
+            self.assertEqual(ownership.ownership.scope_id,
+                'channel_operation_'+digest({'organization':'one','request_id':'content'}))
         person=contacts.source.read('one','fielddesk-crm-a',1).contacts[0].ref.id
         contacts.object('one','stop',person,'all','all','stop')
         stale=self.result(app,ids)
@@ -324,6 +411,8 @@ with patch('acquisition.adapters.channel_fixtures.OfflineChannelModel.complete',
         with self.assertRaises(Conflict): readonly.worker.drain('one',run_id=first['run_id'])
         Database(self.path,verified_admissions=True,clock=lambda:self.now)
         with self.assertRaises(Conflict): app.start('one','paused','fielddesk',ids,'email')
+        with self.assertRaises(Conflict):
+            self.app(stage_ownership=True).start('one','staged','fielddesk',ids,'email')
         self.assertEqual(self.counts(app),before)
 
     def test_sparse_reviewed_context_stays_honest_without_invented_recipient_claims(self):
