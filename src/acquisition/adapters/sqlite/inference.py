@@ -21,8 +21,15 @@ from .execution import reserve_execution, bind_run, require_resolved_ancestry
 
 
 class SqliteCalls:
-    def __init__(self, database: Database, clock=time.time):
+    def __init__(self, database: Database, clock=time.time, *, channel=None):
         self.database, self.clock = database, clock
+        self.channel = channel
+
+    def _channel_reservation(self, db, scope, context_id):
+        if self.channel is None:
+            require_channel_run(db,scope.organization,scope.run_id,context_id)
+        else:
+            return self.channel.require_execution(db,scope.organization,scope.run_id,context_id)
 
     def reserve(self, scope: CallScope, key: str, request_hash: str, limit: int, now: float) -> dict | None:
         if not math.isfinite(now):
@@ -36,7 +43,7 @@ class SqliteCalls:
             if verified_required(connection):
                 binding(connection,scope.organization,scope.run_id)
                 raise ModelError('execution_admission_paused_before_cutover')
-            if admission_paused(connection,scope.organization,scope.run_id):
+            if self.channel is None and admission_paused(connection,scope.organization,scope.run_id):
                 raise ModelError('execution_admission_paused_before_cutover')
             task = connection.execute("SELECT * FROM tasks WHERE id=? AND run_id=?", (scope.task_id, scope.run_id)).fetchone()
             if (task is None or run["status"] != "running" or task["status"] != "running"
@@ -44,8 +51,12 @@ class SqliteCalls:
                 raise LeaseLost("Inference attempt has no active task lease")
             inputs = json.loads(task["inputs"])
             channel_task = task['capability']==CHANNEL_CONTENT_CAPABILITY
+            if self.channel is not None and not channel_task:
+                raise ModelError('channel_inference_requires_channel_work')
             if channel_task:
-                require_channel_run(connection,scope.organization,scope.run_id,inputs['context_id'])
+                self._channel_reservation(connection,scope,inputs['context_id'])
+                if self.channel is not None:
+                    limit = min(limit,self.channel.config.max_calls)
             elif 'journey' in inputs:
                 from .sequence_journeys import require_journey_origin
                 require_journey_origin(connection,scope.organization,inputs['journey'])
@@ -90,17 +101,19 @@ class SqliteCalls:
                 raise ModelError("run_request_budget_exhausted")
             connection.execute("INSERT INTO model_calls VALUES(?,?,?,?,?,?,'reserved',NULL,NULL)",
                                (scope.organization, scope.run_id, key, scope.task_id, scope.lease_token, request_hash))
-            # Validation and SQL writes can be slow. Recheck the verified deadline
-            # and held lease last; no paid reservation exists until this commits.
+            checked_channel = None
+            if channel_task:
+                checked_channel = self._channel_reservation(connection,scope,inputs['context_id'])
+            elif 'journey' in inputs:
+                require_journey_origin(connection,scope.organization,inputs['journey'])
+            # Recheck the lease after source validation and the reservation write.
             reservation_time = self.clock()
             if not math.isfinite(reservation_time):
                 raise LeaseLost("Inference requires a finite clock reading")
             if task["lease_until"] <= reservation_time:
                 raise LeaseLost("Inference attempt expired before reservation")
-            if channel_task:
-                require_channel_run(connection,scope.organization,scope.run_id,inputs['context_id'])
-            elif 'journey' in inputs:
-                require_journey_origin(connection,scope.organization,inputs['journey'])
+            if checked_channel is not None:
+                self.channel.recheck_evidence(connection,scope.organization,checked_channel,reservation_time)
             if audience_source is not None:
                 try:
                     validate_dataset_freshness(audience_source, datetime.fromtimestamp(reservation_time, timezone.utc).date())

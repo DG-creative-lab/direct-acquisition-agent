@@ -116,9 +116,9 @@ def build_channel_preparation(path, organization, profile_key, clock=time.time, 
     """Installed offline model simulation only; no paid model, sender or review capability."""
     from acquisition.adapters.channel_fixtures import OfflineChannelModel
     from acquisition.adapters.sqlite.channel_content import SqliteChannelContent, SqliteChannelTasks
-    from acquisition.workflows.channel_content import ChannelContentWorkflow, ChannelPreparation, compose_paused_channel_admission
+    from acquisition.workflows.channel_content import ChannelContentWorkflow, ChannelPreparation, compose_channel_admission
     from acquisition.reasoning import ModelConfig
-    from acquisition.creative import CHANNEL_CONTENT_CAPABILITY
+    from acquisition.creative import CHANNEL_CONTENT_CAPABILITY, PAUSED_CHANNEL_ADMISSION, SYNTHETIC_CHANNEL_ADMISSION
     recipients = build_recipient_contexts(path,organization,profile_key,clock,read_only=read_only)
     with recipients.store.contacts.database.connect() as db:
         if db.execute('PRAGMA user_version').fetchone()[0]<20:
@@ -127,11 +127,13 @@ def build_channel_preparation(path, organization, profile_key, clock=time.time, 
         max_prompt_usd_per_million=0,max_completion_usd_per_million=0,force_tool_choice=True)
     catalogue = json.loads((Path(__file__).resolve().parents[2]/'config/channel-skills-v1.json').read_text())
     database = recipients.store.contacts.database
+    admission_version = PAUSED_CHANNEL_ADMISSION if stage_ownership else SYNTHETIC_CHANNEL_ADMISSION
     store = SqliteChannelContent(recipients.store,recipients.store.contacts.profiles,profile_key,catalogue,
-        SqliteCreative(database),config,clock,read_only=read_only,
-        compose_admission=compose_paused_channel_admission if stage_ownership else None)
+        SqliteCreative(database),config,clock,partial(compose_channel_admission,workflow_version=admission_version),
+        read_only=read_only)
     tasks = SqliteChannelTasks(store)
-    inference = Inference(gateway if gateway is not None else OfflineChannelModel(),SqliteCalls(database,clock),config,clock)
+    inference = Inference(gateway if gateway is not None else OfflineChannelModel(),
+                          SqliteCalls(database,clock,channel=store),config,clock)
     workflow = ChannelContentWorkflow(store,inference)
     worker = Worker(tasks,{CHANNEL_CONTENT_CAPABILITY:workflow.generate},clock,lease_seconds=180,eligible=workflow.eligible)
     return ChannelPreparation(store,worker,tasks,inference)

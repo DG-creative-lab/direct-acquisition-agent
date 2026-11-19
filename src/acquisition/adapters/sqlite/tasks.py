@@ -6,12 +6,13 @@ from dataclasses import asdict
 from collections.abc import Callable
 
 from acquisition.contracts import Conflict, NotFound, canonical, digest
+from acquisition.creative import SYNTHETIC_CHANNEL_ADMISSION
 from acquisition.local_root import inspection_only
 from acquisition.runtime import Claim, LeaseLost, Outcome, TaskSpec
 
 from .database import Database, stored_plan_hash
 from .execution import bind_run, ancestry_pending
-from .admission_guard import binding, has_admission_evidence, verified_required, require_legacy_writer
+from .admission_guard import binding, has_admission_evidence, verified_required, require_legacy_writer, matches_synthetic_channel
 from .fixture_execution import POLICY as FIXTURE_POLICY, fixture_active, fixture_enabled, fixture_granted
 from .fixture_execution import require_fixture_deadline
 
@@ -71,11 +72,17 @@ def insert_run(connection, organization, request_id, specs, now, *, reservation_
     return run_id
 
 
-def admission_paused(connection, organization, run_id):
-    # Admission evidence cannot activate work in an unsealed store.
-    return (connection.execute('SELECT 1 FROM execution_admissions WHERE organization=? AND run_id=?',
-                               (organization,run_id)).fetchone() is not None or
-            has_admission_evidence(connection,organization,run_id))
+def admission_paused(connection, organization, run_id, *, channel_config=None):
+    admitted = connection.execute('SELECT 1 FROM execution_admissions WHERE organization=? AND run_id=?',
+                                  (organization,run_id)).fetchone() is not None
+    if not admitted:
+        return has_admission_evidence(connection,organization,run_id)
+    if channel_config is None:
+        return True
+    try:
+        return not matches_synthetic_channel(binding(connection,organization,run_id),channel_config)
+    except (NotFound, ValueError, KeyError, TypeError):
+        return True
 
 
 class SqliteTasks:
@@ -83,6 +90,14 @@ class SqliteTasks:
         self.database = database
         self.retired_capabilities = retired_capabilities
         self.execution_clock = execution_clock
+
+    def _admission_paused(self, connection, organization, run_id):
+        return admission_paused(connection,organization,run_id)
+
+    def _claim_enabled(self, connection, organization, run_id):
+        if verified_required(connection):
+            return fixture_active(connection,organization,run_id)
+        return not self._admission_paused(connection,organization,run_id)
 
     def _legacy_allowed(self, connection, organization, run_id):
         row = connection.execute("""SELECT a.request_hash FROM legacy_task_admissions a
@@ -122,10 +137,7 @@ class SqliteTasks:
             raise ValueError("Lease must be positive")
         finite_time(now + lease_seconds)
         def can_run(connection, row):
-            if verified_required(connection):
-                if not fixture_active(connection, organization, row['run_id']):
-                    return False
-            elif admission_paused(connection,organization,row['run_id']):
+            if not self._claim_enabled(connection,organization,row['run_id']):
                 return False
             if ancestry_pending(connection,organization,row['run_id']):
                 return False
@@ -167,6 +179,8 @@ class SqliteTasks:
                                (token, now + lease_seconds, row["id"]))
             connection.execute("UPDATE runs SET status='running' WHERE id=?", (row["run_id"],))
             event(connection, row["run_id"], row["id"], "task_claimed", {"attempt": row["attempts"] + 1}, now)
+            if not self._claim_enabled(connection,organization,row['run_id']):
+                raise Conflict('Task claim lost execution authority before commit')
             return Claim(organization, row["run_id"], row["id"], row["capability"],
                          json.loads(row["inputs"]), token, row["attempts"] + 1,
                          json.loads(row["resume"]) if row["resume"] else None)
@@ -183,7 +197,7 @@ class SqliteTasks:
             if not math.isfinite(current):
                 raise LeaseLost('Attempt requires a finite execution clock')
             now = max(now, current)
-        elif admission_paused(connection, claim.organization, claim.run_id):
+        elif self._admission_paused(connection, claim.organization, claim.run_id):
             raise LeaseLost('Verified admission execution is paused')
         row = connection.execute("SELECT * FROM tasks WHERE id=? AND run_id=?",
                                  (claim.task_id, claim.run_id)).fetchone()
@@ -275,10 +289,13 @@ class SqliteTasks:
                 try:
                     intent=binding(connection,organization,run_id)
                     valid=intent is not None
-                    fixture = required and not inspection_only(self.database.path) and fixture_granted(connection, organization, run_id, intent)
-                except (Conflict,ValueError,KeyError):
-                    intent=None;valid=False;fixture=False
-                result['admission']={'status':'fixture' if fixture else 'paused','binding_valid':valid,
+                    writable = not inspection_only(self.database.path)
+                    fixture = required and writable and fixture_granted(connection, organization, run_id, intent)
+                    synthetic = not required and writable and valid and intent.workflow_version==SYNTHETIC_CHANNEL_ADMISSION
+                except (NotFound,ValueError,KeyError,TypeError):
+                    intent=None;valid=False;fixture=False;synthetic=False
+                result['admission']={'status':'fixture' if fixture else 'synthetic' if synthetic else 'paused','binding_valid':valid,
                     'id':intent.id if intent else None,
-                    'policy':FIXTURE_POLICY if fixture else 'verified-paused/v1' if required else 'staged-admission/v1'}
+                    'policy':FIXTURE_POLICY if fixture else 'verified-paused/v1' if required else
+                             SYNTHETIC_CHANNEL_ADMISSION if synthetic else 'staged-admission/v1'}
             return result

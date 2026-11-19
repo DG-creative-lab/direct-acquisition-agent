@@ -1,5 +1,65 @@
 # Validation and limits
 
+## Final channel evidence timestamps, issue 109
+
+Two SQLite regressions reproduced the review findings. Advancing the clock to
+the contact-source expiry after the post-insert check previously dispatched
+one synthetic call. Advancing it to a recipient fact expiry after the final
+publication check previously committed the artifact and task completion.
+The revised reservation leaves no call row and dispatches zero calls. The
+revised publication rolls back the artifact, task completion and success event
+while retaining the three recorded calls.
+
+Reservation and publication validate the same evidence at the timestamp used
+for the final lease check. Within the checked validity interval the result
+still applies. If the timestamp crosses an evidence boundary, the current
+evidence is evaluated at that timestamp inside the same transaction.
+An email run still completed when the clock crossed a postal permission
+deadline that left its email evidence valid.
+
+`make test` passed all 1,066 backend tests. All 66 focused channel, contact
+and recipient tests and all six Chromium sequence-journey tests passed.
+Four catalogue mutations and both final timestamp
+mutations were detected. All 526 catalogue definitions match one source
+location and compile. `make arch-check` passed with 209 modules and zero
+exceptions. `make boundary-check` passed all five cases with zero network
+attempts and preserved historical evidence bytes. The source fingerprint is
+`851b2e94612a0f9695f5fdabce23089c673950012c000dc051f4e3b21d67a169` on base
+`fbd31d38aa2e47f96b4a533cdb5ff7854a3b25c0`.
+
+## Default channel ownership cutover, issue 109
+
+Six post-merge smoke tests passed on `main` after PR #116 at `fbd31d3`.
+They exercised both companies' journeys, the schema-22 upgrade, paused journey
+admission, worker recovery, uncertain-call reconciliation, and workspace HTTP.
+
+The cutover uses the existing atomic admission transaction for the default
+native and workspace channel paths. Real SQLite tests exercised faults before
+and after each of seven admission writes in both writer modes. They also
+verified that the ordinary runtime and inference adapters cannot execute a
+synthetic channel admission. Each company's journey completed with one
+binding per channel stage and every call charged to its original conversation.
+A prior standalone run retained its own accounting after a later journey.
+A recipient objection injected after the reservation insert caused the
+transaction to roll back before dispatch. A separate probe
+verified the final lease check and the installed five-call per-run limit.
+
+A process running the PR #116 code fenced a queued cutover run and retained
+its inspection history. The updated native CLI then resumed the same run with
+three synthetic calls and the original admission receipt. Checkpoint tests
+retained valid ownership for queued work and blocked execution on restore.
+
+`make test` passed all 1,064 backend tests. `make arch-check` passed with 209
+modules and zero exceptions.
+`make boundary-check` passed all five cases with zero network attempts and
+preserved historical evidence bytes. It evaluated the cutover worktree at
+base `fbd31d38aa2e47f96b4a533cdb5ff7854a3b25c0` with source fingerprint
+`a1bc9f12b33c63d45c5781042f5f0d1b0db23e030b2ad5da1011939d7ffd905f`.
+`make interface-check` passed the production build, formatting and all 114
+Chromium tests, including the six sequence-journey cases.
+All 526 mutation definitions match one source location and compile. Seven
+catalogue probes and three cutover probes detected their target faults.
+
 ## Ownership stack integration after PR #95, 18 November 2026
 
 Four post-merge smoke tests passed on `main` at `6fb2920`. They exercised

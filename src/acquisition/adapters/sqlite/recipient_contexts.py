@@ -72,8 +72,8 @@ class SqliteRecipientContexts:
             self._writable(db)
             return self._replay(db,organization,request_id,request)
 
-    def _capture(self, db, organization, request):
-        snapshot, report, profile = self.contacts.decision_evidence(db,organization,request.assessment_id)
+    def _capture(self, db, organization, request, *, now=None):
+        snapshot, report, profile = self.contacts.decision_evidence(db,organization,request.assessment_id,now=now)
         person = next((p for p in snapshot.contacts if p.ref.id==request.contact_id),None)
         if person is None: raise NotFound('Contact is unavailable in this scoped assessment')
         account = next((a for a in snapshot.accounts if len(person.accounts)==1 and a.ref.id==person.accounts[0].id),None)
@@ -148,10 +148,10 @@ class SqliteRecipientContexts:
                    (organization,basis.target.id,value['source_key'],identity))
         return value
 
-    def _projection(self, db, organization, request, basis, guidance, manifest):
+    def _projection(self, db, organization, request, basis, guidance, manifest, *, now=None):
         history = self._history(db,organization,basis.target)
         context = select_recipient_context(basis.target,request,guidance,manifest,[v for _,v in history],
-                                           basis.channel,basis.purpose,self.contacts._now(),basis.eligible)
+                                           basis.channel,basis.purpose,self.contacts._now() if now is None else now,basis.eligible)
         return context, [identity for identity,_ in history]
 
     def _record(self, db, organization, request_id, request, receipt):
@@ -221,7 +221,7 @@ class SqliteRecipientContexts:
             raise Conflict('Stored recipient context differs from its frozen evidence')
         return payload
 
-    def _inspection(self, db, organization, request_id):
+    def _inspection(self, db, organization, request_id, *, now=None):
         row = db.execute('SELECT inputs,receipt FROM recipient_context_commands WHERE organization=? AND request_id=?',
                          (organization,request_id)).fetchone()
         if row is None: raise NotFound('Recipient context request is unavailable in this organization')
@@ -231,10 +231,10 @@ class SqliteRecipientContexts:
                 or receipt['source_selection']!=saved['source_selection'] or receipt['kind']!='recipient_context_prepared'):
             raise Conflict('Stored recipient receipt differs from its frozen request')
         try:
-            basis = self._capture(db,organization,request)
+            basis = self._capture(db,organization,request,now=now)
             guidance = RecipientContextGuidance(**(saved['guidance'] | {'priority':tuple(saved['guidance']['priority'])}))
             manifest = self._current(db,organization,basis.target,request.source_key)
-            current, history = self._projection(db,organization,request,basis,guidance,manifest)
+            current, history = self._projection(db,organization,request,basis,guidance,manifest,now=now)
             applicable = (asdict(basis)==saved['basis'] and manifest is not None
                 and manifest['source_id']==saved['source_selection']['source_id']
                 and current==saved['context'])

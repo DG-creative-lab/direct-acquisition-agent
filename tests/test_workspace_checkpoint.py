@@ -88,6 +88,8 @@ class WorkspaceCheckpointTests(TestCase):
         staged = build_channel_preparation(self.source / legacy_key,'contact-scope','fielddesk',lambda:1794528000.,
                                            stage_ownership=True)
         paused_run = staged.start('contact-scope','paused-channel','fielddesk',('context-request',),'email')
+        active = build_channel_preparation(self.source / legacy_key,'contact-scope','fielddesk',lambda:1794528000.)
+        synthetic_run = active.start('contact-scope','queued-channel','fielddesk',('context-request',),'email')
         # Preserve a partially submitted multichannel strategy and its control/treatment identity.
         decisions=build_audience_decisions(self.source / legacy_key,'contact-scope','fielddesk',clock=lambda:1794528000.)
         for seed in range(10):
@@ -199,6 +201,13 @@ class WorkspaceCheckpointTests(TestCase):
         with self.assertRaisesRegex(Conflict,'inspection-only'):
             restored.reconcile_ownership('contact-scope',paused_run,proof['fingerprint'])
         self.assertEqual(restored.inference.journal.inspect('contact-scope',paused_run),[])
+        synthetic = restored.tasks.inspect('contact-scope',synthetic_run)
+        self.assertEqual(synthetic['run']['status'],'queued')
+        self.assertEqual(synthetic['admission']['status'],'paused')
+        self.assertTrue(synthetic['admission']['binding_valid'])
+        with self.assertRaises(Conflict):
+            restored.worker.drain('contact-scope',run_id=synthetic_run)
+        self.assertEqual(restored.inference.journal.inspect('contact-scope',synthetic_run),[])
         with self.assertRaisesRegex(Conflict,'inspection-only'):
             build_channel_preparation(self.restore / legacy_key,'contact-scope','fielddesk',lambda:1794528000.,
                                       stage_ownership=True)

@@ -168,7 +168,7 @@ class SqliteContactDirectory:
     def _report(self, db, organization, key, channel, purpose):
         return self._report_evidence(db,organization,key,channel,purpose)[1]
 
-    def _report_evidence(self, db, organization, key, channel, purpose):
+    def _report_evidence(self, db, organization, key, channel, purpose, *, now=None):
         # Reuse only the values reconstructed by this check. Every invocation
         # still reads current source/history, exclusions, epoch and clock.
         snapshot, source_row = self._current_record(db,organization,key)
@@ -188,7 +188,7 @@ class SqliteContactDirectory:
         blocked &= {r.ref.id for r in snapshot.contacts}
         permission_conflicts, pressure_conflicts = contact_evidence_conflicts(snapshot,history,channel,purpose)
         profile = self._profile(organization)
-        report = evaluate_contact_eligibility(snapshot,profile,channel,purpose,self._now(),blocked,suppressed,
+        report = evaluate_contact_eligibility(snapshot,profile,channel,purpose,self._now() if now is None else now,blocked,suppressed,
                                      retired,permission_conflicts,pressure_conflicts)
         authority = db.execute('SELECT audience_epoch FROM review_authorities WHERE organization=?',(organization,)).fetchone()
         report['basis']['review_audience_epoch'] = authority[0] if authority else None
@@ -276,10 +276,11 @@ class SqliteContactDirectory:
             raise Conflict('Stored contact assessment integrity failure')
         return payload
 
-    def decision_evidence(self, db, organization, assessment_id):
+    def decision_evidence(self, db, organization, assessment_id, *, now=None):
         """Current source, independent hard checks and profile under the same SQLite snapshot."""
         payload = self.assessment(db,organization,assessment_id)
-        source, report, profile, source_row = self._report_evidence(db,organization,payload['connection_key'],payload['report']['channel'],payload['report']['purpose'])
+        source, report, profile, source_row = self._report_evidence(db,organization,payload['connection_key'],
+            payload['report']['channel'],payload['report']['purpose'],now=now)
         if report != payload['report']:
             raise Conflict('Contact assessment is no longer applicable; prepare current evidence')
         return self._current_record(db,organization,payload['connection_key'],candidate=(source,source_row))[0], report, self._profile(organization)

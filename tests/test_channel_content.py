@@ -14,17 +14,20 @@ import tempfile
 from threading import Barrier
 import unittest
 from unittest.mock import patch
+from channel_history import start_legacy_channel
 
 from acquisition.bootstrap import build_contact_directory, build_recipient_contexts, build_channel_preparation
 from acquisition.adapters.channel_fixtures import OfflineChannelModel
-from acquisition.adapters.recipient_fixtures import RecordedRecipientContextSource
+from acquisition.adapters.recipient_fixtures import RecordedRecipientContextSource, synthetic_recipient_evidence
 from acquisition.adapters.sqlite.admission_guard import binding
 from acquisition.adapters.sqlite.channel_content import SqliteChannelTasks
 from acquisition.adapters.sqlite.database import Database
+from acquisition.adapters.sqlite.inference import SqliteCalls
+from acquisition.adapters.sqlite.tasks import SqliteTasks
 from acquisition.adapters.sqlite.creative import read_context
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.creative import (ChannelContentAgent, validate_channel_context, validate_rendered_channel,
-                                  render_channel_rows, proposal_rows, RecipientContextRequest)
+                                  render_channel_rows, proposal_rows, RecipientContextRequest, SYNTHETIC_CHANNEL_ADMISSION)
 from acquisition.reasoning import CallScope, ModelError, source_manifest, validate_assets
 from acquisition.runtime import Outcome, LeaseLost, TaskSpec
 
@@ -114,6 +117,17 @@ class ChannelContentTests(unittest.TestCase):
     def test_replay_and_fresh_process_keep_frozen_assets_and_make_no_more_calls(self):
         ids,_ = self.seed(); model = RecordingModel(); app = self.app(model=model)
         first = self.result(app,ids); before = self.counts(app)
+        self.assertEqual(len(model.requests),3)
+        with app.store.database.connect() as db:
+            admissions = db.execute('SELECT receipt FROM execution_admissions WHERE organization=? AND run_id=?',
+                                    ('one',first['run_id'])).fetchall()
+            self.assertEqual(len(admissions),1)
+            receipt = json.loads(admissions[0][0])
+            intent = binding(db,'one',first['run_id'])
+            self.assertEqual(intent.workflow_version,SYNTHETIC_CHANNEL_ADMISSION)
+            self.assertEqual(intent.ownership.kind,'standalone')
+            self.assertEqual(intent.source_id,first['context_id'])
+            self.assertEqual(receipt['fingerprint'],intent.fingerprint)
         with patch.object(app.inference.gateway,'complete',side_effect=AssertionError('no redispatch')):
             replay = self.result(app,ids)
         self.assertEqual(replay['saved'],first['saved']); self.assertEqual(self.counts(app),before)
@@ -127,7 +141,11 @@ with patch('acquisition.adapters.channel_fixtures.OfflineChannelModel.complete',
 '''
         process = subprocess.run([sys.executable,'-c',code,str(self.path),*ids],cwd=ROOT,text=True,capture_output=True)
         self.assertEqual(process.returncode,0,process.stderr)
-        self.assertEqual(json.loads(process.stdout)['saved'],first['saved'])
+        self.assertEqual(json.loads(process.stdout),first)
+        with app.store.database.connect() as db:
+            self.assertEqual(db.execute('SELECT organization,run_id,receipt FROM execution_admissions').fetchall()[0][:],
+                             ('one',first['run_id'],admissions[0][0]))
+            self.assertEqual(db.execute('SELECT count(*) FROM execution_admissions').fetchone()[0],1)
         self.assertEqual(self.counts(app),before)
         for changes in ({'style':'practical'},{'recipient_requests':ids[:1]},{'channel':'human_call'}):
             with self.assertRaises(Conflict):
@@ -152,9 +170,10 @@ with patch('acquisition.adapters.channel_fixtures.OfflineChannelModel.complete',
                         connection.execute(f"CREATE TRIGGER interrupt_admission {timing} INSERT ON {table} "
                                            "BEGIN SELECT RAISE(ABORT,'interrupted admission'); END")
                     try:
-                        with self.assertRaisesRegex(sqlite3.IntegrityError,'interrupted admission'):
-                            app.start('one','paused','fielddesk',ids,'email')
-                        self.assertEqual(snapshot(),before)
+                        for writer in (app,self.app()):
+                            with self.assertRaisesRegex(sqlite3.IntegrityError,'interrupted admission'):
+                                writer.start('one','paused','fielddesk',ids,'email')
+                            self.assertEqual(snapshot(),before)
                     finally:
                         with db.transaction() as connection:
                             connection.execute('DROP TRIGGER interrupt_admission')
@@ -211,7 +230,7 @@ print(json.dumps(view))
 
     def test_channel_binding_cannot_fall_back_after_coordinated_record_loss(self):
         ids,_ = self.seed(count=1)
-        app = self.app(model=RecordingModel(),stage_ownership=True)
+        app = self.app(model=RecordingModel())
         run = app.start('one','missing-binding','fielddesk',ids,'email')
         view = app.inspect('one','missing-binding')
         with app.store.database.transaction() as db:
@@ -238,7 +257,7 @@ print(json.dumps(view))
     def test_proven_legacy_reconciliation_is_atomic_and_preserves_unknown_call_after_restart(self):
         ids,_ = self.seed(count=1)
         app = self.app(model=RecordingModel())
-        run = app.start('one','legacy','fielddesk',ids,'email')
+        run = start_legacy_channel(app,'one','legacy','fielddesk',ids,'email')
         queued = app.ownership('one',run)
         with patch.object(app.inference.gateway,'complete',side_effect=ModelError('provider_timeout')):
             app.worker.drain('one',run_id=run)
@@ -355,9 +374,15 @@ print(json.dumps(receipt))
     def test_worker_loss_reuses_recorded_calls_then_commits_one_artifact(self):
         ids,_=self.seed(); model=RecordingModel(); app=self.app(model=model)
         run=app.start('one','content','fielddesk',ids,'email')
+        self.assertIsNone(SqliteTasks(app.store.database).claim('one',self.now,1,run_id=run))
         claim=app.tasks.claim('one',self.now,1,run_id=run)
         context=app.store.load('one',claim.inputs['context_id'])
-        copied=app.tasks.create('one','unbound-copy',[TaskSpec(claim.capability,claim.inputs,max_attempts=3)],self.now)
+        with self.assertRaisesRegex(ModelError,'execution_admission_paused'):
+            SqliteCalls(app.store.database,lambda:self.now).reserve(
+                CallScope('one',run,claim.task_id,claim.token),'generic',digest('fixture request'),5,self.now)
+        copied_inputs = {key:value for key,value in claim.inputs.items()
+                         if key not in {'execution_admission_id','run_request_id'}}
+        copied=app.tasks.create('one','unbound-copy',[TaskSpec(claim.capability,copied_inputs,max_attempts=3)],self.now)
         copied_claim=app.tasks.claim('one',self.now,1,run_id=copied)
         with self.assertRaisesRegex(Conflict,'original preparation'):
             app.inference.journal.reserve(CallScope('one',copied,copied_claim.task_id,copied_claim.token),
@@ -428,6 +453,81 @@ print(json.dumps(receipt))
             model=RecordingModel(change); app=self.app(model=model); run=app.start('one',effect,'fielddesk',ids,'email')
             holder.update(app=app,run=run); app.worker.drain('one',run_id=run)
             self.assertIsNone(app.inspect('one',effect)['saved'])
+            self.assertEqual(len(model.requests),2)
+
+    def test_reservation_rolls_back_when_recipient_objects_before_commit(self):
+        ids,_=self.seed(count=1); model=RecordingModel(); app=self.app(model=model)
+        run=app.start('one','content','fielddesk',ids,'email')
+        context=app.store.load('one',app.inspect('one','content')['context_id'],run_id=run)
+        objection={'organization':'one','channel':'all','purpose':'all',
+                   'contact_id':context['recipients'][0]['contact_id'],'recorded_at':self.now,'reason':'stop'}
+        with app.store.database.transaction() as db:
+            identity,payload=db.execute('SELECT quote(?),quote(?)',
+                ('objection_'+digest(objection),canonical(objection))).fetchone()
+            db.execute(f"""CREATE TRIGGER objection_during_reservation AFTER INSERT ON model_calls
+                BEGIN INSERT INTO contact_objections VALUES('one',{identity},{payload}); END""")
+        app.worker.drain('one',run_id=run)
+        self.assertEqual(model.requests,[])
+        self.assertEqual(app.inference.journal.inspect('one',run),[])
+        self.assertIsNone(app.inspect('one','content')['artifact_id'])
+        with app.store.database.connect() as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM contact_objections').fetchone()[0],0)
+
+    def test_reservation_checks_contact_expiry_at_final_timestamp(self):
+        def extend_recipient_evidence(snapshot):
+            for evidence in synthetic_recipient_evidence(snapshot):
+                yield replace(evidence,expires_at=evidence.expires_at+3600,
+                              facts=tuple(replace(fact,expires_at=fact.expires_at+3600) for fact in evidence.facts))
+
+        with patch('acquisition.adapters.recipient_fixtures.synthetic_recipient_evidence',side_effect=extend_recipient_evidence):
+            ids,contacts=self.seed(count=1); model=RecordingModel(); app=self.app(model=model)
+        expiry=contacts.source.read('one','fielddesk-crm-a',1).expires_at
+        run=app.start('one','contact-expiry','fielddesk',ids,'email')
+        self.now=expiry-1
+        original=app.store.require_execution
+
+        def cross_expiry(db, *args):
+            checked=original(db,*args)
+            if db.execute("SELECT 1 FROM model_calls WHERE run_id=? AND status='reserved'",(run,)).fetchone():
+                self.now=expiry
+            return checked
+
+        with patch.object(app.store,'require_execution',side_effect=cross_expiry):
+            app.worker.drain('one',run_id=run)
+        self.assertEqual(self.now,expiry)
+        self.assertEqual(model.requests,[])
+        self.assertEqual(app.inference.journal.inspect('one',run),[])
+        self.assertEqual(self.counts(app)['channel_artifacts'],0)
+
+    def test_publication_checks_recipient_fact_expiry_at_final_timestamp(self):
+        expiry=self.now+60
+
+        def shorten_recipient_facts(snapshot):
+            for evidence in synthetic_recipient_evidence(snapshot):
+                yield replace(evidence,facts=tuple(replace(fact,expires_at=expiry) for fact in evidence.facts))
+
+        with patch('acquisition.adapters.recipient_fixtures.synthetic_recipient_evidence',side_effect=shorten_recipient_facts):
+            ids,_=self.seed(count=1); app=self.app()
+        run=app.start('one','recipient-expiry','fielddesk',ids,'email')
+        claim=app.tasks.claim('one',self.now,180,run_id=run)
+        outcome=app.worker.capabilities[claim.capability](claim)
+        original=app.store.require_execution
+
+        def cross_expiry(db, *args):
+            checked=original(db,*args)
+            if db.execute("SELECT 1 FROM tasks WHERE run_id=? AND status='succeeded'",(run,)).fetchone():
+                self.now=expiry
+            return checked
+
+        with patch.object(app.store,'require_execution',side_effect=cross_expiry), self.assertRaises(Conflict):
+            app.tasks.settle(claim,outcome,self.now)
+        self.assertEqual(self.now,expiry)
+        self.assertEqual(self.counts(app)['channel_artifacts'],0)
+        self.assertEqual(len(app.inference.journal.inspect('one',run)),3)
+        view=app.tasks.inspect('one',run)
+        self.assertEqual(view['run']['status'],'running')
+        self.assertEqual(view['tasks'][0]['status'],'running')
+        self.assertFalse(any(event['kind']=='task_succeeded' for event in view['events']))
 
     def test_postwrite_expiry_rolls_back_artifact_task_result_and_event(self):
         ids,contacts=self.seed(); app=self.app()

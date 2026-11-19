@@ -3,12 +3,33 @@
 Stage 1 of [epic #107](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/107)
 defines the contract for [#108](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/108).
 The executable source-ownership comparison lives on `AdmissionIntent`.
-#109 prepares the atomic writer, #110 adopts the ownership readers and legacy
-reconciliation, and #111 verifies their behavior together. The ownership stack
-is based on `main` after PR #95 merged the #68 baseline at `6fb2920`.
-Universal channel admission remains an open acceptance criterion for #109.
-Default native and workspace composition still use the existing writer.
-Explicitly staged admissions retain the paused execution policy.
+#109 owns the atomic writer and default cutover, #110 adopts the ownership
+readers and legacy reconciliation, and #111 verifies their behavior together.
+PR #116 merged the preparatory ownership stack into `main` at `fbd31d3`.
+
+## Default channel ownership cutover in #109
+
+New native channel preparations and workspace journey stages use
+`synthetic-channel-admission/v1`. Each new run commits its ownership binding,
+frozen source and consent, exact task plan, and any conversation account link
+in the same transaction. The original request and run identities remain the
+replay keys across processes.
+
+Only the installed synthetic channel composition in an unsealed, live store
+can claim and reserve against this version. Reservation and publication recheck
+the scoped binding, current evidence, consent, journey state, and lease.
+Conversation runs charge the original account and independent runs retain
+their own call limits. The sequence review checks the exact admitted run and
+recorded observations for either channel plan format.
+
+The immutable admission row retains the existing envelope and its
+`status='paused'` field. The versioned channel policy determines whether a
+live synthetic worker may continue that run.
+`paused-channel-admission/v1` remains paused. The `verified-paused/v1` store
+policy and existing fixture grants keep their previous rules. Checkpoint
+restores remain inspection-only. A reader that predates the synthetic channel
+version fences its execution. Existing legacy runs continue through their
+historical identity and recovery checks.
 
 ## Original reuse inventory baseline
 
@@ -38,9 +59,8 @@ changing production writers.
 
 ## Preparatory paused channel writer in #109
 
-The stacked #109 implementation uses local integration snapshot `17bd908`,
-which includes the #68 review fixes and the #108 merge `e66245e`. Treat this
-snapshot as a development baseline until the #68 integration is accepted.
+The preparatory #109 implementation used integration snapshot `17bd908`,
+which included the #68 review fixes and the #108 merge `e66245e`.
 
 The internal `stage_ownership` composition option selects the
 `paused-channel-admission/v1` task composer for native preparation and
@@ -53,20 +73,12 @@ account link. An exact retry reads the original binding after a restart or stop.
 
 The staged task uses the existing paused execution fence. An ordinary native
 replay of a staged run returns the same run, and a copied task cannot reserve
-calls against that preparation. New requests through the default native
-and workspace entry points still use the existing synthetic writer. That
-writer can complete a run without an ownership binding.
+calls against that preparation. During preparation, the default native and
+workspace entry points still used the legacy synthetic writer.
 
-The staged writer gives #110 a concrete binding to adopt. The default
-writer switch requires an accepted #68 integration baseline, a reviewed
-execution policy for supported synthetic work in unsealed stores, and the
-claim, reservation and publication readers for that policy.
-
-- [ ] Verify universal admission through the default native and workspace
-  entry points. Every new standalone channel run and conversation journey
-  stage must commit exactly one provenance-validated binding with its runtime
-  work. Verify allowed synthetic continuation in unsealed stores, the
-  verified-paused and inspection-only fences, and exact replay after restart.
+The staged writer gave #110 a concrete binding to adopt. The default
+writer switch followed the accepted #68 baseline and the verified ownership
+readers in PR #116.
 
 ## Ownership readers and legacy reconciliation in #110
 
@@ -109,7 +121,7 @@ original receipt. A changed report requires fresh inspection. An active
 lease or reserved inference must be resolved before applying the report.
 Reconciliation preserves the run, context, task and call identities and
 receipts. Inspection is available on restored checkpoints, where writes
-remain blocked. The default admission cutover stays open in #109.
+remain blocked.
 
 ## Provenance and transition rules
 
@@ -189,9 +201,9 @@ executing its provider and operational checks. [Issue #77](https://github.com/DG
   Bind the existing channel command/context through the canonical intent and
   task plan. Add a versioned extension only if a necessary invariant cannot
   fit the envelope.
-- Existing `execution_admissions` rows have `status='paused'`. Even in an
-  unsealed store, `admission_paused` treats their presence as a barrier to
-  ordinary claims and reservation. Merely redirecting the legacy writer to
+- Before the default channel cutover, `admission_paused` treated an
+  `execution_admissions` row as a barrier to ordinary claims and reservation
+  even in an unsealed store. Merely redirecting the legacy writer to
   `SqliteAdmissions.admit` would therefore break synthetic execution. Stage
   the new atomic writer and binding reader with paused validation first.
 - Before switching the existing synthetic writer, review a versioned,
