@@ -114,6 +114,10 @@ class SequenceJourneyWorkflow:
         self.store.begin_task_observation(organization,journey_id,request_id,revision,step_id)
         return {'journey_id':journey_id,'observation':'task_observation_saved','authority':'none'}
 
+    def observe_reply(self,organization,journey_id,request_id,revision,step_id):
+        self.store.begin_task_observation(organization,journey_id,request_id,revision,step_id,kind='replied')
+        return {'journey_id':journey_id,'observation':'synthetic_reply_saved','authority':'none'}
+
     def _simulate(self,organization,row,app):
         native=row['inputs']['native_organization'];outputs=dict(row['outputs'])
         if 'simulation_id' not in outputs:
@@ -126,18 +130,21 @@ class SequenceJourneyWorkflow:
             if intent['request_id'] in completed:continue
             step=next(s for s in view['steps'] if s['id']==intent['step_id'])
             app.sequence.engagements.observe(native,row['id']+':task:'+digest(intent['request_id'])[:24],simulation_id,
-                step['id'],step['submission']['provider_effect_id'],'task_completed',intent['occurred_at'])
+                step['id'],step['submission']['provider_effect_id'],intent['kind'],intent['occurred_at'])
             completed.add(intent['request_id'])
         if completed:outputs['task_observations']=sorted(completed)
-        view=app.sequence.engagements.advance(native,simulation_id,max_steps=6)
+        view=app.sequence.engagements.inspect(native,simulation_id)
+        if view['status'] not in {'submissions_complete','historical_submissions_complete'}:
+            view=app.sequence.engagements.advance(native,simulation_id,max_steps=6)
         if view['status'] in {'submissions_complete','historical_submissions_complete'}:
             return {'status':'complete','outputs':outputs,'detail':'Bounded synthetic submissions completed. Recipient replies and real calls were not fabricated.'}
-        if view['status'] in {'paused','stopped'}:
+        if view['status']=='stopped' or (view['status']=='paused' and not any(s['status']=='pending' for s in view['steps'])):
             return {'status':'blocked','outputs':outputs,'detail':'The native simulation is '+view['status']+'. Inspect its saved state before any continuation.'}
         if any(s['status'] in {'unknown','partial','blocked'} for s in view['steps']):
             return {'status':'blocked','outputs':outputs,'detail':'The simulation is blocked or uncertain; no automatic repeat is permitted.'}
         # Native dependency rules determine when every remaining step needs a human observation.
-        if view['status']=='waiting_for_human_completion':
+        if view['status']=='waiting_for_human_completion' or (view['status']=='paused' and all(
+                s['waiting_on']=='human_task_completion' for s in view['steps'] if s['status']=='pending')):
             return {'status':'awaiting_human','outputs':outputs,'detail':'Accepted synthetic human call tasks need an explicit completion observation.'}
         self.store.advance_time(organization,row['id'])
         return {'status':'simulating','outputs':outputs,'detail':None}
@@ -152,7 +159,9 @@ class SequenceJourneyWorkflow:
             'outputs':row['outputs'],'authority':'none','review':None,'simulation':None,
             'clock':'Persisted synthetic simulation time, never live delivery authority.',
             'pending_task_steps':[i['step_id'] for i in self.store.task_intents(organization,row['id'])
-                if i['request_id'] not in row['outputs'].get('task_observations',[])]}
+                if i['kind']=='task_completed' and i['request_id'] not in row['outputs'].get('task_observations',[])],
+            'pending_reply_steps':[i['step_id'] for i in self.store.task_intents(organization,row['id'])
+                if i['kind']=='replied' and i['request_id'] not in row['outputs'].get('task_observations',[])]}
         profile=next((p for p in frozen['catalogue']['profiles'] if p['key']==result['profile_key']),None)
         result['source']=next((c for c in profile['connections'] if c['key']==frozen['interpretation']['connection_key']),None) if profile else None
         if not current:

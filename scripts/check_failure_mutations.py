@@ -13,7 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
     ('sequence-journey-independent-schedules', 'workflows/sequence_journey.py',
-     "        if view['status']=='waiting_for_human_completion':",
+     "        if view['status']=='waiting_for_human_completion' or (view['status']=='paused' and all(\n                s['waiting_on']=='human_task_completion' for s in view['steps'] if s['status']=='pending')):",
      "        if any(s['channel']=='human_call' and s['status']=='accepted' and not any(o['step_id']==s['id'] and o['kind']=='task_completed' for o in view['observations']) for s in view['steps']):",
      'test_sequence_journeys.SequenceJourneyTests.test_unfinished_call_only_holds_its_own_followup_across_restart'),
     ('sequence-journey-postal-return', 'application/workspace/service.py',
@@ -28,7 +28,7 @@ CASES = [
      "+journey_scopes+", "+''+",
      'test_sequence_journeys.SequenceJourneyTests.test_frozen_journey_finds_receipts_after_task_origin_index_and_account_loss'),
     ('sequence-journey-observation-time', 'workflows/sequence_journey.py',
-     "step['id'],step['submission']['provider_effect_id'],'task_completed',intent['occurred_at'])",
+     "step['id'],step['submission']['provider_effect_id'],intent['kind'],intent['occurred_at'])",
      "step['id'],step['submission']['provider_effect_id'],'task_completed',self.store.simulation_time(organization,row['id']))",
      'test_sequence_journeys.SequenceJourneyTests.test_both_companies_one_confirmation_completes_and_reads_never_repeat_effects'),
     ('sequence-journey-company-binding', 'conversations/sequence_journey.py',

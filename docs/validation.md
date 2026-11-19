@@ -1,5 +1,93 @@
 # Validation and limits
 
+## Saved replies fence native dispatch, issue 68
+
+The SQLite regression saves a reply immediately after the worker reads its
+observation intents, with the affected account's next step already due.
+The stale tick leaves that reply pending and creates no new submission for
+the affected account. Original observation processing and independent-account
+continuation still complete after restart.
+
+Reply admission now commits an engagement pause and its journey command in
+one transaction. Native claim and commit authorization use the existing
+engagement stop reader. A failed pause insert rolls back both the pause and
+the command. Exact retries and a second request for the same accepted email
+reuse the original pause.
+
+Both targeted harmful mutations were detected: omitting the admission pause
+fails the rollback assertion, and ignoring pause actions in native authorization
+fails the stale-worker submission assertion. All 526 existing catalogue
+mutations still match and compile. The seven sequence browser tests passed,
+including lost-response recovery and a reply after completed submissions.
+`make test` passed all 1,067 backend tests in 1,182.028 seconds.
+`make arch-check` passed with 209 modules and zero exceptions. All five offline
+boundary cases passed with zero network attempts, stable source state and
+unchanged historical artifacts. The source fingerprint is
+`f11916a9607ae69e369c2269a1548c40347f15d0ba5e0d78445ef1745dd6346e`
+on base `ed0ae4335c93ced739ff6112a72e7e68daf231c9`.
+
+## Replies after completed submissions, issue 68
+
+The review regression reproduced rejection of a reply to an accepted final
+follow-up on a current completed journey. The backend and workspace now allow
+this observation. Continuation reads the native simulation after recording
+the reply and returns to complete without invoking submission advance.
+
+The existing two-company completion test now records the final email's reply,
+preserves all original steps and accepted counts, retries the original key
+and a second key, and reopens the original journey. The native advance method
+is replaced with an assertion failure while the completed reply is processed.
+The browser completion journey now records a reply after completion and
+checks that it returns to complete before reload.
+Both targeted mutation probes were detected by assertions. The architecture
+check passed with 209 modules and zero exceptions. All five offline boundary
+cases passed with zero network attempts and preserved historical artifacts.
+`make interface-check` passed the production build, formatting and all 115
+Chromium tests, including the post-completion reply and lost-response cases.
+`make test` passed all 1,067 backend tests in 1,283.862 seconds.
+The source fingerprint is
+`223499df68ce5446622b3e3c16b93a018299eae4a43aa487f2420c87e95cfc9d`
+on base `ed0ae4335c93ced739ff6112a72e7e68daf231c9`.
+
+## Conversational synthetic reply, issue 68
+
+The workspace admits an explicit reply observation for an accepted email in
+the exact current journey and revision. The existing engagement observation
+command records the original effect and pauses pending steps for its account.
+The journey continues independent pending work while that pause is active.
+
+The two-company SQLite regression covers pending-step and foreign-scope
+rejection, changed-input replay, native commit followed by a lost continuation
+acknowledgement, restart, a second tab's request, stop and read-only inspection.
+Both request keys converge on one reply observation with the original time.
+The Iwoca case also requires a later independent human task to be accepted.
+The scheduling and observation-time catalogue mutations and a mutation that
+blocks the journey on any account pause were detected.
+
+The browser reply test exercises the HTTP action, a lost committed response,
+polling and reload. When a command response fails, the sequence panel reads
+current state to recover polling even if the prior view was waiting for human
+input. The original pending command key remains available for exact retry.
+Observation admission also changes the journey's continuation state so an
+older worker tick cannot overwrite the saved request with a waiting status.
+The initial browser runs exposed a historical-guidance timing failure and
+this scheduler race after a lost reply response. All seven focused browser
+journeys passed after the fix. A deterministic SQLite interleaving rejects
+the stale progress write.
+
+The final `make interface-check` passed its build, formatting and all 115
+Chromium tests, including reply recovery. Four targeted mutations detected
+the scheduling, timestamp, account-pause and stale-progress faults. All 526
+catalogue definitions match one source location and compile.
+
+The final `make test` passed all 1,067 backend tests in 1,256.933 seconds.
+The focused sequence suite passed all 22 tests. The architecture check passed with
+209 classified modules and zero exceptions. The offline boundary check passed
+all five cases with zero network attempts and preserved historical bytes.
+Its source fingerprint is
+`cd0d1de7e860c02c4ac7cc7ef57749842215f50e4d97044d0374ccf98eb81306`
+on base `ed0ae4335c93ced739ff6112a72e7e68daf231c9`.
+
 ## Final channel evidence timestamps, issue 109
 
 Two SQLite regressions reproduced the review findings. Advancing the clock to

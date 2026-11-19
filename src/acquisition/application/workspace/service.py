@@ -196,6 +196,8 @@ class Workspace(WorkspaceViews):
             self.sequence_journeys.stop('local-conversations',journey_id,request_id,expected_revision)
         elif kind=='sequence-task-completed':
             self.sequence_journeys.observe_task('local-conversations',journey_id,request_id,expected_revision,**fields)
+        elif kind=='sequence-replied':
+            self.sequence_journeys.observe_reply('local-conversations',journey_id,request_id,expected_revision,**fields)
         else:raise ValueError('Unsupported sequence command')
         return self.conversation(conversation_id)
 

@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { command, money } from "./api";
+import { command, money, read } from "./api";
 
 export type SequenceJourney = {
   id: string;
@@ -10,6 +10,7 @@ export type SequenceJourney = {
   detail: string | null;
   profile_key: string;
   pending_task_steps: string[];
+  pending_reply_steps: string[];
   source: null | { label: string; key: string; version: number };
   interpretation: {
     question: string;
@@ -164,7 +165,15 @@ export default function ConversationSequence<T>({
         onChanged(result);
       }
     } catch (e) {
-      if (mounted.current) setError((e as Error).message);
+      if (mounted.current) {
+        setError((e as Error).message);
+        try {
+          const current = await read<T>(`/api/conversations/${conversationId}`);
+          if (mounted.current) onChanged(current);
+        } catch {
+          // Preserve the pending command identity for retry or reload.
+        }
+      }
     } finally {
       if (mounted.current) setBusy(false);
     }
@@ -182,6 +191,19 @@ export default function ConversationSequence<T>({
         s.status === "accepted" &&
         !completed.has(s.id) &&
         !journey.pending_task_steps.includes(s.id),
+    ) ?? [];
+  const replied = new Set(
+    journey.simulation?.observations
+      .filter((observation) => observation.kind === "replied")
+      .map((observation) => observation.step_id),
+  );
+  const replyTargets =
+    journey.simulation?.steps.filter(
+      (step) =>
+        step.channel === "email" &&
+        step.submission?.status === "accepted" &&
+        !replied.has(step.id) &&
+        !journey.pending_reply_steps.includes(step.id),
     ) ?? [];
   return (
     <section className="conversation-agent sequence-proposal">
@@ -365,6 +387,32 @@ export default function ConversationSequence<T>({
             Stop this sequence
           </button>
         )}
+      {journey.current &&
+        ["simulating", "awaiting_human", "complete"].includes(journey.status) &&
+        replyTargets.map((step, index) => (
+          <div key={step.id}>
+            <p>
+              Synthetic email {index + 1}: <code>{step.id}</code>
+            </p>
+            <button
+              type="button"
+              disabled={disabled || busy}
+              onClick={() =>
+                void act("sequence-replied", { ...scope, step_id: step.id })
+              }
+            >
+              Record synthetic reply to email {index + 1}
+            </button>
+          </div>
+        ))}
+      {journey.simulation?.observations.some(
+        (observation) => observation.kind === "replied",
+      ) && (
+        <p>
+          A synthetic reply was recorded. Pending steps for that account are
+          paused.
+        </p>
+      )}
       {journey.current &&
         waiting.map((step, index) => (
           <div key={step.id}>

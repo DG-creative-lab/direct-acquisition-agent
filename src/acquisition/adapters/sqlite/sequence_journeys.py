@@ -515,10 +515,11 @@ class SqliteSequenceJourneys:
                 raise Conflict('Approval confirmation differs from its exact journey source')
             return inputs
 
-    def begin_task_observation(self,organization,journey_id,request_id,revision,step_id):
+    def begin_task_observation(self,organization,journey_id,request_id,revision,step_id,*,kind="task_completed"):
         for value in (organization,journey_id,request_id,step_id):identity(value)
         revision_number(revision)
-        inputs={'kind':'task_completed','journey_id':journey_id,'revision':revision,'step_id':step_id}
+        if kind not in {'task_completed','replied'}:raise ValueError('Unsupported synthetic observation')
+        inputs={'kind':kind,'journey_id':journey_id,'revision':revision,'step_id':step_id}
         with self.database.transaction() as db:
             require_legacy_writer(db)
             old=db.execute('SELECT inputs FROM sequence_journey_commands WHERE organization=? AND request_id=?',
@@ -528,27 +529,36 @@ class SqliteSequenceJourneys:
                 if {k:v for k,v in saved.items() if k!='occurred_at'}!=inputs:raise Conflict('Task observation already binds different exact inputs')
                 return saved
             row=require_journey(db,organization,journey_id)
-            if row['inputs']['revision']!=revision or row['status'] not in {'simulating','awaiting_human'}:
-                raise Conflict('The human task observation is historical or not yet applicable')
+            allowed={'simulating','awaiting_human'}
+            if kind=='replied':allowed.add('complete')
+            if row['inputs']['revision']!=revision or row['status'] not in allowed:
+                raise Conflict('The synthetic observation is historical or not yet applicable')
+            if kind=='replied':
+                from .engagements import fence_saved_reply
+                fence_saved_reply(db,row['inputs']['native_organization'],row['outputs'].get('simulation_id'),step_id)
             previous=db.execute("""SELECT inputs FROM sequence_journey_commands WHERE organization=?
-                AND json_extract(inputs,'$.kind')='task_completed' AND json_extract(inputs,'$.journey_id')=?
-                AND json_extract(inputs,'$.step_id')=? ORDER BY rowid LIMIT 1""",(organization,journey_id,step_id)).fetchone()
-            # A stale tab may use a second key for the same accepted human task.
+                AND json_extract(inputs,'$.kind')=? AND json_extract(inputs,'$.journey_id')=?
+                AND json_extract(inputs,'$.step_id')=? ORDER BY rowid LIMIT 1""",(organization,kind,journey_id,step_id)).fetchone()
+            # A stale tab may use a second key for the same accepted observation.
             # Preserve the first explicit observation time rather than fabricating another.
             occurred_at=json.loads(previous[0])['occurred_at'] if previous else self._simulation_time(db,organization,journey_id)
             inputs=inputs|{'occurred_at':occurred_at}
             db.execute('INSERT INTO sequence_journey_commands VALUES(?,?,?,?)',
                 (organization,request_id,canonical(inputs),canonical({'observation':'task_observation_requested','authority':'none'})))
-            state={k:row[k] for k in ('status','stage','outputs','detail')}|{'status':'simulating','detail':None}
+            outputs=row['outputs']|{'observation_requests':[
+                *row['outputs'].get('observation_requests',[]),request_id]}
+            state={k:row[k] for k in ('status','stage','outputs','detail')}|{
+                'status':'simulating','detail':None,'outputs':outputs}
             db.execute('UPDATE sequence_journeys SET state=? WHERE organization=? AND id=?',
                 (canonical(state),organization,journey_id))
+            require_journey(db,organization,journey_id)
             return inputs
 
     def task_intents(self,organization,journey_id):
         with self.database.connect() as db:
             saved_journey(db,organization,journey_id)
             return [json.loads(r['inputs'])|{'request_id':r['request_id']} for r in db.execute(
-                "SELECT request_id,inputs FROM sequence_journey_commands WHERE organization=? AND json_extract(inputs,'$.kind')='task_completed' AND json_extract(inputs,'$.journey_id')=? ORDER BY rowid",
+                "SELECT request_id,inputs FROM sequence_journey_commands WHERE organization=? AND json_extract(inputs,'$.kind') IN ('task_completed','replied') AND json_extract(inputs,'$.journey_id')=? ORDER BY rowid",
                 (organization,journey_id))]
 
     def _simulation_time(self,db,organization,journey_id):

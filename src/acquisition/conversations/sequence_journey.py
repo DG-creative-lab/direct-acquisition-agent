@@ -157,3 +157,6 @@ class SequenceJourneys:
 
     def observe_task(self, organization, journey_id, request_id, revision, step_id):
         return self.host.observe_task(organization,journey_id,request_id,revision,step_id)
+
+    def observe_reply(self, organization, journey_id, request_id, revision, step_id):
+        return self.host.observe_reply(organization,journey_id,request_id,revision,step_id)
