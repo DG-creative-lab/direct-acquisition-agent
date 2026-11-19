@@ -10,6 +10,7 @@ from acquisition.creative import (validate_channel_bundle, channel_arguments, CH
 from acquisition.reviews import (SEQUENCE_PURPOSE, SEQUENCE_CHECKS, sequence_subject, sequence_validation,
     sequence_summary, validate_sequence_output, text, readiness_window)
 from .actors import require_actor
+from .admission_guard import read_channel_run
 from .creative import read_context
 
 
@@ -111,14 +112,11 @@ class SqliteSequenceReviews:
             artifact = db.execute('SELECT id FROM channel_artifacts WHERE organization=? AND run_id=?',(organization,row['run_id'])).fetchone()
             if artifact is None: raise Conflict('Every payload must be materialized before review')
             bundle = self.proposals.channels._artifact(db,organization,artifact['id'])
-            context = read_context(db,organization,row['context_id'])
+            _,context,_ = read_channel_run(db,organization,row['run_id'],row['context_id'])
             run = db.execute('SELECT status FROM runs WHERE organization=? AND id=?',(organization,row['run_id'])).fetchone()
-            tasks = db.execute('SELECT capability,inputs,output,status FROM tasks WHERE run_id=? ORDER BY position',(row['run_id'],)).fetchall()
+            tasks = db.execute('SELECT capability,output,status FROM tasks WHERE run_id=? ORDER BY position',(row['run_id'],)).fetchall()
             if (run is None or run['status'] != 'succeeded' or len(tasks)!=1
                     or tasks[0]['capability'] != CHANNEL_CONTENT_CAPABILITY or tasks[0]['status']!='succeeded'
-                    or json.loads(tasks[0]['inputs'])!={'workflow_version':'channel-content/v1',
-                            'context_id':row['context_id'],'model_config':context['model_config'],
-                            **({'journey':context['journey']} if 'journey' in context else {})}
                     or json.loads(tasks[0]['output']).get('artifact_id')!=artifact['id']):
                 raise Conflict('Content lacks its exact completed source run')
             matched = False

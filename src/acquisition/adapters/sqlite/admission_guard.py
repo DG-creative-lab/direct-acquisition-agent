@@ -9,10 +9,14 @@ from contextlib import closing
 from dataclasses import asdict
 from pathlib import Path
 from acquisition.contracts import Conflict, NotFound, canonical, digest
-from acquisition.creative import CHANNEL_CONTENT_CAPABILITY
+from acquisition.creative import CHANNEL_CONTENT_CAPABILITY, PAUSED_CHANNEL_ADMISSION, SYNTHETIC_CHANNEL_ADMISSION
 from acquisition.conversations import AdmissionIntent, ExecutionOwnership, journey_commands
+from acquisition.reasoning import ModelError
 from acquisition.runtime import TaskSpec
 from .database import stored_plan_hash
+
+
+CHANNEL_ADMISSIONS = {PAUSED_CHANNEL_ADMISSION, SYNTHETIC_CHANNEL_ADMISSION}
 
 
 def read_admission_policy(path):
@@ -125,7 +129,7 @@ def _bound_channel_context(db, organization, run_id, intent, source):
     preparation,context = _channel_context(db,organization,run_id,intent.source_id)
     specs = intent.tasks
     inputs = specs[0].inputs
-    if (intent.workflow_version!='paused-channel-admission/v1' or len(specs)!=1
+    if (intent.workflow_version not in CHANNEL_ADMISSIONS or len(specs)!=1
             or specs[0].capability!=CHANNEL_CONTENT_CAPABILITY
             or inputs.get('context_id')!=preparation['context_id']
             or inputs.get('execution_admission_id')!=intent.id
@@ -141,6 +145,12 @@ def _bound_channel_context(db, organization, run_id, intent, source):
 
     owner = intent.ownership
     origin = context.get('journey')
+    permission = {'mode':'SYNTHETIC_ONLY','request_id':preparation['request_id'],
+                  'command_fingerprint':digest(context['command']),'model_config':context['model_config']}
+    if origin is not None:
+        permission['journey_id'] = origin['journey_id']
+    if (source.get('permission')!=permission or intent.consent_id!='consent_'+digest(permission)):
+        raise Conflict('Channel consent differs from its committed synthetic inputs')
     if origin is None:
         if owner.kind!='standalone' or owner.organization!=organization:
             raise Conflict('Standalone channel context differs from its committed ownership')
@@ -188,7 +198,7 @@ def read_channel_run(db, organization, run_id, context_id=None):
     """Load either a committed binding or the exact original legacy plan."""
     preparation,context = _channel_context(db,organization,run_id,context_id)
     intent = binding(db,organization,run_id)
-    if intent is not None and intent.workflow_version!='paused-channel-admission/v1':
+    if intent is not None and intent.workflow_version not in CHANNEL_ADMISSIONS:
         raise Conflict('The channel run uses a different admission workflow')
     if intent is None:
         inputs = {'workflow_version':'channel-content/v1','context_id':preparation['context_id'],
@@ -218,11 +228,20 @@ def read_channel_run(db, organization, run_id, context_id=None):
     return preparation,context,intent
 
 
-def require_channel_run(db, organization, run_id, context_id):
+def matches_synthetic_channel(intent, config):
+    return (intent is not None and intent.workflow_version==SYNTHETIC_CHANNEL_ADMISSION
+            and len(intent.tasks)==1 and intent.tasks[0].capability==CHANNEL_CONTENT_CAPABILITY
+            and config is not None and intent.model_config==config)
+
+
+def require_channel_run(db, organization, run_id, context_id, *, execution_config=None):
     """Verify a run and apply current origin checks within the caller's effect transaction."""
     from .sequence_journeys import require_channel_context_origin, require_journey_origin
 
     _,context,intent = read_channel_run(db,organization,run_id,context_id)
+    if execution_config is not None and (verified_required(db) or
+            (intent is not None and not matches_synthetic_channel(intent,execution_config))):
+        raise ModelError('execution_admission_paused_before_cutover')
     if intent is None:
         require_channel_context_origin(db,organization,context)
     elif context.get('journey') is not None:

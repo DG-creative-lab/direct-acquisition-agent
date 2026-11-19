@@ -7,7 +7,6 @@ import json
 from acquisition.campaigns import SequenceRequest, build_sequence_proposal, sequence_text, sequence_time
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.creative import recipient_target_from
-from .creative import read_context
 from .admission_guard import verified_required
 from .engagement_stops import native_engagement_stop
 
@@ -130,7 +129,7 @@ class SqliteSequenceProposals:
         artifact=db.execute('SELECT id FROM channel_artifacts WHERE organization=? AND run_id=?',(organization,row['run_id'])).fetchone()
         if artifact is None: raise Conflict('Every channel needs completed validated content')
         bundle=self.channels._artifact(db,organization,artifact['id'])
-        context=read_context(db,organization,row['context_id']); self.channels._current(db,organization,context)
+        context=self.channels._current_run(db,organization,row['run_id'],row['context_id'])
         result=[]
         for rendered in bundle['rendered']:
             recipient=next(r for r in context['recipients'] if r['context_id']==rendered['recipient_context_id'])

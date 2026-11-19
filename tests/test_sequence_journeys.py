@@ -13,6 +13,8 @@ import unittest
 from unittest.mock import patch
 
 from acquisition.bootstrap import build, build_channel_preparation, build_sequence_journeys
+from acquisition.creative import SYNTHETIC_CHANNEL_ADMISSION
+from channel_history import start_legacy_channel
 from acquisition.adapters.contact_fixtures import RecordedContactSource
 from acquisition.adapters.sequence_interpreter import OfflineSequenceInterpreter
 from acquisition.audiences import contact_snapshot_from
@@ -220,11 +222,20 @@ class SequenceJourneyTests(unittest.TestCase):
                 self.assertEqual(self.counts()['sequence_review_decisions'],1)
                 account=build(self.path,clock=lambda:self.now).execution.view('one',self.conversation)
                 self.assertEqual(account['used'],self.counts()['model_calls'])
+                self.assertTrue(account['accounting_complete'])
                 before=self.counts();restarted=build_sequence_journeys(self.path,lambda:self.now)
                 restarted.approve('one',self.journey,'approval',1,view['review']['subject_id'],'Reviewed exact synthetic proposal.')
                 restarted.advance('one',self.journey);restarted.view('one',self.journey)
                 self.assertEqual(before,self.counts())
                 with closing(sqlite3.connect(self.path)) as db:
+                    native = row['inputs']['native_organization']
+                    admissions = db.execute("""SELECT a.run_id, json_extract(a.payload,'$.workflow_version'),
+                        e.owner_organization,e.conversation_id,e.revision
+                        FROM execution_admissions a JOIN execution_runs e
+                        ON e.organization=a.organization AND e.run_id=a.run_id
+                        WHERE a.organization=?""",(native,)).fetchall()
+                    self.assertCountEqual(admissions,[(row['outputs'][stage+'-run'],SYNTHETIC_CHANNEL_ADMISSION,
+                        'one',self.conversation,1) for stage in ('initial','call','followup')])
                     self.assertEqual(db.execute("SELECT count(*) FROM engagement_observations WHERE json_extract(payload,'$.kind') IN ('replied','objected')").fetchone()[0],0)
 
     def test_unfinished_call_only_holds_its_own_followup_across_restart(self):
@@ -406,8 +417,12 @@ class SequenceJourneyTests(unittest.TestCase):
                 with patch('acquisition.adapters.sqlite.sequence_journeys.recipient_journey_origin',return_value=None):
                     contexts.prepare(native,'old-detached-recipient',original['assessment_id'],original['contact_id'],original['source_key'],original['source_version'])
                 channels=build_channel_preparation(self.path,native,'fielddesk',lambda:self.now)
-                with patch('acquisition.adapters.sqlite.sequence_journeys.channel_journey_origin',return_value=None):
-                    run=channels.start(native,'old-detached-run','fielddesk',['old-detached-recipient'],'email')
+                def detached_origin(db, organization, request_id, command, *, recipient_origins=None, **kwargs):
+                    if recipient_origins is not None:
+                        recipient_origins.extend([None]*len(command.recipient_requests))
+                    return None
+                with patch('acquisition.adapters.sqlite.sequence_journeys.channel_journey_origin',side_effect=detached_origin):
+                    run=start_legacy_channel(channels,native,'old-detached-run','fielddesk',['old-detached-recipient'],'email')
                     if stage!='resume':
                         claim=channels.tasks.claim(native,self.now,180,run_id=run)
                         scope=CallScope(native,run,claim.task_id,claim.token)
@@ -473,7 +488,7 @@ class SequenceJourneyTests(unittest.TestCase):
 
     def test_standalone_admission_precedes_later_journey_without_losing_its_run(self):
         from acquisition.bootstrap import build_contact_directory, build_recipient_contexts, build_channel_preparation
-        cases=tuple(('fielddesk',stage) for stage in ('queued','unknown','legacy-queued','legacy-ambiguous','paused','paused-legacy'))
+        cases=tuple(('fielddesk',stage) for stage in ('queued','bound','unknown','legacy-queued','legacy-ambiguous','paused','paused-legacy'))
         for profile,stage in (*cases,('iwoca','queued')):
             with self.subTest(profile=profile,stage=stage):
                 path=Path(self.temp.name)/(profile+'-'+stage+'.sqlite')
@@ -486,7 +501,10 @@ class SequenceJourneyTests(unittest.TestCase):
                 contexts.prepare(native,'independent-context',assessment['assessment_id'],assessment['report']['eligible'][0],'reviewed-context-a',1)
                 paused=stage.startswith('paused')
                 channels=build_channel_preparation(path,native,profile,lambda:self.now,stage_ownership=paused)
-                run=channels.start(native,'independent-run',profile,['independent-context'],'email')
+                if paused or stage in {'bound','unknown'}:
+                    run=channels.start(native,'independent-run',profile,['independent-context'],'email')
+                else:
+                    run=start_legacy_channel(channels,native,'independent-run',profile,['independent-context'],'email')
                 if paused:
                     admitted=channels.ownership(native,run)
                     self.assertEqual(admitted['status'],'bound')
@@ -518,6 +536,10 @@ class SequenceJourneyTests(unittest.TestCase):
                 if stage=='queued':
                     self.assertEqual(restarted.ownership(native,run)['status'],'legacy_reconciled')
                     self.assertEqual(restarted.reconcile_ownership(native,run,proof['fingerprint']),receipt)
+                    self.assertTrue(view['ready_for_review'])
+                    self.assertEqual(len(view['model_calls']),3)
+                elif stage=='bound':
+                    self.assertEqual(restarted.ownership(native,run)['status'],'bound')
                     self.assertTrue(view['ready_for_review'])
                     self.assertEqual(len(view['model_calls']),3)
                 else:
@@ -575,7 +597,7 @@ class SequenceJourneyTests(unittest.TestCase):
                     review=recovered.view('one',later['id'])['review']
                     self.assertTrue(review['validation']['review_ready'])
                     self.assertFalse(review['approval_valid'])
-                    if stage=='queued':
+                    if stage in {'queued','bound'}:
                         journey_runs={advanced['outputs'][name+'-run'] for name in ('initial','call','followup')}
                         self.assertEqual(len(journey_runs),3)
                         with closing(sqlite3.connect(path)) as db:

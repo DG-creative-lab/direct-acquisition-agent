@@ -7,7 +7,7 @@ from acquisition.reasoning import CallScope, ModelConfig, ModelError
 from acquisition.runtime import Outcome, TaskSpec
 
 
-def compose_paused_channel_admission(organization, request_id, source, context_id, context):
+def compose_channel_admission(organization, request_id, source, context_id, context, *, workflow_version):
     admission_key='channel_admission_'+digest({'request_id':request_id})
     marker='admission_'+digest({'organization':organization,'request_id':admission_key})
     config=ModelConfig(**context['model_config'])
@@ -17,7 +17,7 @@ def compose_paused_channel_admission(organization, request_id, source, context_i
         inputs['journey']=context['journey']
     parent=source['parent']
     return AdmissionIntent.from_tasks(organization=organization,request_id=admission_key,
-        workflow_version='paused-channel-admission/v1',ownership=ExecutionOwnership(**source['owner']),
+        workflow_version=workflow_version,ownership=ExecutionOwnership(**source['owner']),
         source_id=context_id,source_fingerprint=digest(source),context_fingerprint=digest(context),
         parent_run_id=parent['run_id'] if parent else None,consent_id='consent_'+digest(source['permission']),
         model_config=config,tasks=[TaskSpec(CHANNEL_CONTENT_CAPABILITY,inputs,max_attempts=3)])

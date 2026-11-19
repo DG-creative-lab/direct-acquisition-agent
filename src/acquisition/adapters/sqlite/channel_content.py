@@ -4,18 +4,19 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 import json
 
+from acquisition.campaigns import contact_readiness_boundaries
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.conversations import ExecutionOwnership
-from acquisition.creative import (ChannelContentRequest, channel_source_payloads, channel_tool_contracts,
+from acquisition.creative import (ChannelContentRequest, PAUSED_CHANNEL_ADMISSION, channel_source_payloads, channel_tool_contracts,
     validate_channel_context, channel_recipient_wording, recipient_fact_from, validate_rendered_channel,
-    validate_channel_screen, channel_arguments, synthetic_channel_policy, CHANNEL_CONTENT_CAPABILITY as CAPABILITY, CHANNEL_FRAMES as FRAMES)
+    validate_channel_screen, channel_arguments, synthetic_channel_policy, channel_readiness_boundaries,
+    recipient_readiness_boundaries, CHANNEL_CONTENT_CAPABILITY as CAPABILITY, CHANNEL_FRAMES as FRAMES)
 from acquisition.reasoning import source_manifest, freeze_assets
 from acquisition.runtime import TaskSpec, Outcome, LeaseLost
 from .creative import read_context
-from .tasks import SqliteTasks, event, insert_run
+from .tasks import SqliteTasks, event, admission_paused
 from .database import stored_plan_hash
 from .admissions import commit_admission, persist_workflow_request
-from .execution import bind_run
 from .admission_guard import (
     CHANNEL_OWNERSHIP_EVENT, CHANNEL_OWNERSHIP_KEY, binding, channel_reconciliation,
     read_channel_run, require_channel_run, verified_required,
@@ -47,32 +48,34 @@ def validate_channel_schema(db):
 
 
 class SqliteChannelContent:
-    def __init__(self, recipients, profiles, profile_key, catalogue, memory, config, clock, *,
-                 read_only=False, compose_admission=None):
+    def __init__(self, recipients, profiles, profile_key, catalogue, memory, config, clock, compose_admission, *,
+                 read_only=False):
         self.recipients, self.profiles, self.profile_key = recipients, profiles, profile_key
         self.database = recipients.contacts.database
         self.compose_admission = compose_admission
         self.catalogue, self.memory, self.config, self.clock, self.read_only = catalogue, memory, config, clock, read_only
 
     def _now(self): return self.recipients.contacts._now()
-    def _today(self): return datetime.fromtimestamp(self._now(),timezone.utc).date()
     def _writable(self, db):
         if self.read_only or verified_required(db): raise Conflict('Channel preparation has no verified execution capability; execution stays paused')
 
-    def _recipients(self, db, organization, command, *, lineage=None):
+    def _recipients(self, db, organization, command, *, lineage=None, now=None, boundaries=None):
         result = []
         for request_id in command.recipient_requests:
-            view = self.recipients._inspection(db,organization,request_id)
+            view = self.recipients._inspection(db,organization,request_id,now=now)
             if not view['currently_applicable']: raise Conflict('Recipient context is historical or no longer applicable')
             saved = view['saved']; basis = saved['basis']; context = view['current']
             if not basis['eligible'] or basis['channel']!=command.channel: raise Conflict('Recipient has no current channel readiness')
-            source, report, profile = self.recipients.contacts.decision_evidence(db,organization,basis['assessment_id'])
+            source, report, profile = self.recipients.contacts.decision_evidence(db,organization,basis['assessment_id'],now=now)
             if profile.key!=command.profile_key: raise Conflict('Recipient belongs to a different product profile')
             person = next(p for p in source.contacts if p.ref.id==saved['request']['contact_id'])
             account = next(a for a in source.accounts if a.ref.id==person.accounts[0].id)
             row = db.execute('SELECT * FROM recipient_context_sources WHERE organization=? AND id=?',
                              (organization,saved['manifest_id'])).fetchone()
             manifest = self.recipients._manifest(row,organization,attest=True)
+            if boundaries is not None:
+                boundaries.extend(contact_readiness_boundaries((source,)))
+                boundaries.extend(recipient_readiness_boundaries((manifest,)))
             if lineage is not None:
                 assessment = self.recipients.contacts.assessment(db,organization,basis['assessment_id'])
                 if assessment['request']['source_id']!=source.id:
@@ -105,9 +108,10 @@ class SqliteChannelContent:
             raise Conflict('Channel ownership requires the original native assessment receipt')
         return keys
 
-    def _current(self, db, organization, context, *, lineage=None, verified_origin=False):
+    def _current(self, db, organization, context, *, lineage=None, verified_origin=False, now=None, boundaries=None):
         from .sequence_journeys import require_channel_context_origin
-        validate_channel_context(context,organization,self._today())
+        now = self._now() if now is None else now
+        validate_channel_context(context,organization,datetime.fromtimestamp(now,timezone.utc).date())
         origins = [] if lineage is not None else None
         if not verified_origin:
             require_channel_context_origin(db,organization,context,recipient_origins=origins)
@@ -116,7 +120,7 @@ class SqliteChannelContent:
         product = self.profiles.product_profile(organization,profile.product_profile_id)
         if (profile.id!=context['campaign_profile_id'] or canonical(asdict(product))!=canonical(context['product_profile'])
                 or self.profiles.product_material(organization,product.id)['pack']!=context['product_facts']
-                or self._recipients(db,organization,command,lineage=lineage)!=context['recipients']):
+                or self._recipients(db,organization,command,lineage=lineage,now=now,boundaries=boundaries)!=context['recipients']):
             raise Conflict('Channel sources changed from the exact frozen inputs')
         if lineage is not None:
             for record, origin in zip(lineage,origins,strict=True):
@@ -212,7 +216,7 @@ class SqliteChannelContent:
         return {'schema':'paused-channel-source/v1','organization':organization,'owner':asdict(owner),
                 'recipients':lineage,'parent':parent,'permission':permission}
 
-    def _admit_paused(self, db, organization, request_id, command, context, identity, lineage, inputs):
+    def _admit_owned(self, db, organization, request_id, command, context, identity, lineage, inputs):
         source = self._admission_source(db,organization,request_id,command,context,lineage)
         intent = self.compose_admission(organization,request_id,source,identity,context)
         # The validated native receipt and source are positive evidence for
@@ -227,9 +231,10 @@ class SqliteChannelContent:
                                    ownership=ExecutionOwnership(**parent['owner']))
         if db.execute('SELECT 1 FROM runs WHERE organization=? AND request_id=?',
                       (organization,'channel:'+request_id)).fetchone():
-            raise Conflict('Existing channel work cannot be adopted into a staged admission')
+            raise Conflict('Existing channel work retains its original admission')
         now = self._now()
-        persist_workflow_request(db,intent,{'kind':'paused-channel','operation_key':'channel:'+request_id,
+        kind = 'paused-channel' if intent.workflow_version==PAUSED_CHANNEL_ADMISSION else 'synthetic-channel'
+        persist_workflow_request(db,intent,{'kind':kind,'operation_key':'channel:'+request_id,
                                            'command':json.loads(inputs)},source,now)
         receipt = commit_admission(db,intent,now)
         db.execute('INSERT INTO channel_preparations VALUES(?,?,?,?,?)',
@@ -258,8 +263,6 @@ class SqliteChannelContent:
                         read_channel_run(db,organization,old['run_id'],old['context_id'])
                     else:
                         journey_command(db,organization,request_id)
-                        if self.compose_admission is not None:
-                            raise Conflict('Existing channel work needs original history reconciliation')
                 return old['run_id']
             if command.profile_key!=self.profile_key: raise Conflict('Use the installed scoped channel profile')
             profile = self.profiles.campaign_profile(organization,command.profile_key,'v1')
@@ -289,23 +292,13 @@ class SqliteChannelContent:
             skill = 'contextual-email/v1' if command.channel=='email' else 'call-guidance/v1'
             context['agent_assets'] = freeze_assets(organization,self.catalogue,channel_tool_contracts(command.channel),[skill],sources,
                                                    model_projection='channel-context/v1')
-            lineage = [] if self.compose_admission is not None else None
+            lineage = []
             self._current(db,organization,context,lineage=lineage)
             identity = 'context_'+digest({'organization':organization,**context})
             existing = db.execute('SELECT payload FROM creative_contexts WHERE organization=? AND id=?',(organization,identity)).fetchone()
             if existing is None: db.execute('INSERT INTO creative_contexts VALUES(?,?,?)',(organization,identity,canonical(context)))
             elif existing[0]!=canonical(context): raise Conflict('Channel context identity collision')
-            if lineage is not None:
-                run_id = self._admit_paused(db,organization,request_id,command,context,identity,lineage,inputs)
-                self._writable(db)
-                return run_id
-            task_inputs={'workflow_version':'channel-content/v1','context_id':identity,'model_config':self.config.payload()}
-            if origin is not None:task_inputs['journey']=origin
-            spec = TaskSpec(CAPABILITY,task_inputs,max_attempts=3)
-            run_id = insert_run(db,organization,'channel:'+request_id,[spec],self._now())
-            bind_run(db,organization,run_id,new_run=True)
-            db.execute('INSERT INTO channel_preparations VALUES(?,?,?,?,?)',(organization,request_id,inputs,run_id,identity))
-            self._current(db,organization,context)
+            run_id = self._admit_owned(db,organization,request_id,command,context,identity,lineage,inputs)
             self._writable(db)
             return run_id
 
@@ -326,10 +319,26 @@ class SqliteChannelContent:
         self._current(db,organization,context,verified_origin=True)
         return context
 
-    def publish(self, db, claim, result):
+    def require_execution(self, db, organization, run_id, context_id):
         self._writable(db)
+        context = require_channel_run(db,organization,run_id,context_id,execution_config=self.config)
+        checked_at = self._now()
+        boundaries = list(channel_readiness_boundaries((context,)))
+        self._current(db,organization,context,verified_origin=True,now=checked_at,boundaries=boundaries)
+        starts = max(point for point in boundaries if point<=checked_at)
+        ends = min(point for point in boundaries if point>checked_at)
+        return context, (starts,ends)
+
+    def recheck_evidence(self, db, organization, checked, now):
+        context, (starts,ends) = checked
+        # The same SQLite transaction holds the checked sources. Only crossing
+        # a time boundary can change their validity at this later timestamp.
+        if not starts<=now<ends:
+            self._current(db,organization,context,verified_origin=True,now=now)
+
+    def publish(self, db, claim, result):
         context_id = claim.inputs['context_id']
-        context = self._current_run(db,claim.organization,claim.run_id,context_id)
+        context, _ = self.require_execution(db,claim.organization,claim.run_id,context_id)
         validate_rendered_channel(context,context_id,result['proposals'],result['rendered'])
         validate_channel_screen(result['screen'],result['rendered'])
         if type(result['attempt']) is not int or result['attempt'] not in (0,1): raise Conflict('Invalid repair attempt')
@@ -518,6 +527,9 @@ class SqliteChannelTasks(SqliteTasks):
         if self.content.read_only: raise Conflict('Channel inspection cannot claim work')
         return super().claim(*args,**kwargs)
 
+    def _admission_paused(self, db, organization, run_id):
+        return admission_paused(db,organization,run_id,channel_config=self.content.config)
+
     def cancel(self, *args, **kwargs):
         if self.content.read_only: raise Conflict('Channel inspection cannot cancel work')
         return super().cancel(*args,**kwargs)
@@ -530,6 +542,7 @@ class SqliteChannelTasks(SqliteTasks):
                 raise Conflict('Channel completion differs from the exact owned task')
             result = self.content.publish(db,claim,outcome.data)
             self.settle_in_transaction(db,claim,Outcome('succeeded',result),self.content._now())
-            self.content._writable(db)
-            self.content._current_run(db,claim.organization,claim.run_id,claim.inputs['context_id'])
-            if self.content._now()>=row['lease_until']: raise LeaseLost('Channel publication lease expired before commit')
+            checked = self.content.require_execution(db,claim.organization,claim.run_id,claim.inputs['context_id'])
+            publication_time = self.content._now()
+            if publication_time>=row['lease_until']: raise LeaseLost('Channel publication lease expired before commit')
+            self.content.recheck_evidence(db,claim.organization,checked,publication_time)

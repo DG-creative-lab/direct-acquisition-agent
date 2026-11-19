@@ -14,6 +14,8 @@ from .profiles import product_profile_from
 
 
 CAPABILITY = 'creative.channel_content.v1'
+PAUSED_CHANNEL_ADMISSION = 'paused-channel-admission/v1'
+SYNTHETIC_CHANNEL_ADMISSION = 'synthetic-channel-admission/v1'
 READ = tool('read_channel_context','Read the exact frozen channel context. No effect authority.',{},[])
 FRAMES = {
     'explore': {'subject':'A question about your next business plan',

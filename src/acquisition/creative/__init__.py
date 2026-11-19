@@ -34,8 +34,9 @@ from .channel_agent import ChannelContentAgent, channel_arguments
 from .channel_content import validate_channel_bundle
 __all__ += ['validate_channel_bundle']
 __all__ += ['ChannelContentAgent', 'channel_arguments']
-from .channel_content import CAPABILITY as CHANNEL_CONTENT_CAPABILITY, FRAMES as CHANNEL_FRAMES
-__all__ += ['CHANNEL_CONTENT_CAPABILITY', 'CHANNEL_FRAMES']
+from .channel_content import (CAPABILITY as CHANNEL_CONTENT_CAPABILITY, FRAMES as CHANNEL_FRAMES,
+    PAUSED_CHANNEL_ADMISSION, SYNTHETIC_CHANNEL_ADMISSION)
+__all__ += ['CHANNEL_CONTENT_CAPABILITY', 'CHANNEL_FRAMES', 'PAUSED_CHANNEL_ADMISSION', 'SYNTHETIC_CHANNEL_ADMISSION']
 from .channel_content import synthetic_channel_policy
 __all__ += ['synthetic_channel_policy']
 from .recipient_context import recipient_readiness_boundaries
