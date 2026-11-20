@@ -3217,3 +3217,48 @@ borrowing follow-up setup directly. Every newly prepared class now explicitly
 retains fresh setup for external borrowers. The backend and strict mutation
 runner rejected the initial fixture errors; no invalid experiment was credited
 as a mutation detection. Final hosted reruns verify the corrected fallback.
+## Complete offline journey evaluation
+
+The issue-23 runner covers the assembled browser lifecycle at 1440px and 390px,
+plus native consent, revision, uncertain-call, incomplete-coverage and restore
+boundaries. JSON results and readable evidence bind source and built frontend
+hashes to retained exports, screenshots, trace files and synthetic SQLite stores.
+Missing results, duplicate cases, recounted observations, a reused process PID,
+changed source inputs or network attempts fail the evaluator's own checks. See
+the [acceptance contract and reproduction](evaluations/issue-23-offline-journey.md).
+The browser lane is the synthetic legacy workspace; verified fixture preparation
+and inspection-only restore remain separate native evidence.
+
+Verification passed with 871 tests in the complete backend run and 14 final
+focused evaluator/source-attribution tests, including the later native network
+regression. The final interface check passed build, formatting and all 110 browser
+tests. Architecture and whitespace checks passed. The recorded run passes all six
+scenarios and retains 63 verified artifact hashes. The evaluation report preserves
+an initially observed, non-reproduced copy-edit stopped state as an unresolved
+observation rather than claiming it was fixed.
+
+The review follow-up replaces the fixture's connect-only patch with a shared
+scoped Python audit guard for native and server runs. It blocks and records
+`connect`/`connect_ex`, datagram sends and hostname resolution before the
+operation, including saved method aliases and server-worker threads. The
+fixture's fixed loopback server name needs no DNS. This is a Python harness
+boundary, not an operating-system sandbox for arbitrary native code.
+
+Downloaded manifests now equal the reviewed manifest, and downloaded acceptance
+receipts equal the observed handoff and bind the exact displayed subject,
+draft, case and approval. CSV hashes and population counts remain independently
+checked. The evaluator also rejects missing or mismatched subject, approval
+and handoff identities between its review and export checkpoints. Regressions
+reject a coordinated wrong-campaign bundle with identical population counts,
+seven receipt-field substitutions and a substituted audience snapshot.
+
+The fresh review run on 20 November 2026 passed all six scenarios, with zero
+blocked/external attempts, stable source/build inputs and 63 independently
+rechecked artifact hashes. Evidence is retained separately in
+`.local/issue-23-offline-review-20261120/`; earlier reports are unchanged.
+The source fingerprint is
+`23811d03a61ce82719e99a713052eb7e7195100ff6f0f68bd0848d69cf322fe1`.
+All seven focused evaluator tests passed, including ten socket/resolver paths
+and a server-entry worker probe. The interface check passed build, formatting
+and all 111 browser tests. The full backend suite passed all 872 tests in
+782.126 seconds. Architecture and whitespace checks passed.

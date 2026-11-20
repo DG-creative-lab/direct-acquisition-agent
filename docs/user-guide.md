@@ -203,3 +203,12 @@ through root compatibility wrappers. New application imports use canonical
 `entrypoints`. The [wrapper inventory](architecture.md#compatibility-wrapper-inventory)
 lists the supported names. Projection repair and restore retain their existing
 offline commands and inspection-only restrictions.
+## Reproduce the complete offline journey
+
+With frontend dependencies and Playwright Chromium installed, run
+`make journey-check` from the repository root. It creates a fresh evidence
+directory and prints links to JSON results and a readable report. The suite
+exercises the browser's monitoring controls, lost-response recovery and a real
+server-process restart. All data is synthetic. See the
+[offline evaluation guide](evaluations/issue-23-offline-journey.md) for exact
+expectations and retained artifacts.

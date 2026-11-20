@@ -123,6 +123,28 @@ class ConversationalEvaluationTests(unittest.TestCase):
             (root / 'src/domain.py').unlink()
             self.assertIsNone(evaluation.source_state(root)['files']['src/domain.py']['sha256'])
 
+    def test_frontend_sources_assets_and_manifest_are_part_of_journey_attribution(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self.repository(root)
+            for path in ("frontend/src/view.tsx", "frontend/public/mark.svg", "frontend/package.json"):
+                file = root / path
+                file.parent.mkdir(parents=True, exist_ok=True)
+                file.write_text("original")
+            subprocess.run(["git", "add", "."], cwd=root, check=True, capture_output=True)
+            subprocess.run(["git", "-c", "user.name=Offline test", "-c", "user.email=offline@example.invalid",
+                            "commit", "-qm", "Frontend fixture"], cwd=root, check=True, capture_output=True)
+            prefixes = ("frontend/src", "frontend/public", "frontend/package.json")
+            before = evaluation.source_state(root, prefixes)
+            self.assertFalse(before["worktree_dirty"])
+            for path in ("frontend/src/view.tsx", "frontend/public/mark.svg", "frontend/package.json"):
+                with self.subTest(path=path):
+                    (root / path).write_text("changed")
+                    after = evaluation.source_state(root, prefixes)
+                    self.assertNotEqual(after["files_sha256"], before["files_sha256"])
+                    self.assertIn(path, after["changes_to_head"])
+                    (root / path).write_text("original")
+
     def test_changed_source_during_execution_invalidates_an_otherwise_passing_report(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
