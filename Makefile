@@ -38,3 +38,7 @@ interface-check:
 BOUNDARY_OUTPUT ?=
 boundary-check:
 	python3 scripts/evaluate_boundary_journey.py $(if $(BOUNDARY_OUTPUT),--output-dir "$(BOUNDARY_OUTPUT)",)
+
+.PHONY: journey-check
+journey-check:
+	python3 scripts/evaluate_offline_journey.py
