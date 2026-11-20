@@ -171,3 +171,11 @@ source-content fingerprint is
 The five-case architecture-boundary smoke also passed with zero network
 attempts and unchanged historical bytes. This is synthetic functional evidence,
 not live-model or deployment evidence.
+
+The first PR CI run also retained an approval-ordering failure: a campaign read
+finished before the approval command's response. The desktop fixture now delays
+approval dispatch by 250 ms to expose this ordering, and waits for visible
+approval before capturing its receipt identities. The delayed regression fails
+without that wait and passes with it. The final run is retained separately in
+`.local/issue-23-main-approval-20261120/`; its final source fingerprint and
+full-suite results are recorded in PR #119. Earlier snapshots remain historical.

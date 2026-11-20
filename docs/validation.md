@@ -3274,3 +3274,13 @@ source fingerprint
 Its 63 artifact hashes were independently rechecked. The boundary run reported
 zero network attempts, stable source inputs and unchanged historical bytes.
 The PR records full-suite results separately from the older-branch counts above.
+
+The first PR CI run exposed a harness ordering race: its campaign GET started
+9 ms after the approval POST began and finished before the approval response,
+so it observed the earlier unapproved state. A bounded 250 ms delay before
+desktop approval dispatch reproduces that failure. The driver now waits for
+the visible Approved state and closed decision dialog before taking the exact
+approval snapshot. Both complete journeys and the export regression pass with
+this delay. This changes test synchronization, not application authority.
+Final evidence is retained in `.local/issue-23-main-approval-20261120/`; the PR
+records final validation and the source fingerprint separately from prior runs.

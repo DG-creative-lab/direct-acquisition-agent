@@ -136,6 +136,8 @@ async function approve(page, region) {
   await page
     .getByRole("button", { name: "Record approval", exact: true })
     .click();
+  await expect(region.getByText("Approved", { exact: true })).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 }
 
 async function learningStep(page, region, label) {
@@ -156,6 +158,7 @@ export async function runJourney(browser, directory, width, committed) {
     id: width === 1440 ? "desktop-journey" : "mobile-journey",
     viewport: { width, height: 1000 },
     lost_schedule_response: committed ? "after_commit" : "before_dispatch",
+    approval_dispatch_delay_ms: committed ? 250 : 0,
     checks: [],
     passed: false,
     external_requests: [],
@@ -189,6 +192,16 @@ export async function runJourney(browser, directory, width, committed) {
       } else await route.continue();
     });
     page = await context.newPage();
+    if (result.approval_dispatch_delay_ms) {
+      // Fault injection: a click can finish before its command commits. Keep
+      // the stale-read window open without changing application authority.
+      await page.route(origin + "/api/sessions/*/approve", async (route) => {
+        await new Promise((resolve) =>
+          setTimeout(resolve, result.approval_dispatch_delay_ms),
+        );
+        await route.fallback();
+      });
+    }
     page.on("pageerror", (error) => pageErrors.push(error.message));
     await page.goto(origin);
     await check("incomplete-and-corrected-brief", async () => {
