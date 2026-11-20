@@ -3262,3 +3262,15 @@ All seven focused evaluator tests passed, including ten socket/resolver paths
 and a server-entry worker probe. The interface check passed build, formatting
 and all 111 browser tests. The full backend suite passed all 872 tests in
 782.126 seconds. Architecture and whitespace checks passed.
+
+For the PR, the reviewed implementation was carried onto `72ac7cb` in
+`feature/23-offline-journey-main`. The fixture uses the existing bootstrap
+factory and canonical server entrypoint after the architecture refactor;
+current CI sharding remains intact. The seven focused regressions, all six
+offline-evaluation scenarios and five architecture-boundary cases passed on
+this base. The new journey evidence is `.local/issue-23-main-20261120/`, with
+source fingerprint
+`238c592fbdbd156c8435a7edd03601d047688ef7b12415a53f4af0c7e26a9da9`.
+Its 63 artifact hashes were independently rechecked. The boundary run reported
+zero network attempts, stable source inputs and unchanged historical bytes.
+The PR records full-suite results separately from the older-branch counts above.

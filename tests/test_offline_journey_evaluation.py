@@ -142,7 +142,7 @@ class OfflineJourneyEvidenceTests(unittest.TestCase):
                         # Exercise serve's own guard, not only the native wrapper.
                         # Stop before opening a listening socket or starting workers.
                         with (
-                            patch("acquisition.workspace_server.WorkspaceServer", side_effect=server_probe),
+                            patch("acquisition.entrypoints.workspace.WorkspaceServer", side_effect=server_probe),
                             self.assertRaises(ServerProbeComplete),
                         ):
                             fixture.serve(Path(folder), 0, 0)

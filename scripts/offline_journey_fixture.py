@@ -62,8 +62,8 @@ def sha(value):
 
 
 def serve(root, port, generation):
-    from acquisition.workspace import Workspace
-    from acquisition.workspace_server import WorkspaceServer
+    from acquisition.bootstrap import build_workspace
+    from acquisition.entrypoints.workspace import WorkspaceServer
     from acquisition.adapters.sqlite.report_monitoring import SqliteReportMonitoring
     from test_preparations import CombinedModel
     from test_conversations import proposal
@@ -103,8 +103,6 @@ def serve(root, port, generation):
 
     with ExitStack() as stack:
         stack.enter_context(offline_network(root / "provider.jsonl"))
-        stack.enter_context(patch("acquisition.workspace.openrouter_key", return_value="offline-sentinel"))
-        stack.enter_context(patch("acquisition.workspace.OpenRouter", return_value=model))
         stack.enter_context(patch.object(model, "complete", side_effect=recorded))
         stack.enter_context(patch("acquisition.adapters.openrouter.OpenRouter.complete", side_effect=forbidden))
         stack.enter_context(patch.object(SqliteReportMonitoring, "__init__", leased))
@@ -112,7 +110,8 @@ def serve(root, port, generation):
         # HTTPServer asks for its own display name while binding. No DNS is
         # needed for this fixed loopback fixture; outbound lookups stay blocked.
         with patch.object(socket, "getfqdn", return_value="localhost"):
-            server = WorkspaceServer(port, Workspace(root, real_clock=lambda: NOW), ROOT / "frontend/dist")
+            server = WorkspaceServer(port, build_workspace(root, real_clock=lambda: NOW,
+                                     gateway_factory=lambda: model), ROOT / "frontend/dist")
         append(root / "processes.jsonl", {"pid": os.getpid(), "generation": generation, "port": server.server_port})
         signal.signal(signal.SIGTERM, lambda *_: threading.Thread(target=server.shutdown, daemon=True).start())
         print(json.dumps({"url": "http://127.0.0.1:" + str(server.server_port), "pid": os.getpid()}), flush=True)

@@ -149,3 +149,25 @@ browser tests, including both complete journeys. `make arch-check` and
 `git diff --check` passed. The evaluation's six scenarios, 16 browser checkpoints,
 stable source/build hashes and all 63 retained artifact hashes were verified.
 No live provider calls were made.
+
+## Current-main compatibility, 20 November 2026
+
+The initial JSON snapshot above is preserved historical evidence. It predates
+the stricter socket and export-identity checks and is not a claim about the
+current PR's inputs. The review follow-up and its older-branch validation are
+recorded in the [validation ledger](../validation.md).
+
+The PR is based on `72ac7cb`, after the architecture and ownership changes.
+Its server fixture now obtains the workspace through `build_workspace` with
+an explicit scripted gateway, and uses the canonical server entrypoint. It
+preserves current CI sharding and reuses the existing source-attribution helper.
+No production behavior, provider configuration or CI job is added.
+
+A new run in `.local/issue-23-main-20261120/` passes all six scenarios, including
+desktop and mobile exact-subject exports and restart recovery. All 63 retained
+artifact hashes were rechecked. Source and built assets remained stable; the
+source-content fingerprint is
+`238c592fbdbd156c8435a7edd03601d047688ef7b12415a53f4af0c7e26a9da9`.
+The five-case architecture-boundary smoke also passed with zero network
+attempts and unchanged historical bytes. This is synthetic functional evidence,
+not live-model or deployment evidence.
