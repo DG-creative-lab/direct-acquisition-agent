@@ -12,6 +12,32 @@ from acquisition.runtime import LeaseLost
 from .engagement_stops import native_engagement_stop, native_stop_subjects
 
 
+def fence_saved_reply(db, organization, simulation_id, step_id):
+    """Commit a simulation-scoped pause with the reply admission."""
+    row=db.execute("""SELECT s.intent,d.receipt FROM engagement_steps s
+        JOIN engagement_dispatches d ON d.organization=s.organization AND d.step_id=s.id
+        WHERE s.organization=? AND s.simulation_id=? AND s.id=? AND s.channel='email'""",
+        (organization,simulation_id,step_id)).fetchone()
+    if row is None or row['receipt'] is None:
+        raise Conflict('Record a synthetic reply only for an accepted email in this journey')
+    intent=json.loads(row['intent']); receipt=SimulationReceipt(**json.loads(row['receipt']))
+    validate_simulation_receipt(intent,receipt)
+    if receipt.status!='accepted':
+        raise Conflict('Record a synthetic reply only for an accepted email in this journey')
+    scope=intent['step']['stop_scope']
+    subject=intent['contact_id'] if scope=='contact' else intent['step']['content']['target']['account_id']
+    payload={'schema':'saved-synthetic-reply/v1','organization':organization,
+             'simulation_id':simulation_id,'step_id':step_id,'provider_effect_id':receipt.provider_effect_id}
+    identity='engagement_stop_'+digest(payload)
+    existing=db.execute('SELECT payload FROM engagement_stops WHERE organization=? AND id=?',
+                        (organization,identity)).fetchone()
+    if existing is None:
+        db.execute('INSERT INTO engagement_stops VALUES(?,?,?,?,?,?,?)',
+                   (organization,identity,simulation_id,scope,subject,'pause',canonical(payload)))
+    elif existing['payload']!=canonical(payload):
+        raise Conflict('Saved reply pause differs from its original effect')
+
+
 class SqliteEngagements:
     def __init__(self, proposals, authority: SequenceEffectAuthority):
         self.proposals,self.database=proposals,proposals.database

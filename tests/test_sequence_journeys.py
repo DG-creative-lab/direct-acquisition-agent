@@ -237,6 +237,114 @@ class SequenceJourneyTests(unittest.TestCase):
                     self.assertCountEqual(admissions,[(row['outputs'][stage+'-run'],SYNTHETIC_CHANNEL_ADMISSION,
                         'one',self.conversation,1) for stage in ('initial','call','followup')])
                     self.assertEqual(db.execute("SELECT count(*) FROM engagement_observations WHERE json_extract(payload,'$.kind') IN ('replied','objected')").fetchone()[0],0)
+                simulation=restarted.view('one',self.journey)['simulation']
+                last=next(s for s in simulation['steps'] if s['channel']=='email' and s['ordinal']==2)
+                app=restarted.host.capabilities(row['inputs'],False)
+                native_before=canonical(simulation)
+                try:
+                    restarted.observe_reply('one',self.journey,'final-reply',1,last['id'])
+                except Conflict as error:
+                    self.fail(f'A current completed journey must accept its final email reply: {error}')
+                with patch.object(restarted.host,'capabilities',return_value=app), \
+                     patch.object(app.sequence.engagements,'advance',side_effect=AssertionError('Completed submissions cannot dispatch again')):
+                    completed=restarted.advance('one',self.journey)
+                self.assertEqual(completed['status'],'complete')
+                after=restarted.view('one',self.journey)['simulation']
+                self.assertEqual(after['steps'],simulation['steps'])
+                self.assertEqual(after['totals']['accepted'],simulation['totals']['accepted'])
+                self.assertEqual(after['totals']['responded'],1)
+                self.assertEqual(after['observations'][:-1],simulation['observations'])
+                self.assertEqual(after['observations'][-1]['kind'],'replied')
+                self.assertEqual(after['observations'][-1]['step_id'],last['id'])
+                restarted.observe_reply('one',self.journey,'final-reply',1,last['id'])
+                restarted.observe_reply('one',self.journey,'final-reply-second-key',1,last['id'])
+                restarted=build_sequence_journeys(self.path,lambda:self.now)
+                restarted.advance('one',self.journey)
+                self.assertEqual(restarted.view('one',self.journey)['simulation'],after)
+                self.assertNotEqual(canonical(after),native_before)
+
+    def test_reply_pauses_only_its_account_and_recovers_original_observation(self):
+        for profile in ('fielddesk','iwoca'):
+            with self.subTest(profile=profile):
+                self.copy_template(profile)
+                subject=self.app.view('one',self.journey)['review']['subject_id']
+                self.app.approve('one',self.journey,'approval',1,subject,'Reviewed exact proposal.')
+                for _ in range(10):
+                    self.app.advance('one',self.journey)
+                    view=self.app.view('one',self.journey)
+                    simulation=view['simulation']
+                    if simulation and any(s['channel']=='email' and s['submission'] for s in simulation['steps']):break
+                target=next(s for s in simulation['steps'] if s['channel']=='email' and s['submission'])
+                pending=next(s for s in simulation['steps'] if s['status']=='pending')
+                with self.assertRaises(Conflict):
+                    self.app.observe_reply('one',self.journey,'pending-reply',1,pending['id'])
+                with self.assertRaises((Conflict,NotFound)):
+                    self.app.observe_reply('foreign',self.journey,'foreign-reply',1,target['id'])
+                with self.app.store.database.transaction() as db:
+                    db.execute("""CREATE TRIGGER fail_reply_fence AFTER INSERT ON engagement_stops
+                        BEGIN SELECT RAISE(ABORT,'reply fence failed'); END""")
+                try:
+                    with self.assertRaisesRegex(sqlite3.IntegrityError,'reply fence failed'):
+                        self.app.observe_reply('one',self.journey,'interrupted-reply',1,target['id'])
+                    with self.app.store.database.connect() as db:
+                        self.assertIsNone(db.execute('SELECT 1 FROM sequence_journey_commands WHERE organization=? AND request_id=?',
+                                                    ('one','interrupted-reply')).fetchone())
+                        self.assertIsNone(db.execute('SELECT 1 FROM engagement_stops').fetchone())
+                finally:
+                    with self.app.store.database.transaction() as db:
+                        db.execute('DROP TRIGGER fail_reply_fence')
+                stale=self.app.store.current('one',self.journey)
+                self.now=min(s['due_at'] for s in simulation['steps']
+                             if s['account_id']==target['account_id'] and s['status']=='pending')
+                original_intents=self.app.store.task_intents
+                def save_after_intent_read(organization,journey_id):
+                    intents=original_intents(organization,journey_id)
+                    self.app.observe_reply('one',self.journey,'reply',1,target['id'])
+                    return intents
+                with patch.object(self.app.store,'task_intents',side_effect=save_after_intent_read):
+                    self.app.advance('one',self.journey)
+                raced_simulation=self.app.view('one',self.journey)['simulation']
+                self.assertFalse(any(o['kind']=='replied' for o in raced_simulation['observations']))
+                self.assertTrue(all(s['submission'] is None for s in raced_simulation['steps']
+                    if s['account_id']==target['account_id'] and s['ordinal']>target['ordinal']))
+                raced=self.app.store.progress('one',stale,{'status':'awaiting_human'})
+                self.assertEqual(raced['status'],'simulating')
+                with self.assertRaises(Conflict):
+                    self.app.observe_reply('one',self.journey,'reply',1,pending['id'])
+                def lose_ack(*args):
+                    raise OSError('lost acknowledgement after native observation')
+                with patch.object(self.app.store,'progress',side_effect=lose_ack),self.assertRaises(OSError):
+                    self.app.advance('one',self.journey)
+                self.app=build_sequence_journeys(self.path,lambda:self.now)
+                self.app.observe_reply('one',self.journey,'reply',1,target['id'])
+                self.app.observe_reply('one',self.journey,'second-tab-reply',1,target['id'])
+                resumed=self.app.advance('one',self.journey)
+                simulation=self.app.view('one',self.journey)['simulation']
+                if any(s['account_id']!=target['account_id'] and s['status']=='pending' for s in simulation['steps']):
+                    self.assertNotEqual(resumed['status'],'blocked')
+                observations=[o for o in simulation['observations'] if o['kind']=='replied']
+                self.assertEqual(len(observations),1)
+                self.assertEqual(observations[0]['step_id'],target['id'])
+                own=[s for s in simulation['steps'] if s['account_id']==target['account_id'] and s['ordinal']>target['ordinal']]
+                self.assertTrue(own)
+                self.assertEqual({s['status'] for s in own},{'paused'})
+                for _ in range(10):
+                    other=[s for s in simulation['steps'] if s['account_id']!=target['account_id']]
+                    if any(s['channel']=='human_call' and s['submission'] for s in other):break
+                    self.app.advance('one',self.journey)
+                    simulation=self.app.view('one',self.journey)['simulation']
+                if other:
+                    self.assertTrue(any(s['channel']=='human_call' and s['submission'] for s in other))
+                if profile=='iwoca':self.assertTrue(other)
+                self.assertTrue(all(s['status']=='paused' for s in simulation['steps']
+                                    if s['account_id']==target['account_id'] and s['ordinal']>target['ordinal']))
+                before=self.counts()
+                self.app.view('one',self.journey);self.app.listing('one',self.conversation)
+                self.assertEqual(self.counts(),before)
+                self.app.stop('one',self.journey,'stop',1)
+                self.app.observe_reply('one',self.journey,'reply',1,target['id'])
+                with self.assertRaises(Conflict):
+                    self.app.observe_reply('one',self.journey,'after-stop',1,target['id'])
 
     def test_unfinished_call_only_holds_its_own_followup_across_restart(self):
         self.copy_template('iwoca')

@@ -197,6 +197,21 @@ test("email and call objective continues through exact approval without setup or
         exact: true,
       }),
     ).toBeVisible({ timeout: 90000 });
+    await page
+      .getByRole("button", { name: /Record synthetic reply to email/ })
+      .last()
+      .click();
+    await expect(
+      page.getByText(
+        "A synthetic reply was recorded. Pending steps for that account are paused.",
+      ),
+    ).toBeVisible({ timeout: 30000 });
+    await expect(
+      page.getByRole("heading", {
+        name: "Synthetic simulation complete",
+        exact: true,
+      }),
+    ).toBeVisible({ timeout: 30000 });
     const before = posts.length;
     await page.reload();
     await expect(
@@ -445,3 +460,56 @@ for (const legacyPending of [false, true])
       });
     }, "return-postal");
   });
+
+test("synthetic reply survives a lost response and reload", async ({
+  page,
+}) => {
+  test.setTimeout(180000);
+  await isolated(async (url) => {
+    await page.goto(url);
+    await page
+      .getByLabel("Message Direct Acquisition")
+      .fill(
+        "Prepare a Fielddesk email and human call sequence for UK contacts with a £100 total budget.",
+      );
+    await page
+      .getByRole("button", { name: "Send to agent", exact: true })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "Ready for your review", exact: true }),
+    ).toBeVisible({ timeout: 90000 });
+    await page
+      .getByRole("button", {
+        name: "Review and approve simulation",
+        exact: true,
+      })
+      .click();
+    await page
+      .getByRole("button", { name: "Approve and simulate", exact: true })
+      .click();
+    const replies = page.getByRole("button", {
+      name: /Record synthetic reply to email/,
+    });
+    await expect(replies.first()).toBeVisible({ timeout: 90000 });
+    let dropped = false;
+    await page.route("**/sequence-replied", async (route) => {
+      if (dropped) return route.continue();
+      dropped = true;
+      await route.fetch();
+      await route.abort("failed");
+    });
+    await replies.first().click();
+    await expect(
+      page.getByText(
+        "A synthetic reply was recorded. Pending steps for that account are paused.",
+      ),
+    ).toBeVisible({ timeout: 30000 });
+    expect(dropped).toBe(true);
+    await page.reload();
+    await expect(
+      page.getByText(
+        "A synthetic reply was recorded. Pending steps for that account are paused.",
+      ),
+    ).toBeVisible({ timeout: 30000 });
+  });
+});

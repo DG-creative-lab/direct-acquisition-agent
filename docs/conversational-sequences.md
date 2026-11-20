@@ -25,6 +25,18 @@ Select **Review and approve simulation**, inspect the confirmation and choose **
 
 Simulation advances an explicitly synthetic, persisted virtual clock to the next due step. It creates human call tasks rather than autonomous calls. An accepted call task needs the user's explicit **Record synthetic task completed** observation before its dependent follow-up can proceed. Independent accounts continue their scheduled work while that call waits. The conversation waits for human completion when all remaining pending steps need that observation. No recipient response or actual call is fabricated. Stop this sequence, or send `stop`, to fence further work. A call already in progress can still record its eventual usage or observation.
 
+For an accepted email, **Record synthetic reply to email** records an explicit
+simulation observation. Its account's pending steps pause while independent
+accounts continue. The command retains the exact journey, revision and step.
+Reload, retry and a second tab preserve the first observation time and one
+engagement receipt. A saved reply resumes after process restart.
+Reply admission commits a simulation-scoped pause with the command. Native
+dispatch reads that pause even when a worker's observation list predates the
+reply. Recording the eventual observation preserves the same account scope.
+Accepted emails also allow reply observations after submissions complete,
+including the final follow-up. Continuation records these observations and
+returns to complete using the original submission history.
+
 Task-completion intent freezes its observation time before native continuation. A restart after native observation and a synthetic clock advance reuses that exact time and command. A stale tab using another key for the same task also retains the first explicit observation time.
 
 A status question such as `What is the status?`, `show the proposal` or `inspect` is saved separately from material messages. It does not invalidate the proposal, consume inference or grant approval. Text such as `approve it` points back to the exact approval control and grants no authority. Material changes append a new conversation revision, make the earlier proposal historical and require a fresh review. An explicit, unambiguous postal request returns to the existing postal preparation flow. Historical sequence rows do not capture later postal follow-ups or hide postal resume controls. A saved sequence-routed message that receives a postal message receipt continues with its original funding and consent through postal preparation. A cancelled request is not revived by a new key for the same revision.
