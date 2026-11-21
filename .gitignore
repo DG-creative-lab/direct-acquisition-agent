@@ -88,3 +88,10 @@ dist/
 !/docs/evaluations/issue-93-boundary-evidence.md
 !/docs/evaluations/issue-93-hostname-guard-results.json
 !/docs/evaluations/issue-93-hostname-guard-evidence.md
+
+!/docs/mvp-demo-deployment.md
+!/docs/hosting-feasibility.md
+!/docs/evaluations/issue-60-hosting-feasibility.json
+!/docs/evaluations/issue-60-hosting-main-validation-2026-11-21.json
+!/docs/evaluations/issue-60-hosting-packaging-review-2026-11-21.json
+.vercel/

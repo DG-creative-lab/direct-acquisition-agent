@@ -1,0 +1,118 @@
+{
+  "base_commit": "2dcc5f434fe319ebd66f505487a95ae7c6468305",
+  "before_fix": {
+    "expected_source": "VALUE = 1",
+    "log": "/private/tmp/iwoca-hosting-packager-before.log",
+    "observed_source": "VALUE = 2",
+    "reproduced": true
+  },
+  "branch": "feature/60-hosting-feasibility-main",
+  "finding": "Tracked paths were selected but working-tree contents were packaged.",
+  "focused_regression": {
+    "checks": [
+      "Untracked credentials excluded",
+      "Unstaged tracked source edit ignored",
+      "Staged config edit ignored",
+      "Unstaged probe entry edit ignored",
+      "Earlier explicit commit retained after HEAD advances",
+      "Default HEAD selects the later committed source",
+      "Payload hashes and Git path mapping match",
+      "Missing probe entries fail before output creation",
+      "Committed symlink fails before output creation"
+    ],
+    "test": "test_deployment_package_uses_committed_bytes_and_excludes_unsafe_files"
+  },
+  "limits": [
+    "The selected commit must contain the reviewed probe entries; uncommitted edits cannot be deployed through this packager.",
+    "The source manifest describes the package; it does not constitute a fresh remote compatibility or deployment test.",
+    "The earlier remote contention failure remains a cutover blocker."
+  ],
+  "modified_code_sha256": {
+    "scripts/package_hosting_probe.py": "d4f17728ef2467c5817a7588f45a71f074a7933b683c74049c90237426ebce61",
+    "tests/test_hosting_probe.py": "90cfed5709bc7a2d59d36a1d93416adfe01ab7739fb347e0c2eb6464d2d2fd01"
+  },
+  "package_contract": {
+    "committed_symlinks_and_submodules": "rejected",
+    "generated_configuration_and_allowlisted_project_metadata_hashed": true,
+    "inputs": "src, config and both probe entries read directly from Git blobs",
+    "manifest": "hosting-probe-source.json",
+    "manifest_fields": [
+      "source_commit",
+      "git_paths",
+      "files (per-payload SHA-256)"
+    ],
+    "missing_probe_entries": "rejected before output creation",
+    "selection": "--commit, default HEAD, resolved once to an immutable commit ID",
+    "working_tree_and_index_edits": "ignored"
+  },
+  "preserved_reports_sha256": {
+    "docs/evaluations/issue-60-hosting-feasibility.json": "b06020cba9c9421b67b4bc6c359803e434bb2d0d556cfd23387b30f45750125f",
+    "docs/evaluations/issue-60-hosting-main-validation-2026-11-21.json": "0670f87deeabe091d6a5afa0edb3ff2f12b0ec1b3182145f797eb613458ad4a5"
+  },
+  "required_checks": {
+    "architecture": {
+      "command": "make arch-check",
+      "exceptions": 0,
+      "modules": 209,
+      "passed": true
+    },
+    "backend": {
+      "command": "make test",
+      "log": "/private/tmp/iwoca-hosting-packaging-backend.log",
+      "passed": true,
+      "seconds": 1103.833,
+      "tests": 1082
+    },
+    "boundary": {
+      "cases": 5,
+      "command": "make boundary-check BOUNDARY_OUTPUT=/private/tmp/iwoca-hosting-packaging-boundary-20261121",
+      "historical_bytes_unchanged": true,
+      "network_attempts": 0,
+      "passed": true,
+      "source_sha256": "b84decd06304d0f454e5c5626ce9fbd38d2b63ee4b8169a7caf8e9b1b4207d58",
+      "source_state_stable": true
+    },
+    "focused": {
+      "command": "PYTHONPATH=src python3 -m unittest discover -s tests -p test_hosting_probe.py",
+      "log": "/private/tmp/iwoca-hosting-packager-focused-final.log",
+      "passed": true,
+      "tests": 7
+    },
+    "frontend": {
+      "reason": "No frontend changes",
+      "required": false
+    }
+  },
+  "retained_historical_package_check": {
+    "base_commit": "72ac7cbd4b1b6c4551e28a3c44572978d69640c0",
+    "remote_deployments_reread_or_retested": false,
+    "retained_packages": [
+      {
+        "committed_source_config_files": 225,
+        "deployment_id": "dpl_HyKZUBQdjdmvR42kkkqc1V5AiMkn",
+        "matches_recorded_manifest": true,
+        "retained_package_manifest_sha256": "f4ec44bb6eb43184a3b22ffd4b5c1176de2fcb693c1206d0a7b97fea284465bb",
+        "source_config_matches_recorded_base": true
+      },
+      {
+        "committed_source_config_files": 225,
+        "deployment_id": "dpl_DGJprpbk3KzReetZtcv6xGyaJcoK",
+        "matches_recorded_manifest": true,
+        "retained_package_manifest_sha256": "bc85f0e259af1bc20c3778aa9ae41b7c04f77643b2b80315faf2f509136e52b9",
+        "source_config_matches_recorded_base": true
+      }
+    ]
+  },
+  "schema": "hosting-package-review/v1",
+  "scope": {
+    "cloud_deployments_or_model_calls": 0,
+    "new_ci_jobs": 0,
+    "production_changes": 0,
+    "root_dependency_changes": 0,
+    "schema_changes": 0
+  },
+  "source_sha256": "b84decd06304d0f454e5c5626ce9fbd38d2b63ee4b8169a7caf8e9b1b4207d58",
+  "uncommitted": true,
+  "verification_date": "2026-11-21",
+  "verification_passed": true
+}

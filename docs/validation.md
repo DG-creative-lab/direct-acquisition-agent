@@ -3284,3 +3284,93 @@ approval snapshot. Both complete journeys and the export regression pass with
 this delay. This changes test synchronization, not application authority.
 Final evidence is retained in `.local/issue-23-main-approval-20261120/`; the PR
 records final validation and the source fingerprint separately from prior runs.
+
+## Hosting and storage feasibility, parent issue 60, original 20 November 2026
+
+The experiment runs the existing admission, channel task, inference journal,
+publication and recovery code over real SQLite and an isolated Turso database.
+It adds no production storage selection or CI job. Local and hosted evidence
+are distinguished in [the feasibility report](hosting-feasibility.md).
+
+Real hosted checks passed for committed transport reads, fixture generation,
+publication rollback, lease loss with recorded-call reuse, unknown-call fencing
+and exact replay. The native driver's competing admission failed, while serial
+admission and recovery of the original competing request retained one run and
+receipt. This is a cutover blocker requiring a supported adapter/transaction
+policy, not permission to weaken ownership or retry uncertain model calls.
+An initial provider-expiry assumption was falsified and retained as such.
+The isolated hosted repeat confirmed the admission idle rollback. After a
+twelve-second idle pause, the provider rejected commit and reconciliation
+found zero marker rows without repeating writes. A separate redeployment
+replayed the original channel run with zero additional calls.
+
+All 1,074 backend tests passed in 1,190.854 seconds. Seven focused probe tests
+cover real SQLite workflows, overlapping instrumentation scopes, native binding
+semantics, target restrictions, HTTP rejection before storage, credential
+redaction and exclusion of private files from deployment packages.
+Architecture passed with 209 modules and zero exceptions. The five-case offline
+boundary check passed. No frontend or runnable product files changed.
+
+## Hosting feasibility carried onto merged main, 21 November 2026
+
+The review branch `feature/60-hosting-feasibility-main` starts at merged main
+`2dcc5f434fe319ebd66f505487a95ae7c6468305`, after PR #119. Its clean-baseline
+post-merge smoke passed both browser widths and all four native scenarios,
+with stable source/build inputs and 63 verified artifact hashes, before the
+feasibility files were applied.
+
+The operator probe, private handler, packaging/client scripts, seven existing
+regressions and original cloud JSON were copied byte-for-byte from the prior
+worktree. The probe and handler hashes also match the final recorded cloud
+package. Credentials, project links and deployment packages were excluded.
+No production module, frontend file, schema, root dependency or CI job changed.
+
+Seven focused probe tests and the complete local corpus pass on this base.
+The local expiry case is explicitly not applicable; it does not prove remote
+transaction behavior. Architecture passed with 209 modules and zero temporary
+exceptions. All five integrated boundary cases passed with zero network
+attempts, stable source inputs and unchanged historical artifacts.
+
+The [current validation record](evaluations/issue-60-hosting-main-validation-2026-11-21.json)
+keeps these checks separate from the preserved 20 November cloud observations.
+Remote contention remains a cutover blocker. This branch does not install a
+supported remote adapter, redeploy the probe or enable hosted model execution.
+
+The full backend suite passed all 1,082 tests in 1,599.807 seconds. The final
+source fingerprint is
+`d24a990e0ede1357bf30047506a779825ce6f7a8ba3f3371032de44144387a3a`.
+Whitespace checks include the newly added files as well as tracked changes.
+
+## Commit-pinned hosting package review, 21 November 2026
+
+The review reproduced a modified tracked source entering the old package:
+`VALUE = 2` was copied even though the selected baseline contained `VALUE = 1`.
+The packager now resolves `--commit` (default `HEAD`) once and reads source,
+configuration and both probe entries from immutable Git blobs. It never copies
+those inputs from the working tree or index. Missing probe entries and unsafe
+committed file modes fail before the output directory is created.
+
+The generated `hosting-probe-source.json` records the resolved commit, source
+path mapping and SHA-256 of each payload file. Generated runtime configuration
+and allowlisted project metadata are hashed too. Operators must commit the
+reviewed probe files before packaging; local edits cannot silently enter a
+bundle for an older reviewed commit.
+
+The existing packaging regression now covers unstaged source/probe edits,
+staged configuration edits, an older explicit commit after HEAD advances,
+manifest hashes, missing entries, untracked credentials and committed symlinks.
+All seven focused feasibility tests pass. No production or frontend file,
+root dependency, CI job or remote deployment changed.
+
+Both retained historical packages also match their previously recorded package
+hashes and all 225 source/config files at the recorded baseline. This is a
+read-only check of the retained packages, not a new remote deployment test.
+The original cloud JSON and carry-forward validation JSON remain unchanged.
+The [packaging review record](evaluations/issue-60-hosting-packaging-review-2026-11-21.json)
+keeps the later verification separate from those historical records.
+
+Packaging review verification passed all 1,082 backend tests in 1,103.833
+seconds, all seven focused tests, architecture (209 modules, zero exceptions)
+and all five boundary cases. The source fingerprint is
+`b84decd06304d0f454e5c5626ce9fbd38d2b63ee4b8169a7caf8e9b1b4207d58`.
+Whitespace checks cover tracked changes and new files.
