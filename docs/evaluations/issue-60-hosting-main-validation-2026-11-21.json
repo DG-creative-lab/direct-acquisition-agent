@@ -1,0 +1,250 @@
+{
+  "base_commit": "2dcc5f434fe319ebd66f505487a95ae7c6468305",
+  "branch": "feature/60-hosting-feasibility-main",
+  "decision": {
+    "blocker": "Competing native-libSQL admissions produce remote_transaction_idle_rollback; implement bounded contention and original-receipt reconciliation before supported remote execution.",
+    "direct_driver_product_cutover": "no_go",
+    "infrastructure": "conditional_go",
+    "product_ready": false
+  },
+  "limits": [
+    "The original remote contention failure remains a cutover blocker.",
+    "Local expiry is not applicable; local success does not establish remote compatibility.",
+    "The native libSQL driver was not installed, exercised or redeployed for this carry-forward.",
+    "The diagnostic shim is not a supported remote adapter or public product endpoint.",
+    "Hosted identity, real-user intake, live model generation and reviewed exports remain separate implementation work."
+  ],
+  "local_probe": {
+    "command": "python3 scripts/hosting_probe.py --mode local --output .local/hosting-feasibility-20261121/local.json",
+    "complete_corpus": true,
+    "not_applicable_cases": [
+      "expiry"
+    ],
+    "passed": true,
+    "passed_contract_cases": 7,
+    "results": [
+      {
+        "id": "transport",
+        "observed": {
+          "committed_receipts": 1,
+          "engine": "3.51.3",
+          "foreign_keys": "enabled",
+          "fresh_connection_read": "passed",
+          "json": "passed"
+        },
+        "passed": true
+      },
+      {
+        "id": "admission",
+        "observed": {
+          "admission": {
+            "admission_id": "admission_a3a43f5638284287be8756202f1130f203a537e0ae3104ba9674c87d85b9d814",
+            "created_at": 1794700800.0,
+            "fingerprint": "b00d6cfe52249c450d00b091f6e7330db93e2cf923a2806f8cb62e385f268870",
+            "organization": "hosting_probe_8be5074653b9416fa6e79d79cdd5aae7_admission",
+            "run_id": "run_f20cf3780d324b85aa0fc05d1443c878"
+          },
+          "concurrent_receipts": 2,
+          "durable_runs": 1,
+          "execution": "paused",
+          "run_id": "run_f20cf3780d324b85aa0fc05d1443c878"
+        },
+        "passed": true
+      },
+      {
+        "id": "channel",
+        "observed": {
+          "approval": "not_granted",
+          "artifact_id": "channel_bundle_ee5fc61cd6bc01929781e478430335b30bf8ae9fe5af5fffc25bc4ef8ca02df5",
+          "calls": 3,
+          "generation": "offline_fixture_only",
+          "run_id": "run_dbd86af280354f198e85af434ed01c93"
+        },
+        "passed": true
+      },
+      {
+        "id": "publication",
+        "observed": {
+          "additional_generation": 0,
+          "artifact_after_failure": 0,
+          "artifact_after_retry": 1,
+          "completion_after_failure": false,
+          "run_id": "run_3b57264f122e4df48e5d2d196a74061f"
+        },
+        "passed": true
+      },
+      {
+        "id": "lease",
+        "observed": {
+          "expired_publication": "rejected",
+          "original_recorded_calls": 3,
+          "recovery_calls": 0,
+          "run_id": "run_8013e547a5d7403f9036d15c35fb5a00"
+        },
+        "passed": true
+      },
+      {
+        "id": "unknown",
+        "observed": {
+          "calls": 1,
+          "restart_added_calls": 0,
+          "run_id": "run_81b2923939524b049680f30ec196229c",
+          "status": "unknown"
+        },
+        "passed": true
+      },
+      {
+        "id": "replay",
+        "observed": {
+          "added_calls": 0,
+          "changed_inputs": "rejected",
+          "foreign_read": "rejected",
+          "run_id": "run_dbd86af280354f198e85af434ed01c93"
+        },
+        "passed": true
+      },
+      {
+        "id": "expiry",
+        "observed": {
+          "reason": "Local SQLite has no remote transaction window",
+          "status": "not_applicable"
+        },
+        "passed": true
+      }
+    ]
+  },
+  "original_cloud_evidence": {
+    "base_commit": "72ac7cbd4b1b6c4551e28a3c44572978d69640c0",
+    "path": "docs/evaluations/issue-60-hosting-feasibility.json",
+    "preserved_byte_for_byte": true,
+    "probe_and_handler_match_final_recorded_package": true,
+    "recorded_date": "2026-11-20",
+    "remote_revalidated_on_new_branch": false,
+    "sha256": "b06020cba9c9421b67b4bc6c359803e434bb2d0d556cfd23387b30f45750125f"
+  },
+  "post_merge_smoke": {
+    "artifact_hashes_verified": 63,
+    "clean_baseline": true,
+    "command": "python3 scripts/evaluate_offline_journey.py --output-dir .local/postmerge-119-20261121",
+    "evaluated_commit": "2dcc5f434fe319ebd66f505487a95ae7c6468305",
+    "frontend_build_stable": true,
+    "passed": true,
+    "results": [
+      {
+        "id": "desktop-journey",
+        "passed": true
+      },
+      {
+        "id": "mobile-journey",
+        "passed": true
+      },
+      {
+        "id": "revision-and-amendment",
+        "passed": true
+      },
+      {
+        "id": "verified-fixture-and-restore",
+        "passed": true
+      },
+      {
+        "id": "uncertain-stop-restart",
+        "passed": true
+      },
+      {
+        "id": "missing-controls-block-learning",
+        "passed": true
+      }
+    ],
+    "scenarios": 6,
+    "source_sha256": "3f868f58e1ac6e3006d9c127a37590e79db0756d60f4118604cb86ad964d5690",
+    "source_state_stable": true
+  },
+  "preserved_files_sha256": {
+    "docs/evaluations/issue-60-hosting-feasibility.json": "b06020cba9c9421b67b4bc6c359803e434bb2d0d556cfd23387b30f45750125f",
+    "scripts/hosting_function.py": "8f70c581e9380eacdce1878a4c0a26751f9f911e9f6f38530e55b4762998bc52",
+    "scripts/hosting_probe.py": "e319e2402f359a337c737cb3048479072464164de8c4620e2d9d955aaf46aa94",
+    "scripts/package_hosting_probe.py": "141d562d1c50a9759a363c0be9f1f191eadaf1fd32ffc3502b1d0a1f949ec651",
+    "scripts/run_hosting_probe.py": "a1be511cde84d0fe40177b2efd89131acea0ee78b0919bdc11b8dc2f6114f9b5",
+    "tests/test_hosting_probe.py": "acecbcd8572b9721920d63a637b24f5db28b21f99591f6c002115e841f95a0a8"
+  },
+  "production_source_and_configuration_unchanged_since_cloud_baseline": true,
+  "required_checks": {
+    "architecture": {
+      "command": "make arch-check",
+      "exceptions": 0,
+      "modules": 209,
+      "passed": true
+    },
+    "backend": {
+      "command": "make test",
+      "log": "/private/tmp/iwoca-hosting-main-backend.log",
+      "passed": true,
+      "seconds": 1599.807,
+      "tests": 1082
+    },
+    "boundary": {
+      "cases": 5,
+      "command": "make boundary-check BOUNDARY_OUTPUT=/private/tmp/iwoca-hosting-main-boundary-20261121",
+      "historical_bytes_unchanged": true,
+      "network_attempts": 0,
+      "passed": true,
+      "source_sha256": "d24a990e0ede1357bf30047506a779825ce6f7a8ba3f3371032de44144387a3a",
+      "source_state_stable": true
+    },
+    "focused": {
+      "command": "PYTHONPATH=src python3 -m unittest discover -s tests -p test_hosting_probe.py",
+      "passed": true,
+      "tests": 7
+    },
+    "interface": {
+      "full_interface_check_required": false,
+      "reason": "No frontend changes; the clean-baseline smoke built the frontend and exercised both browser widths."
+    }
+  },
+  "schema": "hosting-feasibility-carry-forward/v1",
+  "scope": {
+    "cloud_runs_this_carry_forward": 0,
+    "frontend_changed": false,
+    "live_model_calls": 0,
+    "new_ci_jobs": 0,
+    "new_cloud_resources": 0,
+    "production_modules_changed": false,
+    "root_dependencies_added": 0
+  },
+  "source_changes_to_head": [
+    ".gitignore",
+    "scripts/hosting_function.py",
+    "scripts/hosting_probe.py",
+    "scripts/package_hosting_probe.py",
+    "scripts/run_hosting_probe.py",
+    "tests/test_hosting_probe.py"
+  ],
+  "source_manifest_prefixes": [
+    "src",
+    "tests",
+    "config",
+    "scripts",
+    "frontend/src",
+    "frontend/tests",
+    "frontend/scripts",
+    "frontend/public",
+    "frontend/package.json",
+    "frontend/pnpm-lock.yaml",
+    "frontend/playwright.config.ts",
+    "frontend/tsconfig.json",
+    "frontend/vite.config.ts",
+    "frontend/index.html",
+    ".github",
+    "Makefile",
+    ".gitignore",
+    "AGENTS.md",
+    "README.md",
+    "docs/architecture.md",
+    "docs/workspace.md",
+    "docs/user-guide.md"
+  ],
+  "source_sha256": "d24a990e0ede1357bf30047506a779825ce6f7a8ba3f3371032de44144387a3a",
+  "uncommitted": true,
+  "verification_date": "2026-11-21",
+  "verification_passed": true
+}

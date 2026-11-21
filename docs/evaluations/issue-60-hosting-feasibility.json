@@ -1,0 +1,633 @@
+{
+  "decision": {
+    "blocker": "Competing native-libSQL admissions produce remote_transaction_idle_rollback; implement bounded contention and original-receipt reconciliation before supported remote execution.",
+    "direct_driver_product_cutover": "no_go",
+    "infrastructure": "conditional_go",
+    "product_ready": false
+  },
+  "deployments": [
+    {
+      "id": "dpl_Go45WyWwqaCbVeBEwNpXPzbJFdsn",
+      "interpretation": "CLI upload success did not establish deployment success",
+      "reason": "unused_function; import-only forwarding handler not discovered",
+      "status": "ERROR"
+    },
+    {
+      "id": "dpl_HyKZUBQdjdmvR42kkkqc1V5AiMkn",
+      "native_driver": "libsql==0.1.11",
+      "package": {
+        "file_count": 230,
+        "handler_sha256": "8f70c581e9380eacdce1878a4c0a26751f9f911e9f6f38530e55b4762998bc52",
+        "manifest_sha256": "f4ec44bb6eb43184a3b22ffd4b5c1176de2fcb693c1206d0a7b97fea284465bb",
+        "probe_sha256": "cb220ca5b59fe8414211fa04888af40f6cf4b1ea3e59de1ca675fbe20785b8ae"
+      },
+      "runtime": "Python 3.14",
+      "status": "READY"
+    },
+    {
+      "id": "dpl_DGJprpbk3KzReetZtcv6xGyaJcoK",
+      "native_driver": "libsql==0.1.11",
+      "package": {
+        "file_count": 230,
+        "handler_sha256": "8f70c581e9380eacdce1878a4c0a26751f9f911e9f6f38530e55b4762998bc52",
+        "manifest_sha256": "bc85f0e259af1bc20c3778aa9ae41b7c04f77643b2b80315faf2f509136e52b9",
+        "probe_sha256": "e319e2402f359a337c737cb3048479072464164de8c4620e2d9d955aaf46aa94"
+      },
+      "runtime": "Python 3.14",
+      "status": "READY"
+    }
+  ],
+  "evaluated_date": "2026-11-20",
+  "fresh_deployment_original_run_replay": {
+    "cases": [
+      {
+        "error_codes": [],
+        "http_status": 200,
+        "id": "replay",
+        "observed": {
+          "added_calls": 0,
+          "changed_inputs": "rejected",
+          "foreign_read": "rejected",
+          "run_id": "run_fa2ac37a730c488084b82f1c605b776f"
+        },
+        "passed": true,
+        "seconds": 2.62,
+        "transactions": {
+          "count": 4,
+          "incomplete": 0,
+          "max_seconds": 0.359343,
+          "max_statements": 44
+        }
+      }
+    ],
+    "complete_corpus": false,
+    "deployment": "https://direct-acquisition-feasibility-oj2jw863q-dessigs-projects.vercel.app",
+    "live_model_calls": 0,
+    "passed": true,
+    "probe_id": "63c1a71d10034ff4bedd9f1041803b78",
+    "product_ready": false,
+    "schema": "hosted-storage-feasibility/v1",
+    "unauthorized_status": 403
+  },
+  "hosted_first_complete_corpus": {
+    "cases": [
+      {
+        "http_status": 200,
+        "id": "transport",
+        "observed": {
+          "committed_receipts": 1,
+          "engine": "3.47.0",
+          "foreign_keys": "enabled",
+          "fresh_connection_read": "passed",
+          "json": "passed"
+        },
+        "passed": true,
+        "seconds": 6.636,
+        "transactions": {
+          "count": 2,
+          "incomplete": 0,
+          "max_seconds": 6.206164,
+          "max_statements": 44
+        }
+      },
+      {
+        "error_site": [
+          {
+            "file": "contextlib.py",
+            "function": "__exit__",
+            "line": 162
+          },
+          {
+            "file": "database.py",
+            "function": "transaction",
+            "line": 736
+          },
+          {
+            "file": "hosting_probe.py",
+            "function": "rollback",
+            "line": 176
+          },
+          {
+            "file": "hosting_probe.py",
+            "function": "finish",
+            "line": 160
+          }
+        ],
+        "error_type": "ValueError",
+        "http_status": 200,
+        "id": "admission",
+        "passed": false,
+        "seconds": 19.723,
+        "transactions": {
+          "count": 8,
+          "incomplete": 1,
+          "max_seconds": 13.854,
+          "max_statements": 44
+        }
+      },
+      {
+        "http_status": 200,
+        "id": "channel",
+        "observed": {
+          "approval": "not_granted",
+          "artifact_id": "channel_bundle_4de99260ed1894b0713a6ec40bacb32fec33280ce8591195f51200368011e409",
+          "calls": 3,
+          "generation": "offline_fixture_only",
+          "run_id": "run_fa2ac37a730c488084b82f1c605b776f"
+        },
+        "passed": true,
+        "seconds": 50.547,
+        "transactions": {
+          "count": 15,
+          "incomplete": 0,
+          "max_seconds": 8.459761,
+          "max_statements": 207
+        }
+      },
+      {
+        "http_status": 200,
+        "id": "publication",
+        "observed": {
+          "additional_generation": 0,
+          "artifact_after_failure": 0,
+          "artifact_after_retry": 1,
+          "completion_after_failure": false,
+          "run_id": "run_53e65bacf68b496cbd7a05966d08debf"
+        },
+        "passed": true,
+        "seconds": 31.874,
+        "transactions": {
+          "count": 17,
+          "incomplete": 0,
+          "max_seconds": 3.441548,
+          "max_statements": 207
+        }
+      },
+      {
+        "http_status": 200,
+        "id": "lease",
+        "observed": {
+          "expired_publication": "rejected",
+          "original_recorded_calls": 3,
+          "recovery_calls": 0,
+          "run_id": "run_4fc56d32ab77469083dcbef9cd5e5070"
+        },
+        "passed": true,
+        "seconds": 39.056,
+        "transactions": {
+          "count": 21,
+          "incomplete": 0,
+          "max_seconds": 6.980605,
+          "max_statements": 207
+        }
+      },
+      {
+        "http_status": 200,
+        "id": "unknown",
+        "observed": {
+          "calls": 1,
+          "restart_added_calls": 0,
+          "run_id": "run_18939988354a44f181ff81dde9a4886e",
+          "status": "unknown"
+        },
+        "passed": true,
+        "seconds": 15.802,
+        "transactions": {
+          "count": 13,
+          "incomplete": 0,
+          "max_seconds": 2.680899,
+          "max_statements": 166
+        }
+      },
+      {
+        "http_status": 200,
+        "id": "replay",
+        "observed": {
+          "added_calls": 0,
+          "changed_inputs": "rejected",
+          "foreign_read": "rejected",
+          "run_id": "run_fa2ac37a730c488084b82f1c605b776f"
+        },
+        "passed": true,
+        "seconds": 2.844,
+        "transactions": {
+          "count": 4,
+          "incomplete": 0,
+          "max_seconds": 0.562552,
+          "max_statements": 44
+        }
+      },
+      {
+        "error_site": [
+          {
+            "file": "hosting_probe.py",
+            "function": "run",
+            "line": 434
+          },
+          {
+            "file": "hosting_probe.py",
+            "function": "expiry",
+            "line": 425
+          },
+          {
+            "file": "hosting_probe.py",
+            "function": "require",
+            "line": 54
+          }
+        ],
+        "error_type": "AssertionError",
+        "http_status": 200,
+        "id": "expiry",
+        "passed": false,
+        "seconds": 6.678,
+        "transactions": {
+          "count": 2,
+          "incomplete": 0,
+          "max_seconds": 6.099131,
+          "max_statements": 44
+        }
+      }
+    ],
+    "complete_corpus": true,
+    "deployment": "https://direct-acquisition-feasibility-5zs8ioj5s-dessigs-projects.vercel.app",
+    "live_model_calls": 0,
+    "passed": false,
+    "probe_id": "63c1a71d10034ff4bedd9f1041803b78",
+    "product_ready": false,
+    "schema": "hosted-storage-feasibility/v1",
+    "unauthorized_status": 403
+  },
+  "hosted_first_run_limits": [
+    "Some cases overlapped with workstation probes on the same database; timings are not isolated latency measurements.",
+    "The original six-second expiry assertion was falsified: the commit succeeded. This negative result is retained, not replaced by the revised idle observer."
+  ],
+  "hosted_isolated_confirmation": {
+    "cases": [
+      {
+        "error_codes": [
+          "injected_rollback",
+          "remote_transaction_idle_rollback",
+          "remote_transaction_already_ended"
+        ],
+        "error_site": [
+          {
+            "file": "contextlib.py",
+            "function": "__exit__",
+            "line": 162
+          },
+          {
+            "file": "database.py",
+            "function": "transaction",
+            "line": 736
+          },
+          {
+            "file": "hosting_probe.py",
+            "function": "rollback",
+            "line": 180
+          },
+          {
+            "file": "hosting_probe.py",
+            "function": "finish",
+            "line": 161
+          }
+        ],
+        "error_type": "ValueError",
+        "http_status": 200,
+        "id": "admission",
+        "passed": false,
+        "seconds": 33.927,
+        "transactions": {
+          "count": 8,
+          "incomplete": 1,
+          "max_seconds": 30.642086,
+          "max_statements": 44
+        }
+      },
+      {
+        "error_codes": [
+          "remote_transaction_idle_rollback"
+        ],
+        "http_status": 200,
+        "id": "expiry",
+        "observed": {
+          "commit_error_observed": true,
+          "expiry_observed": true,
+          "interpretation": "Observed idle behavior, not an assumed five-second wall-clock deadline",
+          "reconciled_rows": 0,
+          "repeated_write_attempts": 0,
+          "wait_seconds": 12
+        },
+        "passed": true,
+        "seconds": 12.829,
+        "transactions": {
+          "count": 2,
+          "incomplete": 1,
+          "max_seconds": 12.04727,
+          "max_statements": 44
+        }
+      }
+    ],
+    "complete_corpus": false,
+    "deployment": "https://direct-acquisition-feasibility-oj2jw863q-dessigs-projects.vercel.app",
+    "live_model_calls": 0,
+    "passed": false,
+    "probe_id": "bbc8f9dd54374ebc94a512be7f12c83b",
+    "product_ready": false,
+    "schema": "hosted-storage-feasibility/v1",
+    "unauthorized_status": 403
+  },
+  "initial_driver_incompatibilities": [
+    "Remote PRAGMA user_version writes rejected; probe used an atomic diagnostic version table.",
+    "Remote PRAGMA busy_timeout is provider-managed; probe records the limitation.",
+    "Native driver rejects dictionary bindings; probe verifies positional slot translation.",
+    "TEMP trigger rejected; rollback probe used a regular transactional trigger."
+  ],
+  "limits": [
+    "Diagnostic connection shim is not a supported product adapter.",
+    "Hosted identity, live model quality, public visitor access, reviewed exports and full production deployment remain unimplemented by this slice.",
+    "A failed or uncertain transaction must reconcile the original receipt; these results do not authorize automatic inference or effect retries.",
+    "Vercel Hobby personal/non-commercial terms must be reviewed for the intended public release."
+  ],
+  "local": {
+    "cases": [
+      {
+        "error_codes": [],
+        "id": "transport",
+        "observed": {
+          "committed_receipts": 1,
+          "engine": "3.51.3",
+          "foreign_keys": "enabled",
+          "fresh_connection_read": "passed",
+          "json": "passed"
+        },
+        "passed": true,
+        "seconds": 0.048,
+        "transactions": {
+          "count": 2,
+          "incomplete": 0,
+          "max_seconds": 0.017497,
+          "max_statements": 307
+        }
+      },
+      {
+        "error_codes": [
+          "injected_rollback"
+        ],
+        "id": "admission",
+        "observed": {
+          "admission": {
+            "admission_id": "admission_7d3ea285bdba27fc91649fe1b74e887e55252715bb72700576906e6e9595814b",
+            "created_at": 1794700800.0,
+            "fingerprint": "ccc7dc3fe719c3b3870d0073f5ceb209f2a6561297ba6f7c3923a6dca4913a05",
+            "organization": "hosting_probe_9f7079db87374c939dd3364cc7417d10_admission",
+            "run_id": "run_0c1e16acf08942ddb10791c48d7f795a"
+          },
+          "concurrent_receipts": 2,
+          "durable_runs": 1,
+          "execution": "paused",
+          "run_id": "run_0c1e16acf08942ddb10791c48d7f795a"
+        },
+        "passed": true,
+        "seconds": 0.091,
+        "transactions": {
+          "count": 9,
+          "incomplete": 0,
+          "max_seconds": 0.011379,
+          "max_statements": 43
+        }
+      },
+      {
+        "error_codes": [],
+        "id": "channel",
+        "observed": {
+          "approval": "not_granted",
+          "artifact_id": "channel_bundle_3a10486b6b544c714a6884d22e390010ef93b7afe1489b02d8e61dde23982de0",
+          "calls": 3,
+          "generation": "offline_fixture_only",
+          "run_id": "run_c291a666bfd44c3ab15159c43e5cbbb3"
+        },
+        "passed": true,
+        "seconds": 0.207,
+        "transactions": {
+          "count": 15,
+          "incomplete": 0,
+          "max_seconds": 0.02399,
+          "max_statements": 187
+        }
+      },
+      {
+        "error_codes": [
+          "injected_rollback"
+        ],
+        "id": "publication",
+        "observed": {
+          "additional_generation": 0,
+          "artifact_after_failure": 0,
+          "artifact_after_retry": 1,
+          "completion_after_failure": false,
+          "run_id": "run_6cd66cb209974734912d4bf8713b2b68"
+        },
+        "passed": true,
+        "seconds": 0.222,
+        "transactions": {
+          "count": 17,
+          "incomplete": 0,
+          "max_seconds": 0.023313,
+          "max_statements": 187
+        }
+      },
+      {
+        "error_codes": [],
+        "id": "lease",
+        "observed": {
+          "expired_publication": "rejected",
+          "original_recorded_calls": 3,
+          "recovery_calls": 0,
+          "run_id": "run_42d42929cbf541f88cfdc9de9a1445a2"
+        },
+        "passed": true,
+        "seconds": 0.271,
+        "transactions": {
+          "count": 21,
+          "incomplete": 0,
+          "max_seconds": 0.023424,
+          "max_statements": 187
+        }
+      },
+      {
+        "error_codes": [],
+        "id": "unknown",
+        "observed": {
+          "calls": 1,
+          "restart_added_calls": 0,
+          "run_id": "run_c9aad811b2b84b4baba8fdf67a337727",
+          "status": "unknown"
+        },
+        "passed": true,
+        "seconds": 0.177,
+        "transactions": {
+          "count": 13,
+          "incomplete": 0,
+          "max_seconds": 0.023558,
+          "max_statements": 148
+        }
+      },
+      {
+        "error_codes": [],
+        "id": "replay",
+        "observed": {
+          "added_calls": 0,
+          "changed_inputs": "rejected",
+          "foreign_read": "rejected",
+          "run_id": "run_c291a666bfd44c3ab15159c43e5cbbb3"
+        },
+        "passed": true,
+        "seconds": 0.047,
+        "transactions": {
+          "count": 4,
+          "incomplete": 0,
+          "max_seconds": 0.001848,
+          "max_statements": 43
+        }
+      },
+      {
+        "error_codes": [],
+        "id": "expiry",
+        "observed": {
+          "reason": "Local SQLite has no remote transaction window",
+          "status": "not_applicable"
+        },
+        "passed": true,
+        "seconds": 0.0,
+        "transactions": {
+          "count": 0,
+          "incomplete": 0,
+          "max_seconds": 0,
+          "max_statements": 0
+        }
+      }
+    ],
+    "complete_corpus": true,
+    "limits": [
+      "Diagnostic driver shim only",
+      "No live-model quality evidence",
+      "Local results do not establish remote or hosted compatibility"
+    ],
+    "mode": "local",
+    "passed": true,
+    "probe_id": "9f7079db87374c939dd3364cc7417d10",
+    "remote_adjustments": [
+      "Tuple/mapping rows",
+      "Constraint exception translation",
+      "Named dictionaries bound in SQLite slot order without SQL rewriting",
+      "Provider-managed lock timeout instead of local PRAGMA busy_timeout",
+      "Atomic version table instead of unsupported PRAGMA user_version writes"
+    ],
+    "schema": "hosting-storage-feasibility/v1"
+  },
+  "original_failed_admission_recovery": {
+    "admission_id": "admission_eb206d019515153a2287ae98fb625ee5fb380fe3edb675a24c81b44b80149632",
+    "durable_runs": 1,
+    "original_receipt_present": true,
+    "passed": true,
+    "probe_id": "63c1a71d10034ff4bedd9f1041803b78",
+    "receipt_replay_equal": true,
+    "run_id": "run_6165f5d18cdf49398a52cd9fce14d928",
+    "seconds": 6.749
+  },
+  "required_checks": {
+    "architecture": {
+      "command": "make arch-check",
+      "exceptions": 0,
+      "modules": 209,
+      "passed": true
+    },
+    "backend": {
+      "command": "make test",
+      "passed": true,
+      "seconds": 1190.854,
+      "tests": 1074
+    },
+    "focused": {
+      "command": "python3 -m unittest discover -s tests -p test_hosting_probe.py",
+      "passed": true,
+      "tests": 7
+    },
+    "frontend": {
+      "reason": "No frontend changes",
+      "required": false
+    },
+    "offline_boundary": {
+      "cases": 5,
+      "command": "make boundary-check",
+      "historical_bytes_unchanged": true,
+      "network_attempts": 0,
+      "passed": true,
+      "source_sha256": "f633522ab3adc9b4702244e88c45832f7e7ea606141c12ff05922e5b6fb495d7",
+      "source_state_stable": true
+    }
+  },
+  "resources": {
+    "turso": {
+      "connected_environments": [
+        "Development",
+        "Preview"
+      ],
+      "database": "acquisition-hosting-probe",
+      "monthly_plan_price_usd": 0,
+      "plan": "Starter",
+      "region": "Ireland",
+      "store_id": "store_iFPiAw3A1x8X24G3"
+    },
+    "vercel": {
+      "authentication": "all_except_custom_domains; no custom domains",
+      "git_repository_connected": false,
+      "plan": "Hobby",
+      "probe_token_scope": "individual_deployment",
+      "project": "direct-acquisition-feasibility",
+      "project_id": "prj_nWuU1QJdN0n5tGerMEkSJlLHw9JQ",
+      "region": "dub1"
+    }
+  },
+  "schema": "hosting-feasibility-summary/v1",
+  "scope": {
+    "customer_data": false,
+    "live_model_calls": 0,
+    "models_and_contact_sources": "explicit_offline_fixtures",
+    "new_ci_jobs": 0,
+    "new_root_dependencies": 0,
+    "production_source_changes": 0,
+    "public_user_release": false
+  },
+  "serial_admission_control": {
+    "id": "admission",
+    "observed": {
+      "admission": {
+        "admission_id": "admission_99d408945b5490f6e0ee700f29a8ffdb25ec299979ac7225926ef577ba844677",
+        "created_at": 1794700800.0,
+        "fingerprint": "c1c9355d954253481b57ba743236837bb19bace4bf9ddc2b242ba2ca54dd135c",
+        "organization": "hosting_probe_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee_admission",
+        "run_id": "run_50f59a9c61034182a01afcecb7883c19"
+      },
+      "durable_runs": 1,
+      "execution": "paused",
+      "run_id": "run_50f59a9c61034182a01afcecb7883c19",
+      "serial_receipts": 2
+    },
+    "passed": true,
+    "scheduling": "serial_control_not_concurrency_evidence",
+    "seconds": 54.048,
+    "transactions": {
+      "count": 9,
+      "incomplete": 0,
+      "max_seconds": 10.087028,
+      "max_statements": 44
+    }
+  },
+  "source": {
+    "base_commit": "72ac7cbd4b1b6c4551e28a3c44572978d69640c0",
+    "boundary_source_sha256": "f633522ab3adc9b4702244e88c45832f7e7ea606141c12ff05922e5b6fb495d7",
+    "branch": "feature/60-hosting-feasibility",
+    "uncommitted": true
+  }
+}
