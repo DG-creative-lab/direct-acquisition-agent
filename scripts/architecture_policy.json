@@ -209,7 +209,11 @@
     "acquisition.workspace_checkpoint": "wrapper",
     "acquisition.workspace_fixture": "wrapper",
     "acquisition.workspace_rebuild": "wrapper",
-    "acquisition.workspace_server": "wrapper"
+    "acquisition.workspace_server": "wrapper",
+    "acquisition.adapters.turso": "adapter",
+    "acquisition.adapters.turso.admissions": "adapter",
+    "acquisition.adapters.turso.database": "adapter",
+    "acquisition.adapters.turso.transport": "adapter"
   },
   "exceptions": []
 }

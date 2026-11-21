@@ -453,6 +453,10 @@ class Database:
                     self._validate_sequence_journey_schema(connection)
             return
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._initialize(verified_admissions, clock, fixture_execution)
+        self._enable_wal()
+
+    def _initialize(self, verified_admissions, clock, fixture_execution):
         with self.transaction() as connection:
             # Version discovery and every migration share one SQLite write lock.
             version = connection.execute("PRAGMA user_version").fetchone()[0]
@@ -556,7 +560,6 @@ class Database:
             if fixture_execution:
                 from .fixture_execution import install_fixture_execution
                 install_fixture_execution(connection, clock())
-        self._enable_wal()
 
     @staticmethod
     def _validate_sequence_journey_schema(connection):
@@ -709,6 +712,10 @@ class Database:
                     connection.execute("INSERT INTO legacy_task_admissions VALUES(?,?,?)",
                                        (run["organization"], run["id"], run["request_hash"]))
         connection.execute("PRAGMA user_version=3")
+
+    @property
+    def inspection_only(self):
+        return inspection_only(self.path)
 
     @contextmanager
     def connect(self):

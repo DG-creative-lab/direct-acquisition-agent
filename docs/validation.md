@@ -3374,3 +3374,22 @@ seconds, all seven focused tests, architecture (209 modules, zero exceptions)
 and all five boundary cases. The source fingerprint is
 `b84decd06304d0f454e5c5626ce9fbd38d2b63ee4b8169a7caf8e9b1b4207d58`.
 Whitespace checks cover tracked changes and new files.
+
+## Remote libSQL storage and atomic admission
+
+The `remote-storage` slice keeps the domain admission writer and integrity
+reader while selecting Hrana 3 storage explicitly in bootstrap. The regression
+oracles are independent committed SQLite rows, schema definitions and receipts:
+
+| Invariant | Observable failure | Evidence |
+| --- | --- | --- |
+| One original admission under contention | Competing independent streams return different receipts or store duplicate runs | `test_turso_storage` concurrency/replay test; opt-in remote process conformance |
+| DDL, cutoff and version are atomic | Interrupted initialization leaves a journal or partial application schema | Migration interruption/restart and concurrent initializer tests |
+| Unknown commit cannot repeat an effect | Missing ACK causes another run or falsely acknowledges an absent receipt | Lost-ACK and unknown-commit tests |
+| Expiry cannot turn a writer into autocommit | A statement following provider rollback persists independently | Provider-rollback test and Hrana 3 server-side transaction conditions |
+| Inputs and scope remain bound | Changed input succeeds or a foreign organization sees a receipt | Changed-input and foreign-scope checks |
+| SQL values remain exact | Dictionary order, repeated names, literals, large integers or blobs change values | Binding and unpadded-blob tests |
+| Remote selection grants no authority | Paused work executes, expired lease publishes, or unknown inference repeats | Existing native boundary suite and optional remote channel recovery |
+
+See [remote storage](remote-storage.md) for transport selection, migration/import
+limits and reproducible opt-in checks. Historical hosting evidence is retained.
