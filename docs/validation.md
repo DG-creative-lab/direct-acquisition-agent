@@ -3393,3 +3393,12 @@ oracles are independent committed SQLite rows, schema definitions and receipts:
 
 See [remote storage](remote-storage.md) for transport selection, migration/import
 limits and reproducible opt-in checks. Historical hosting evidence is retained.
+
+The [21 November 2026 verification record](evaluations/issue-60-remote-storage-2026-11-21.json)
+binds remote and local checks to their source commits and retains the failed
+remote observations. Full backend: 1,092 passed. Final focused storage: 12 passed.
+Architecture: 213 modules, zero exceptions. Native boundary: five passed, zero
+network attempts, source stable and historical bytes unchanged. Current-schema
+remote admission, idle expiry, DDL/version rollback, lease recovery and unknown
+inference recovery passed on the existing isolated resource. Wider load,
+fresh remote provisioning and hosted continuation remain outside this evidence.

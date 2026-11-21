@@ -97,3 +97,16 @@ It prints no credentials, makes no live model calls and creates no new service.
 Remote conformance is narrower than product readiness. Visitor sessions, real
 input intake, bounded serverless continuation, hosted exports and actual delivery
 are separate work. The loopback workspace deployment and root lock are unchanged.
+
+Recorded verification on 21 November 2026 is retained in the
+[commit-bound evidence](evaluations/issue-60-remote-storage-2026-11-21.json).
+The full backend run passed 1,092 tests, and the final focused storage run
+passed all 12 tests. Architecture passed with 213 modules and no exceptions;
+all five native boundary cases passed with zero network attempts and unchanged
+historical bytes. Remote native lease/unknown recovery and a synchronized
+independent-process admission run passed. One overlapping remote run returned
+an unclassified provider failure, retained alongside the successful isolated
+repeat. Availability under wider contention is not established. No live model
+request was made. Full fresh remote provisioning was not exercised: the remote
+checks used the registered schema-23 probe and transactional DDL/version rollback;
+fresh migrations and concurrent initializers used real local SQLite over HTTP.
