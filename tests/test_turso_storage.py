@@ -1,5 +1,6 @@
 """Real SQLite over the Hrana wire: independent sessions and durable restarts."""
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -103,17 +104,19 @@ class RemoteStorageTests(unittest.TestCase):
 
     def test_concurrent_admission_restart_exact_replay_and_foreign_scope(self):
         store, intent = self.intent()
+        barrier = threading.Barrier(2)
         def admit(_):
             independent = build_admissions(None,clock=lambda:NOW,_database=self.wire.database())
+            if _ < 2:barrier.wait(timeout=10)
             return independent.admit(intent,NOW)
         with ThreadPoolExecutor(max_workers=2) as pool:receipts = list(pool.map(admit,range(2)))
         self.assertEqual(receipts[0],receipts[1])
         self.assertIsInstance(store,TursoAdmissions)
-        self.assertEqual(admit(0),receipts[0])
+        self.assertEqual(admit(2),receipts[0])
         self.assertIsNone(store.find_request('foreign',intent.request_id))
         from dataclasses import replace
         with self.assertRaises(Conflict):store.admit(replace(intent,source_id='changed'),NOW)
-        with sqlite3.connect(self.path) as raw:
+        with closing(sqlite3.connect(self.path)) as raw:
             self.assertEqual(raw.execute('select count(*) from runs').fetchone()[0],1)
             self.assertEqual(raw.execute('select count(*) from execution_admissions').fetchone()[0],1)
             self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],23)
@@ -138,7 +141,7 @@ class RemoteStorageTests(unittest.TestCase):
                 db.execute('PRAGMA user_version=22')
                 db.execute('INSERT INTO rollback_marker VALUES(1)')
                 db.execute('INSERT INTO rollback_marker VALUES(1)')
-        with sqlite3.connect(self.path) as raw:
+        with closing(sqlite3.connect(self.path)) as raw:
             self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],23)
             self.assertIsNone(raw.execute("select 1 from sqlite_master where name='rollback_marker'").fetchone())
 
@@ -161,7 +164,7 @@ class RemoteStorageTests(unittest.TestCase):
         with self.assertRaises(CommitUncertain):
             with self.database.transaction() as db:db.execute('CREATE TABLE never_acknowledged(id)')
         self.database.send = original
-        with sqlite3.connect(self.path) as raw:
+        with closing(sqlite3.connect(self.path)) as raw:
             self.assertIsNone(raw.execute("select 1 from sqlite_master where name='never_acknowledged'").fetchone())
 
     def test_unregistered_remote_schema_is_rejected(self):
@@ -180,10 +183,10 @@ class RemoteStorageTests(unittest.TestCase):
                 return result
             db.send = interrupt
             with self.assertRaises(RemoteUnavailable):db._initialize(False,lambda:NOW,False)
-            with sqlite3.connect(other.path) as raw:
+            with closing(sqlite3.connect(other.path)) as raw:
                 self.assertEqual(raw.execute("select name from sqlite_master where name not like 'sqlite_%'").fetchall(),[])
             other.database(True)
-            with sqlite3.connect(other.path) as raw:
+            with closing(sqlite3.connect(other.path)) as raw:
                 self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],23)
         finally:other.close()
 
@@ -192,7 +195,7 @@ class RemoteStorageTests(unittest.TestCase):
         try:
             with ThreadPoolExecutor(max_workers=2) as pool:
                 list(pool.map(lambda _:other.database(True),range(2)))
-            with sqlite3.connect(other.path) as raw:
+            with closing(sqlite3.connect(other.path)) as raw:
                 self.assertEqual(raw.execute('select version from acquisition_schema').fetchall(),[(23,)])
                 self.assertEqual(raw.execute('select count(*) from application_store_identity').fetchone()[0],1)
                 self.assertEqual(raw.execute('pragma foreign_key_check').fetchall(),[])
@@ -210,5 +213,41 @@ class RemoteStorageTests(unittest.TestCase):
         with self.assertRaises(RemoteUnavailable):
             with self.database.transaction() as db:db.execute('INSERT INTO expiry_marker VALUES(1)')
         self.database.send = original
-        with sqlite3.connect(self.path) as raw:
+        with closing(sqlite3.connect(self.path)) as raw:
             self.assertEqual(raw.execute('select * from expiry_marker').fetchall(),[])
+
+    def test_probe_registration_rejects_changed_authority_and_preserves_cutoff(self):
+        from unittest.mock import patch
+        from scripts.remote_storage_conformance import register_probe
+        with self.database.transaction() as db:
+            original = db.execute("SELECT sql FROM sqlite_master WHERE name='execution_admissions_no_update'").fetchone()[0]
+            db.execute('DROP TABLE acquisition_schema')
+            db.execute('CREATE TABLE hosting_probe_schema_version(singleton INTEGER PRIMARY KEY,version INTEGER)')
+            db.execute('INSERT INTO hosting_probe_schema_version VALUES(1,23)')
+            db.execute('DROP TRIGGER execution_admissions_no_update')
+        with patch('scripts.remote_storage_conformance.Http',return_value=self.database.send), \
+             patch('scripts.remote_storage_conformance.storage',return_value={'url':'https://example.turso.io','token':'test-only'}):
+            with self.assertRaisesRegex(ValueError,'reviewed current schema'):register_probe()
+            with closing(sqlite3.connect(self.path)) as raw:
+                self.assertIsNone(raw.execute("select 1 from sqlite_master where name='acquisition_schema'").fetchone())
+                self.assertEqual(raw.execute('select count(*) from legacy_task_admissions').fetchone()[0],0)
+            with self.database.transaction() as db:db.execute(original)
+            fingerprint=register_probe()
+            self.assertEqual(len(fingerprint),64)
+            with closing(sqlite3.connect(self.path)) as raw:
+                self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],23)
+                self.assertEqual(raw.execute('select version from hosting_probe_schema_version').fetchone()[0],23)
+
+    def test_endpoint_and_transport_failures_do_not_disclose_credentials(self):
+        from acquisition.adapters.turso.transport import endpoint, Connection
+        for url in ('https://attacker.invalid','https://secret@example.turso.io','https://example.turso.io?token=secret'):
+            with self.assertRaises(ValueError):endpoint(url)
+        requests = []
+        def unavailable(payload):
+            requests.append(payload)
+            raise RuntimeError('private-provider-credential')
+        connection=Connection(unavailable)
+        with self.assertRaises(RemoteUnavailable) as raised:connection.execute('SELECT 1')
+        self.assertNotIn('private-provider-credential',str(raised.exception))
+        with self.assertRaises(RemoteUnavailable):connection.execute('SELECT 2')
+        self.assertEqual(len(requests),1)

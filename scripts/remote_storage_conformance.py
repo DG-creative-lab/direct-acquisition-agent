@@ -5,6 +5,7 @@ from dataclasses import asdict, replace
 import json
 import os
 from pathlib import Path
+from multiprocessing import Manager
 import re
 import sqlite3
 import subprocess
@@ -64,9 +65,10 @@ def register_probe():
     finally:connection.close()
 
 
-def admit(payload):
+def admit(payload, barrier=None):
     db = TursoDatabase(**{'url':storage()['url'],'token':storage()['token']},initialize=False)
     store = build_admissions(None,clock=lambda:NOW,_database=db)
+    if barrier is not None:barrier.wait(timeout=30)
     return asdict(store.admit(AdmissionIntent.from_payload(payload),NOW))
 
 
@@ -79,8 +81,9 @@ def run(key):
     app.conversations.message(org,cid,'message',0,FIXTURE_MESSAGE)
     context = app.conversations.planning_context(org,cid,'prepare',1,True)
     intent = store.request_planning(org,cid,'prepare',1,context,fixture=True,allow_model=False)
-    with ProcessPoolExecutor(max_workers=2) as workers:
-        receipts = list(workers.map(admit,[intent.payload(),intent.payload()]))
+    with Manager() as manager, ProcessPoolExecutor(max_workers=2) as workers:
+        barrier = manager.Barrier(2)
+        receipts = list(workers.map(admit,[intent.payload(),intent.payload()],[barrier,barrier]))
     assert receipts[0]==receipts[1]
     assert admit(intent.payload())==receipts[0]
     assert store.find_request('foreign',intent.request_id) is None
