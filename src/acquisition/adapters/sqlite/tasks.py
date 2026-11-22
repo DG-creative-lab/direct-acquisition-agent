@@ -289,7 +289,7 @@ class SqliteTasks:
                 try:
                     intent=binding(connection,organization,run_id)
                     valid=intent is not None
-                    writable = not inspection_only(self.database.path)
+                    writable = not self.database.inspection_only
                     fixture = required and writable and fixture_granted(connection, organization, run_id, intent)
                     synthetic = not required and writable and valid and intent.workflow_version==SYNTHETIC_CHANNEL_ADMISSION
                 except (NotFound,ValueError,KeyError,TypeError):

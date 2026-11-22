@@ -55,9 +55,9 @@ from acquisition.adapters.sqlite.admissions import SqliteAdmissions
 from acquisition.workflows.conversation import validate_planning_assets
 
 
-def build_contact_directory(path, organization, profile_key, clock=time.time, *, read_only=False):
+def build_contact_directory(path, organization, profile_key, clock=time.time, *, read_only=False, remote_storage=None):
     """Installed synthetic contact evidence only, without campaign or execution authority."""
-    if not read_only:
+    if not read_only and remote_storage is None:
         require_live_root(path)
     from acquisition.adapters.local_profiles import LocalProfiles
     from acquisition.adapters.contact_fixtures import RecordedContactSource, synthetic_contact_snapshots
@@ -66,7 +66,7 @@ def build_contact_directory(path, organization, profile_key, clock=time.time, *,
     from acquisition.audiences import ContactDirectory
     profiles = LocalProfiles(organization, profile_key, Path(__file__).resolve().parents[2] / 'config/profiles')
     profile = profiles.campaign_profile(organization,profile_key,'v1')
-    database = Database.existing(path) if read_only else Database(path)
+    database = build_database(path, clock=clock, remote_storage=remote_storage, read_only=read_only)
     with database.connect() as db:
         if db.execute('PRAGMA user_version').fetchone()[0] < 18:
             raise Conflict('Migrate the live application store before inspecting contact evidence')
@@ -93,12 +93,12 @@ def build_audience_decisions(path, organization, profile_key, strategy='taxonomy
     return AudienceDecisions(categorizer,decision,store)
 
 
-def build_recipient_contexts(path, organization, profile_key, clock=time.time, *, guidance=None, read_only=False):
+def build_recipient_contexts(path, organization, profile_key, clock=time.time, *, guidance=None, read_only=False, remote_storage=None):
     """Reviewed synthetic context only. No raw document prompts, inference or outbound authority."""
     from acquisition.adapters.recipient_fixtures import RecordedRecipientContextSource, synthetic_recipient_evidence
     from acquisition.adapters.sqlite.recipient_contexts import SqliteRecipientContexts
     from acquisition.creative import RecipientContexts, RecipientContextGuidance
-    contacts = build_contact_directory(path,organization,profile_key,clock,read_only=read_only)
+    contacts = build_contact_directory(path,organization,profile_key,clock,read_only=read_only,remote_storage=remote_storage)
     with contacts.store.database.connect() as db:
         if db.execute('PRAGMA user_version').fetchone()[0]<19:
             raise Conflict('Migrate the live application store before inspecting recipient context')
@@ -112,14 +112,14 @@ def build_recipient_contexts(path, organization, profile_key, clock=time.time, *
 
 
 def build_channel_preparation(path, organization, profile_key, clock=time.time, *, gateway=None, read_only=False,
-                              stage_ownership=False):
+                              stage_ownership=False, remote_storage=None):
     """Installed offline model simulation only; no paid model, sender or review capability."""
     from acquisition.adapters.channel_fixtures import OfflineChannelModel
     from acquisition.adapters.sqlite.channel_content import SqliteChannelContent, SqliteChannelTasks
     from acquisition.workflows.channel_content import ChannelContentWorkflow, ChannelPreparation, compose_channel_admission
     from acquisition.reasoning import ModelConfig
     from acquisition.creative import CHANNEL_CONTENT_CAPABILITY, PAUSED_CHANNEL_ADMISSION, SYNTHETIC_CHANNEL_ADMISSION
-    recipients = build_recipient_contexts(path,organization,profile_key,clock,read_only=read_only)
+    recipients = build_recipient_contexts(path,organization,profile_key,clock,read_only=read_only,remote_storage=remote_storage)
     with recipients.store.contacts.database.connect() as db:
         if db.execute('PRAGMA user_version').fetchone()[0]<20:
             raise Conflict('Migrate the live store before inspecting channel artifacts')
@@ -388,7 +388,19 @@ def verified_admission_mode(path):
     return read_admission_policy(path)
 
 
-def build_admissions(path, clock=time.time, *, _database=None, verified_admissions=False):
+def build_database(path, *, clock=time.time, verified_admissions=False, remote_storage=None, read_only=False):
+    """Explicit storage selection; remote credentials never enter domain values."""
+    if read_only and verified_admissions:raise ValueError('Cannot select execution policy through a read-only opening')
+    if remote_storage is None:
+        return Database.existing(path) if read_only else Database(path, verified_admissions=verified_admissions, clock=clock)
+    if path is not None:
+        raise ValueError('Remote storage cannot replace a local root implicitly')
+    from acquisition.adapters.turso import TursoDatabase
+    return TursoDatabase(remote_storage['url'], remote_storage['token'], clock=clock,
+                         verified_admissions=verified_admissions, initialize=not read_only)
+
+
+def build_admissions(path, clock=time.time, *, _database=None, verified_admissions=False, remote_storage=None):
     """Compose admissions, selecting the paused format at database opening when requested."""
     from acquisition.adapters.sqlite.admission_sources import load_source
     from acquisition.workflows.admission_coverage import campaign_brief, coverage_intent
@@ -408,7 +420,13 @@ def build_admissions(path, clock=time.time, *, _database=None, verified_admissio
             ConversationPlanner(Inference(None,None,config,clock)).preflight(frozen)
     if _database is not None and verified_admissions:
         raise ValueError('Select verified admissions while opening the database')
-    return SqliteAdmissions(_database or Database(path,verified_admissions=verified_admissions,clock=clock),preflight,clock,
+    if remote_storage is not None and _database is not None:
+        raise ValueError('Select one storage composition')
+    database = _database or build_database(path, clock=clock, verified_admissions=verified_admissions,
+                                           remote_storage=remote_storage)
+    from acquisition.adapters.turso import TursoDatabase, TursoAdmissions
+    adapter = TursoAdmissions if isinstance(database, TursoDatabase) else SqliteAdmissions
+    return adapter(database,preflight,clock,
                             workflow_source=workflow_source,workflow_intent=coverage_intent)
 
 
@@ -419,9 +437,11 @@ def build(path: str | Path, clock: Callable[[], float] = time.time,
           gateway: ModelGateway | None = None, model_config: ModelConfig | None = None,
           workspace_organization: str | None = None, *, verified_admissions=False,
           execution_clock: Callable[[], float] | None = None,
-          preference_organization: str | None = None) -> Application:
+          preference_organization: str | None = None, remote_storage=None) -> Application:
     if type(verified_admissions) is not bool:raise ValueError('Choose an explicit admission mode')
-    database = Database(path,verified_admissions=verified_admissions,clock=clock)
+    if remote_storage is not None and workspace_organization is not None:
+        raise ValueError('Hosted workspace identity requires its own composition')
+    database = build_database(path, clock=clock, verified_admissions=verified_admissions, remote_storage=remote_storage)
     admission_store=build_admissions(path,clock,_database=database)
     admissions=WorkflowAdmissions(admission_store,clock)
     if workspace_organization is not None and not inspection_only(path) and not admissions.required():

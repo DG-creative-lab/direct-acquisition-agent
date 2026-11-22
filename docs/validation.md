@@ -3374,3 +3374,52 @@ seconds, all seven focused tests, architecture (209 modules, zero exceptions)
 and all five boundary cases. The source fingerprint is
 `b84decd06304d0f454e5c5626ce9fbd38d2b63ee4b8169a7caf8e9b1b4207d58`.
 Whitespace checks cover tracked changes and new files.
+
+## Remote libSQL storage and atomic admission
+
+The `remote-storage` slice keeps the domain admission writer and integrity
+reader while selecting Hrana 3 storage explicitly in bootstrap. The regression
+oracles are independent committed SQLite rows, schema definitions and receipts:
+
+| Invariant | Observable failure | Evidence |
+| --- | --- | --- |
+| One original admission under contention | Competing independent streams return different receipts or store duplicate runs | `test_turso_storage` concurrency/replay test; opt-in remote process conformance |
+| DDL, cutoff and version are atomic | Interrupted initialization leaves a journal or partial application schema | Migration interruption/restart and concurrent initializer tests |
+| Unknown commit cannot repeat an effect | Missing ACK causes another run or falsely acknowledges an absent receipt | Lost-ACK and unknown-commit tests |
+| Expiry cannot turn a writer into autocommit | A statement following provider rollback persists independently | Provider-rollback test and Hrana 3 server-side transaction conditions |
+| Inputs and scope remain bound | Changed input succeeds or a foreign organization sees a receipt | Changed-input and foreign-scope checks |
+| SQL values remain exact | Dictionary order, repeated names, literals, large integers or blobs change values | Binding and unpadded-blob tests |
+| Remote selection grants no authority | Paused work executes, expired lease publishes, or unknown inference repeats | Existing native boundary suite and optional remote channel recovery |
+
+See [remote storage](remote-storage.md) for transport selection, migration/import
+limits and reproducible opt-in checks. Historical hosting evidence is retained.
+
+The [21 November 2026 verification record](evaluations/issue-60-remote-storage-2026-11-21.json)
+binds remote and local checks to their source commits and retains the failed
+remote observations. Full backend: 1,092 passed. Final focused storage: 12 passed.
+Architecture: 213 modules, zero exceptions. Native boundary: five passed, zero
+network attempts, source stable and historical bytes unchanged. Current-schema
+remote admission, idle expiry, DDL/version rollback, lease recovery and unknown
+inference recovery passed on the existing isolated resource. Wider load,
+fresh remote provisioning and hosted continuation remain outside this evidence.
+
+
+## Remote insert row IDs and saved report retrieval, 22 November 2026
+
+Hrana encodes non-null `last_insert_rowid` as a JSON string. The transport must
+return a Python integer to SQLite callers, retaining null and integer precision.
+Otherwise a synthetic report import can commit its source snapshot with a JSON
+string `import_sequence` that cannot match the integer import event sequence.
+
+The HTTP fixture now emits string row IDs. The regression in
+`test_turso_storage` imports a valid report through the learning store, commits,
+reopens the database adapter and retrieves the saved snapshot and receipt.
+It also checks the persisted sequence reference against the actual SQLite event
+sequence. Before the fix this failed with `Provider snapshot is unavailable for
+this import receipt`. A small cursor contract case covers null and a row ID above
+IEEE-754's exact integer range. Historical verification artifacts are unchanged.
+
+Verification on `b9a2471`: `make test` passed all 1,096 tests in 1,117.733
+seconds. The focused storage suite passed all 14 tests; `make arch-check`
+passed with 213 modules and zero exceptions. The regression used a localhost
+Hrana fixture backed by real SQLite. No new live remote or model run is claimed.

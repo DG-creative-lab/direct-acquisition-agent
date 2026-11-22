@@ -454,3 +454,8 @@ identical names and arguments. Root-lock scope, fixed server-side identity,
 Host/token/Origin checks, body/path limits and exact-subject download validation
 retain their existing behavioral tests. This layout adds no model inference,
 sending authority, schema migration or deployment topology.
+
+The explicit [remote libSQL adapter](remote-storage.md) reuses application SQL writers
+through Hrana 3 transactions selected in bootstrap. It retains the modular
+monolith, scope and admission authorities. Remote workspace identity and bounded
+serverless continuation remain separate integration work.

@@ -95,3 +95,6 @@ dist/
 !/docs/evaluations/issue-60-hosting-main-validation-2026-11-21.json
 !/docs/evaluations/issue-60-hosting-packaging-review-2026-11-21.json
 .vercel/
+
+!/docs/remote-storage.md
+!/docs/evaluations/issue-60-remote-storage-2026-11-21.json
