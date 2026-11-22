@@ -2,6 +2,7 @@
 import base64
 import json
 import math
+import re
 import sqlite3
 import time
 from http.client import HTTPConnection, HTTPSConnection
@@ -114,6 +115,7 @@ class Row:
 
 class Cursor:
     def __init__(self, result):
+        self._wire_result = result
         names = [c['name'] for c in result['cols']]
         self.rows = iter([Row(names, [decode(v) for v in row]) for row in result['rows']])
         self.rowcount = result['affected_row_count']
@@ -125,10 +127,31 @@ class Cursor:
 
 
 class Connection:
-    def __init__(self, send):self.send, self.baton, self.failed, self.in_transaction = send, None, False, False
+    def __init__(self, send, *, memoize_transactions=False):
+        self.send, self.baton, self.failed, self.in_transaction = send, None, False, False
+        self.memoize_transactions = memoize_transactions
+        self._memo, self._memo_bytes = {}, 0
+
+    @staticmethod
+    def _plain_read(sql):
+        # Closed built-in set over unchanged rows. Unknown functions, comments,
+        # quoted function names and SQL clocks always execute and clear the memo.
+        text=sql.strip().removesuffix(';')
+        if (not text.isascii() or re.match(r'SELECT\b',text,re.I) is None or ';' in text or '--' in text or '/*' in text
+                or '"' in text or '`' in text or re.search(r"['\]]\s*\(",text)
+                or re.search(r'\bCURRENT_(?:DATE|TIME|TIMESTAMP)\b',text,re.I)):
+            return False
+        names={name.upper() for name in re.findall(r'\b([a-zA-Z_][a-zA-Z_0-9]*)\s*\(',text)}
+        stable={'COUNT','JSON_EXTRACT','MIN','MAX','SUM','COALESCE','CAST',
+                'IN','EXISTS','AND','OR','NOT','WHERE','ON','FROM','AS','SELECT'}
+        return names<=stable
+
+    def _clear_memo(self):
+        self._memo.clear(); self._memo_bytes=0
 
     def pipeline(self, statements):
         if self.failed:raise RemoteUnavailable('Remote connection requires reconciliation')
+        if any(not self._plain_read(sql) for sql, _ in statements):self._clear_memo()
         requests = []
         for sql, parameters in statements:
             stmt = {'sql': sql}
@@ -172,7 +195,27 @@ class Connection:
             self.failed = True
             raise RemoteUnavailable('Remote storage outcome requires reconciliation') from None
 
-    def execute(self, sql, parameters=()):return self.pipeline([(sql, parameters)])[0]
+    def execute(self, sql, parameters=()):
+        if self.failed:raise RemoteUnavailable('Remote connection requires reconciliation')
+        parameters=dict(parameters) if isinstance(parameters,dict) else tuple(parameters)
+        memoize=self.memoize_transactions and self.in_transaction and self._plain_read(sql)
+        key=None
+        if memoize:
+            bindings=({k:encode(v) for k,v in parameters.items()} if isinstance(parameters,dict)
+                      else [encode(v) for v in parameters])
+            key=json.dumps([sql,bindings],sort_keys=True)
+            if key in self._memo:
+                cursor=Cursor(json.loads(self._memo[key]));del cursor._wire_result
+                return cursor
+        cursor=self.pipeline([(sql,parameters)])[0]
+        if memoize:
+            payload=json.dumps(cursor._wire_result)
+            size=len(key)+len(payload)
+            if len(payload)<=1024*1024 and len(key)<=1024*1024:
+                if len(self._memo)>=4096 or self._memo_bytes+size>16*1024*1024:self._clear_memo()
+                self._memo[key]=payload;self._memo_bytes+=size
+        del cursor._wire_result
+        return cursor
     def executemany(self, sql, parameters):
         cursors = self.pipeline([(sql, values) for values in parameters])
         return cursors[-1] if cursors else None
@@ -185,6 +228,7 @@ class Connection:
     def rollback(self):
         if not self.failed and self.in_transaction:self.execute('ROLLBACK')
     def close(self):
+        self._clear_memo()
         if self.baton is not None:
             try:self.send({'baton': self.baton, 'requests': [{'type': 'close'}]})
             except Exception:pass

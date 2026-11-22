@@ -90,7 +90,15 @@ new submission, without changing logical Hrana streams or batons. It never retri
 redirect. A failed socket is discarded; the original logical command must be
 reconciled before another effect. Socket serialization provides transport thread
 safety only. Provider transactions and native authority checks still coordinate
-independent invocations. No validation result or authority is cached.
+independent invocations. All native validation still runs. Hosted connections reuse exact deterministic
+SELECT results only within one explicit transaction snapshot, with fresh result
+cursors and exact typed bindings. The closed function set includes COUNT and
+JSON_EXTRACT; unknown functions, SQL clocks, comments, writes and transaction
+control clear the memo. It never crosses a connection or transaction. The memo
+holds at most 4,096 entries and 16 MiB including keys, with 1 MiB limits on each
+key and result. COMMIT always reaches the provider with the active-transaction
+condition, so cached rows cannot authorize dispatch after provider rollback.
+Other Turso compositions keep this optimization disabled by default.
 
 The database is opened without migrations on every invocation. Migration/import
 is an explicit operator step through the remote-storage contract.

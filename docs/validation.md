@@ -3630,3 +3630,11 @@ Physical HTTP sockets are retired before submission after one idle second. A
 real HTTP regression verifies a new socket and exactly one new request; lost
 acknowledgements on an active reused socket still receive no retry. This keeps
 long operator or provider waits from relying on an old keep-alive socket.
+
+Remote continuation exposed HTTP 429 under the native provenance read volume.
+Hosted-only transaction snapshot reuse retains all validation while reducing
+identical deterministic SELECT round trips. Aggregate/JSON reads are eligible;
+volatile, quoted or commented functions remain fresh. Regressions cover fresh
+cursors, exact inputs, write/new-transaction invalidation, combined key/result
+bounds and provider rollback before COMMIT, which must prevent dispatch. No
+memoized row is used across transactions or as approval authority.

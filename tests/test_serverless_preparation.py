@@ -329,7 +329,7 @@ class PersistentTransportTests(unittest.TestCase):
                 if owner.mode=='lost':
                     self.connection.shutdown(2);self.connection.close();self.close_connection=True;return
                 raw=json.dumps(body).encode()
-                self.send_response(307 if owner.mode=='redirect' else 200)
+                self.send_response(307 if owner.mode=='redirect' else 429 if owner.mode=='rate_limit' else 200)
                 self.send_header('Location','https://another.turso.io/v3/pipeline')
                 self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw)
         self.server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
@@ -365,6 +365,81 @@ class PersistentTransportTests(unittest.TestCase):
         self.mode='redirect'
         with self.assertRaises(RemoteUnavailable):self.http({'first':True})
         self.assertEqual(len(self.requests),1)
+        self.mode='rate_limit'
+        with self.assertRaises(RemoteUnavailable):self.http({'rate_limited':True})
+        self.assertEqual(len(self.requests),2)
         self.http.deadline=time.monotonic()-1
         with self.assertRaises(RemoteUnavailable):self.http({'second':True})
-        self.assertEqual(len(self.requests),1)
+        self.assertEqual(len(self.requests),2)
+
+class TransactionSnapshotTests(unittest.TestCase):
+    def setUp(self):
+        from test_turso_storage import Wire
+        self.temp=tempfile.TemporaryDirectory();self.path=Path(self.temp.name)/'snapshot.sqlite'
+        self.wire=Wire(self.path);self.db=self.wire.database(True);self.db.memoize_transactions=True
+        with self.db.transaction() as db:
+            db.execute('CREATE TABLE memo_marker(value INTEGER)');db.execute('INSERT INTO memo_marker VALUES(0)')
+    def tearDown(self):self.wire.close();self.temp.cleanup()
+    def test_writes_invalidate_snapshot_and_new_transactions_observe_current_data(self):
+        with self.db.transaction() as db:
+            first=db.execute('SELECT value FROM memo_marker');self.assertEqual(first.fetchone()[0],0)
+            self.assertEqual(db.execute('SELECT value FROM memo_marker').fetchone()[0],0)
+            db.execute('UPDATE memo_marker SET value=1')
+            self.assertEqual(db.execute('SELECT value FROM memo_marker').fetchone()[0],1)
+        with self.db.connect() as reader:
+            self.assertEqual(reader.execute('SELECT value FROM memo_marker').fetchone()[0],1)
+            with self.db.transaction() as db:db.execute('UPDATE memo_marker SET value=2')
+            self.assertEqual(reader.execute('SELECT value FROM memo_marker').fetchone()[0],2)
+        with self.db.transaction() as db:self.assertEqual(db.execute('SELECT value FROM memo_marker').fetchone()[0],2)
+    def test_expired_snapshot_cannot_commit_or_dispatch_from_memoized_data(self):
+        from acquisition.adapters.turso import CommitUncertain
+        dispatched=False
+        with self.assertRaises(CommitUncertain):
+            with self.db.transaction() as db:
+                db.execute('SELECT value FROM memo_marker').fetchone()
+                self.wire.sessions[db.baton].execute('ROLLBACK')
+                self.assertEqual(db.execute('SELECT value FROM memo_marker').fetchone()[0],0)
+            dispatched=True
+        self.assertFalse(dispatched)
+        with closing(sqlite3.connect(self.path)) as raw:
+            self.assertEqual(raw.execute('SELECT value FROM memo_marker').fetchall(),[(0,)])
+    def test_functions_are_reexecuted_and_result_cursors_are_independent(self):
+        original=self.db.send;queries=[]
+        def observed(payload):
+            queries.extend(step['stmt']['sql'] for request in payload['requests']
+                           for step in request.get('batch',{}).get('steps',[]))
+            return original(payload)
+        self.db.send=observed
+        with self.db.transaction() as db:
+            a=db.execute('SELECT value FROM memo_marker');b=db.execute('SELECT value FROM memo_marker')
+            self.assertEqual(a.fetchall()[0][0],0);self.assertEqual(b.fetchall()[0][0],0)
+            for query,bindings in (("SELECT count(*) FROM memo_marker",()),
+                    ("SELECT json_extract(?, '$.value')",('{"value":7}',))):
+                self.assertEqual(db.execute(query,bindings).fetchone()[0],db.execute(query,bindings).fetchone()[0])
+            for query in ('SELECT random()', 'SELECT random /* volatile */ ()',
+                          'SELECT "random"()', 'SELECT CURRENT_TIMESTAMP'):
+                db.execute(query).fetchone();db.execute(query).fetchone()
+        self.assertEqual(queries.count('SELECT value FROM memo_marker'),1)
+        self.assertEqual(queries.count('SELECT random()'),2)
+        self.assertEqual(queries.count('SELECT random /* volatile */ ()'),2)
+        self.assertEqual(queries.count('SELECT "random"()'),2)
+        self.assertEqual(queries.count('SELECT CURRENT_TIMESTAMP'),2)
+        self.assertEqual(queries.count('SELECT count(*) FROM memo_marker'),1)
+        self.assertEqual(queries.count("SELECT json_extract(?, '$.value')"),1)
+
+    def test_large_bindings_and_rows_are_not_retained_by_the_snapshot_memo(self):
+        large='x'*(1024*1024+1)
+        original=self.db.send;queries=[]
+        def observed(payload):
+            queries.extend(step['stmt']['sql'] for request in payload['requests']
+                           for step in request.get('batch',{}).get('steps',[]))
+            return original(payload)
+        self.db.send=observed
+        with self.db.transaction() as db:
+            db.execute('CREATE TABLE memo_large(payload TEXT)')
+            db.execute('INSERT INTO memo_large VALUES(?)',(large,))
+            for _ in range(2):self.assertEqual(db.execute('SELECT payload FROM memo_large').fetchone()[0],large)
+            for _ in range(2):self.assertEqual(db.execute('SELECT 1 WHERE ? IS NOT NULL',(large,)).fetchone()[0],1)
+            self.assertEqual(db.connection._memo_bytes,0)
+        self.assertEqual(queries.count('SELECT payload FROM memo_large'),2)
+        self.assertEqual(queries.count('SELECT 1 WHERE ? IS NOT NULL'),2)
