@@ -85,7 +85,8 @@ timeout to the remaining budget. These checks are cooperative; a platform kill
 is the hard execution boundary. An in-flight provider operation can remain
 uncertain, so fresh invocations reconcile original native records and leases.
 The transport reuses its HTTPS connection across sequential requests and reads
-each response completely. It never retries a submitted request or follows a
+each response completely. Sockets idle for one second are retired before a
+new submission, without changing logical Hrana streams or batons. It never retries a submitted request or follows a
 redirect. A failed socket is discarded; the original logical command must be
 reconciled before another effect. Socket serialization provides transport thread
 safety only. Provider transactions and native authority checks still coordinate

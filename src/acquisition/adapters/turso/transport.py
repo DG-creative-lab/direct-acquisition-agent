@@ -37,9 +37,11 @@ class Http:
             raise ValueError('A server-side database token is required')
         self._token, self.timeout, self.deadline = token, timeout, deadline
         self._connection = None
+        self._last_response = None
         self._lock = Lock()
 
     def close(self):
+        self._last_response = None
         connection = getattr(self, '_connection', None)
         if connection is not None:
             connection.close()
@@ -53,6 +55,10 @@ class Http:
         with self._lock:
             remaining = self.timeout if self.deadline is None else min(self.timeout,self.deadline-time.monotonic())
             if remaining <= 0:raise RemoteUnavailable('Invocation storage budget exhausted')
+            # Retire idle physical sockets before submission. Hrana's logical
+            # transaction and baton are independent of this HTTP connection.
+            if self._last_response is not None and time.monotonic()-self._last_response>=1:
+                self.close()
             target = urlsplit(self.url)
             try:
                 if self._connection is None:
@@ -67,7 +73,9 @@ class Http:
                 raw = response.read()
                 # Never follow a redirect or forward credentials to another host.
                 if response.status != 200:raise ValueError('Remote HTTP response rejected')
-                return json.loads(raw)
+                result = json.loads(raw)
+                self._last_response = time.monotonic()
+                return result
             except Exception:
                 self.close()
                 # No reconnect-and-repeat, including a lost response on a reused socket.

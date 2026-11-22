@@ -345,6 +345,14 @@ class PersistentTransportTests(unittest.TestCase):
         self.assertEqual([r[1] for r in self.requests],[first,second])
         self.assertEqual(self.requests[0][0],self.requests[1][0])
 
+    def test_idle_socket_is_replaced_before_a_single_new_submission(self):
+        with patch('acquisition.adapters.turso.transport.time.monotonic',return_value=10):
+            self.http({'first':True})
+        with patch('acquisition.adapters.turso.transport.time.monotonic',return_value=12):
+            self.http({'second':True})
+        self.assertEqual([r[1] for r in self.requests],[{'first':True},{'second':True}])
+        self.assertNotEqual(self.requests[0][0],self.requests[1][0])
+
     def test_lost_ack_on_reused_socket_is_not_repeated(self):
         from acquisition.adapters.turso.transport import RemoteUnavailable
         self.http({'first':True});self.mode='lost'

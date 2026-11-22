@@ -3625,3 +3625,8 @@ Hosted cadence is frozen separately from lease time. The complete preparation
 regression runs on 22 November, rather than a historical fixture clock. The
 one-day hourly demonstration still blocks expired product evidence before any
 inference reservation. Historical/local multi-day journeys retain their cadence.
+
+Physical HTTP sockets are retired before submission after one idle second. A
+real HTTP regression verifies a new socket and exactly one new request; lost
+acknowledgements on an active reused socket still receive no retry. This keeps
+long operator or provider waits from relying on an old keep-alive socket.
