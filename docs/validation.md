@@ -3423,3 +3423,67 @@ Verification on `b9a2471`: `make test` passed all 1,096 tests in 1,117.733
 seconds. The focused storage suite passed all 14 tests; `make arch-check`
 passed with 213 modules and zero exceptions. The regression used a localhost
 Hrana fixture backed by real SQLite. No new live remote or model run is claimed.
+
+## CI partition calibration and optional Chromium, 22 November 2026
+
+Executable revision: `f562f9b`. This slice changes CI scheduling and test fixtures;
+production Python and frontend application code are unchanged. The isolated branch
+is `feature/ci-partition-and-fixtures`, based on main `5e37b25`.
+
+Confirmed authorities are backend unittest discovery, Playwright discovery,
+GitHub's Actions expression evaluator, the real workspace initialization CLI and
+SQLite rows in each test's private root. Seven policy contexts were evaluated:
+main, main with an irrelevant PR-shaped opt-out, ordinary PR, unrelated PR label,
+opt-out alone, opt-out among labels and opt-out removal. All retained backend and
+frontend build/format paths remain enabled; only Chromium steps follow the PR
+opt-out. Both label activity types are subscribed. Mutation-audit dispatch keeps
+its prior cadence. Effective branch-protection configuration was not rechecked or
+changed.
+
+| Protected behavior | Regression and observable oracle |
+| --- | --- |
+| No backend test omitted or duplicated | Existing CI-tool test compares both two- and four-way partitions against fresh discovery, including ID multiplicity. It now also rejects a module split across runners, preserving class setup sequencing. |
+| No browser test omitted or duplicated | Actual Playwright JSON discovery found 118 tests; the new partitions contain 38 and 80, with identical union and zero overlap. |
+| No shared test authority or leaked run | Fixture activation copies one closed, empty CLI-initialized template into a private temporary directory per test. The existing restore/fresh-root test now verifies an independent copy cannot read a sibling's run. Per-test cleanup and class teardown compare original template bytes. |
+| Important checks remain with browser opt-out | Actionlint 1.7.12 passed. Seven actual workflow-expression contexts passed with `@actions/expressions` 0.3.25; build/type, formatting and backend checks remain enabled in each context. Main forces Chromium. |
+
+All 23 fixture test methods are retained. AST comparison found unchanged bodies
+for 22; the remaining restore test only adds sibling-isolation assertions.
+The positive initialization subprocess moved from per-test setup to class setup;
+all explicit initialization rejection and process-restart paths still execute.
+The focused five-check run passed in 1.079 seconds. The 23-case fixture module
+passed before and after in 51.649 and 47.864 seconds respectively, in one local
+pair. This small sample is not a hosted performance guarantee.
+
+The retained [main-run baseline](evaluations/ci-partition-baseline-2026-11-22.json)
+is measured Actions data; new partition projections are documented in
+[ci-performance.md](ci-performance.md). No test cases, mutation variants or
+runtime authority checks were removed. This verification uses no live model or
+remote database. Routine Turso adapter tests use a loopback Hrana server backed
+by real SQLite; remote conformance is a separate explicit operation.
+
+All 18 existing mutation probes whose target is `test_fixture_activation`
+were rerun against the new fixture lifecycle. All 18 were detected by test
+assertions; setup, loader and unexpected runtime errors do not count as kills.
+This bounded check covers the affected fixture's original mutation targets, not
+the complete manual catalogue. It retains evidence that setup reuse does not
+mask the existing lease, publication, source, stop and restore regressions.
+
+The complete browser portfolio passed: 38 tests in 382.124 seconds and 80 tests
+in 403.967 seconds, with zero failed, flaky or skipped cases. The first command
+was `make interface-check BROWSER_SHARD=1 BROWSER_SHARDS=2`; the second test-only
+partition started after that build completed. Both servers used independent
+roots and one worker. Build/type checking and formatting passed. A full local
+backend run was executing concurrently, so these are not hosted CI timings.
+
+`make test` passed all 1,096 tests in 1,258.393 seconds on Python 3.14.3.
+This was one complete local run on the executable bytes committed as `f562f9b`;
+the browser checks overlapped its early portion. `make arch-check` passed with
+213 modules and zero exceptions. No new hosted Actions timing or live remote
+conformance run is claimed. The final evidence commit changes documentation
+only; executable files remain identical to `f562f9b`.
+
+The [verification record](evaluations/ci-optimization-validation-2026-11-22.json)
+retains commit identity, local environment, partition inventory, policy scenarios,
+mutation results, measured durations and completed-log hashes. The original dirty
+checkout and the separate serverless implementation worktree were preserved.

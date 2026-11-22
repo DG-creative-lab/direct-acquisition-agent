@@ -56,6 +56,11 @@ do not distinguish a skipped check from a successful check for merge gating;
 the explicit summary records the difference. No branch protection settings are
 changed. Local `make interface-check` always executes browser tests.
 
+Local verification of the new allocation passed 38 and 80 Chromium tests in
+382.124 and 403.967 seconds respectively, with zero failures, retries or skips.
+A full backend run was executing concurrently; these are local observations,
+not new Actions timings.
+
 The sections below retain earlier measurements and their original scope.
 
 
