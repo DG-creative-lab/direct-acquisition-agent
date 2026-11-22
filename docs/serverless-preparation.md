@@ -79,6 +79,13 @@ checks a 120-second monotonic I/O budget before each request and caps its socket
 timeout to the remaining budget. These checks are cooperative; a platform kill
 is the hard execution boundary. An in-flight provider operation can remain
 uncertain, so fresh invocations reconcile original native records and leases.
+Hosted Turso connections reuse duplicate function-free SELECT results only inside
+one explicit transaction snapshot. The bounded memo is cleared by every write
+or transaction-control statement and never survives a connection or transaction.
+All native validation still runs. COMMIT always reaches the provider with its
+active-transaction condition, so an expired transaction cannot authorize a call
+or publish a result using memoized data.
+
 The database is opened without migrations on every invocation. Migration/import
 is an explicit operator step through the remote-storage contract.
 

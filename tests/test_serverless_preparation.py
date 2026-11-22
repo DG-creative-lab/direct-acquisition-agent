@@ -213,6 +213,19 @@ raise AssertionError('Gateway was not reached')
             self.assertEqual(db.execute('select count(*) from model_calls').fetchone()[0],0)
 
 
+    def test_start_race_between_original_lookup_and_source_read_returns_original(self):
+        service=self.service();winner=[]
+        def source_after_competing_commit(*args):
+            winner.append(self.service().start('race','fielddesk',10000,True))
+            raise Conflict('Conversation changed during source lookup')
+        with patch.object(service.journeys.store,'source',side_effect=source_after_competing_commit):
+            observed=service.start('race','fielddesk',10000,True)
+        self.assertEqual(observed['receipt'],winner[0]['receipt'])
+        with closing(sqlite3.connect(self.path)) as db:
+            self.assertEqual(db.execute('select count(*) from sequence_journeys').fetchone()[0],1)
+            self.assertEqual(db.execute('select count(*) from model_calls').fetchone()[0],0)
+
+
 
 class HostedWireTests(unittest.TestCase):
     def setUp(self):
@@ -288,3 +301,49 @@ class OperatorPackageTests(unittest.TestCase):
                 subprocess.run(['git','-C',str(root),'add','src/secret.py'],check=True,capture_output=True);commit()
                 with self.assertRaises(ValueError):packaging.package(root/'unsafe')
                 self.assertFalse((root/'unsafe').exists())
+
+
+class TransactionSnapshotTests(unittest.TestCase):
+    def setUp(self):
+        from test_turso_storage import Wire
+        self.temp=tempfile.TemporaryDirectory();self.path=Path(self.temp.name)/'snapshot.sqlite'
+        self.wire=Wire(self.path);self.db=self.wire.database(True);self.db.memoize_transactions=True
+        with self.db.transaction() as db:
+            db.execute('CREATE TABLE memo_marker(value INTEGER)');db.execute('INSERT INTO memo_marker VALUES(0)')
+    def tearDown(self):self.wire.close();self.temp.cleanup()
+    def test_writes_invalidate_snapshot_and_new_transactions_observe_current_data(self):
+        with self.db.transaction() as db:
+            first=db.execute('SELECT value FROM memo_marker');self.assertEqual(first.fetchone()[0],0)
+            self.assertEqual(db.execute('SELECT value FROM memo_marker').fetchone()[0],0)
+            db.execute('UPDATE memo_marker SET value=1')
+            self.assertEqual(db.execute('SELECT value FROM memo_marker').fetchone()[0],1)
+        with self.db.connect() as reader:
+            self.assertEqual(reader.execute('SELECT value FROM memo_marker').fetchone()[0],1)
+            with self.db.transaction() as db:db.execute('UPDATE memo_marker SET value=2')
+            self.assertEqual(reader.execute('SELECT value FROM memo_marker').fetchone()[0],2)
+        with self.db.transaction() as db:self.assertEqual(db.execute('SELECT value FROM memo_marker').fetchone()[0],2)
+    def test_expired_snapshot_cannot_commit_or_dispatch_from_memoized_data(self):
+        from acquisition.adapters.turso import CommitUncertain
+        dispatched=False
+        with self.assertRaises(CommitUncertain):
+            with self.db.transaction() as db:
+                db.execute('SELECT value FROM memo_marker').fetchone()
+                self.wire.sessions[db.baton].execute('ROLLBACK')
+                self.assertEqual(db.execute('SELECT value FROM memo_marker').fetchone()[0],0)
+            dispatched=True
+        self.assertFalse(dispatched)
+        with closing(sqlite3.connect(self.path)) as raw:
+            self.assertEqual(raw.execute('SELECT value FROM memo_marker').fetchall(),[(0,)])
+    def test_functions_are_reexecuted_and_result_cursors_are_independent(self):
+        original=self.db.send;queries=[]
+        def observed(payload):
+            queries.extend(step['stmt']['sql'] for request in payload['requests']
+                           for step in request.get('batch',{}).get('steps',[]))
+            return original(payload)
+        self.db.send=observed
+        with self.db.transaction() as db:
+            a=db.execute('SELECT value FROM memo_marker');b=db.execute('SELECT value FROM memo_marker')
+            self.assertEqual(a.fetchall()[0][0],0);self.assertEqual(b.fetchall()[0][0],0)
+            db.execute('SELECT random()').fetchone();db.execute('SELECT random()').fetchone()
+        self.assertEqual(queries.count('SELECT value FROM memo_marker'),1)
+        self.assertEqual(queries.count('SELECT random()'),2)

@@ -109,13 +109,22 @@ class SequenceJourneys:
         revision_number(revision)
         text(content)
         key='journey_request_'+digest({'organization':organization,'conversation_id':conversation_id,'request_id':request_id})
-        old=self.store.request(organization,conversation_id,key,revision+1,allow_generation)
-        if old is not None:
-            message=old['inputs']['messages'][-1]
-            if message['id']!=request_id or message['content']!=content:
-                raise Conflict('The original sequence message already binds different exact inputs')
+        def original():
+            old=self.store.request(organization,conversation_id,key,revision+1,allow_generation)
+            if old is not None:
+                message=old['inputs']['messages'][-1]
+                if message['id']!=request_id or message['content']!=content:
+                    raise Conflict('The original sequence message already binds different exact inputs')
             return old
-        source=self.store.source(organization,conversation_id,revision)
+        old=original()
+        if old is not None:return old
+        try:source=self.store.source(organization,conversation_id,revision)
+        except Conflict:
+            # Another invocation can commit the same message and journey after
+            # our first lookup. Observe its exact admission, never reinterpret it.
+            old=original()
+            if old is None:raise
+            return old
         now=self.clock()
         messages=source['messages']+[{'id':request_id,'revision':revision+1,'role':'user','content':content,'created_at':now}]
         catalogue=self.host.catalogue(organization)

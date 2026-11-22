@@ -2,6 +2,7 @@
 import base64
 import json
 import math
+import re
 import sqlite3
 import time
 import urllib.request
@@ -84,6 +85,7 @@ class Row:
 
 class Cursor:
     def __init__(self, result):
+        self._wire_result = result
         names = [c['name'] for c in result['cols']]
         self.rows = iter([Row(names, [decode(v) for v in row]) for row in result['rows']])
         self.rowcount = result['affected_row_count']
@@ -95,10 +97,25 @@ class Cursor:
 
 
 class Connection:
-    def __init__(self, send):self.send, self.baton, self.failed, self.in_transaction = send, None, False, False
+    def __init__(self, send, *, memoize_transactions=False):
+        self.send, self.baton, self.failed, self.in_transaction = send, None, False, False
+        self.memoize_transactions = memoize_transactions
+        self._memo, self._memo_bytes = {}, 0
+
+    @staticmethod
+    def _plain_read(sql):
+        # Only function-free SELECTs are eligible. Expressions with parentheses,
+        # multiple statements and SQL clock keywords always reach the server.
+        text=sql.strip().removesuffix(';')
+        return (re.match(r'SELECT\b',text,re.I) is not None and '(' not in text and ';' not in text
+                and re.search(r'\bCURRENT_(?:DATE|TIME|TIMESTAMP)\b',text,re.I) is None)
+
+    def _clear_memo(self):
+        self._memo.clear(); self._memo_bytes=0
 
     def pipeline(self, statements):
         if self.failed:raise RemoteUnavailable('Remote connection requires reconciliation')
+        if any(not self._plain_read(sql) for sql, _ in statements):self._clear_memo()
         requests = []
         for sql, parameters in statements:
             stmt = {'sql': sql}
@@ -142,7 +159,26 @@ class Connection:
             self.failed = True
             raise RemoteUnavailable('Remote storage outcome requires reconciliation') from None
 
-    def execute(self, sql, parameters=()):return self.pipeline([(sql, parameters)])[0]
+    def execute(self, sql, parameters=()):
+        if self.failed:raise RemoteUnavailable('Remote connection requires reconciliation')
+        parameters=dict(parameters) if isinstance(parameters,dict) else tuple(parameters)
+        memoize=self.memoize_transactions and self.in_transaction and self._plain_read(sql)
+        key=None
+        if memoize:
+            bindings=({k:encode(v) for k,v in parameters.items()} if isinstance(parameters,dict)
+                      else [encode(v) for v in parameters])
+            key=json.dumps([sql,bindings],sort_keys=True)
+            if key in self._memo:
+                cursor=Cursor(json.loads(self._memo[key]));del cursor._wire_result
+                return cursor
+        cursor=self.pipeline([(sql,parameters)])[0]
+        if memoize:
+            payload=json.dumps(cursor._wire_result)
+            if len(payload)<=256*1024:
+                if len(self._memo)>=128 or self._memo_bytes+len(payload)>2*1024*1024:self._clear_memo()
+                self._memo[key]=payload;self._memo_bytes+=len(payload)
+        del cursor._wire_result
+        return cursor
     def executemany(self, sql, parameters):
         cursors = self.pipeline([(sql, values) for values in parameters])
         return cursors[-1] if cursors else None
@@ -155,6 +191,7 @@ class Connection:
     def rollback(self):
         if not self.failed and self.in_transaction:self.execute('ROLLBACK')
     def close(self):
+        self._clear_memo()
         if self.baton is not None:
             try:self.send({'baton': self.baton, 'requests': [{'type': 'close'}]})
             except Exception:pass
