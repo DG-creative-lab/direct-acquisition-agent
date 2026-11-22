@@ -41,7 +41,7 @@ class Wire:
                         return {'type':'ok','response':{'result':{
                             'cols':[{'name':c[0]} for c in cursor.description or []],
                             'rows':[[encode(v) for v in row] for row in cursor.fetchall()],
-                            'affected_row_count':cursor.rowcount,'last_insert_rowid':cursor.lastrowid}}}
+                            'affected_row_count':cursor.rowcount,'last_insert_rowid':str(cursor.lastrowid) if cursor.lastrowid is not None else None}}}
                     except sqlite3.Error as error:
                         return {'type':'error','error':{'code':error.sqlite_errorname}}
                 for request in body['requests']:
@@ -251,3 +251,49 @@ class RemoteStorageTests(unittest.TestCase):
         self.assertNotIn('private-provider-credential',str(raised.exception))
         with self.assertRaises(RemoteUnavailable):connection.execute('SELECT 2')
         self.assertEqual(len(requests),1)
+
+
+    def test_imported_report_snapshot_survives_string_wire_rowids_and_reopen(self):
+        from unittest.mock import patch
+        from acquisition.entrypoints.review_demo import run_review_demo
+        from acquisition.adapters.sqlite.learning import SqliteLearning
+        from acquisition.contracts import digest
+        now = [NOW]
+        with patch('acquisition.bootstrap.build_database', return_value=self.database):
+            app = build(None, clock=lambda:now[0])
+        demo = run_review_demo(app, 'wire-learning', 'fixture',
+                               Path(self.temp.name)/'review', str(self.path))
+        org, actor = demo['organization'], 'demo-operator'
+        opened = app.learning.open(org,demo['case_id'],actor,'open')
+        cohort = opened['cohort_id']
+        accepted = app.learning.source.accepted(org,demo['case_id'])
+        now[0] = opened['window_end']
+        report = {key:accepted[key] for key in ('organization','job_id','metric','window_start','window_end')}
+        report.update(schema='synthetic-provider-report/v1',mode='SYNTHETIC_ONLY',
+            cohort_id=cohort,report_id='wire-report',final=False,watermark=now[0],page_count=1,
+            pages=[{'report_id':'wire-report','number':1,'events':[{
+                'event_id':'synthetic_event_'+digest({'cohort_id':cohort,
+                    'business_id':accepted['members'][0]['business_id']}),'outcome':accepted['members'][0] | {
+                    'response':True,'observed_at':opened['window_start']+1}}]}])
+        receipt = app.learning.store.ingest_report(org,actor,'import',cohort,report)
+        self.assertEqual(receipt['added'],1)
+        # Read through a fresh connection after the import transaction commits.
+        reopened = SqliteLearning(self.wire.database(),lambda:now[0])
+        saved = reopened.report_snapshot(org,cohort,'wire-report')
+        self.assertEqual(saved['import_receipt']['report_sha256'],digest(saved['snapshot']))
+        self.assertEqual(saved['snapshot']['report_id'],'wire-report')
+        self.assertEqual(saved['import_receipt'],receipt | {'actor':actor})
+        with closing(sqlite3.connect(self.path)) as raw:
+            imported = raw.execute("SELECT sequence FROM learning_events WHERE organization=? AND kind='provider_report_imported'",(org,)).fetchone()[0]
+            referenced = json.loads(raw.execute("SELECT payload FROM learning_events WHERE organization=? AND kind='provider_report_source_recorded'",(org,)).fetchone()[0])['import_sequence']
+            self.assertIs(type(referenced),int)
+            self.assertEqual(referenced,imported)
+
+
+    def test_cursor_preserves_null_and_integer_rowid_precision(self):
+        from acquisition.adapters.turso.transport import Cursor
+        for wire, expected in ((None,None),('9007199254740993',9007199254740993)):
+            with self.subTest(rowid=wire):
+                cursor = Cursor({'cols':[],'rows':[],'affected_row_count':0,'last_insert_rowid':wire})
+                self.assertEqual(cursor.lastrowid,expected)
+                if expected is not None:self.assertIs(type(cursor.lastrowid),int)

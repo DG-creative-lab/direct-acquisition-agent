@@ -84,7 +84,8 @@ class Cursor:
         names = [c['name'] for c in result['cols']]
         self.rows = iter([Row(names, [decode(v) for v in row]) for row in result['rows']])
         self.rowcount = result['affected_row_count']
-        self.lastrowid = result.get('last_insert_rowid')
+        rowid = result.get('last_insert_rowid')
+        self.lastrowid = int(rowid) if rowid is not None else None
     def fetchone(self):return next(self.rows, None)
     def fetchall(self):return list(self.rows)
     def __iter__(self):return self.rows

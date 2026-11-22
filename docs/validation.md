@@ -3402,3 +3402,19 @@ network attempts, source stable and historical bytes unchanged. Current-schema
 remote admission, idle expiry, DDL/version rollback, lease recovery and unknown
 inference recovery passed on the existing isolated resource. Wider load,
 fresh remote provisioning and hosted continuation remain outside this evidence.
+
+
+## Remote insert row IDs and saved report retrieval, 22 November 2026
+
+Hrana encodes non-null `last_insert_rowid` as a JSON string. The transport must
+return a Python integer to SQLite callers, retaining null and integer precision.
+Otherwise a synthetic report import can commit its source snapshot with a JSON
+string `import_sequence` that cannot match the integer import event sequence.
+
+The HTTP fixture now emits string row IDs. The regression in
+`test_turso_storage` imports a valid report through the learning store, commits,
+reopens the database adapter and retrieves the saved snapshot and receipt.
+It also checks the persisted sequence reference against the actual SQLite event
+sequence. Before the fix this failed with `Provider snapshot is unavailable for
+this import receipt`. A small cursor contract case covers null and a row ID above
+IEEE-754's exact integer range. Historical verification artifacts are unchanged.
