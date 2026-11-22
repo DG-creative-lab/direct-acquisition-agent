@@ -3652,3 +3652,22 @@ fixture calls, and preserved cancellation, replay and foreign-scope fences.
 See the [commit-bound verification record](evaluations/issue-60-serverless-preparation-2026-11-22.json)
 for failed observations, the HTTP 429 diagnosis, provenance equivalence, package
 hashes and the operator-only scope. No live model or public release is claimed.
+
+## Hosted continuation stage binding, 22 November 2026
+
+The requested preparation stage is checked against the exact row passed to
+workflow selection, after the hosted ownership/preflight read. If a competing
+invocation has completed that stage, continuation only observes its progress.
+It cannot prepare the next stage, admit its content run or reserve its inference.
+A future stage conflicts before the journey's blocking/error handler and changes
+no durable state. Existing local callers can still advance without a stage bound.
+
+Two real SQLite regressions reproduced the old behavior before the fix. They now
+cover all seven delayed-request boundaries, with a separate cold process
+committing the winning request. Exact database dumps remain equal after each
+losing continuation. Generation retains one run and three fixture calls per
+requested content stage, with no approval decisions. The existing Hrana wire
+journey also exercises all seven delayed-request boundaries on independent
+connections. These are finite deterministic schedules, not a claim about every
+possible distributed interleaving. Verification for this fix is recorded
+separately from the earlier immutable deployment evidence.

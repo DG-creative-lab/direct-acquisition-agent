@@ -18,8 +18,11 @@ the original frozen journey; a partial stage always reuses them.
 The seven existing stages prepare contacts, an audience decision, recipient
 contexts, an initial email, a human call script, a follow-up and an unapproved
 review subject. A continuation names `expected_stage` and executes at most that
-one stage. An already completed stage returns `already_advanced` without another
-step. A future stage is rejected. A generation stage executes at most one native
+one stage. The journey service rechecks that stage against the exact durable row
+passed to the workflow, so a concurrent completion cannot select the next stage.
+A stage already completed at the hosted check returns `already_advanced`; a
+completion racing that check returns existing progress without another step.
+A future stage is rejected without blocking the journey. A generation stage executes at most one native
 worker tick. Existing limits retain six recipients per channel, three content
 runs and five fixture calls per run. Hosted starts also freeze `preparation_cadence=synthetic-hourly/v1`: a one-day
 demonstration proposal with A calls/follow-ups at one/three hours and B at

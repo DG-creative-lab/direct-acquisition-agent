@@ -92,6 +92,45 @@ print(json.dumps(getattr(s,sys.argv[3])(**json.loads(sys.argv[4]))))
         with closing(sqlite3.connect(self.path)) as db:
             self.assertEqual(db.execute('SELECT count(*) FROM model_calls').fetchone()[0],0)
 
+    def delayed_stage_replay(self,jid,stage):
+        service=self.service();advance=service.journeys.advance;winner=[]
+        def after_competing_commit(*args,**kwargs):
+            # Both invocations passed the hosted check. The other process commits
+            # before this invocation reloads the row used to select its work.
+            winner.append(self.cold('advance',journey_id=jid,expected_stage=stage))
+            before=self.snapshot()
+            result=advance(*args,**kwargs)
+            self.assertEqual(result['stage'],stage+1,'A stale stage request selected the next stage')
+            self.assertTrue(self.snapshot()==before,'A stale stage request performed new work')
+            return result
+        with patch.object(service.journeys,'advance',side_effect=after_competing_commit):
+            observed=service.advance(jid,stage)
+        self.assertEqual(observed['progress'],winner[0]['progress'])
+        self.assertEqual(observed['progress']['stage'],stage+1)
+
+    def test_delayed_stage_request_cannot_execute_next_preparation_stage(self):
+        jid=self.start()['receipt']['journey_id'];before=self.snapshot()
+        with self.assertRaises(Conflict):self.service().advance(jid,1)
+        with self.assertRaises(Conflict):self.service().journeys.advance('operator',jid,expected_stage=1)
+        self.assertEqual(self.snapshot(),before)
+        for stage in range(3):
+            with self.subTest(stage=stage):self.delayed_stage_replay(jid,stage)
+        with closing(sqlite3.connect(self.path)) as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM channel_preparations').fetchone()[0],0)
+            self.assertEqual(db.execute('SELECT count(*) FROM model_calls').fetchone()[0],0)
+
+    def test_delayed_generation_request_cannot_start_next_content_run(self):
+        jid=self.start()['receipt']['journey_id']
+        for stage in range(3):self.service().advance(jid,stage)
+        for stage in range(3,7):
+            with self.subTest(stage=stage):
+                self.delayed_stage_replay(jid,stage)
+                with closing(sqlite3.connect(self.path)) as db:
+                    runs=min(stage-2,3)
+                    self.assertEqual(db.execute('SELECT count(*) FROM channel_preparations').fetchone()[0],runs)
+                    self.assertEqual(db.execute('SELECT count(*) FROM model_calls').fetchone()[0],runs*3)
+                    self.assertEqual(db.execute('SELECT count(*) FROM sequence_review_decisions').fetchone()[0],0)
+
     def test_two_invocations_claim_one_native_task_and_late_lease_cannot_publish(self):
         jid,app,native,run=self.at_generation()
         barrier=threading.Barrier(2)
@@ -254,7 +293,15 @@ class HostedWireTests(unittest.TestCase):
     def test_shared_remote_wire_preparation_and_read_only_status(self):
         state=self.service().start('wire','fielddesk',10000,True);jid=state['receipt']['journey_id']
         for stage in range(7):
-            state=self.service().advance(jid,stage)
+            service=self.service();advance=service.journeys.advance
+            def after_competing_commit(*args,**kwargs):
+                self.service().advance(jid,stage)
+                before=self.snapshot()
+                result=advance(*args,**kwargs)
+                self.assertTrue(self.snapshot()==before,'Stale remote continuation performed new work')
+                return result
+            with patch.object(service.journeys,'advance',side_effect=after_competing_commit):
+                state=service.advance(jid,stage)
             self.assertEqual(state['progress']['stage'],stage+1)
         self.assertEqual(state['progress']['status'],'ready')
         before=self.snapshot()

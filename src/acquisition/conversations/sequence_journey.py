@@ -142,8 +142,16 @@ class SequenceJourneys:
             catalogue,proposal,allow_generation,self.clock())
         return self.store.admit(organization,frozen)
 
-    def advance(self, organization, journey_id):
+    def advance(self, organization, journey_id, *, expected_stage=None):
+        if expected_stage is not None and (type(expected_stage) is not int or not 0<=expected_stage<len(JOURNEY_STAGES)):
+            raise ValueError('Continue one displayed preparation stage')
         row=self.store.current(organization,journey_id)
+        # Bind execution to this exact row, which the host uses to select work.
+        # A concurrent continuation may have completed the requested stage since
+        # the caller's preflight check. Observing it grants no next-stage work.
+        if expected_stage is not None:
+            if row['stage']<expected_stage:raise Conflict('Reload the current preparation stage')
+            if row['stage']>expected_stage:return row
         if not row['current'] or row['status'] not in JOURNEY_ACTIVE:return row
         try:
             result=self.host.step(organization,row)

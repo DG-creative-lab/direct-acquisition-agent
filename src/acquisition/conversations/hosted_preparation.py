@@ -72,7 +72,8 @@ class HostedPreparations:
             return {'observation':'already_advanced',**self.status(journey_id)}
         # Preparing is the only executable phase on this surface. Ready means
         # an unapproved subject exists; no approval or dispatch is exposed.
-        if row['status']=='preparing':self.journeys.advance(self.organization,journey_id)
+        if row['status']=='preparing':
+            self.journeys.advance(self.organization,journey_id,expected_stage=expected_stage)
         return {'observation':'step_observed',**self.status(journey_id)}
 
     def stop(self, journey_id, request_id):
