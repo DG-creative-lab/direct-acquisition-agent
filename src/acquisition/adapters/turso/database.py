@@ -24,10 +24,9 @@ class SchemaConnection:
 class TursoDatabase(Database):
     """Explicit remote composition. No local paths, root locks or replica sync."""
     def __init__(self, url, token, *, clock=time.time, verified_admissions=False,
-                 lock_seconds=15, initialize=True, deadline=None, memoize_transactions=False):
+                 lock_seconds=15, initialize=True, deadline=None):
         if type(verified_admissions) is not bool:raise ValueError('Choose an explicit admission mode')
         if not 0 < lock_seconds <= 60:raise ValueError('Bound remote lock acquisition to 60 seconds')
-        self.memoize_transactions = memoize_transactions
         self.send, self.lock_seconds = Http(url, token, deadline=deadline), lock_seconds
         if initialize:
             self._initialize(verified_admissions, clock, False)
@@ -48,7 +47,7 @@ class TursoDatabase(Database):
 
     @contextmanager
     def connect(self):
-        connection = Connection(self.send,memoize_transactions=getattr(self,'memoize_transactions',False))
+        connection = Connection(self.send)
         try:
             connection.execute('PRAGMA foreign_keys=ON')
             yield SchemaConnection(connection)

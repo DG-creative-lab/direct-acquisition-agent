@@ -623,8 +623,6 @@ def build_hosted_preparations(path, organization, clock=time.time, *, remote_sto
     """Open an already migrated store. Per-request composition never initializes or repairs it."""
     from acquisition.conversations import HostedPreparations
     database=_database or build_database(path,clock=clock,remote_storage=remote_storage,read_only=True)
-    from acquisition.adapters.turso import TursoDatabase
-    if isinstance(database,TursoDatabase):database.memoize_transactions=True
     journeys=build_sequence_journeys(path,clock,remote_storage=remote_storage,_database=database,_gateway=_gateway,_preparation_clock=True)
     return HostedPreparations(organization,SqliteConversations(database),journeys,clock)
 

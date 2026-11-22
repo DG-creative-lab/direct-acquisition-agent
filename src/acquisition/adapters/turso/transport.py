@@ -2,10 +2,10 @@
 import base64
 import json
 import math
-import re
 import sqlite3
 import time
-import urllib.request
+from http.client import HTTPConnection, HTTPSConnection
+from threading import Lock
 from urllib.parse import urlsplit
 
 
@@ -36,22 +36,43 @@ class Http:
         if not token or '\n' in token or '\r' in token:
             raise ValueError('A server-side database token is required')
         self._token, self.timeout, self.deadline = token, timeout, deadline
-        # A redirect must never forward the bearer credential to another host.
-        class NoRedirect(urllib.request.HTTPRedirectHandler):
-            def redirect_request(self, *args, **kwargs):
-                return None
-        self.opener = urllib.request.build_opener(NoRedirect())
+        self._connection = None
+        self._lock = Lock()
+
+    def close(self):
+        connection = getattr(self, '_connection', None)
+        if connection is not None:
+            connection.close()
+            self._connection = None
+
+    def __del__(self):self.close()
 
     def __call__(self, payload):
-        remaining = self.timeout if self.deadline is None else min(self.timeout,self.deadline-time.monotonic())
-        if remaining <= 0:raise RemoteUnavailable('Invocation storage budget exhausted')
-        request = urllib.request.Request(self.url, json.dumps(payload).encode(),
-            {'Authorization': 'Bearer ' + self._token, 'Content-Type': 'application/json'})
-        try:
-            with self.opener.open(request, timeout=remaining) as response:
-                return json.load(response)
-        except Exception:
-            raise RemoteUnavailable('Remote storage acknowledgement unavailable') from None
+        # Serialize socket use, not database transactions. Independent Hrana
+        # streams still require provider-side concurrency and commit authority.
+        with self._lock:
+            remaining = self.timeout if self.deadline is None else min(self.timeout,self.deadline-time.monotonic())
+            if remaining <= 0:raise RemoteUnavailable('Invocation storage budget exhausted')
+            target = urlsplit(self.url)
+            try:
+                if self._connection is None:
+                    connection_type = HTTPSConnection if target.scheme == 'https' else HTTPConnection
+                    self._connection = connection_type(target.hostname,target.port,timeout=remaining)
+                connection = self._connection
+                connection.timeout = remaining
+                if connection.sock is not None:connection.sock.settimeout(remaining)
+                connection.request('POST',target.path,body=json.dumps(payload).encode(),headers={
+                    'Authorization':'Bearer '+self._token,'Content-Type':'application/json'})
+                response = connection.getresponse()
+                raw = response.read()
+                # Never follow a redirect or forward credentials to another host.
+                if response.status != 200:raise ValueError('Remote HTTP response rejected')
+                return json.loads(raw)
+            except Exception:
+                self.close()
+                # No reconnect-and-repeat, including a lost response on a reused socket.
+                raise RemoteUnavailable('Remote storage acknowledgement unavailable') from None
+
 
 
 def encode(value):
@@ -85,7 +106,6 @@ class Row:
 
 class Cursor:
     def __init__(self, result):
-        self._wire_result = result
         names = [c['name'] for c in result['cols']]
         self.rows = iter([Row(names, [decode(v) for v in row]) for row in result['rows']])
         self.rowcount = result['affected_row_count']
@@ -97,25 +117,10 @@ class Cursor:
 
 
 class Connection:
-    def __init__(self, send, *, memoize_transactions=False):
-        self.send, self.baton, self.failed, self.in_transaction = send, None, False, False
-        self.memoize_transactions = memoize_transactions
-        self._memo, self._memo_bytes = {}, 0
-
-    @staticmethod
-    def _plain_read(sql):
-        # Only function-free SELECTs are eligible. Expressions with parentheses,
-        # multiple statements and SQL clock keywords always reach the server.
-        text=sql.strip().removesuffix(';')
-        return (re.match(r'SELECT\b',text,re.I) is not None and '(' not in text and ';' not in text
-                and re.search(r'\bCURRENT_(?:DATE|TIME|TIMESTAMP)\b',text,re.I) is None)
-
-    def _clear_memo(self):
-        self._memo.clear(); self._memo_bytes=0
+    def __init__(self, send):self.send, self.baton, self.failed, self.in_transaction = send, None, False, False
 
     def pipeline(self, statements):
         if self.failed:raise RemoteUnavailable('Remote connection requires reconciliation')
-        if any(not self._plain_read(sql) for sql, _ in statements):self._clear_memo()
         requests = []
         for sql, parameters in statements:
             stmt = {'sql': sql}
@@ -159,26 +164,7 @@ class Connection:
             self.failed = True
             raise RemoteUnavailable('Remote storage outcome requires reconciliation') from None
 
-    def execute(self, sql, parameters=()):
-        if self.failed:raise RemoteUnavailable('Remote connection requires reconciliation')
-        parameters=dict(parameters) if isinstance(parameters,dict) else tuple(parameters)
-        memoize=self.memoize_transactions and self.in_transaction and self._plain_read(sql)
-        key=None
-        if memoize:
-            bindings=({k:encode(v) for k,v in parameters.items()} if isinstance(parameters,dict)
-                      else [encode(v) for v in parameters])
-            key=json.dumps([sql,bindings],sort_keys=True)
-            if key in self._memo:
-                cursor=Cursor(json.loads(self._memo[key]));del cursor._wire_result
-                return cursor
-        cursor=self.pipeline([(sql,parameters)])[0]
-        if memoize:
-            payload=json.dumps(cursor._wire_result)
-            if len(payload)<=256*1024:
-                if len(self._memo)>=128 or self._memo_bytes+len(payload)>2*1024*1024:self._clear_memo()
-                self._memo[key]=payload;self._memo_bytes+=len(payload)
-        del cursor._wire_result
-        return cursor
+    def execute(self, sql, parameters=()):return self.pipeline([(sql, parameters)])[0]
     def executemany(self, sql, parameters):
         cursors = self.pipeline([(sql, values) for values in parameters])
         return cursors[-1] if cursors else None
@@ -191,7 +177,6 @@ class Connection:
     def rollback(self):
         if not self.failed and self.in_transaction:self.execute('ROLLBACK')
     def close(self):
-        self._clear_memo()
         if self.baton is not None:
             try:self.send({'baton': self.baton, 'requests': [{'type': 'close'}]})
             except Exception:pass

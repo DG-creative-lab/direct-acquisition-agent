@@ -3614,9 +3614,9 @@ See [serverless preparation](serverless-preparation.md) for bounded request,
 clock, storage and preview deployment contracts. These are synthetic operator
 checks, not live-model, public-access or autonomous-background guarantees.
 
-Hosted transaction snapshot reuse is bounded and connection-local. The focused
-regressions prove write invalidation, independent result cursors, fresh SQL
-functions and failure of COMMIT after provider rollback, before any dispatch.
+Hosted transport reuse retains exact independent request payloads on one HTTP
+connection. The focused regressions prove no retry after a lost response on a
+reused socket, no redirect forwarding and no submission after budget expiry.
 The start-race regression commits an independent original admission between the
 first receipt lookup and source read, then requires the original receipt rather
 than a revision conflict. Changed-input conflicts remain enforced.
