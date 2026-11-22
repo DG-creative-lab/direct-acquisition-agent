@@ -141,13 +141,13 @@ print(json.dumps(getattr(s,sys.argv[3])(**json.loads(sys.argv[4]))))
         jid,app,native,run=self.at_generation()
         script="""import sys,os
 from acquisition.bootstrap import build_hosted_preparations
-s=build_hosted_preparations(sys.argv[1],'operator',lambda:1794700800.)
+s=build_hosted_preparations(sys.argv[1],'operator',lambda:float(sys.argv[5]))
 r=s.journeys.store.get('operator',sys.argv[2])
 c=s.journeys.host.capabilities(r['inputs'],False).channels
-assert c.tasks.claim(sys.argv[3],1794700800.,1,run_id=sys.argv[4]) is not None
+assert c.tasks.claim(sys.argv[3],float(sys.argv[5]),1,run_id=sys.argv[4]) is not None
 os._exit(0)
 """
-        subprocess.run([sys.executable,'-c',script,str(self.path),jid,native,run],check=True)
+        subprocess.run([sys.executable,'-c',script,str(self.path),jid,native,run,str(self.now[0])],check=True)
         self.now[0]+=2
         current=self.cold('advance',journey_id=jid,expected_stage=3)
         self.assertEqual(current['progress']['outputs']['initial-run'],run)
@@ -191,11 +191,11 @@ os._exit(0)
 from acquisition.bootstrap import build_hosted_preparations
 class Exit:
  def complete(self,request):os._exit(0)
-s=build_hosted_preparations(sys.argv[1],'operator',lambda:1794700800.,_gateway=Exit())
+s=build_hosted_preparations(sys.argv[1],'operator',lambda:float(sys.argv[3]),_gateway=Exit())
 s.advance(sys.argv[2],3)
 raise AssertionError('Gateway was not reached')
 """
-        subprocess.run([sys.executable,'-c',script,str(self.path),jid],check=True)
+        subprocess.run([sys.executable,'-c',script,str(self.path),jid,str(self.now[0])],check=True)
         self.now[0]+=181
         result=self.cold('advance',journey_id=jid,expected_stage=3)
         self.assertEqual(result['progress']['status'],'blocked')
