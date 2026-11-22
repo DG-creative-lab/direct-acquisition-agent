@@ -20,7 +20,7 @@ from acquisition.contracts import Conflict, NotFound
 from acquisition.reasoning import ModelError
 from acquisition.runtime import LeaseLost
 
-NOW=1794700800.
+NOW=1795305600.
 
 
 class HostedPreparationTests(unittest.TestCase):
@@ -73,12 +73,24 @@ print(json.dumps(getattr(s,sys.argv[3])(**json.loads(sys.argv[4]))))
             self.assertEqual(self.snapshot(),before)
         self.assertEqual(state['progress']['status'],'ready')
         self.assertTrue(state['progress']['review']['validation']['review_ready'])
+        frozen=self.service().journeys.store.get('operator',jid)['inputs']
+        self.assertEqual(frozen['catalogue']['preparation_cadence'],'synthetic-hourly/v1')
         with closing(sqlite3.connect(self.path)) as db:
             self.assertEqual(db.execute('select count(*) from sequence_journeys').fetchone()[0],1)
             self.assertEqual(db.execute('select count(*) from channel_preparations').fetchone()[0],3)
             self.assertEqual(db.execute('select count(*) from model_calls').fetchone()[0],9)
             self.assertEqual(db.execute('select count(*) from sequence_review_decisions').fetchone()[0],0)
         with self.assertRaises(NotFound):self.service('foreign').status(jid)
+
+    def test_hourly_demonstration_still_blocks_expired_product_evidence_before_inference(self):
+        self.now[0]+=3*86400
+        current=self.start();jid=current['receipt']['journey_id']
+        for _ in range(3):
+            current=self.service().advance(jid,current['progress']['stage'])
+            if current['progress']['status']=='blocked':break
+        self.assertEqual(current['progress']['status'],'blocked')
+        with closing(sqlite3.connect(self.path)) as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM model_calls').fetchone()[0],0)
 
     def test_two_invocations_claim_one_native_task_and_late_lease_cannot_publish(self):
         jid,app,native,run=self.at_generation()

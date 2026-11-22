@@ -3620,3 +3620,8 @@ reused socket, no redirect forwarding and no submission after budget expiry.
 The start-race regression commits an independent original admission between the
 first receipt lookup and source read, then requires the original receipt rather
 than a revision conflict. Changed-input conflicts remain enforced.
+
+Hosted cadence is frozen separately from lease time. The complete preparation
+regression runs on 22 November, rather than a historical fixture clock. The
+one-day hourly demonstration still blocks expired product evidence before any
+inference reservation. Historical/local multi-day journeys retain their cadence.

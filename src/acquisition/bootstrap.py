@@ -194,7 +194,7 @@ def build_sequence_journeys(path,clock=time.time,*,stage_ownership=False, remote
                 'aliases':['iwoca','flexi loan','flexi-loan'] if key=='iwoca' else ['fielddesk','field desk'],
                 'connections':connections,'segments':[{'key':s.key,'label':s.label} for s in profile.taxonomy.segments]})
         return {'schema':'installed-conversational-sequences/v1','organization':organization,'profiles':profiles,
-            **({'preparation_clock':'real-invocation/v1'} if _preparation_clock else {}),
+            **({'preparation_clock':'real-invocation/v1','preparation_cadence':'synthetic-hourly/v1'} if _preparation_clock else {}),
             'mode':'SYNTHETIC_ONLY','strategy':'taxonomy-order','channels':['email','human_call','followup'],
             'model_config':ModelConfig('offline/channel-content-v1',max_calls=5,max_output_tokens=2400,
                 max_input_bytes=32000,max_prompt_usd_per_million=0,max_completion_usd_per_million=0,

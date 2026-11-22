@@ -88,8 +88,12 @@ class SequenceJourneyWorkflow:
                 return {'outputs':outputs}
             outputs[stage+'-artifact']=view['artifact_id']
         elif stage=='review':
+            hourly=frozen['catalogue'].get('preparation_cadence')=='synthetic-hourly/v1'
+            cadence=({'call_delay_seconds':3600,'followup_delay_seconds':10800,
+                      'arm_b_call_delay_seconds':7200,'arm_b_followup_delay_seconds':14400} if hourly else {})
             request=SequenceRequest(profile,commands['decision'],commands['initial'],commands['call'],commands['followup'],
-                frozen['created_at'],frozen['created_at']+7*86400,frozen['interpretation']['budget_pence'],6,18)
+                frozen['created_at'],frozen['created_at']+(86400 if hourly else 7*86400),
+                frozen['interpretation']['budget_pence'],6,18,**cadence)
             proposal=app.sequence.campaigns.prepare(native,commands['sequence'],request)
             app.initialize_reviewers()
             opened=app.sequence.reviews.open(native,commands['review-open'],proposal['proposal_id'],'local-operator')

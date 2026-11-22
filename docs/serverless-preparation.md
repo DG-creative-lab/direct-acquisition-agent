@@ -21,7 +21,12 @@ review subject. A continuation names `expected_stage` and executes at most that
 one stage. An already completed stage returns `already_advanced` without another
 step. A future stage is rejected. A generation stage executes at most one native
 worker tick. Existing limits retain six recipients per channel, three content
-runs and five fixture calls per run. Ready is an unapproved exact subject;
+runs and five fixture calls per run. Hosted starts also freeze `preparation_cadence=synthetic-hourly/v1`: a one-day
+demonstration proposal with A calls/follow-ups at one/three hours and B at
+two/four hours. This uses the existing cadence contract and keeps every
+scheduled step subject to the unchanged evidence-validity checks. Existing local
+journeys keep their multi-day cadence. Expired fixture evidence still blocks
+preparation; this does not renew product facts. Ready is an unapproved exact subject;
 continuation never approves or simulates it.
 
 Hosted journeys freeze `preparation_clock=real-invocation/v1` in their catalogue.
