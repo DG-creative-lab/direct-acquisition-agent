@@ -1,0 +1,246 @@
+{
+  "schema": "hosted-stage-binding-review-fix/v1",
+  "recorded_on": "2026-11-22",
+  "source_commit": "4a6d94daed153908a51d2be4e76c043287bb9ea4",
+  "comparison_base": "e00c7592fa4dff2409e1015a1b455722569d4bb4",
+  "finding": "P1: a delayed expected_stage request could reload and execute the following stage",
+  "fix": "Hosted continuation forwards expected_stage to SequenceJourneys.advance, which checks the exact row passed to host.step. Completed stages return the existing row. Future stages conflict outside the blocking handler.",
+  "confirmed_domain_map": {
+    "producer": "Authenticated hosted continue command with server-owned organization and explicit expected_stage",
+    "selection": "SequenceJourneys.advance loads scoped current row and applies the requested-stage gate before passing that same row to SequenceJourneyWorkflow.step",
+    "effects": "Native exact command admission, task lease and inference reservation retain their existing transactional authority checks",
+    "commit": "SqliteSequenceJourneys.progress retains its stage/status/outputs comparison inside the transaction",
+    "consumer": "Hosted status projects existing progress and an identity receipt with authority none",
+    "alternate_callers": "Local workspace and journey tests omit expected_stage and retain existing advancement behavior"
+  },
+  "regression": {
+    "red": {
+      "passed": false,
+      "tests": 2,
+      "failures": 5,
+      "errors": 3,
+      "seconds": 5.806,
+      "path": "/private/tmp/iwoca-stage-fix-red.log",
+      "sha256": "338c31d2c9ca8be6e6acda62beec2c2b5e3c07dff0cc0b92d6e3f2ca6d329c68",
+      "interpretation": "Old implementation changed durable records at stage 0 and generation stage 3. Later subtests cascaded after those unwanted advances."
+    },
+    "finite_schedules": {
+      "sqlite_delayed_before_execution_reload": {
+        "covered": 7,
+        "modeled": 7,
+        "winner": "fresh subprocess",
+        "oracle": "exact database dump equality after losing continuation"
+      },
+      "hrana_wire_delayed_before_execution_reload": {
+        "covered": 7,
+        "modeled": 7,
+        "winner": "independent connection",
+        "oracle": "exact database dump equality after losing continuation"
+      },
+      "future_stage_rejection": {
+        "covered": 2,
+        "modeled": 2,
+        "paths": [
+          "hosted service",
+          "journey execution service"
+        ],
+        "oracle": "Conflict with unchanged database dump"
+      },
+      "generation_effect_counts": "One content run and three fixture calls per requested generation stage; zero approval decisions"
+    }
+  },
+  "verification": {
+    "focused": {
+      "passed": true,
+      "tests": 24,
+      "seconds": 43.544,
+      "path": "/private/tmp/iwoca-stage-fix-focused-approved.log",
+      "sha256": "6a6f6868b67befb826104259421741cdc6c65587ce652832206e04c99f3df6ae"
+    },
+    "make_test": {
+      "passed": true,
+      "tests": 1120,
+      "seconds": 1133.783,
+      "path": "/private/tmp/iwoca-stage-fix-full.log",
+      "sha256": "055bc2970ddc0c82506f1f32a444d1290c2eba7a51bf76b6db6b6ebf855007c4"
+    },
+    "make_arch_check": {
+      "passed": true,
+      "modules": 216,
+      "exceptions": 0,
+      "path": "/private/tmp/iwoca-stage-fix-architecture.log",
+      "sha256": "c5c330f61f676177b4d72da6967d17081268737443223c212f441f737f141124"
+    },
+    "make_boundary_check": {
+      "passed": true,
+      "cases": 5,
+      "network_attempts": 0,
+      "source_stable": true,
+      "historical_bytes_unchanged": true,
+      "path": "/private/tmp/iwoca-stage-fix-boundary/results.json",
+      "sha256": "6e40cd162971154bd002ec81a979c730003b958891072751e5d65521d624799f"
+    },
+    "real_turso": {
+      "schema": "hosted-stage-binding-conformance/v1",
+      "passed": true,
+      "organization": "hosted_stage_fix_8a5af6fbd4cc426993b4b0efec10ee40",
+      "source_commit": "4a6d94daed153908a51d2be4e76c043287bb9ea4",
+      "source_dirty": false,
+      "synthetic": true,
+      "live_model_calls": 0,
+      "stages": [
+        {
+          "requested_stage": 0,
+          "observed_stage": 1,
+          "unchanged_after_loser": true,
+          "runs": 0,
+          "fixture_calls": 0,
+          "evidence_sha256": "04aa7c4526e6ac93715596674871c371bb2c308ffec1eccb5992f7e489bb9edc",
+          "seconds": 8.99
+        },
+        {
+          "requested_stage": 1,
+          "observed_stage": 2,
+          "unchanged_after_loser": true,
+          "runs": 0,
+          "fixture_calls": 0,
+          "evidence_sha256": "fdbfe689464150e2fa9811de27c77aca2e2f5c1ed0240930afef269a2c0a94e0",
+          "seconds": 7.499
+        },
+        {
+          "requested_stage": 2,
+          "observed_stage": 3,
+          "unchanged_after_loser": true,
+          "runs": 0,
+          "fixture_calls": 0,
+          "evidence_sha256": "836c159ed78fad0d98945367a493f21641be35fe7e3f4578f4c62a11aca0956e",
+          "seconds": 19.293
+        },
+        {
+          "requested_stage": 3,
+          "observed_stage": 4,
+          "unchanged_after_loser": true,
+          "runs": 1,
+          "fixture_calls": 3,
+          "evidence_sha256": "c4da2706cdd96d5f47c842e0a753931011f68245f24c77ec13e50b9ce7093577",
+          "seconds": 53.717
+        },
+        {
+          "requested_stage": 4,
+          "observed_stage": 5,
+          "unchanged_after_loser": true,
+          "runs": 2,
+          "fixture_calls": 6,
+          "evidence_sha256": "0694c2ab18945696b7ec8e26dbacd0d4fa22443faa6075eb6e0d152053223430",
+          "seconds": 80.196
+        },
+        {
+          "requested_stage": 5,
+          "observed_stage": 6,
+          "unchanged_after_loser": true,
+          "runs": 3,
+          "fixture_calls": 9,
+          "response_reconciled": true,
+          "proof": "Trace reached HostedPreparations.status only after the helper passed the row-stage and exact pre/post durable-snapshot assertions. A fresh invocation then observed stage 6 and three original runs/nine calls."
+        },
+        {
+          "requested_stage": 6,
+          "observed_stage": 7,
+          "unchanged_after_loser": true,
+          "runs": 3,
+          "fixture_calls": 9,
+          "response_reconciled": true,
+          "schedule": "Fresh execution-service invocation resumes the same requested stage after the winner committed ready but its response failed. Hosted response path was not rerun."
+        }
+      ],
+      "initial_admission_conflict_retained": "/private/tmp/iwoca-stage-fix-remote-initial.json",
+      "original_command_reconciled": true,
+      "journey_id": "journey_734dff1f658bb16f0f249e6d426bdb7542ca2fc8149eb06f21895031e725a3b7",
+      "completed_stage_binding_schedules": 7,
+      "modeled_stage_binding_schedules": 7,
+      "completed_original_responses": 5,
+      "final_observed_stage": 7,
+      "final_observed_status": "ready",
+      "fixture_calls": 9,
+      "content_runs": 3,
+      "approval_decisions": 0,
+      "authority": "none",
+      "retained_status_failure": {
+        "path": "/private/tmp/iwoca-stage-fix-remote-status-failure.json",
+        "trace": "/private/tmp/iwoca-stage-fix-remote-reconciled.log",
+        "error_type": "RemoteUnavailable",
+        "cause": "Not established; the held invocation waited for a cold winning process within its existing I/O budget."
+      },
+      "final_review_attempt": {
+        "completed": false,
+        "trace": "/private/tmp/iwoca-stage-fix-remote-final-reconciliation.log",
+        "result": "Winning cold process returned a non-zero status before the delayed review-stage gate could run. Its underlying error was not retained by the helper. No complete remote conformance pass is claimed."
+      },
+      "all_stage_binding_assertions_passed": true,
+      "complete_response_conformance": false,
+      "status": "ready",
+      "final_review_execution_gate_reconciled": true,
+      "artifact": {
+        "path": "/private/tmp/iwoca-stage-fix-remote.json",
+        "sha256": "c5c115e29df13547899db67979dda8a5ea1cb39f16bd9513717afb27582ffc23"
+      },
+      "helper": {
+        "path": "/private/tmp/iwoca-stage-fix-remote.py",
+        "sha256": "c25c7357c6498a46d91128f76c4baae47fb8c0c44d6ada23af49bd490dfe9ee1"
+      },
+      "reconciliation_helper": {
+        "path": "/private/tmp/iwoca-stage-fix-remote-reconcile.py",
+        "sha256": "8c6e9e509a5c20d92268c6c238167995be6ada2148681901e24024f3e680c5c9"
+      },
+      "read_only_observation_helper": {
+        "path": "/private/tmp/iwoca-stage-fix-remote-observe.py",
+        "sha256": "b61568faf3b8d7301c8efdfb192bcaae789d4e0ae561fe758aa7722b4d9f9c0f"
+      },
+      "final_execution_gate_helper": {
+        "path": "/private/tmp/iwoca-stage-fix-final-gate.py",
+        "sha256": "0bda23d2baa52d3159c928d5abcddb203c2f97d0115c098efc2f570d68af81a7"
+      }
+    }
+  },
+  "retained_nonpassing_observations": [
+    {
+      "kind": "sandbox_restricted_loopback",
+      "result": "Initial focused suite could not open local HTTP fixtures. Approved rerun passed all 24 tests.",
+      "artifact": {
+        "path": "/private/tmp/iwoca-stage-fix-focused.log",
+        "sha256": "f0a7a2996cfb2b5d665dd0ac4688176d447d8180f230e8ced60f43ea560f2a2a"
+      }
+    },
+    {
+      "kind": "initial_remote_admission_conflict",
+      "result": "Initial new-journey admission rejected before any stage execution. Reconciliation of the exact original start command admitted it. Cause not established; this is not evidence of a stage-race failure or a generally fixed admission issue.",
+      "artifact": {
+        "path": "/private/tmp/iwoca-stage-fix-remote-initial.json",
+        "sha256": "a0d522259590a4022a41f22925af5f83b1ae671e18b7f92796bfdd7b96c9c6ba"
+      },
+      "reconciliation": {
+        "path": "/private/tmp/iwoca-stage-fix-admission-probe.log",
+        "sha256": "c689d963e7e8a79fe28e964401f2bb29da0222bce018050b07b418263adf3903"
+      }
+    },
+    {
+      "kind": "remote_status_response_unavailable",
+      "result": "At stage 5 the delayed invocation passed both the stage-bound and unchanged-durable-snapshot assertions, then failed while projecting status. A fresh invocation observed stage 6, the same three runs and nine calls. The final explicit stage-6 winner committed ready but exited before acknowledging it. Fresh observation confirmed stage 7, and the original stage-6 execution-service request returned that row without changing durable evidence. All seven execution gates passed, including recovery of the final gate. Five original hosted responses completed; full response-path conformance is not claimed. Causes of the unavailable responses were not established.",
+      "artifact": {
+        "path": "/private/tmp/iwoca-stage-fix-remote-status-failure.json",
+        "sha256": "6e7dc0c10fe8453f3e7202741ade0cd4346701542dcc459bae0f44c742cde72f"
+      },
+      "trace": {
+        "path": "/private/tmp/iwoca-stage-fix-remote-reconciled.log",
+        "sha256": "fd749271094c5d3609f0fc149e69b6b6e6ae351333c06be5875e9482b4473eac"
+      }
+    }
+  ],
+  "limits": [
+    "Deterministic delayed-before-reload schedules do not exhaust every distributed interleaving.",
+    "Remote verification executed committed Python source directly against the existing isolated Turso database; no new Vercel deployment was made.",
+    "The earlier preview and immutable evidence remain bound to source 2ba484a.",
+    "No frontend edits, interface-check, live model calls, outbound delivery, public release, new resource or production promotion.",
+    "The unrelated original checkout remains dirty and preserved."
+  ]
+}

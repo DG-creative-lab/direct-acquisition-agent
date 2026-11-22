@@ -3671,3 +3671,22 @@ journey also exercises all seven delayed-request boundaries on independent
 connections. These are finite deterministic schedules, not a claim about every
 possible distributed interleaving. Verification for this fix is recorded
 separately from the earlier immutable deployment evidence.
+
+Verification of source `4a6d94d`: `make test` passed 1,120 tests in 1133.783
+seconds; the focused suite passed 24 tests in 43.544 seconds. `make arch-check`
+passed with 216 modules and zero exceptions. All five `make boundary-check`
+cases passed with zero network attempts, stable source and unchanged historical
+bytes. One final full backend run was used for this fix.
+
+The existing isolated Turso database also retained all seven requested-stage
+fences, three original content runs, nine fixture calls and zero approvals.
+That probe includes partial responses: the first admission conflicted and was
+reconciled under its original command; stage 5 failed during status projection,
+and the final review winner committed ready before its response failed. Fresh
+reads confirmed saved progress, and a fresh stage-6 execution-service replay
+changed no durable evidence. Causes of those response failures were not
+established. This proves the recorded stage gates and reconciliation results,
+not a fully passing remote response-path run. No new deployment was made.
+
+See the separate [review-fix verification record](evaluations/issue-60-serverless-stage-binding-2026-11-22.json)
+for exact schedules, source commit, artifact hashes and retained failures.

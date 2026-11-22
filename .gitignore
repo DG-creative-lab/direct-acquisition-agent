@@ -101,3 +101,4 @@ dist/
 
 !/docs/serverless-preparation.md
 !/docs/evaluations/issue-60-serverless-preparation-2026-11-22.json
+!/docs/evaluations/issue-60-serverless-stage-binding-2026-11-22.json
