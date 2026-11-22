@@ -98,3 +98,6 @@ dist/
 
 !/docs/remote-storage.md
 !/docs/evaluations/issue-60-remote-storage-2026-11-21.json
+
+!/docs/serverless-preparation.md
+!/docs/evaluations/issue-60-serverless-preparation-2026-11-22.json

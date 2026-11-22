@@ -3,6 +3,7 @@ import base64
 import json
 import math
 import sqlite3
+import time
 import urllib.request
 from urllib.parse import urlsplit
 
@@ -29,11 +30,11 @@ def endpoint(url):
 
 
 class Http:
-    def __init__(self, url, token, timeout=10):
+    def __init__(self, url, token, timeout=10, *, deadline=None):
         self.url = endpoint(url)
         if not token or '\n' in token or '\r' in token:
             raise ValueError('A server-side database token is required')
-        self._token, self.timeout = token, timeout
+        self._token, self.timeout, self.deadline = token, timeout, deadline
         # A redirect must never forward the bearer credential to another host.
         class NoRedirect(urllib.request.HTTPRedirectHandler):
             def redirect_request(self, *args, **kwargs):
@@ -41,10 +42,12 @@ class Http:
         self.opener = urllib.request.build_opener(NoRedirect())
 
     def __call__(self, payload):
+        remaining = self.timeout if self.deadline is None else min(self.timeout,self.deadline-time.monotonic())
+        if remaining <= 0:raise RemoteUnavailable('Invocation storage budget exhausted')
         request = urllib.request.Request(self.url, json.dumps(payload).encode(),
             {'Authorization': 'Bearer ' + self._token, 'Content-Type': 'application/json'})
         try:
-            with self.opener.open(request, timeout=self.timeout) as response:
+            with self.opener.open(request, timeout=remaining) as response:
                 return json.load(response)
         except Exception:
             raise RemoteUnavailable('Remote storage acknowledgement unavailable') from None

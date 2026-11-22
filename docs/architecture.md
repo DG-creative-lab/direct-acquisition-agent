@@ -459,3 +459,10 @@ The explicit [remote libSQL adapter](remote-storage.md) reuses application SQL w
 through Hrana 3 transactions selected in bootstrap. It retains the modular
 monolith, scope and admission authorities. Remote workspace identity and bounded
 serverless continuation remain separate integration work.
+
+The protected [serverless preparation surface](serverless-preparation.md) uses
+conversation-owned frozen inputs and the existing native sequence stages.
+Bootstrap selects shared application storage; the operator HTTP adapter resolves
+a fixed server-owned scope and has no approval or dispatch route. Hosted
+preparation freezes a real invocation clock policy for recoverable leases while
+local simulations keep their synthetic clock. No new database schema is added.

@@ -213,7 +213,10 @@
     "acquisition.adapters.turso": "adapter",
     "acquisition.adapters.turso.admissions": "adapter",
     "acquisition.adapters.turso.database": "adapter",
-    "acquisition.adapters.turso.transport": "adapter"
+    "acquisition.adapters.turso.transport": "adapter",
+    "acquisition.conversations.hosted_preparation": "application",
+    "acquisition.adapters.http.serverless_preparation": "transport",
+    "acquisition.entrypoints.serverless_preparation": "entrypoint"
   },
   "exceptions": []
 }

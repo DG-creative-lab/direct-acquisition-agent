@@ -3592,3 +3592,24 @@ path. Both old and new paths remain visible to the selector. All eight CI-tool
 tests and architecture (213 modules, zero exceptions) passed locally. No test
 cases were removed, and production application code is unchanged. Full hosted
 checks will verify the fix branch's selected suite before merge.
+
+## Request-bound synthetic serverless preparation
+
+The protected operator surface reuses native conversation and sequence journals.
+Its invariant oracles are committed SQLite data, original receipts and actual
+call reservations across independent processes, rather than process-local locks.
+
+| Invariant | Regression and independent observation |
+| --- | --- |
+| Exact start converges | Concurrent starts retain one conversation/journey and reject changed profile or budget |
+| One displayed stage per request | Cold-process continuation and same-stage replay retain exact native runs, calls and progress |
+| Reads have no work effects | Repeated status requests, including ready review, leave the database dump unchanged |
+| Authority stays server-owned | Wrong Host/Origin/token and client organization/role/model fields fail before composition |
+| Native leases remain real | A killed claim expires and a cold invocation resumes its original run; late settlement cannot publish |
+| Stop fences effects | Stop before reservation makes zero calls; stop after recorded generation cannot publish an artifact |
+| Uncertainty survives death | Process exit after reservation and I/O-budget expiry retain one reserved call with no repeat or artifact |
+| No approval through continuation | The ready sequence retains zero review decisions and no simulation |
+
+See [serverless preparation](serverless-preparation.md) for bounded request,
+clock, storage and preview deployment contracts. These are synthetic operator
+checks, not live-model, public-access or autonomous-background guarantees.
