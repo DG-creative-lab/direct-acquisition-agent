@@ -1,0 +1,601 @@
+{
+  "schema": "serverless-preparation-verification/v1",
+  "recorded_at": "2026-11-22T15:35:20.435206+00:00",
+  "issue": 60,
+  "base_commit": "5e37b259ae72c05adca2c390a266ee46cff9fe9d",
+  "implementation_commit": "2ba484ac355389647c3e6118bdeceeb5891d9dce",
+  "branch": "feature/60-serverless-continuation",
+  "passed": true,
+  "synthetic": true,
+  "contract": {
+    "workflow": "existing public conversation and seven-stage sequence preparation",
+    "storage": "registered schema-23 Turso resource; no per-request migration or local fallback",
+    "identity": "server-owned operator organization and shared secret; exact Host and optional Origin checks",
+    "progress": "request-bound; expected_stage replay; no background trigger",
+    "clock": "real-invocation/v1",
+    "cadence": "synthetic-hourly/v1; one-day proposal; existing evidence checks",
+    "io_budget_seconds": 120,
+    "function_maximum_seconds": 180,
+    "maximum_worker_ticks_per_generation_request": 1,
+    "maximum_recipients_per_channel": 6,
+    "maximum_content_runs": 3,
+    "maximum_fixture_calls_per_run": 5,
+    "transaction_memo": {
+      "hosted_turso_only": true,
+      "cross_transaction_reuse": false,
+      "domain_validation_skipped": false,
+      "maximum_entries": 4096,
+      "maximum_key_bytes": 1048576,
+      "maximum_result_bytes": 1048576,
+      "maximum_combined_key_and_result_bytes": 16777216,
+      "remote_commit_guard_always_required": true
+    }
+  },
+  "checks": {
+    "backend": {
+      "passed": true,
+      "tests": 1118,
+      "seconds": 1196.796,
+      "source_commit": "2ba484ac355389647c3e6118bdeceeb5891d9dce",
+      "log": {
+        "path": "/private/tmp/iwoca-serverless-full-snapshot.log",
+        "sha256": "7451565956762061a731067d4a16f7faec96b10822e6e8180265d93a6b2f38da"
+      }
+    },
+    "focused": {
+      "passed": true,
+      "tests": 22,
+      "seconds": 35.17,
+      "source_commit": "2ba484ac355389647c3e6118bdeceeb5891d9dce",
+      "log": {
+        "path": "/private/tmp/iwoca-serverless-focused-snapshot-verified.log",
+        "sha256": "fcd66006ee0376cc1643b134fbea2ba1abc527371b3ef0f0a37a82e71ff11142"
+      }
+    },
+    "architecture": {
+      "passed": true,
+      "classified_modules": 216,
+      "temporary_exceptions": 0,
+      "source_commit": "2ba484ac355389647c3e6118bdeceeb5891d9dce"
+    },
+    "native_boundary": {
+      "passed": true,
+      "cases": 5,
+      "network_attempts": 0,
+      "source_state_stable": true,
+      "historical_bytes_unchanged": true,
+      "source_commit": "2ba484ac355389647c3e6118bdeceeb5891d9dce",
+      "result": {
+        "path": "/private/tmp/iwoca-serverless-boundary-snapshot/results.json",
+        "sha256": "309c34c5f56f9001ac6eda6edd2bebda81d550e3ea8030c31b7b71e186c10e8e"
+      }
+    },
+    "package": {
+      "source_commit": "2ba484ac355389647c3e6118bdeceeb5891d9dce",
+      "files": 236,
+      "all_payload_hashes_verified": true,
+      "standalone_handler_import": true,
+      "static_output_only_public_index": true,
+      "manifest": {
+        "path": "/private/tmp/iwoca-serverless-package-snapshot/serverless-preparation-source.json",
+        "sha256": "5a005820f97817938ea4b05cd7be8df74f0a8b3992bb89e969f83e32e0022d58"
+      }
+    },
+    "protected_http": {
+      "schema": "protected-serverless-http-conformance/v1",
+      "source_commit": "2ba484ac355389647c3e6118bdeceeb5891d9dce",
+      "deployment_url": "https://direct-acquisition-feasibility-1qrr5zdar-dessigs-projects.vercel.app",
+      "target": "preview",
+      "organization": "hosted_snapshot_final_2ba484a",
+      "synthetic": true,
+      "passed": true,
+      "phases": [
+        {
+          "stage": "start",
+          "seconds": [
+            2.28,
+            2.322
+          ]
+        },
+        {
+          "stage": 0,
+          "seconds": 2.933,
+          "replay_seconds": 1.907
+        },
+        {
+          "stage": 1,
+          "seconds": 2.591,
+          "replay_seconds": 2.138
+        },
+        {
+          "stage": 2,
+          "seconds": 4.239,
+          "replay_seconds": 1.891
+        },
+        {
+          "stage": 3,
+          "seconds": 7.814,
+          "replay_seconds": 2.514
+        },
+        {
+          "stage": 4,
+          "seconds": 11.27,
+          "replay_seconds": 2.285
+        },
+        {
+          "stage": 5,
+          "seconds": 17.638,
+          "replay_seconds": 2.214
+        },
+        {
+          "stage": 6,
+          "seconds": 20.221,
+          "replay_seconds": 6.002
+        }
+      ],
+      "operator_auth_required": true,
+      "journey_id": "journey_aede1f561fbf290c2ee0e4e9b76d6368bde6799b5a99f2d3da4c55bec8285496",
+      "concurrent_start_converged": true,
+      "changed_input_rejected": true,
+      "status": "ready",
+      "unapproved": true,
+      "fixture_calls": 9,
+      "content_runs": 3,
+      "review_decisions": 0,
+      "live_model_calls": 0,
+      "status_read_only": true,
+      "same_stage_replay_observed": true
+    },
+    "cold_process_recovery": {
+      "schema": "serverless-cold-recovery-reconciliation/v1",
+      "source_commit": "2ba484ac355389647c3e6118bdeceeb5891d9dce",
+      "synthetic": true,
+      "organization": "hosted_snapshot_final_2ba484a",
+      "journey_id": "journey_87aeba7f2f843311764542837ef4b36a79dfb5b52ac93cb41fc1a38a6da880d7",
+      "deployment_url": "https://direct-acquisition-feasibility-1qrr5zdar-dessigs-projects.vercel.app",
+      "passed": true,
+      "original_run_id": "run_dcbe633dfa84432cb98bcb9bdadf003c",
+      "original_task_id": "9d47edc7bc204f03a58e0351bb7431db",
+      "abrupt_process_exit_after_claim": true,
+      "original_run_reused": true,
+      "attempts_before": 1,
+      "attempts_after": 2,
+      "claim_elapsed_seconds": 19.674,
+      "calls_before": 0,
+      "recorded_fixture_calls_after": 3,
+      "replay_read_only": true,
+      "stop_observed": true,
+      "stop_status": "cancelled",
+      "stop_replay_read_only": true,
+      "post_stop_continuation_read_only": true,
+      "foreign_organization_not_found": true,
+      "live_model_calls": 0,
+      "oracle_correction": "The native stop lifecycle is cancelled; the first operator assertion expected stopped after all recovery assertions had passed."
+    },
+    "remote_provenance_equivalence": {
+      "schema": "transaction-snapshot-provenance-profile/v1",
+      "read_only": true,
+      "requests": 2053,
+      "passed": true,
+      "source_commit": "2ba484ac355389647c3e6118bdeceeb5891d9dce",
+      "fingerprint": "a3d7bd944915dcf221741427d2157c78f1b128b39f8c4c0a3526bc2a0501c4aa",
+      "matches_prior_complete_provenance": true,
+      "memo_bytes": 197047,
+      "memo_entries": 50,
+      "seconds": 49.993
+    },
+    "deployment": {
+      "deployment": {
+        "id": "dpl_3YC5FHzcwMq5QPufHz2t1YzwHgCN",
+        "url": "direct-acquisition-feasibility-1qrr5zdar-dessigs-projects.vercel.app",
+        "state": "READY",
+        "target": null,
+        "regions": [
+          "dub1"
+        ]
+      },
+      "project": {
+        "id": "prj_nWuU1QJdN0n5tGerMEkSJlLHw9JQ",
+        "name": "direct-acquisition-feasibility",
+        "live": false,
+        "ssoProtection": {
+          "enabled": true,
+          "deploymentType": "all_except_custom_domains"
+        },
+        "latestDeployment": {
+          "id": "dpl_3YC5FHzcwMq5QPufHz2t1YzwHgCN",
+          "url": "direct-acquisition-feasibility-1qrr5zdar-dessigs-projects.vercel.app",
+          "createdAt": 1795360450653,
+          "readyState": "READY",
+          "target": null
+        }
+      }
+    }
+  },
+  "observed_rate_limit": {
+    "source_commit": "94082ba883422e2f1552a9e28037e406bc6e72d3",
+    "diagnostic": "exception branch only; successful transport path unchanged",
+    "http_status": 429,
+    "exception_type": "ValueError",
+    "observed_at": "2026-11-22T14:59:34.752Z",
+    "deployment_id": "dpl_8STj9LPNHDSJDqoEee5nfq3Nxf1E",
+    "production_wiring_changed": false,
+    "automatic_request_retry_added": false
+  },
+  "retained_observations": [
+    {
+      "label": "Initial direct-process I/O budget exhaustion",
+      "record": {
+        "schema": "serverless-preparation-conformance/v1",
+        "synthetic": true,
+        "passed": false,
+        "source_commit": "b77fd492c54bf0eb44e9076e6f39229364d32f3c",
+        "organization": "hosted_probe_d5ded39b37184f23b7a629a2b5c90297",
+        "source_dirty": false,
+        "phase": "stage_3",
+        "error_type": "RemoteUnavailable"
+      },
+      "artifact": {
+        "path": "/private/tmp/iwoca-serverless-remote.json",
+        "sha256": "476ab5ccc8e5ec01cdae41022b75f37085f5e7f12855d7b22e032d5b5bdd579f"
+      }
+    },
+    {
+      "label": "Earlier small read memo did not resolve remote volume",
+      "record": {
+        "schema": "serverless-preparation-conformance/v1",
+        "synthetic": true,
+        "passed": false,
+        "source_commit": "e3f56b6e8bfcbddaad87fedc0527c9c1a76ca27d",
+        "organization": "hosted_probe_8f6974d74fe04d158d9439ee16d1337a",
+        "source_dirty": false,
+        "phase": "stage_3",
+        "error_type": "RemoteUnavailable"
+      },
+      "artifact": {
+        "path": "/private/tmp/iwoca-serverless-remote-e3f56b6.json",
+        "sha256": "2b5c2dadbf336ccb1b03f25c937027edf8f98451778f8f7ee1df79cefd784252"
+      }
+    },
+    {
+      "label": "Persistent transport direct-process interruption",
+      "record": {
+        "schema": "serverless-preparation-conformance/v1",
+        "synthetic": true,
+        "passed": false,
+        "source_commit": "85131125c59b2f5a4636d1c150ffebad123f060b",
+        "organization": "hosted_probe_d6a4e672168a4cb4b7fbeaf9d2f66a06",
+        "source_dirty": false,
+        "phase": "stage_4",
+        "error_type": "RemoteUnavailable"
+      },
+      "artifact": {
+        "path": "/private/tmp/iwoca-serverless-remote-persistent.json",
+        "sha256": "9efd689b4318257a9c9237e32024bf800bba05df0018761fd92d6026f914c422"
+      }
+    },
+    {
+      "label": "Original multi-day cadence correctly blocked dated fixture evidence",
+      "record": {
+        "schema": "protected-serverless-http-conformance/v1",
+        "source_commit": "85131125c59b2f5a4636d1c150ffebad123f060b",
+        "deployment_url": "https://direct-acquisition-feasibility-cwmg9noon-dessigs-projects.vercel.app",
+        "target": "preview",
+        "organization": "hosted_preview_930ccb1b575b498ea792b57793ebb35b",
+        "synthetic": true,
+        "passed": false,
+        "phases": [
+          {
+            "stage": "start",
+            "seconds": [
+              2.513,
+              2.465
+            ]
+          },
+          {
+            "stage": 0,
+            "seconds": 3.323,
+            "replay_seconds": 2.076
+          },
+          {
+            "stage": 1,
+            "seconds": 2.962,
+            "replay_seconds": 1.917
+          },
+          {
+            "stage": 2,
+            "seconds": 7.013,
+            "replay_seconds": 1.932
+          },
+          {
+            "stage": 3,
+            "seconds": 17.87,
+            "replay_seconds": 2.041
+          },
+          {
+            "stage": 4,
+            "seconds": 27.658,
+            "replay_seconds": 2.603
+          },
+          {
+            "stage": 5,
+            "seconds": 54.561,
+            "replay_seconds": 2.546
+          }
+        ],
+        "operator_auth_required": true,
+        "journey_id": "journey_000b7b6d83e3d2516cbed9f8ccf6b66c20fc03e6024acedf9f41e3b2eccff5fd",
+        "concurrent_start_converged": true,
+        "error_type": "AssertionError"
+      },
+      "artifact": {
+        "path": "/private/tmp/iwoca-serverless-preview-check.json",
+        "sha256": "754531e65ffd1e237483952576068ea5ffaeca0fac39493ba914ece1f19f9bd1"
+      }
+    },
+    {
+      "label": "Idle operator reader failed after all seven stage requests completed",
+      "record": {
+        "schema": "protected-serverless-http-conformance/v1",
+        "source_commit": "33217992b54dd57231199d347395b5c8ee71ea4c",
+        "deployment_url": "https://direct-acquisition-feasibility-mbbj2kf0o-dessigs-projects.vercel.app",
+        "target": "preview",
+        "organization": "hosted_acceptance_3321799",
+        "synthetic": true,
+        "passed": false,
+        "phases": [
+          {
+            "stage": "start",
+            "seconds": [
+              2.548,
+              2.521
+            ]
+          },
+          {
+            "stage": 0,
+            "seconds": 2.774,
+            "replay_seconds": 2.022
+          },
+          {
+            "stage": 1,
+            "seconds": 2.474,
+            "replay_seconds": 1.714
+          },
+          {
+            "stage": 2,
+            "seconds": 6.145,
+            "replay_seconds": 1.858
+          },
+          {
+            "stage": 3,
+            "seconds": 31.247,
+            "replay_seconds": 6.088
+          },
+          {
+            "stage": 4,
+            "seconds": 61.975,
+            "replay_seconds": 4.202
+          },
+          {
+            "stage": 5,
+            "seconds": 64.152,
+            "replay_seconds": 2.583
+          },
+          {
+            "stage": 6,
+            "seconds": 92.657,
+            "replay_seconds": 14.712
+          }
+        ],
+        "operator_auth_required": true,
+        "journey_id": "journey_b32dfcd053778634f671e0f77132ced6e6487d19209905aa9d62e79f9a98928a",
+        "concurrent_start_converged": true,
+        "changed_input_rejected": true,
+        "error_type": "RemoteUnavailable"
+      },
+      "artifact": {
+        "path": "/private/tmp/iwoca-serverless-preview-acceptance.json",
+        "sha256": "c4fdd53061be42f712e0ba91992a2c7fa18f8fbf153cff2ee2c26451c677013a"
+      }
+    },
+    {
+      "label": "Unoptimized clean preview stopped at follow-up admission",
+      "record": {
+        "schema": "protected-serverless-http-conformance/v1",
+        "source_commit": "94082ba883422e2f1552a9e28037e406bc6e72d3",
+        "deployment_url": "https://direct-acquisition-feasibility-8ylr40328-dessigs-projects.vercel.app",
+        "target": "preview",
+        "organization": "hosted_acceptance_94082ba",
+        "synthetic": true,
+        "passed": false,
+        "phases": [
+          {
+            "stage": "start",
+            "seconds": [
+              2.395,
+              2.362
+            ]
+          },
+          {
+            "stage": 0,
+            "seconds": 3.406,
+            "replay_seconds": 1.994
+          },
+          {
+            "stage": 1,
+            "seconds": 2.837,
+            "replay_seconds": 1.908
+          },
+          {
+            "stage": 2,
+            "seconds": 4.887,
+            "replay_seconds": 2.135
+          },
+          {
+            "stage": 3,
+            "seconds": 17.569,
+            "replay_seconds": 2.131
+          },
+          {
+            "stage": 4,
+            "seconds": 24.182,
+            "replay_seconds": 2.802
+          }
+        ],
+        "operator_auth_required": true,
+        "journey_id": "journey_58df1cfc4665e86e8b9a39527be0c1771efe11a050d66ab24f69b3d63a0d1e75",
+        "concurrent_start_converged": true,
+        "error_type": "AssertionError"
+      },
+      "artifact": {
+        "path": "/private/tmp/iwoca-serverless-preview-verified.json",
+        "sha256": "2d7bc35400eb8d3f0037e0c056a72eaff3b6c3ed8b0cd6ddc9d13169ad0806a1"
+      }
+    },
+    {
+      "label": "Unoptimized isolated preview stopped at follow-up admission",
+      "record": {
+        "schema": "protected-serverless-http-conformance/v1",
+        "source_commit": "94082ba883422e2f1552a9e28037e406bc6e72d3",
+        "deployment_url": "https://direct-acquisition-feasibility-k1evs5qex-dessigs-projects.vercel.app",
+        "target": "preview",
+        "organization": "hosted_clean_final_94082ba",
+        "synthetic": true,
+        "passed": false,
+        "phases": [
+          {
+            "stage": "start",
+            "seconds": [
+              2.474,
+              2.441
+            ]
+          },
+          {
+            "stage": 0,
+            "seconds": 3.966,
+            "replay_seconds": 2.451
+          },
+          {
+            "stage": 1,
+            "seconds": 3.067,
+            "replay_seconds": 1.699
+          },
+          {
+            "stage": 2,
+            "seconds": 4.667,
+            "replay_seconds": 1.905
+          },
+          {
+            "stage": 3,
+            "seconds": 16.565,
+            "replay_seconds": 2.375
+          },
+          {
+            "stage": 4,
+            "seconds": 26.113,
+            "replay_seconds": 2.389
+          }
+        ],
+        "operator_auth_required": true,
+        "journey_id": "journey_21fe9b48d04f9d1fd7efe5a447a16cd45f5ab5566c4ede72702b49084d0568d3",
+        "concurrent_start_converged": true,
+        "error_type": "AssertionError"
+      },
+      "artifact": {
+        "path": "/private/tmp/iwoca-serverless-isolated-clean-check.json",
+        "sha256": "88936a8dbc84c7097171d329e6473ba5f41aec5cd300c2865e2585f10bea67cd"
+      }
+    },
+    {
+      "label": "Exception-branch-only diagnostic reproduced rate limiting",
+      "record": {
+        "schema": "protected-serverless-http-conformance/v1",
+        "source_commit": "94082ba883422e2f1552a9e28037e406bc6e72d3",
+        "deployment_url": "https://direct-acquisition-feasibility-gqaymfq40-dessigs-projects.vercel.app",
+        "target": "preview",
+        "diagnostic": true,
+        "organization": "hosted_socket_diagnostic_94082ba",
+        "synthetic": true,
+        "passed": false,
+        "phases": [
+          {
+            "stage": "start",
+            "seconds": [
+              2.989,
+              2.92
+            ]
+          },
+          {
+            "stage": 0,
+            "seconds": 2.938,
+            "replay_seconds": 2.074
+          },
+          {
+            "stage": 1,
+            "seconds": 2.993,
+            "replay_seconds": 1.852
+          },
+          {
+            "stage": 2,
+            "seconds": 4.791,
+            "replay_seconds": 1.825
+          },
+          {
+            "stage": 3,
+            "seconds": 13.882,
+            "replay_seconds": 2.123
+          },
+          {
+            "stage": 4,
+            "seconds": 24.551,
+            "replay_seconds": 2.423
+          }
+        ],
+        "operator_auth_required": true,
+        "journey_id": "journey_0d432b5c034395b679c6ffd5ad2ab230e86161898968829c9a7609adb24af7a3",
+        "concurrent_start_converged": true,
+        "error_type": "AssertionError"
+      },
+      "artifact": {
+        "path": "/private/tmp/iwoca-serverless-catch-fresh-check.json",
+        "sha256": "96d12666393e4560b581cb170b25521a6ebef8fd02465e8fd83a850a6c29b830"
+      }
+    },
+    {
+      "label": "Cold recovery operator expected the wrong stop status",
+      "record": {
+        "schema": "serverless-cold-claim-conformance/v1",
+        "source_commit": "2ba484ac355389647c3e6118bdeceeb5891d9dce",
+        "synthetic": true,
+        "organization": "hosted_snapshot_final_2ba484a",
+        "deployment_url": "https://direct-acquisition-feasibility-1qrr5zdar-dessigs-projects.vercel.app",
+        "passed": false,
+        "error_type": "AssertionError"
+      },
+      "artifact": {
+        "path": "/private/tmp/iwoca-serverless-cold-claim-snapshot.json",
+        "sha256": "a3b4db9a35344837d662eac8c42fe618f13bb81e6e9e4bbdbcb62a22bd862448"
+      }
+    }
+  ],
+  "limits": [
+    "Operator-only protected synthetic preview, not public visitor identity or sessions.",
+    "Continuation requires an explicit request. No scheduler, queue or autonomous disconnect continuation was added.",
+    "No live model, model-quality, real CRM, outbound delivery or public production release was exercised.",
+    "The reviewed installed product facts retain their 24 November 2026 review date; expired evidence still blocks new generation.",
+    "The direct-process probe is sensitive to network distance. Retained budget and rate-limit failures are not availability guarantees.",
+    "Wider load and cross-region latency are not covered. HTTP errors still require original-command observation and reconciliation.",
+    "The earlier diagnostic deployments are evidence only. The accepted deployment contains only the committed package."
+  ],
+  "workspace": {
+    "isolated_worktree": "/private/tmp/iwoca-serverless-continuation",
+    "original_checkout_preserved": true,
+    "original_branch": "feature/offline-journey-evaluation",
+    "preserved_changes": [
+      ".gitignore",
+      "docs/channel-expansion-plan.md",
+      "frontend/test-results/"
+    ]
+  },
+  "evidence_note": "Executable checks and the deployed payload bind to implementation_commit. A later documentation-only commit records this evidence."
+}

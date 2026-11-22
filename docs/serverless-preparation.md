@@ -135,3 +135,10 @@ PYTHONPATH=src python3 -m scripts.serverless_preparation_conformance \
 Hosted visitor identity, own-company input, live generation, exact hosted
 exports, fresh remote provisioning, broader load and public release remain
 separate work. Historical campaign and verification artifacts stay unchanged.
+
+The [22 November verification record](evaluations/issue-60-serverless-preparation-2026-11-22.json)
+binds the complete protected preview, real cold recovery and local gates to one
+committed payload. The direct-process command remains sensitive to network
+distance; its failed budget observations are retained. The deployed acceptance
+ran beside the existing Ireland database. HTTP 429 and lost acknowledgements
+retain their original-command reconciliation contract.

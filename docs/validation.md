@@ -3638,3 +3638,17 @@ volatile, quoted or commented functions remain fresh. Regressions cover fresh
 cursors, exact inputs, write/new-transaction invalidation, combined key/result
 bounds and provider rollback before COMMIT, which must prevent dispatch. No
 memoized row is used across transactions or as approval authority.
+
+Verification on `2ba484a`: `make test` passed all 1,118 tests in 1196.796 seconds.
+The focused suite passed 22 tests. Architecture passed with 216 modules and zero
+exceptions. All five native boundary cases passed with zero network attempts,
+stable source and unchanged historical bytes. The clean protected Ireland
+preview completed seven stages, exact replay and read-only status with nine
+fixture calls, three content runs and zero review decisions. Its longest stage
+request took 20.221 seconds including CLI overhead. A real process exit after a
+remote claim recovered the same task/run after lease expiry, retained three
+fixture calls, and preserved cancellation, replay and foreign-scope fences.
+
+See the [commit-bound verification record](evaluations/issue-60-serverless-preparation-2026-11-22.json)
+for failed observations, the HTTP 429 diagnosis, provenance equivalence, package
+hashes and the operator-only scope. No live model or public release is claimed.
