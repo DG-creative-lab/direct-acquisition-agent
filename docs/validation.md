@@ -3418,3 +3418,8 @@ It also checks the persisted sequence reference against the actual SQLite event
 sequence. Before the fix this failed with `Provider snapshot is unavailable for
 this import receipt`. A small cursor contract case covers null and a row ID above
 IEEE-754's exact integer range. Historical verification artifacts are unchanged.
+
+Verification on `b9a2471`: `make test` passed all 1,096 tests in 1,117.733
+seconds. The focused storage suite passed all 14 tests; `make arch-check`
+passed with 213 modules and zero exceptions. The regression used a localhost
+Hrana fixture backed by real SQLite. No new live remote or model run is claimed.
