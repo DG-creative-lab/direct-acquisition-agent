@@ -12,7 +12,7 @@ are in [validation.md](validation.md).
 | Architecture | Module boundaries, private imports and cycles | Keep once, before backend tests. |
 | Mutation catalogue | Audits whether existing regression tests detect deliberately damaged implementations | Manual full audit for the MVP. Run on approval/isolation/lease/replay changes or before release. It is not a routine PR gate. |
 | Build and type check | Broken frontend types, imports and production assets | Keep for each isolated browser runner. |
-| Browser partitions | Displayed subjects, user decisions, reloads and lost responses against the real loopback API | Keep. One worker per isolated root preserves fixture sequencing. |
+| Browser partitions | Displayed subjects, user decisions, reloads and lost responses against the real loopback API | Keep all cases. Default on PRs, explicit `skip-browser-checks` PR opt-out, mandatory on main pushes. One worker per isolated root preserves fixture sequencing. |
 | Formatting | Source consistency | Optional quality policy; run once. |
 | Timing and browser artifacts | Diagnosis and shard estimates | Keep as diagnostics, not correctness checks. |
 | Integrated crash, rebuild and replay | Preserve authoritative rows and original command receipts through projection loss and process restart | Extend the existing lifecycle test in the backend suite. Run the broader evidence bundle on demand for boundary changes. |
@@ -22,6 +22,20 @@ value beyond existing checks, cost and cadence. Offline checks do not establish
 live model quality, real delivery, public authentication or universal race
 coverage. GitHub's effective main-branch rules had no required checks when
 inspected on 15 November 2026; repository settings were not changed.
+
+## Current browser opt-out, 22 November 2026
+
+The user authorized an explicit PR opt-out for Chromium. The label
+`skip-browser-checks` controls only browser installation, execution and evidence
+upload. Frontend build/type checks and formatting remain, along with all backend
+and architecture checks. Label addition/removal triggers the workflow again.
+Main pushes always run the full browser portfolio. Manual mutation-audit dispatch
+keeps its existing meaning. A skipped browser suite is not a passing browser
+verification; each opted-out interface job records that distinction in its summary.
+This CI optimization is verified with the browser suite enabled.
+
+Current partition costs and the preserved-test inventory are recorded in
+[ci-performance.md](ci-performance.md). Earlier measurements below are historical.
 
 ## Cost and shard estimates
 

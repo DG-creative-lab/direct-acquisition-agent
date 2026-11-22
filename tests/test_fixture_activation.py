@@ -9,6 +9,7 @@ import unittest
 from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
+from shutil import copytree
 from unittest.mock import patch
 
 from acquisition.bootstrap import build, build_workspace_checkpoint, initialize_fixture_workspace
@@ -27,14 +28,34 @@ OWNER = 'local-conversations'
 
 
 class FixtureActivationTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        temporary = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(temporary.cleanup)
+        cls.template = Path(temporary.name) / 'fixture'
+        seed = cls('runTest')
+        result = seed.process('-m', 'acquisition.workspace_fixture', '--root', cls.template)
+        if result.returncode:
+            raise AssertionError(result.stderr)
+        if list(cls.template.rglob('*.sqlite-wal')):
+            raise AssertionError('Fixture template must have closed SQLite connections')
+        cls.template_bytes = tree(cls.template)
+
+    @classmethod
+    def tearDownClass(cls):
+        if tree(cls.template) != cls.template_bytes:
+            raise AssertionError('A test modified the shared fixture template')
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.parent = Path(temporary.name)
         self.root = self.parent / 'fixture'
         self.now = 1793016000.
-        result = self.process('-m', 'acquisition.workspace_fixture', '--root', self.root)
-        self.assertEqual(result.returncode, 0, result.stderr)
+        # The CLI still initializes a fresh root once. Every behavior below gets
+        # its own closed, empty store, never a shared live database or authority.
+        copytree(self.template, self.root)
+        self.addCleanup(lambda: self.assertEqual(tree(self.template), self.template_bytes))
         self.w = self.workspace()
         gateway = patch('acquisition.bootstrap.workspace_gateway', side_effect=AssertionError('Provider initialized'))
         gateway.start()
@@ -870,6 +891,12 @@ assert p['status'] == 'retired' and len(p['history']) == 3
     def test_restored_fixture_grants_are_inspection_only_and_initialization_requires_fresh_root(self):
         cid = self.conversation()
         run = self.w._conversation_app().conversations.plan_fixture(OWNER, cid, 'queued', 1)
+        # The next test's initialization must not inherit this run or its grant.
+        independent = self.parent / 'independent'
+        copytree(self.template, independent)
+        with self.assertRaises(NotFound):
+            build(independent / 'conversations.sqlite').tasks.inspect(OWNER, run)
+        self.assertEqual(tree(self.template), self.template_bytes)
         bundle, restored = self.parent / 'bundle', self.parent / 'restored'
         checkpoint = build_workspace_checkpoint()
         manifest = checkpoint.create(self.root, bundle)

@@ -7,10 +7,10 @@ if (!/^[12]$/.test(shard)) throw new Error("BROWSER_SHARD must be 1 or 2");
 const partitions = process.env.BROWSER_SHARDS || "1";
 if (!/^[12]$/.test(partitions) || Number(shard) > Number(partitions))
   throw new Error("BROWSER_SHARDS must be 1 or 2 and include BROWSER_SHARD");
-// Whole-file partition from the measured local run. New files join partition 2.
+// Whole-file costs from main Actions run 45011234477. New files join partition 2.
 const firstPartition = [
   "**/chat-review.spec.mjs",
-  "**/review-regressions.spec.mjs",
+  "**/sequence-journey.spec.mjs",
 ];
 const port = 8769 + Number(shard);
 const baseURL = `http://127.0.0.1:${port}`;

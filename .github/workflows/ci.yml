@@ -3,6 +3,7 @@ on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   workflow_dispatch:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
@@ -54,6 +55,9 @@ jobs:
           python-version: '3.14'
       - run: python3 scripts/check_failure_mutations.py --shard "${{ matrix.shard }}" --shards 4
   interface:
+    # A PR may opt out of Chromium only. Main, types/build and formatting remain checked.
+    env:
+      RUN_BROWSER_CHECKS: ${{ github.event_name != 'pull_request' || !contains(github.event.pull_request.labels.*.name, 'skip-browser-checks') }}
     if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     strategy:
@@ -77,15 +81,18 @@ jobs:
           python-version: '3.14'
       - run: pnpm --dir frontend install --frozen-lockfile
       - run: pnpm --dir frontend exec playwright install --with-deps chromium
+        if: env.RUN_BROWSER_CHECKS == 'true'
       - run: pnpm --dir frontend run build
       - run: pnpm --dir frontend run format:check
         if: matrix.shard == 1
-      - run: pnpm --dir frontend test
+      - name: Run browser checks
+        run: pnpm --dir frontend test
+        if: env.RUN_BROWSER_CHECKS == 'true'
         env:
           BROWSER_SHARD: ${{ matrix.shard }}
           BROWSER_SHARDS: 2
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: always() && env.RUN_BROWSER_CHECKS == 'true'
         with:
           name: browser-evidence-${{ matrix.shard }}
           path: |
@@ -93,3 +100,6 @@ jobs:
             .local/browser-reports
           include-hidden-files: true
           retention-days: 7
+      - name: Record browser opt-out
+        if: env.RUN_BROWSER_CHECKS != 'true'
+        run: echo 'Chromium checks skipped by the skip-browser-checks PR label. Build, type checks, formatting and backend checks still run. Main always runs Chromium.' >> "$GITHUB_STEP_SUMMARY"

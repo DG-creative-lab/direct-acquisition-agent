@@ -31,6 +31,13 @@ class CIToolTests(unittest.TestCase):
                 self.assertEqual(len(groups), shards)
                 self.assertTrue(all(group.countTestCases() for group in groups))
                 self.assertCountEqual([test.id() for group in groups for test in cases(group)], expected)
+                # A module owns one class fixture lifecycle. Splitting its cases
+                # would repeat setup and could change sequencing assumptions.
+                owners = {}
+                for index, group in enumerate(groups):
+                    for test in cases(group):
+                        module = type(test).__module__
+                        self.assertEqual(owners.setdefault(module, index), index, module)
 
     def test_timing_preserves_test_identity_when_fixture_assigns_id(self):
         class UsesSubjectId(unittest.TestCase):
