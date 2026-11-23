@@ -1,0 +1,73 @@
+{
+  "date": "2026-11-23",
+  "original_head": "10fb1884b39d9594f56ebddf54994ff9fb46e7fc",
+  "failed_ci_run": "https://github.com/DG-creative-lab/direct-acquisition-agent/actions/runs/45070685061",
+  "failed_job": 137356712792,
+  "case": "complete offline journey at 1440px preserves monitoring and restart identities",
+  "original_failure": "Outer 120-second timeout; retained snapshot shows a paused schedule and an unresolved browser monitoring request.",
+  "cause": "The driver reloaded after a polled Resume monitoring button became visible, before the pause acknowledgement cleared the IndexedDB pending request.",
+  "controlled_regression": {
+    "injection": "Commit the pause through route.fetch, hold its acknowledgement until polling exposes a visible but disabled Resume monitoring control, then release after 250ms.",
+    "before_fix": "Failed cadence-pause-and-resume: Resume monitoring click timed out after reload; saved monitoring recovery prompt replaced the control.",
+    "before_log_sha256": "c19ef1e63994ce3df0afe50040658bdb600687e13db659c6aec867068bb54025",
+    "expected_result": "Wait until Resume monitoring is enabled before reloading; all original monitoring, restart, exact-export and learning assertions must pass."
+  },
+  "timeout_policy": {
+    "outer_test_ms": 120000,
+    "context_action_ms": 10000,
+    "context_navigation_ms": 15000,
+    "note": "Outer limit unchanged. Individual actions are bounded so phase failures can retain their trace and result."
+  },
+  "historical_evidence_rewritten": false,
+  "live_remote_database_run": false,
+  "live_model_run": false,
+  "focused_after_fix": {
+    "cases": 9,
+    "repetitions": 3,
+    "seconds": 156.530652,
+    "failures": 0,
+    "flaky": 0,
+    "skipped": 0,
+    "journey_observations": [
+      {
+        "id": "desktop-journey",
+        "passed": true,
+        "delayed_pause_acknowledgement": true
+      },
+      {
+        "id": "mobile-journey",
+        "passed": true,
+        "delayed_pause_acknowledgement": false
+      },
+      {
+        "id": "desktop-journey",
+        "passed": true,
+        "delayed_pause_acknowledgement": true
+      },
+      {
+        "id": "mobile-journey",
+        "passed": true,
+        "delayed_pause_acknowledgement": false
+      },
+      {
+        "id": "desktop-journey",
+        "passed": true,
+        "delayed_pause_acknowledgement": true
+      },
+      {
+        "id": "mobile-journey",
+        "passed": true,
+        "delayed_pause_acknowledgement": false
+      }
+    ],
+    "log_sha256": "5fa2e963d39da9eea282d7844c59bf2629618cbf83902348fcc5db83e2b99099"
+  },
+  "driver_sha256": "e97d87c7f428ad415281e3f7653950e869f1b93548bedd07819aabf4753983d7",
+  "format": "passed",
+  "architecture": {
+    "result": "passed",
+    "modules": 213,
+    "exceptions": 0
+  },
+  "hosted_verification": "Pending at capture; the correction commit check runs are available on PR #122."
+}

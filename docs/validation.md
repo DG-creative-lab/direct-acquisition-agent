@@ -3487,3 +3487,34 @@ The [verification record](evaluations/ci-optimization-validation-2026-11-22.json
 retains commit identity, local environment, partition inventory, policy scenarios,
 mutation results, measured durations and completed-log hashes. The original dirty
 checkout and the separate serverless implementation worktree were preserved.
+
+## Offline journey pause acknowledgement, 23 November 2026
+
+PR #122's first hosted run passed all backend shards and browser shard 1, but
+its desktop offline journey timed out. The retained page shows a paused schedule
+and an unresolved browser monitoring request. The driver waited only for the
+polled Resume monitoring button to become visible before reloading, which can
+interrupt acknowledgement before IndexedDB clears the pending request.
+
+The same existing journey now holds the pause acknowledgement after the real
+server commits it, proves the Resume control is visible but disabled, and then
+releases the response. Without the readiness wait this reproduced the failure
+at `cadence-pause-and-resume`: after reload the recovery prompt replaces Resume.
+The driver now waits for Resume to become enabled before its ordinary reload,
+as the existing chat-review regression already does. All original exact-subject,
+export, schedule identity, crash/restart and learning assertions remain.
+
+The outer 120-second test limit is unchanged. Self-created browser contexts now
+bound individual actions to ten seconds and navigation to fifteen seconds, so
+future failures can produce their phase result and trace before the outer limit.
+The held acknowledgement is released during cleanup as well as on the success
+path. No application code or durable authority rules changed.
+
+The corrected offline-journey file passed all nine focused cases across three
+repetitions in 156.531 seconds: three desktop delayed-acknowledgement journeys,
+three mobile journeys and three exact-export negative checks, with zero flaky
+or skipped cases. Each desktop result confirms the held pause was exercised.
+Formatting and architecture passed (213 modules, zero exceptions). The
+[attributable record](evaluations/ci-pause-reload-fix-2026-11-23.json) includes
+source and log hashes. Full hosted checks will run on the correction commit in
+PR #122; their result is not preclaimed by this local record.

@@ -165,6 +165,7 @@ export async function runJourney(browser, directory, width, committed) {
     runtime: { node: process.version, browser: browser.version() },
   };
   let current, active, context, page;
+  let releasePause = () => {};
   const pageErrors = [];
   const check = async (id, operation) => {
     active = id;
@@ -180,6 +181,10 @@ export async function runJourney(browser, directory, width, committed) {
       viewport: result.viewport,
       acceptDownloads: true,
     });
+    // This driver also runs outside the test runner. Bound actions so a missing
+    // control produces the phase trace instead of consuming the outer timeout.
+    context.setDefaultTimeout(10000);
+    context.setDefaultNavigationTimeout(15000);
     await context.tracing.start({
       screenshots: true,
       snapshots: true,
@@ -464,6 +469,30 @@ export async function runJourney(browser, directory, width, committed) {
       };
     });
     await check("cadence-pause-and-resume", async () => {
+      const resume = controls.getByRole("button", {
+        name: "Resume monitoring",
+        exact: true,
+      });
+      let delayedPause = false;
+      if (committed) {
+        const acknowledgement = new Promise((resolve) => {
+          releasePause = resolve;
+        });
+        await page.route(
+          "**/api/sessions/*/monitoring-update",
+          async (route) => {
+            if (
+              !delayedPause &&
+              route.request().postDataJSON().status === "paused"
+            ) {
+              const response = await route.fetch();
+              delayedPause = true;
+              await acknowledgement;
+              await route.fulfill({ response });
+            } else await route.continue();
+          },
+        );
+      }
       await controls
         .getByLabel("Check every, in minutes", { exact: true })
         .fill("30");
@@ -474,12 +503,17 @@ export async function runJourney(browser, directory, width, committed) {
       await controls
         .getByRole("button", { name: "Pause monitoring", exact: true })
         .click();
-      await expect(
-        controls.getByRole("button", {
-          name: "Resume monitoring",
-          exact: true,
-        }),
-      ).toBeVisible();
+      if (committed) {
+        await expect.poll(() => delayedPause).toBe(true);
+        // Prove polling exposed the pause while its acknowledgement is held.
+        await expect(resume).toBeVisible();
+        await expect(resume).toBeDisabled();
+        setTimeout(releasePause, 250);
+      }
+      await expect(resume).toBeVisible();
+      // A polled pause is not acknowledgement that its saved request cleared.
+      // Wait for the completed browser command before testing an ordinary reload.
+      await expect(resume).toBeEnabled();
       await page.reload();
       expect((await api(page, campaignPath)).body.learning.received).toBe(0);
       await controls
@@ -497,6 +531,7 @@ export async function runJourney(browser, directory, width, committed) {
         revision: plan.revision,
         interval_seconds: plan.interval_seconds,
         original_due: plan.next_due,
+        delayed_pause_acknowledgement: delayedPause,
       };
     });
     await check("process-restart-after-import", async () => {
@@ -695,6 +730,7 @@ export async function runJourney(browser, directory, width, committed) {
         .screenshot({ path: join(directory, "failure.png"), fullPage: true })
         .catch(() => {});
   } finally {
+    releasePause();
     if (context) {
       await context.tracing
         .stop({ path: join(directory, "trace.zip") })
