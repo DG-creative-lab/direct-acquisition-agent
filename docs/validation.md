@@ -3690,3 +3690,35 @@ not a fully passing remote response-path run. No new deployment was made.
 
 See the separate [review-fix verification record](evaluations/issue-60-serverless-stage-binding-2026-11-22.json)
 for exact schedules, source commit, artifact hashes and retained failures.
+
+## Remote response reliability, 23 November 2026
+
+Exact request admission must compare the same values that were frozen, and a
+successful stage must remain inspectable within the invocation's bounded I/O
+budget. A seeded real-provider probe reproduced one-ULP drift in 121 of 1,000
+full-precision timestamp bindings. A separate ready-status read made 1,083 HTTP
+requests. The earlier generic exception wrapper hid the distinction between
+transport, deadline and provider failures.
+
+Float parameters now travel as exact integer significands with SQL binary
+scaling, preserving REAL types and finite binary64 values. The native-SQLite
+oracle covers 134 fixed/seeded values, slot identity, repeated bindings, opaque
+strings/comments/identifiers, Tcl-style and Unicode names. A wire fixture injects
+one-ULP float-input drift independently of the encoder. The complete frozen
+message now admits and replays once with its original timestamp. Historical
+stored values and request identities remain unchanged.
+
+Journey-current reads use a coherent transaction snapshot. Deterministic
+JSON_VALID and read-only WITH queries may reuse exact results inside it; a
+write-bearing CTE still executes each time and invalidates the memo. Existing
+unknown-function, clock, write, bounds and provider-rollback regressions remain
+active. No memo crosses a transaction or connection, grants approval or skips
+native commit authority. The existing full Hrana journey now checks ready
+status stays within 400 round trips, and its database dump remains unchanged.
+
+Error categories and numeric HTTP status survive wrapping without raw provider
+text, SQL parameters or credentials. Redirect/429, pre-submit budget exhaustion,
+lost acknowledgements, inactive transactions and uncertain COMMIT retain their
+no-retry and no-dispatch assertions. The previous admission/status failures were
+retained as evidence rather than rewritten as passes. Focused red tests caught
+the admission mismatch and 1,080-call status projection before these fixes.
