@@ -37,6 +37,16 @@ SQLite comparisons cover positional, numbered, repeated, named, Tcl-style and
 Unicode parameters, signed zero, subnormals and large finite values. Non-finite
 floats remain rejected. Historical stored values are not rewritten.
 
+Float reconstruction has no expression affinity, matching a native parameter:
+unary plus removes the internal CAST affinity without changing the REAL value.
+This preserves comparisons and updates against TEXT, numeric and untyped
+columns, including explicit caller CASTs and CASE expressions. Dictionary
+bindings resolve through the prepared statement's final slot identities before
+rewriting. A numbered marker can alias a named slot or name a preceding anonymous
+slot. Fully qualified Hrana names distinguish `:x` and `@x`; SQLite's dictionary
+key `x` supplies both. Unused dictionary keys are ignored, while missing canonical
+names or anonymous gaps are rejected before submission.
+
 Storage failures carry adapter-owned `reason` categories and an optional numeric
 HTTP status for operator diagnostics. These survive the transaction wrapper and
 uncertain COMMIT exception. HTTP clients still receive the bounded generic

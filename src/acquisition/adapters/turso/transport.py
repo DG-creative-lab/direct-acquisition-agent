@@ -140,7 +140,9 @@ def _float_binding(marker, value):
     if significand:
         while significand % 2 == 0:significand //= 2;exponent += 1
     else:exponent = 0
-    expression = 'CAST('+marker+' AS REAL)'
+    # A bound parameter has no expression affinity. Unary + removes the CAST's
+    # REAL affinity while preserving its exact REAL value for comparisons.
+    expression = '+CAST('+marker+' AS REAL)'
     if value == 0 and math.copysign(1,value)<0:expression += ' * -1.0'
     while exponent:
         bits = min(abs(exponent),52)
@@ -150,25 +152,40 @@ def _float_binding(marker, value):
 
 
 def _exact_parameters(sql, parameters):
-    if not any(isinstance(v,float) for v in (parameters.values() if isinstance(parameters,dict) else parameters)):
+    if not isinstance(parameters,dict) and not any(isinstance(v,float) for v in parameters):
         return sql, parameters
-    largest=0; named={}
-    def replace(match):
-        nonlocal largest
+    largest=0; named={}; slot_names={}; slots={}
+    # Finish slot naming before rewriting: ?NNN can alias a named parameter or
+    # retroactively name an earlier anonymous slot. Dictionary keys belong to
+    # the slot's canonical name, not necessarily the current marker's spelling.
+    for match in _BINDING_TOKEN.finditer(sql):
         marker=match.group('parameter')
-        if marker is None:return match[0]
+        if marker is None:continue
         if marker.startswith('?') and len(marker)>1:
             slot=int(marker[1:]);largest=max(largest,slot)
+            slot_names.setdefault(slot,marker)
         elif marker=='?':largest+=1;slot=largest
         else:
             if marker not in named:largest+=1;named[marker]=largest
             slot=named[marker]
-        value=(parameters.get(marker[1:]) if isinstance(parameters,dict)
-               else parameters[slot-1] if 1<=slot<=len(parameters) else None)
+            slot_names.setdefault(slot,marker)
+        slots[match.start()]=slot
+    def replace(match):
+        marker=match.group('parameter')
+        if marker is None:return match[0]
+        slot=slots[match.start()];name=slot_names.get(slot)
+        if isinstance(parameters,dict):value=parameters.get(name[1:]) if name else None
+        else:value=parameters[slot-1] if 1<=slot<=len(parameters) else None
         return _float_binding(marker,value)[0] if isinstance(value,float) else marker
     sql=_BINDING_TOKEN.sub(replace,sql)
     def wire(value):return _float_binding('?',value)[1] if isinstance(value,float) else value
-    return sql, ({k:wire(v) for k,v in parameters.items()} if isinstance(parameters,dict) else tuple(wire(v) for v in parameters))
+    if isinstance(parameters,dict):
+        if len(slot_names)!=largest or any(name[1:] not in parameters for name in slot_names.values()):
+            raise ValueError('Supply every canonical named SQL binding')
+        # Hrana needs the explicit prefix to distinguish :x from @x. SQLite's
+        # dictionary interface supplies both from key x and ignores unused keys.
+        return sql, {name:wire(parameters[name[1:]]) for name in slot_names.values()}
+    return sql, tuple(wire(v) for v in parameters)
 
 
 class Row:

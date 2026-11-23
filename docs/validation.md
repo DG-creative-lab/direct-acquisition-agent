@@ -3761,3 +3761,31 @@ The separate [response-reliability record](evaluations/issue-60-remote-response-
 retains those observations, red tests, the interrupted earlier full run, final
 results, source/package identities and evidence hashes. Historical reports were
 not regenerated.
+
+## Remote binding review corrections, 23 November 2026
+
+Two P2 review findings reproduced against source `191d7ae`: internal REAL CAST
+affinity changed which TEXT rows were selected or updated, and numbered aliases
+could expose the encoded integer significand instead of their named slot's
+float. Two differential regressions failed with 19 assertions before the fix.
+
+The exact-value expression now has no affinity, matching a native parameter.
+The native SQLite oracle covers five column affinities, three floats and 13
+predicate forms, plus five UPDATE row-count/result comparisons. Explicit caller
+CASTs retain their original meaning. Existing bit-exact finite-number, signed
+zero and subnormal checks remain active.
+
+Binding compilation first assigns every slot and its canonical name, including
+numbered aliases and later names for earlier anonymous markers. Each marker is
+then reconstructed using the value for that slot. Dictionary arguments use
+explicit Hrana prefixes, preserving distinct `:x`/`@x` slots, integer/blob/text
+types and ignored extra keys. Missing canonical names and unnamed gaps fail
+before dispatch. The real provider confirmed 15 comparison, update and mixed-
+alias checks in a transaction whose probe schema/data were rolled back.
+
+A seed-124 differential probe generated 2,000 alias schedules. All 1,177 accepted
+by native SQLite retained identical float bits after reconstruction; the 823
+invalid dictionary schedules were excluded by the independent native oracle.
+The finite checks do not claim every possible SQL or concurrency schedule.
+No durable identities, schema version, deadlines, cache rules or uncertain-call
+fences changed. Earlier commit-bound evidence remains immutable.

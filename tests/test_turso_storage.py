@@ -43,7 +43,7 @@ class Wire:
                         if owner.round_float_bindings and value['type']=='float':
                             return math.nextafter(decoded,-math.inf)
                         return decoded
-                    args = ({v['name']:binding(v['value']) for v in stmt['named_args']}
+                    args = ({(v['name'][1:] if v['name'].startswith((':','@','$','?')) else v['name']):binding(v['value']) for v in stmt['named_args']}
                             if 'named_args' in stmt else [binding(v) for v in stmt.get('args', [])])
                     try:
                         cursor = db.execute(stmt['sql'], args)
@@ -162,6 +162,10 @@ class RemoteStorageTests(unittest.TestCase):
             row = db.execute("SELECT :b AS b, :a AS a, :b AS again, ':ignored' AS literal -- :comment\n", {'a':2**60,'b':b'bytes'}).fetchone()
             self.assertEqual(tuple(row),(b'bytes',2**60,b'bytes',':ignored'))
             self.assertEqual(dict(row),{'b':b'bytes','a':2**60,'again':b'bytes','literal':':ignored'})
+            with closing(sqlite3.connect(':memory:')) as native:
+                for sql,args in [('SELECT :x,@x,?1,?2',{'x':b'bytes'}),
+                                 ('SELECT ?01,?1',{'01':2**60}),('SELECT ?,?1',{'1':'same'})]:
+                    self.assertEqual(tuple(db.execute(sql,args).fetchone()),native.execute(sql,args).fetchone())
 
     def test_float_bindings_preserve_native_bits_types_and_parameter_slots(self):
         import random,struct
@@ -191,6 +195,48 @@ class RemoteStorageTests(unittest.TestCase):
             sql="SELECT ?1,?1,?3,?,?1,'literal '' ?9',`a?b` FROM (SELECT 9 AS `a?b`)"
             args=(1795379458.2227573,0,-5e-324,2.5)
             self.assertEqual(tuple(db.execute(sql,args).fetchone()),native.execute(sql,args).fetchone())
+            aliases=[('SELECT :x,?1,typeof(?1)',{'x':1.5}),
+                ('SELECT :x,?1,:y,?2',{'x':1795379458.2227573,'y':-5e-324}),
+                ('SELECT :x,@x,?1,?2',{'x':1.5}),
+                ('SELECT ?1,?01,?001',{'1':1.5}),('SELECT ?01,?1',{'01':1.5}),
+                ('SELECT ?,?1',{'1':1.5}),('SELECT ?,?01',{'01':-0.0}),
+                ('SELECT ?3,:x,?4,?1,?2',{'1':1.0,'2':-0.0,'3':1.5,'x':5e-324}),
+                ('SELECT :x,?1',{'x':1.5,'1':99.5})]
+            for sql,args in aliases:
+                with self.subTest(aliases=sql):
+                    expected=native.execute(sql,args).fetchone()
+                    actual=tuple(db.execute(sql,args).fetchone())
+                    self.assertEqual(actual,expected)
+                    for a,e in zip(actual,expected):
+                        if isinstance(e,float):self.assertEqual(struct.pack('d',a),struct.pack('d',e))
+            for sql,args in [('SELECT ?,?3',{'3':1.5}),('SELECT :x,?1',{'1':1.5})]:
+                with self.assertRaises(sqlite3.ProgrammingError):native.execute(sql,args)
+                with self.assertRaises(ValueError):db.execute(sql,args)
+
+    def test_float_comparisons_and_updates_preserve_native_affinity(self):
+        self.wire.round_float_bindings=True
+        with closing(sqlite3.connect(':memory:')) as native,self.database.transaction() as db:
+            for affinity in ('TEXT','NUMERIC','REAL','INTEGER','BLOB'):
+                table='affinity_'+affinity
+                schema='CREATE TABLE '+table+'(id INTEGER PRIMARY KEY,x '+affinity+',marked INTEGER DEFAULT 0)'
+                native.execute(schema);db.execute(schema)
+                for i,value in enumerate(('1.00','1.0','1','1.5','1.50','0.0',None,b'1')):
+                    sql='INSERT INTO '+table+'(id,x) VALUES(?,?)'
+                    native.execute(sql,(i,value));db.execute(sql,(i,value))
+                for value in (1.0,1.5,-0.0):
+                    for predicate in ('x=?','?=x','x<>?','x<?','?<x','x>=?','?>=x',
+                                      'x IN (SELECT ?)','? IN (SELECT x FROM '+table+')',
+                                      'x BETWEEN ? AND 2','? BETWEEN x AND 2',
+                                      'x=CAST(? AS REAL)','CASE x WHEN ? THEN 1 ELSE 0 END=1'):
+                        with self.subTest(affinity=affinity,value=value,predicate=predicate):
+                            sql='SELECT id FROM '+table+' WHERE '+predicate+' ORDER BY id'
+                            expected=native.execute(sql,(value,)).fetchall()
+                            self.assertEqual([tuple(r) for r in db.execute(sql,(value,))],expected)
+                sql='UPDATE '+table+' SET marked=1 WHERE x=?'
+                expected=native.execute(sql,(1.0,)).rowcount
+                self.assertEqual(db.execute(sql,(1.0,)).rowcount,expected)
+                sql='SELECT id FROM '+table+' WHERE marked=1 ORDER BY id'
+                self.assertEqual([tuple(r) for r in db.execute(sql)],native.execute(sql).fetchall())
 
     def test_unknown_transaction_is_not_replayed_or_acknowledged(self):
         original = self.database.send
