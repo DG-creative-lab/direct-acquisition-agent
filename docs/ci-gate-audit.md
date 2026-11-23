@@ -12,7 +12,7 @@ are in [validation.md](validation.md).
 | Architecture | Module boundaries, private imports and cycles | Keep once, before backend tests. |
 | Mutation catalogue | Audits whether existing regression tests detect deliberately damaged implementations | Manual full audit for the MVP. Run on approval/isolation/lease/replay changes or before release. It is not a routine PR gate. |
 | Build and type check | Broken frontend types, imports and production assets | Keep once on routine PRs; once per isolated runner when full browsers run. |
-| Browser partitions | Displayed subjects, user decisions, reloads and lost responses against the real loopback API | Retain all cases. Routine PRs use 11 critical smoke cases; product UI/API/persistence/runtime/recovery/configuration changes and main use all 118. Explicit full and skip labels are available. |
+| Browser partitions | Displayed subjects, user decisions, reloads and lost responses against the real loopback API | Retain all cases. Routine PRs use 11 critical smoke cases; browser test/harness/configuration, product UI/API/persistence/runtime/recovery changes and main use all 118. Explicit full and skip labels are available. |
 | Formatting | Source consistency | Optional quality policy; run once. |
 | Timing and browser artifacts | Diagnosis and shard estimates | Keep as diagnostics, with non-blocking uploads. |
 | Integrated crash, rebuild and replay | Preserve authoritative rows and original command receipts through projection loss and process restart | Extend the existing lifecycle test in the backend suite. Run the broader evidence bundle on demand for boundary changes. |
@@ -35,6 +35,12 @@ skip label remains available; full wins if both labels are present. This keeps
 product integration regressions before merge on affected changes and retains the
 wider browser portfolio after every merge, without repeating all 118 cases on
 routine domain, CI, test-harness or documentation PRs.
+
+A browser-test-only change must execute its changed tests before merge. Changes
+under `frontend/tests/` or `frontend/scripts/`, shared browser configuration and
+known Python browser fixtures therefore force full coverage. The skip label cannot
+override these changes or unavailable change information. Other unrelated PRs
+retain the smoke/skip policy. Discovery alone is not execution evidence.
 
 Build/type, formatting and catalogue verification run once on routine PRs;
 architecture remains mandatory. Timing/browser evidence upload failures no longer

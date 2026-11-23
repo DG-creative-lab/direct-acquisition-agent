@@ -25,15 +25,18 @@ assertion changed. The complete 118-case portfolio remains available.
 
 The full browser suite runs automatically for product frontend, HTTP adapter,
 persistence, runtime, workspace composition, recovery/checkpoint and configuration
-changes. Unclassified paths or unavailable change information also select full
-coverage. Domain-only backend, test harness, CI and documentation changes use
+changes. Browser tests, shared browser scripts/configuration, CI coverage selection,
+and their known Python fixture helpers also require full execution before merge,
+even when a PR carries the skip label. Unclassified paths or unavailable change information also select full
+coverage. Domain-only backend, non-browser tests/tooling and documentation changes use
 smoke coverage while still running every backend test. Main always runs full
 coverage. The classifier includes both old and new paths of a rename.
 
 `full-browser-checks` explicitly requests full coverage on a PR.
-`skip-browser-checks` retains the existing opt-out for Chromium; build/type and
-format checks remain. Main overrides both labels, and an explicit full label wins
-if both labels are present. Labels are a deliberate override, not automatic proof
+`skip-browser-checks` retains the existing opt-out for Chromium on other PRs;
+build/type and format checks remain. Main, browser test/harness/configuration
+changes and unavailable changed-path information require full coverage. An
+explicit full label also wins if both labels are present. Labels are a deliberate override, not automatic proof
 that omitted browser cases passed.
 
 Only the first interface runner installs dependencies and builds for routine PRs;

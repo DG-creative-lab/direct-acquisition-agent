@@ -3570,3 +3570,25 @@ an invalid suite. Both existing interface check names run a fatal guard in that
 case, so a failed dependency cannot silently turn required browser checks into
 successful skipped jobs. Six suite/shard combinations and all 16 selector-result/
 suite combinations passed evaluation against the actual workflow expressions.
+
+## Execute changed browser tests before merge, 23 November 2026
+
+The local review finding on merged PR #122 was reproduced on main `806ab2d`:
+a new non-smoke browser test, browser driver, Playwright configuration and smoke
+contract each selected smoke-only coverage. The catalogue proved discovery but
+could not establish that a newly failing test executed.
+
+Full coverage is now mandatory for browser tests, frontend browser scripts,
+Playwright/smoke configuration, the CI selector/workflow and known Python helpers
+imported by browser drivers. An existing skip label cannot hide these changed
+tests; unavailable changed-path information also falls back to full before the
+skip override. Unrelated PRs retain the lean smoke option and explicit opt-out.
+
+The existing scope regression failed with 17 assertions before the fix, then
+passed with explicit new/changed/nested test paths, shared helpers, mixed paths,
+unknown change information and an existing skip label. The real-Git rename test
+now checks both a product file and a browser test moved into a smoke-eligible docs
+path. Both old and new paths remain visible to the selector. All eight CI-tool
+tests and architecture (213 modules, zero exceptions) passed locally. No test
+cases were removed, and production application code is unchanged. Full hosted
+checks will verify the fix branch's selected suite before merge.
