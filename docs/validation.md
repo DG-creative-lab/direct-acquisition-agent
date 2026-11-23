@@ -3564,3 +3564,9 @@ the parent run's observed costs; this includes repeated fixture setup and is not
 a hosted timing guarantee. Full hosted backend verification will run on the pushed
 correction commit in PR #122. No live model or remote database was used, and no
 historical evidence was rewritten.
+
+Browser selection also fails closed if the selection job itself fails or emits
+an invalid suite. Both existing interface check names run a fatal guard in that
+case, so a failed dependency cannot silently turn required browser checks into
+successful skipped jobs. Six suite/shard combinations and all 16 selector-result/
+suite combinations passed evaluation against the actual workflow expressions.

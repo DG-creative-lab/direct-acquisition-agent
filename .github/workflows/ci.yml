@@ -76,13 +76,18 @@ jobs:
     env:
       ACTIVE_INTERFACE: ${{ matrix.shard == 1 || needs.browser_scope.outputs.suite == 'full' }}
       RUN_BROWSER_CHECKS: ${{ needs.browser_scope.outputs.suite != 'skip' && (matrix.shard == 1 || needs.browser_scope.outputs.suite == 'full') }}
-    if: github.event_name != 'workflow_dispatch'
+    if: always() && github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         shard: [1, 2]
     steps:
+      - name: Require a valid browser coverage decision
+        if: needs.browser_scope.result != 'success' || !contains(fromJSON('["smoke", "full", "skip"]'), needs.browser_scope.outputs.suite)
+        run: |
+          echo 'Browser coverage could not be established.' >&2
+          exit 1
       - uses: actions/checkout@v4
         if: env.ACTIVE_INTERFACE == 'true'
         with:
