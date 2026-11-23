@@ -1,0 +1,581 @@
+{
+  "source_run": "https://github.com/DG-creative-lab/direct-acquisition-agent/actions/runs/45011234477",
+  "source_commit": "5e37b259ae72c05adca2c390a266ee46cff9fe9d",
+  "note": "Measured GitHub Actions timings before this change, not new CI results. Retained module and browser file totals support recalibration without rerunning the feasibility experiment.",
+  "reports": [
+    {
+      "kind": "browser",
+      "name": "browser-evidence-2",
+      "stats": {
+        "startTime": "2026-11-22T10:12:20.135Z",
+        "duration": 545195.571,
+        "expected": 69,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "files": [
+        {
+          "file": "continuous-preparation.spec.mjs",
+          "tests": 15,
+          "seconds": 74.25399999999999
+        },
+        {
+          "file": "conversational-actions.spec.mjs",
+          "tests": 17,
+          "seconds": 98.85300000000002
+        },
+        {
+          "file": "conversational-copy.spec.mjs",
+          "tests": 17,
+          "seconds": 116.525
+        },
+        {
+          "file": "generation-failure.spec.mjs",
+          "tests": 3,
+          "seconds": 4.638
+        },
+        {
+          "file": "offline-journey.spec.mjs",
+          "tests": 3,
+          "seconds": 48.216
+        },
+        {
+          "file": "openrouter.spec.mjs",
+          "tests": 7,
+          "seconds": 11.533000000000001
+        },
+        {
+          "file": "sequence-journey.spec.mjs",
+          "tests": 7,
+          "seconds": 186.16899999999998
+        }
+      ]
+    },
+    {
+      "kind": "backend",
+      "name": "backend-timings-3.14-1",
+      "actual_seconds": 256.115407151,
+      "tests": 234,
+      "modules": [
+        {
+          "module": "test_admission_contracts",
+          "cases": 11,
+          "case_seconds": 0.004892919000042184,
+          "setup_seconds": 7.758000009516763e-06,
+          "total_seconds": 0.004900677000051701
+        },
+        {
+          "module": "test_admission_entrypoints",
+          "cases": 31,
+          "case_seconds": 10.130944690000007,
+          "setup_seconds": 2.9672000010805277e-05,
+          "total_seconds": 10.130974362000018
+        },
+        {
+          "module": "test_agent_assets",
+          "cases": 13,
+          "case_seconds": 2.580696098999965,
+          "setup_seconds": 4.849000021067695e-06,
+          "total_seconds": 2.5807009479999863
+        },
+        {
+          "module": "test_architecture",
+          "cases": 21,
+          "case_seconds": 15.699684794999968,
+          "setup_seconds": 1.011000003359186e-05,
+          "total_seconds": 15.699694905000001
+        },
+        {
+          "module": "test_audience_catalogue",
+          "cases": 9,
+          "case_seconds": 0.19840864200000397,
+          "setup_seconds": 4.351000001179273e-06,
+          "total_seconds": 0.19841299300000514
+        },
+        {
+          "module": "test_conversation_handoff",
+          "cases": 3,
+          "case_seconds": 4.63422984799999,
+          "setup_seconds": 4.326999999193504e-06,
+          "total_seconds": 4.634234174999989
+        },
+        {
+          "module": "test_conversational_evaluation",
+          "cases": 7,
+          "case_seconds": 1.3327854290000118,
+          "setup_seconds": 6.5419999941696005e-06,
+          "total_seconds": 1.332791971000006
+        },
+        {
+          "module": "test_domain",
+          "cases": 8,
+          "case_seconds": 0.05612726799998313,
+          "setup_seconds": 4.2339999879459356e-06,
+          "total_seconds": 0.05613150199997108
+        },
+        {
+          "module": "test_knowledge",
+          "cases": 3,
+          "case_seconds": 0.14937011300000336,
+          "setup_seconds": 4.337999996550934e-06,
+          "total_seconds": 0.1493744509999999
+        },
+        {
+          "module": "test_legacy_action_replay",
+          "cases": 6,
+          "case_seconds": 8.739199613999943,
+          "setup_seconds": 1.0099999997237319e-05,
+          "total_seconds": 8.73920971399994
+        },
+        {
+          "module": "test_legacy_migration",
+          "cases": 25,
+          "case_seconds": 6.82140159100004,
+          "setup_seconds": 5.613000013227065e-06,
+          "total_seconds": 6.821407204000053
+        },
+        {
+          "module": "test_persistence",
+          "cases": 18,
+          "case_seconds": 1.8179079759999297,
+          "setup_seconds": 4.242000017029568e-06,
+          "total_seconds": 1.8179122179999467
+        },
+        {
+          "module": "test_profiles",
+          "cases": 22,
+          "case_seconds": 1.7165965160000383,
+          "setup_seconds": 6.9969999856311915e-06,
+          "total_seconds": 1.716603513000024
+        },
+        {
+          "module": "test_recovery_commands",
+          "cases": 1,
+          "case_seconds": 0.002342670999979646,
+          "setup_seconds": 3.716999998459869e-06,
+          "total_seconds": 0.0023463879999781057
+        },
+        {
+          "module": "test_sequences",
+          "cases": 21,
+          "case_seconds": 183.66640433700005,
+          "setup_seconds": 2.650232483999986,
+          "total_seconds": 186.31663682100003
+        },
+        {
+          "module": "test_workspace_authority",
+          "cases": 35,
+          "case_seconds": 15.90436640900009,
+          "setup_seconds": 1.0893000023770583e-05,
+          "total_seconds": 15.904377302000114
+        }
+      ]
+    },
+    {
+      "kind": "backend",
+      "name": "backend-timings-3.14-4",
+      "actual_seconds": 477.68298585699995,
+      "tests": 308,
+      "modules": [
+        {
+          "module": "test_boundary_evaluation",
+          "cases": 5,
+          "case_seconds": 3.8190653480000094,
+          "setup_seconds": 7.40900000550937e-06,
+          "total_seconds": 3.819072757000015
+        },
+        {
+          "module": "test_conversation_audiences",
+          "cases": 35,
+          "case_seconds": 38.58385979600001,
+          "setup_seconds": 5.533999996032435e-06,
+          "total_seconds": 38.58386533000001
+        },
+        {
+          "module": "test_conversational_copy_revision",
+          "cases": 27,
+          "case_seconds": 33.979709715,
+          "setup_seconds": 1.456524241000011,
+          "total_seconds": 35.43623395600001
+        },
+        {
+          "module": "test_conversations",
+          "cases": 27,
+          "case_seconds": 2.1479342640000425,
+          "setup_seconds": 1.0137999993276026e-05,
+          "total_seconds": 2.147944402000036
+        },
+        {
+          "module": "test_fixture_activation",
+          "cases": 23,
+          "case_seconds": 50.09218836299996,
+          "setup_seconds": 4.4279999826812855e-06,
+          "total_seconds": 50.092192790999945
+        },
+        {
+          "module": "test_followups",
+          "cases": 18,
+          "case_seconds": 26.728517847000006,
+          "setup_seconds": 0.9886477580000133,
+          "total_seconds": 27.71716560500002
+        },
+        {
+          "module": "test_grounding",
+          "cases": 14,
+          "case_seconds": 1.192186128000003,
+          "setup_seconds": 7.0570000048064685e-06,
+          "total_seconds": 1.1921931850000078
+        },
+        {
+          "module": "test_hosting_probe",
+          "cases": 7,
+          "case_seconds": 1.247701305000021,
+          "setup_seconds": 3.7599999984649912e-06,
+          "total_seconds": 1.2477050650000194
+        },
+        {
+          "module": "test_learning",
+          "cases": 35,
+          "case_seconds": 23.87622938899986,
+          "setup_seconds": 1.4017000012245262e-05,
+          "total_seconds": 23.876243405999872
+        },
+        {
+          "module": "test_learning_cli",
+          "cases": 3,
+          "case_seconds": 1.726511472000027,
+          "setup_seconds": 5.189000006566857e-06,
+          "total_seconds": 1.7265166610000335
+        },
+        {
+          "module": "test_legacy_followup_scope",
+          "cases": 4,
+          "case_seconds": 11.054479792999985,
+          "setup_seconds": 4.875999991327262e-06,
+          "total_seconds": 11.054484668999976
+        },
+        {
+          "module": "test_model_copy",
+          "cases": 12,
+          "case_seconds": 0.9709508120000123,
+          "setup_seconds": 6.117999987509393e-06,
+          "total_seconds": 0.9709569299999998
+        },
+        {
+          "module": "test_planning_request_scope",
+          "cases": 9,
+          "case_seconds": 1.2454328709999345,
+          "setup_seconds": 6.281999958446249e-06,
+          "total_seconds": 1.245439152999893
+        },
+        {
+          "module": "test_review_regressions",
+          "cases": 10,
+          "case_seconds": 0.8938922359999992,
+          "setup_seconds": 6.24599999810016e-06,
+          "total_seconds": 0.8938984819999973
+        },
+        {
+          "module": "test_sequence_journeys",
+          "cases": 22,
+          "case_seconds": 219.25478659700002,
+          "setup_seconds": 9.792534853999996,
+          "total_seconds": 229.04732145100002
+        },
+        {
+          "module": "test_turso_storage",
+          "cases": 14,
+          "case_seconds": 10.976771187999987,
+          "setup_seconds": 4.180999951586273e-06,
+          "total_seconds": 10.976775368999938
+        },
+        {
+          "module": "test_workspace",
+          "cases": 33,
+          "case_seconds": 24.92133862399993,
+          "setup_seconds": 3.347899996697379e-05,
+          "total_seconds": 24.921372102999896
+        },
+        {
+          "module": "test_workspace_checkpoint",
+          "cases": 10,
+          "case_seconds": 12.707382010000288,
+          "setup_seconds": 5.38099993718788e-06,
+          "total_seconds": 12.707387391000225
+        }
+      ]
+    },
+    {
+      "kind": "browser",
+      "name": "browser-evidence-1",
+      "stats": {
+        "startTime": "2026-11-22T10:12:19.583Z",
+        "duration": 231716.293,
+        "expected": 49,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "files": [
+        {
+          "file": "chat-review.spec.mjs",
+          "tests": 31,
+          "seconds": 194.609
+        },
+        {
+          "file": "review-regressions.spec.mjs",
+          "tests": 18,
+          "seconds": 33.42
+        }
+      ]
+    },
+    {
+      "kind": "backend",
+      "name": "backend-timings-3.14-3",
+      "actual_seconds": 254.828681585,
+      "tests": 300,
+      "modules": [
+        {
+          "module": "test_admission_workflow_coverage",
+          "cases": 27,
+          "case_seconds": 22.079618755000027,
+          "setup_seconds": 2.8123999982199166e-05,
+          "total_seconds": 22.07964687900001
+        },
+        {
+          "module": "test_audience_strategies",
+          "cases": 13,
+          "case_seconds": 3.6841289990000234,
+          "setup_seconds": 6.212000002392415e-06,
+          "total_seconds": 3.684135211000026
+        },
+        {
+          "module": "test_contacts",
+          "cases": 24,
+          "case_seconds": 3.902999125999969,
+          "setup_seconds": 3.409400000009555e-05,
+          "total_seconds": 3.903033219999969
+        },
+        {
+          "module": "test_conversation_campaign",
+          "cases": 18,
+          "case_seconds": 16.16095870700002,
+          "setup_seconds": 6.663000007733899e-06,
+          "total_seconds": 16.160965370000028
+        },
+        {
+          "module": "test_copy_revisions",
+          "cases": 23,
+          "case_seconds": 41.67225477699995,
+          "setup_seconds": 1.7810287229999915,
+          "total_seconds": 43.45328349999994
+        },
+        {
+          "module": "test_database_initialization",
+          "cases": 9,
+          "case_seconds": 1.140473012999962,
+          "setup_seconds": 6.04100000600738e-06,
+          "total_seconds": 1.140479053999968
+        },
+        {
+          "module": "test_execution_controls",
+          "cases": 59,
+          "case_seconds": 78.79723653100001,
+          "setup_seconds": 3.3375528340000074,
+          "total_seconds": 82.13478936500002
+        },
+        {
+          "module": "test_followup_hypotheses",
+          "cases": 5,
+          "case_seconds": 1.2126405299999874,
+          "setup_seconds": 6.4220000126624655e-06,
+          "total_seconds": 1.212646952
+        },
+        {
+          "module": "test_legacy_inventory",
+          "cases": 44,
+          "case_seconds": 19.229578831999987,
+          "setup_seconds": 7.194000005483758e-06,
+          "total_seconds": 19.229586025999993
+        },
+        {
+          "module": "test_offline_journey_evaluation",
+          "cases": 7,
+          "case_seconds": 0.03942253799999662,
+          "setup_seconds": 7.523999983050089e-06,
+          "total_seconds": 0.03943006199997967
+        },
+        {
+          "module": "test_preparations",
+          "cases": 24,
+          "case_seconds": 33.147804705000084,
+          "setup_seconds": 5.851000025813846e-06,
+          "total_seconds": 33.14781055600011
+        },
+        {
+          "module": "test_requested_scope",
+          "cases": 11,
+          "case_seconds": 10.661416562999932,
+          "setup_seconds": 1.0731000031682925e-05,
+          "total_seconds": 10.661427293999964
+        },
+        {
+          "module": "test_review_cli",
+          "cases": 4,
+          "case_seconds": 2.961415907000003,
+          "setup_seconds": 5.479999970248173e-06,
+          "total_seconds": 2.961421386999973
+        },
+        {
+          "module": "test_validation_reports",
+          "cases": 8,
+          "case_seconds": 4.0872121650000395,
+          "setup_seconds": 5.501000032381853e-06,
+          "total_seconds": 4.087217666000072
+        },
+        {
+          "module": "test_workspace_composition",
+          "cases": 3,
+          "case_seconds": 1.1477278170000318,
+          "setup_seconds": 5.681000004642556e-06,
+          "total_seconds": 1.1477334980000364
+        },
+        {
+          "module": "test_workspace_projection",
+          "cases": 21,
+          "case_seconds": 9.748583358000133,
+          "setup_seconds": 7.314000015412603e-06,
+          "total_seconds": 9.748590672000148
+        }
+      ]
+    },
+    {
+      "kind": "backend",
+      "name": "backend-timings-3.14-2",
+      "actual_seconds": 255.70621761700002,
+      "tests": 254,
+      "modules": [
+        {
+          "module": "test_atomic_admissions",
+          "cases": 27,
+          "case_seconds": 3.0776019400000223,
+          "setup_seconds": 8.530000002338056e-06,
+          "total_seconds": 3.0776104700000246
+        },
+        {
+          "module": "test_budget_clarification",
+          "cases": 19,
+          "case_seconds": 22.078438692000034,
+          "setup_seconds": 1.4855999992846591e-05,
+          "total_seconds": 22.078453548000027
+        },
+        {
+          "module": "test_channel_content",
+          "cases": 22,
+          "case_seconds": 18.24039849399996,
+          "setup_seconds": 9.144999992827252e-06,
+          "total_seconds": 18.240407638999955
+        },
+        {
+          "module": "test_checkpoint_reconciliation",
+          "cases": 10,
+          "case_seconds": 4.659193644000055,
+          "setup_seconds": 3.7389999931747298e-06,
+          "total_seconds": 4.659197383000048
+        },
+        {
+          "module": "test_ci_tools",
+          "cases": 4,
+          "case_seconds": 0.31392654799998354,
+          "setup_seconds": 4.398999976729101e-06,
+          "total_seconds": 0.31393094699996027
+        },
+        {
+          "module": "test_conversation_actions",
+          "cases": 45,
+          "case_seconds": 39.57282926399998,
+          "setup_seconds": 1.1900313359999757,
+          "total_seconds": 40.762860599999954
+        },
+        {
+          "module": "test_conversation_learning",
+          "cases": 3,
+          "case_seconds": 5.868551153999988,
+          "setup_seconds": 6.6830000093887065e-06,
+          "total_seconds": 5.868557836999997
+        },
+        {
+          "module": "test_cutover_review_regressions",
+          "cases": 13,
+          "case_seconds": 2.579102029999973,
+          "setup_seconds": 1.747300001397889e-05,
+          "total_seconds": 2.579119502999987
+        },
+        {
+          "module": "test_execution_authority_model",
+          "cases": 4,
+          "case_seconds": 3.8687887290000162,
+          "setup_seconds": 6.020000000717118e-06,
+          "total_seconds": 3.868794749000017
+        },
+        {
+          "module": "test_failure_boundaries",
+          "cases": 9,
+          "case_seconds": 0.3708798750000426,
+          "setup_seconds": 1.045100000851562e-05,
+          "total_seconds": 0.3708903260000511
+        },
+        {
+          "module": "test_openrouter_catalogue",
+          "cases": 1,
+          "case_seconds": 0.0008232170000042061,
+          "setup_seconds": 4.146999998511092e-06,
+          "total_seconds": 0.0008273640000027171
+        },
+        {
+          "module": "test_pre_entrypoint_recovery",
+          "cases": 7,
+          "case_seconds": 9.159993906000011,
+          "setup_seconds": 6.90699999950084e-06,
+          "total_seconds": 9.16000081300001
+        },
+        {
+          "module": "test_recipient_context",
+          "cases": 20,
+          "case_seconds": 3.646990752000079,
+          "setup_seconds": 1.0160999977415486e-05,
+          "total_seconds": 3.6470009130000562
+        },
+        {
+          "module": "test_reviews",
+          "cases": 34,
+          "case_seconds": 10.421446256000053,
+          "setup_seconds": 5.469000001312452e-06,
+          "total_seconds": 10.421451725000054
+        },
+        {
+          "module": "test_sequence_reviews",
+          "cases": 16,
+          "case_seconds": 109.15220868100008,
+          "setup_seconds": 1.3113525410000193,
+          "total_seconds": 110.4635612220001
+        },
+        {
+          "module": "test_typed_chat_routing",
+          "cases": 12,
+          "case_seconds": 20.052682827000126,
+          "setup_seconds": 1.2905000005503098e-05,
+          "total_seconds": 20.05269573200013
+        },
+        {
+          "module": "test_workspace_control",
+          "cases": 8,
+          "case_seconds": 0.13124738600004093,
+          "setup_seconds": 5.251999994015932e-06,
+          "total_seconds": 0.13125263800003495
+        }
+      ]
+    }
+  ]
+}

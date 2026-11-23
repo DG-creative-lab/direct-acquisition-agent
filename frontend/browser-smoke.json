@@ -1,0 +1,57 @@
+[
+  {
+    "file": "chat-review.spec.mjs",
+    "title": "chat reviews, revises and approves the exact new subject on desktop and mobile",
+    "protects": "Consent, new copy identity and exact approval on both viewport sizes"
+  },
+  {
+    "file": "chat-review.spec.mjs",
+    "title": "lost in-chat approval acknowledgement keeps the original request identity",
+    "protects": "Uncertain approval replay preserves the original command"
+  },
+  {
+    "file": "chat-review.spec.mjs",
+    "title": "offline chat confirms handoff, shows historical receipt and downloads exact accepted exports",
+    "protects": "Explicit simulated acceptance and exact accepted downloads"
+  },
+  {
+    "file": "continuous-preparation.spec.mjs",
+    "title": "one authorized submission continues after reload to an unapproved review",
+    "protects": "Real preparation resumes after reload without granting approval"
+  },
+  {
+    "file": "continuous-preparation.spec.mjs",
+    "title": "a lost admission acknowledgement reconciles saved progress without another request",
+    "protects": "Lost admission response does not duplicate work"
+  },
+  {
+    "file": "conversational-copy.spec.mjs",
+    "title": "stopping an active revision reconciles a lost response and retains accounting",
+    "protects": "Stop fences publication and preserves model accounting"
+  },
+  {
+    "file": "openrouter.spec.mjs",
+    "title": "browser retry keeps the original model and tier without storing or resending the raw key",
+    "protects": "Browser funding retry retains settings and avoids resending credentials"
+  },
+  {
+    "file": "review-regressions.spec.mjs",
+    "title": "storage failure blocks a new mutation before dispatch",
+    "protects": "Browser persistence must succeed before an effect"
+  },
+  {
+    "file": "review-regressions.spec.mjs",
+    "title": "validation shows exact checks and blocks review after a real suppression",
+    "protects": "Current suppression invalidates the displayed review"
+  },
+  {
+    "file": "sequence-journey.spec.mjs",
+    "title": "ambiguous company asks one question and unsupported scope remains explicit",
+    "protects": "Sequence scope is not silently substituted"
+  },
+  {
+    "file": "sequence-journey.spec.mjs",
+    "title": "a delayed sequence approval response cannot replace a new chat",
+    "protects": "Late approval cannot overwrite a different selected conversation"
+  }
+]

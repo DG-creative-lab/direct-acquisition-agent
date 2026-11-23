@@ -3,6 +3,7 @@ on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   workflow_dispatch:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
@@ -10,6 +11,22 @@ concurrency:
 permissions:
   contents: read
 jobs:
+  browser_scope:
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    outputs:
+      suite: ${{ steps.coverage.outputs.suite }}
+      reason: ${{ steps.coverage.outputs.reason }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - id: coverage
+        run: python3 scripts/browser_ci_scope.py
   test:
     if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -32,6 +49,7 @@ jobs:
           BACKEND_SHARDS: 4
           BACKEND_TIMINGS: backend-timings.json
       - uses: actions/upload-artifact@v4
+        continue-on-error: true
         if: always()
         with:
           name: backend-timings-3.14-${{ matrix.shard }}
@@ -54,38 +72,61 @@ jobs:
           python-version: '3.14'
       - run: python3 scripts/check_failure_mutations.py --shard "${{ matrix.shard }}" --shards 4
   interface:
-    if: github.event_name != 'workflow_dispatch'
+    needs: browser_scope
+    env:
+      ACTIVE_INTERFACE: ${{ matrix.shard == 1 || needs.browser_scope.outputs.suite == 'full' }}
+      RUN_BROWSER_CHECKS: ${{ needs.browser_scope.outputs.suite != 'skip' && (matrix.shard == 1 || needs.browser_scope.outputs.suite == 'full') }}
+    if: always() && github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         shard: [1, 2]
     steps:
+      - name: Require a valid browser coverage decision
+        if: needs.browser_scope.result != 'success' || !contains(fromJSON('["smoke", "full", "skip"]'), needs.browser_scope.outputs.suite)
+        run: |
+          echo 'Browser coverage could not be established.' >&2
+          exit 1
       - uses: actions/checkout@v4
+        if: env.ACTIVE_INTERFACE == 'true'
         with:
           persist-credentials: false
       - uses: pnpm/action-setup@v4
+        if: env.ACTIVE_INTERFACE == 'true'
         with:
           package_json_file: frontend/package.json
       - uses: actions/setup-node@v4
+        if: env.ACTIVE_INTERFACE == 'true'
         with:
           node-version: '22'
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
       - uses: actions/setup-python@v5
+        if: env.RUN_BROWSER_CHECKS == 'true'
         with:
           python-version: '3.14'
       - run: pnpm --dir frontend install --frozen-lockfile
+        if: env.ACTIVE_INTERFACE == 'true'
       - run: pnpm --dir frontend exec playwright install --with-deps chromium
+        if: env.RUN_BROWSER_CHECKS == 'true'
       - run: pnpm --dir frontend run build
+        if: env.ACTIVE_INTERFACE == 'true'
       - run: pnpm --dir frontend run format:check
         if: matrix.shard == 1
-      - run: pnpm --dir frontend test
+      - name: Verify browser suite coverage
+        run: pnpm --dir frontend exec node scripts/check-browser-suites.mjs
+        if: matrix.shard == 1
+      - name: Run browser checks
+        run: pnpm --dir frontend test
+        if: env.RUN_BROWSER_CHECKS == 'true'
         env:
+          BROWSER_SUITE: ${{ needs.browser_scope.outputs.suite == 'full' && 'full' || 'smoke' }}
           BROWSER_SHARD: ${{ matrix.shard }}
-          BROWSER_SHARDS: 2
+          BROWSER_SHARDS: ${{ needs.browser_scope.outputs.suite == 'full' && 2 || 1 }}
       - uses: actions/upload-artifact@v4
-        if: always()
+        continue-on-error: true
+        if: always() && env.RUN_BROWSER_CHECKS == 'true'
         with:
           name: browser-evidence-${{ matrix.shard }}
           path: |
@@ -93,3 +134,11 @@ jobs:
             .local/browser-reports
           include-hidden-files: true
           retention-days: 7
+      - name: Record browser coverage
+        if: always()
+        env:
+          SUITE: ${{ needs.browser_scope.outputs.suite }}
+          REASON: ${{ needs.browser_scope.outputs.reason }}
+        run: |
+          echo "Browser suite: $SUITE. $REASON." >> "$GITHUB_STEP_SUMMARY"
+          echo "Partition active: $ACTIVE_INTERFACE. Backend coverage is unchanged." >> "$GITHUB_STEP_SUMMARY"

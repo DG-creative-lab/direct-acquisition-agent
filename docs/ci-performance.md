@@ -1,5 +1,122 @@
 # CI execution cost
 
+## MVP PR gate, 23 November 2026
+
+Every PR still executes all backend cases. Four small CI-selection regressions
+bring the suite to 1,100 tests; none of the previous 1,096 cases were removed.
+The expensive `SequenceJourneyTests` class now explicitly permits case-level
+partitioning because every method backs up a closed class template into its own
+SQLite root. Other modules remain whole. Each class runs contiguously on a runner,
+and the allocator charges its measured setup cost once per runner which uses it.
+
+Using successful run
+[45129497433](https://github.com/DG-creative-lab/direct-acquisition-agent/actions/runs/45129497433),
+the old backend partitions cost 462.2, 279.1, 341.8 and 246.4 seconds of test
+execution. The new allocation projects about 336.1 seconds each. It builds the
+expensive class template on two runners instead of one, adding about 15.1 seconds
+of total setup work to shorten the critical path. These are projections using
+recorded costs, not runtime guarantees.
+
+Routine PRs now run the 11 existing browser cases listed in
+[the smoke contract](../frontend/browser-smoke.json). These cover displayed-subject
+approval, exact exports, consent, uncertain-command replay, stop/accounting,
+suppression, browser funding and sequence scope. No browser test body or
+assertion changed. The complete 118-case portfolio remains available.
+
+The full browser suite runs automatically for product frontend, HTTP adapter,
+persistence, runtime, workspace composition, recovery/checkpoint and configuration
+changes. Unclassified paths or unavailable change information also select full
+coverage. Domain-only backend, test harness, CI and documentation changes use
+smoke coverage while still running every backend test. Main always runs full
+coverage. The classifier includes both old and new paths of a rename.
+
+`full-browser-checks` explicitly requests full coverage on a PR.
+`skip-browser-checks` retains the existing opt-out for Chromium; build/type and
+format checks remain. Main overrides both labels, and an explicit full label wins
+if both labels are present. Labels are a deliberate override, not automatic proof
+that omitted browser cases passed.
+
+Only the first interface runner installs dependencies and builds for routine PRs;
+the second records that no full partition was selected. Full runs retain both
+isolated browser roots and one worker per root. A catalogue check uses actual
+Playwright discovery to require every smoke contract entry and verify that the
+two full partitions cover all discovered test identities exactly once. Diagnostics
+uploads are non-blocking; test, build, type, format and architecture failures still
+fail their jobs.
+
+Local `make interface-check` defaults to all browser tests. To exercise the PR gate:
+
+```sh
+BROWSER_SUITE=smoke make interface-check
+```
+
+The following sections retain previous allocations and measurements.
+
+
+## Current allocation, 22 November 2026
+
+The current calibration uses successful main Actions run
+[45011234477](https://github.com/DG-creative-lab/direct-acquisition-agent/actions/runs/45011234477)
+on `5e37b25`. The retained [baseline totals](evaluations/ci-partition-baseline-2026-11-22.json)
+include module case and class-setup costs and browser file costs. All 1,096
+backend cases and all 118 Chromium cases remain. Backend partitions retain
+whole modules; browser partitions retain whole files and one worker per root.
+
+| Allocation | Recorded old partition costs | New allocation using the same costs |
+| --- | --- | --- |
+| Backend, four runners | 256.1, 255.7, 254.8, 477.7 seconds | 311.0, 311.3, 311.0, 311.0 seconds |
+| Browser, two runners | 228.0, 540.2 seconds | 380.8, 387.4 seconds |
+
+These are sums of recorded test costs, excluding job startup and report overhead.
+The new column is a projection, not a new Actions run or a timing assertion.
+Backend weights now include every measured module. In particular,
+`test_sequence_journeys` previously fell back to 9.46 seconds despite costing
+229.05 seconds. New modules still use the per-case fallback until measured.
+Refresh the table from uploaded timing artifacts when the workload changes.
+
+Browser partition 1 contains chat-review and sequence-journey (38 tests).
+Partition 2 contains the other 80 tests, including new files by default.
+Playwright discovery was compared with both partitions to prove exactly-once
+coverage and no overlap. Unequal case counts are intentional: file costs differ.
+
+Fixture activation now initializes one empty workspace through the actual CLI,
+then copies its closed files to a different temporary root for each test. No
+campaign, approval, model result or live database connection is shared. The
+fixture refuses a retained WAL and checks its original bytes after each test
+and at class teardown. The existing restore test also verifies a sibling copy
+cannot see the first copy's admitted run. Fresh-root rejection, inspection-only
+restores and subprocess crash/restart scenarios still execute their real paths.
+The same 23-case module took 51.649 seconds before and 47.864 seconds after in
+one local before/after pair. This modest setup saving is not a CI speedup claim.
+
+### Optional browser checks on pull requests
+
+Browser checks run by default. Add the `skip-browser-checks` PR label to skip
+only Chromium installation, browser execution and browser evidence upload.
+Backend, architecture, frontend type/build and formatting checks still run.
+The job summary states that Chromium was skipped. Removing the label restores
+browser execution. Label changes trigger a new workflow run on the same PR,
+including the other checks; use the label deliberately to avoid redundant runs.
+Main pushes always run Chromium, regardless of PR labels. Manual dispatch
+continues to run the mutation audit only.
+
+Use the opt-out for a change whose relevant behavior is covered by the retained
+backend and build checks. Keep Chromium enabled for workspace behavior, browser
+configuration and HTTP/UI integration changes. A successful opted-out run is
+not evidence that browser tests passed. GitHub's
+[conditional-check semantics](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-jobs-with-conditions)
+do not distinguish a skipped check from a successful check for merge gating;
+the explicit summary records the difference. No branch protection settings are
+changed. Local `make interface-check` always executes browser tests.
+
+Local verification of the new allocation passed 38 and 80 Chromium tests in
+382.124 and 403.967 seconds respectively, with zero failures, retries or skips.
+A full backend run was executing concurrently; these are local observations,
+not new Actions timings.
+
+The sections below retain earlier measurements and their original scope.
+
+
 Initial measurements below use baseline `0ffba90` (PR #84). The CI branch is
 now rebased onto `b88e632` (PR #85), including exact sequence review.
 

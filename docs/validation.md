@@ -3423,3 +3423,150 @@ Verification on `b9a2471`: `make test` passed all 1,096 tests in 1,117.733
 seconds. The focused storage suite passed all 14 tests; `make arch-check`
 passed with 213 modules and zero exceptions. The regression used a localhost
 Hrana fixture backed by real SQLite. No new live remote or model run is claimed.
+
+## CI partition calibration and optional Chromium, 22 November 2026
+
+Executable revision: `f562f9b`. This slice changes CI scheduling and test fixtures;
+production Python and frontend application code are unchanged. The isolated branch
+is `feature/ci-partition-and-fixtures`, based on main `5e37b25`.
+
+Confirmed authorities are backend unittest discovery, Playwright discovery,
+GitHub's Actions expression evaluator, the real workspace initialization CLI and
+SQLite rows in each test's private root. Seven policy contexts were evaluated:
+main, main with an irrelevant PR-shaped opt-out, ordinary PR, unrelated PR label,
+opt-out alone, opt-out among labels and opt-out removal. All retained backend and
+frontend build/format paths remain enabled; only Chromium steps follow the PR
+opt-out. Both label activity types are subscribed. Mutation-audit dispatch keeps
+its prior cadence. Effective branch-protection configuration was not rechecked or
+changed.
+
+| Protected behavior | Regression and observable oracle |
+| --- | --- |
+| No backend test omitted or duplicated | Existing CI-tool test compares both two- and four-way partitions against fresh discovery, including ID multiplicity. It now also rejects a module split across runners, preserving class setup sequencing. |
+| No browser test omitted or duplicated | Actual Playwright JSON discovery found 118 tests; the new partitions contain 38 and 80, with identical union and zero overlap. |
+| No shared test authority or leaked run | Fixture activation copies one closed, empty CLI-initialized template into a private temporary directory per test. The existing restore/fresh-root test now verifies an independent copy cannot read a sibling's run. Per-test cleanup and class teardown compare original template bytes. |
+| Important checks remain with browser opt-out | Actionlint 1.7.12 passed. Seven actual workflow-expression contexts passed with `@actions/expressions` 0.3.25; build/type, formatting and backend checks remain enabled in each context. Main forces Chromium. |
+
+All 23 fixture test methods are retained. AST comparison found unchanged bodies
+for 22; the remaining restore test only adds sibling-isolation assertions.
+The positive initialization subprocess moved from per-test setup to class setup;
+all explicit initialization rejection and process-restart paths still execute.
+The focused five-check run passed in 1.079 seconds. The 23-case fixture module
+passed before and after in 51.649 and 47.864 seconds respectively, in one local
+pair. This small sample is not a hosted performance guarantee.
+
+The retained [main-run baseline](evaluations/ci-partition-baseline-2026-11-22.json)
+is measured Actions data; new partition projections are documented in
+[ci-performance.md](ci-performance.md). No test cases, mutation variants or
+runtime authority checks were removed. This verification uses no live model or
+remote database. Routine Turso adapter tests use a loopback Hrana server backed
+by real SQLite; remote conformance is a separate explicit operation.
+
+All 18 existing mutation probes whose target is `test_fixture_activation`
+were rerun against the new fixture lifecycle. All 18 were detected by test
+assertions; setup, loader and unexpected runtime errors do not count as kills.
+This bounded check covers the affected fixture's original mutation targets, not
+the complete manual catalogue. It retains evidence that setup reuse does not
+mask the existing lease, publication, source, stop and restore regressions.
+
+The complete browser portfolio passed: 38 tests in 382.124 seconds and 80 tests
+in 403.967 seconds, with zero failed, flaky or skipped cases. The first command
+was `make interface-check BROWSER_SHARD=1 BROWSER_SHARDS=2`; the second test-only
+partition started after that build completed. Both servers used independent
+roots and one worker. Build/type checking and formatting passed. A full local
+backend run was executing concurrently, so these are not hosted CI timings.
+
+`make test` passed all 1,096 tests in 1,258.393 seconds on Python 3.14.3.
+This was one complete local run on the executable bytes committed as `f562f9b`;
+the browser checks overlapped its early portion. `make arch-check` passed with
+213 modules and zero exceptions. No new hosted Actions timing or live remote
+conformance run is claimed. The final evidence commit changes documentation
+only; executable files remain identical to `f562f9b`.
+
+The [verification record](evaluations/ci-optimization-validation-2026-11-22.json)
+retains commit identity, local environment, partition inventory, policy scenarios,
+mutation results, measured durations and completed-log hashes. The original dirty
+checkout and the separate serverless implementation worktree were preserved.
+
+## Offline journey pause acknowledgement, 23 November 2026
+
+PR #122's first hosted run passed all backend shards and browser shard 1, but
+its desktop offline journey timed out. The retained page shows a paused schedule
+and an unresolved browser monitoring request. The driver waited only for the
+polled Resume monitoring button to become visible before reloading, which can
+interrupt acknowledgement before IndexedDB clears the pending request.
+
+The same existing journey now holds the pause acknowledgement after the real
+server commits it, proves the Resume control is visible but disabled, and then
+releases the response. Without the readiness wait this reproduced the failure
+at `cadence-pause-and-resume`: after reload the recovery prompt replaces Resume.
+The driver now waits for Resume to become enabled before its ordinary reload,
+as the existing chat-review regression already does. All original exact-subject,
+export, schedule identity, crash/restart and learning assertions remain.
+
+The outer 120-second test limit is unchanged. Self-created browser contexts now
+bound individual actions to ten seconds and navigation to fifteen seconds, so
+future failures can produce their phase result and trace before the outer limit.
+The held acknowledgement is released during cleanup as well as on the success
+path. No application code or durable authority rules changed.
+
+The corrected offline-journey file passed all nine focused cases across three
+repetitions in 156.531 seconds: three desktop delayed-acknowledgement journeys,
+three mobile journeys and three exact-export negative checks, with zero flaky
+or skipped cases. Each desktop result confirms the held pause was exercised.
+Formatting and architecture passed (213 modules, zero exceptions). The
+[attributable record](evaluations/ci-pause-reload-fix-2026-11-23.json) includes
+source and log hashes. Full hosted checks will run on the correction commit in
+PR #122; their result is not preclaimed by this local record.
+
+## Lean MVP gate, 23 November 2026
+
+The user authorized a further leaner CI pass within PR #122. Every existing
+backend test remains required on PRs. Comparing current discovery with the
+actual successful parent-run timing artifacts retained all 1,096 original IDs;
+four new small scheduling/scope regressions bring the total to 1,100. Both two-
+and four-way allocations preserve ID multiplicity. Modules remain whole except
+`SequenceJourneyTests`, whose isolated per-test SQLite backups permit explicit
+case partitioning. The allocator charges class setup once per runner using it,
+and a regression prevents leaving and re-entering a class within one runner.
+No production code, native test body or browser test body changed.
+
+Routine PRs use the 11 existing critical browser cases in
+`frontend/browser-smoke.json`. Each entry records the behavior it protects.
+Product UI, HTTP, persistence, runtime, composition, recovery/checkpoint,
+configuration and unclassified changes automatically select the full suite.
+Main always uses full coverage. Explicit full and skip PR labels remain available;
+full takes precedence if both are present. Missing change information falls back
+to full. A real Git rename regression verifies that the old product path cannot
+be hidden by moving it outside a product directory.
+
+The browser catalogue check executes actual Playwright discovery. It found the
+same 118 full-suite IDs as the earlier baseline, requires every smoke contract
+entry, and proves full partitions 38/80 have identical union and no overlap.
+This preserves the larger portfolio while moving unrelated browser permutations
+off routine PRs. Backend checks do not depend on browser selection. Only one
+interface runner installs tools/builds on routine PRs; the second explicitly
+records that it has no selected full partition. Diagnostic uploads are non-blocking,
+while test/build/type/format/architecture failures remain blocking.
+
+Local `BROWSER_SUITE=smoke make interface-check` passed all 11 smoke cases in
+68.499 seconds, plus production build/type checking and formatting. All eight
+CI-tool checks passed in 1.099 seconds. Actionlint 1.7.12 and six actual workflow
+suite/shard combinations evaluated with GitHub's expression interpreter passed.
+Architecture passed with 213 modules and zero exceptions. Full browser execution
+already passed all 118 cases on the parent `3f057dc`; this slice leaves their bodies
+and identities unchanged, verifies full selection, and executes the PR portfolio.
+
+The [attributable record](evaluations/ci-mvp-lean-2026-11-23.json) retains parent
+identity, source/log hashes, suite policy and the measured-allocation projection.
+The new backend allocation projects approximately 336 seconds per shard using
+the parent run's observed costs; this includes repeated fixture setup and is not
+a hosted timing guarantee. Full hosted backend verification will run on the pushed
+correction commit in PR #122. No live model or remote database was used, and no
+historical evidence was rewritten.
+
+Browser selection also fails closed if the selection job itself fails or emits
+an invalid suite. Both existing interface check names run a fatal guard in that
+case, so a failed dependency cannot silently turn required browser checks into
+successful skipped jobs. Six suite/shard combinations and all 16 selector-result/
+suite combinations passed evaluation against the actual workflow expressions.

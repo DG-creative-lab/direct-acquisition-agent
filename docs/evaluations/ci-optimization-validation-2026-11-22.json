@@ -1,0 +1,296 @@
+{
+  "recorded_date": "2026-11-22",
+  "executable_commit": "f562f9b70a0167232f6685139fe9d7d7301fb405",
+  "base_commit": "5e37b259ae72c05adca2c390a266ee46cff9fe9d",
+  "scope": "CI scheduling and closed per-test fixture copies; no product code changes",
+  "backend_projection": [
+    {
+      "shard": 1,
+      "cases": 180,
+      "modules": [
+        "test_admission_entrypoints",
+        "test_agent_assets",
+        "test_boundary_evaluation",
+        "test_budget_clarification",
+        "test_ci_tools",
+        "test_conversation_campaign",
+        "test_conversation_handoff",
+        "test_hosting_probe",
+        "test_legacy_followup_scope",
+        "test_legacy_migration",
+        "test_persistence",
+        "test_sequence_journeys",
+        "test_workspace_composition",
+        "test_workspace_control"
+      ],
+      "predicted_seconds": 310.985,
+      "reallocated_baseline_seconds": 310.986
+    },
+    {
+      "shard": 2,
+      "cases": 229,
+      "modules": [
+        "test_atomic_admissions",
+        "test_channel_content",
+        "test_checkpoint_reconciliation",
+        "test_conversational_evaluation",
+        "test_conversations",
+        "test_execution_authority_model",
+        "test_grounding",
+        "test_learning",
+        "test_pre_entrypoint_recovery",
+        "test_preparations",
+        "test_requested_scope",
+        "test_review_regressions",
+        "test_sequences",
+        "test_workspace_checkpoint"
+      ],
+      "predicted_seconds": 311.282,
+      "reallocated_baseline_seconds": 311.282
+    },
+    {
+      "shard": 3,
+      "cases": 327,
+      "modules": [
+        "test_admission_contracts",
+        "test_admission_workflow_coverage",
+        "test_architecture",
+        "test_audience_catalogue",
+        "test_contacts",
+        "test_conversation_audiences",
+        "test_copy_revisions",
+        "test_cutover_review_regressions",
+        "test_database_initialization",
+        "test_followups",
+        "test_knowledge",
+        "test_learning_cli",
+        "test_legacy_action_replay",
+        "test_legacy_inventory",
+        "test_openrouter_catalogue",
+        "test_planning_request_scope",
+        "test_recipient_context",
+        "test_recovery_commands",
+        "test_reviews",
+        "test_sequence_reviews"
+      ],
+      "predicted_seconds": 310.984,
+      "reallocated_baseline_seconds": 310.985
+    },
+    {
+      "shard": 4,
+      "cases": 360,
+      "modules": [
+        "test_audience_strategies",
+        "test_conversation_actions",
+        "test_conversation_learning",
+        "test_conversational_copy_revision",
+        "test_domain",
+        "test_execution_controls",
+        "test_failure_boundaries",
+        "test_fixture_activation",
+        "test_followup_hypotheses",
+        "test_model_copy",
+        "test_offline_journey_evaluation",
+        "test_profiles",
+        "test_review_cli",
+        "test_turso_storage",
+        "test_typed_chat_routing",
+        "test_validation_reports",
+        "test_workspace",
+        "test_workspace_authority",
+        "test_workspace_projection"
+      ],
+      "predicted_seconds": 310.998,
+      "reallocated_baseline_seconds": 310.998
+    }
+  ],
+  "browser_projection": [
+    {
+      "shard": 1,
+      "files": [
+        "sequence-journey.spec.mjs",
+        "chat-review.spec.mjs"
+      ],
+      "cases": 38,
+      "reallocated_baseline_seconds": 380.778
+    },
+    {
+      "shard": 2,
+      "files": [
+        "continuous-preparation.spec.mjs",
+        "conversational-actions.spec.mjs",
+        "conversational-copy.spec.mjs",
+        "generation-failure.spec.mjs",
+        "offline-journey.spec.mjs",
+        "openrouter.spec.mjs",
+        "review-regressions.spec.mjs"
+      ],
+      "cases": 80,
+      "reallocated_baseline_seconds": 387.439
+    }
+  ],
+  "projection_limit": "Reallocation of recorded main-run costs, not new GitHub Actions wall-clock results",
+  "policy": {
+    "evaluator": "@actions/expressions@0.3.25",
+    "cases": [
+      {
+        "name": "main",
+        "run_browser": true,
+        "backend": true,
+        "build": true,
+        "format": true
+      },
+      {
+        "name": "main ignores PR opt-out",
+        "run_browser": true,
+        "backend": true,
+        "build": true,
+        "format": true
+      },
+      {
+        "name": "PR default",
+        "run_browser": true,
+        "backend": true,
+        "build": true,
+        "format": true
+      },
+      {
+        "name": "PR unrelated label",
+        "run_browser": true,
+        "backend": true,
+        "build": true,
+        "format": true
+      },
+      {
+        "name": "PR opt-out",
+        "run_browser": false,
+        "backend": true,
+        "build": true,
+        "format": true
+      },
+      {
+        "name": "PR opt-out among labels",
+        "run_browser": false,
+        "backend": true,
+        "build": true,
+        "format": true
+      },
+      {
+        "name": "PR opt-out removed",
+        "run_browser": true,
+        "backend": true,
+        "build": true,
+        "format": true
+      }
+    ]
+  },
+  "workflow_validator": {
+    "tool": "actionlint",
+    "version": "1.7.12",
+    "result": "passed"
+  },
+  "fixture_measurement": {
+    "cases": 23,
+    "before_seconds": 51.649,
+    "after_seconds": 47.864,
+    "repeat_count": 1,
+    "all_existing_test_methods_retained": true,
+    "unchanged_test_method_bodies": 22,
+    "extended_test_method_bodies": 1,
+    "limit": "One local before/after pair, not a CI speedup guarantee"
+  },
+  "focused": {
+    "cases": 5,
+    "seconds": 1.079,
+    "result": "passed"
+  },
+  "architecture": {
+    "modules": 213,
+    "exceptions": 0,
+    "result": "passed"
+  },
+  "full_backend": {
+    "result": "passed",
+    "cases": 1096,
+    "seconds": 1258.393,
+    "command": "make test",
+    "note": "One complete stable-code run. Both browser partitions overlapped part of this local serial run; not an Actions performance measurement."
+  },
+  "full_browser": {
+    "result": "passed",
+    "total": 118,
+    "shards": [
+      {
+        "shard": 1,
+        "expected": 38,
+        "failed": 0,
+        "flaky": 0,
+        "skipped": 0,
+        "seconds": 382.124,
+        "start_time": "2026-11-22T18:25:28.972Z"
+      },
+      {
+        "shard": 2,
+        "expected": 80,
+        "failed": 0,
+        "flaky": 0,
+        "skipped": 0,
+        "seconds": 403.967,
+        "start_time": "2026-11-22T18:25:39.268Z"
+      }
+    ],
+    "commands": [
+      "make interface-check BROWSER_SHARD=1 BROWSER_SHARDS=2",
+      "BROWSER_SHARD=2 BROWSER_SHARDS=2 pnpm --dir frontend test"
+    ],
+    "note": "Second test-only shard starts after the one local build completes. Both use isolated roots and one worker. Concurrent local backend execution prevents treating these as Actions performance measurements."
+  },
+  "live_remote_database_run": false,
+  "live_model_run": false,
+  "branch_pushed": false,
+  "frontend_build": "passed",
+  "frontend_format": "passed",
+  "fixture_mutations": {
+    "result": "passed",
+    "detected": 18,
+    "declared": 18,
+    "scope": "Every existing catalogue entry targeting test_fixture_activation; no full mutation audit rerun",
+    "labels": [
+      "writing-preference-model-projection",
+      "writing-preference-replace-guard",
+      "writing-preference-snapshot-fallback",
+      "writing-preference-confirmation",
+      "writing-preference-current-version",
+      "writing-preference-retirement",
+      "writing-preference-source-audit",
+      "artifact-comment-subject",
+      "artifact-comment-creative",
+      "fixture-atomic-grant",
+      "fixture-draft-commit-lease",
+      "fixture-settlement-commit-lease",
+      "fixture-failure-commit-lease",
+      "fixture-publication-authority",
+      "fixture-publication-creative-content",
+      "fixture-publication-catalogue-version",
+      "fixture-sql-stop-fence",
+      "fixture-restored-read-model"
+    ]
+  },
+  "completed_log_hashes": {
+    "iwoca-ci-focused.log": "062d1663de0f8d74415b3ff8ae786ffe3e1e82506069a906ee9c5069b73c19cb",
+    "iwoca-ci-fixture-before.log": "2b87b807699b924997afe8abe3b921fdfcca484c408bbad533126b3234d79941",
+    "iwoca-ci-fixture-after.log": "1cc13e49c78ecc8225b6ecefd54075709ed6e4a83d6b9c872742fb26b14caa29",
+    "iwoca-ci-fixture-mutations.log": "47f12ede13833f19719d3434a103825f4e4895d6d185a03ad13cabf56a6aa511",
+    "iwoca-ci-browser-1.log": "38648b65cc8501162870c64054b93ef2b1e7c983e5a73497e783bf11b8746344",
+    "iwoca-ci-browser-2.log": "0a7c4a986c98561e00e653fbcd464b8ee4b39a303cd4f57cd6aafa48d0943f5c",
+    "iwoca-ci-full-backend.log": "abe925237112484b4f94b02075a65297f0ea231d13259680df000164f5dfc496"
+  },
+  "local_environment": {
+    "python": "3.14.3",
+    "system": "Darwin",
+    "machine": "arm64",
+    "node": "v25.8.2",
+    "pnpm": "10.33.0"
+  },
+  "retained_mutation_catalogue_entries": 526
+}
