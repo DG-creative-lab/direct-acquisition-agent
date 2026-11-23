@@ -1,0 +1,16 @@
+{
+  "framework": null,
+  "buildCommand": "",
+  "installCommand": "",
+  "regions": [
+    "dub1"
+  ],
+  "functions": {
+    "api/preparation.py": {
+      "maxDuration": 180,
+      "includeFiles": "{src/**,config/**}",
+      "excludeFiles": "{tests/**,docs/**,frontend/**,.local/**}"
+    }
+  },
+  "outputDirectory": "public"
+}

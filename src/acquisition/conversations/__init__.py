@@ -33,3 +33,6 @@ __all__ += ['postal_request']
 
 from .scope import sequence_language
 __all__ += ['sequence_language']
+
+from .hosted_preparation import HostedPreparations
+__all__ += ['HostedPreparations']

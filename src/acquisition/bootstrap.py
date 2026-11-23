@@ -55,7 +55,7 @@ from acquisition.adapters.sqlite.admissions import SqliteAdmissions
 from acquisition.workflows.conversation import validate_planning_assets
 
 
-def build_contact_directory(path, organization, profile_key, clock=time.time, *, read_only=False, remote_storage=None):
+def build_contact_directory(path, organization, profile_key, clock=time.time, *, read_only=False, remote_storage=None, _database=None):
     """Installed synthetic contact evidence only, without campaign or execution authority."""
     if not read_only and remote_storage is None:
         require_live_root(path)
@@ -66,7 +66,7 @@ def build_contact_directory(path, organization, profile_key, clock=time.time, *,
     from acquisition.audiences import ContactDirectory
     profiles = LocalProfiles(organization, profile_key, Path(__file__).resolve().parents[2] / 'config/profiles')
     profile = profiles.campaign_profile(organization,profile_key,'v1')
-    database = build_database(path, clock=clock, remote_storage=remote_storage, read_only=read_only)
+    database = _database or build_database(path, clock=clock, remote_storage=remote_storage, read_only=read_only)
     with database.connect() as db:
         if db.execute('PRAGMA user_version').fetchone()[0] < 18:
             raise Conflict('Migrate the live application store before inspecting contact evidence')
@@ -77,7 +77,7 @@ def build_contact_directory(path, organization, profile_key, clock=time.time, *,
     return ContactDirectory(source,store)
 
 
-def build_audience_decisions(path, organization, profile_key, strategy='taxonomy-order', clock=time.time, *, read_only=False):
+def build_audience_decisions(path, organization, profile_key, strategy='taxonomy-order', clock=time.time, *, read_only=False, remote_storage=None, _database=None):
     """Offline advisory strategies and deterministic constraints; no campaign/outbound authority."""
     from acquisition.adapters.audience_strategies import (DeclaredSegmentCategorizer, TaxonomyOrderDecision,
                                                          ReverseTaxonomyDecision)
@@ -85,7 +85,7 @@ def build_audience_decisions(path, organization, profile_key, strategy='taxonomy
     from acquisition.audiences import AudienceDecisions
     if strategy not in {'taxonomy-order','reverse-taxonomy-test'}:
         raise ValueError('Select an installed offline audience strategy')
-    contacts = build_contact_directory(path,organization,profile_key,clock,read_only=read_only)
+    contacts = build_contact_directory(path,organization,profile_key,clock,read_only=read_only,remote_storage=remote_storage,_database=_database)
     profile = contacts.store._profile(organization)
     categorizer = DeclaredSegmentCategorizer(profile.taxonomy,profile.objective)
     decision = (TaxonomyOrderDecision if strategy=='taxonomy-order' else ReverseTaxonomyDecision)(profile.taxonomy,profile.objective)
@@ -93,12 +93,12 @@ def build_audience_decisions(path, organization, profile_key, strategy='taxonomy
     return AudienceDecisions(categorizer,decision,store)
 
 
-def build_recipient_contexts(path, organization, profile_key, clock=time.time, *, guidance=None, read_only=False, remote_storage=None):
+def build_recipient_contexts(path, organization, profile_key, clock=time.time, *, guidance=None, read_only=False, remote_storage=None, _database=None):
     """Reviewed synthetic context only. No raw document prompts, inference or outbound authority."""
     from acquisition.adapters.recipient_fixtures import RecordedRecipientContextSource, synthetic_recipient_evidence
     from acquisition.adapters.sqlite.recipient_contexts import SqliteRecipientContexts
     from acquisition.creative import RecipientContexts, RecipientContextGuidance
-    contacts = build_contact_directory(path,organization,profile_key,clock,read_only=read_only,remote_storage=remote_storage)
+    contacts = build_contact_directory(path,organization,profile_key,clock,read_only=read_only,remote_storage=remote_storage,_database=_database)
     with contacts.store.database.connect() as db:
         if db.execute('PRAGMA user_version').fetchone()[0]<19:
             raise Conflict('Migrate the live application store before inspecting recipient context')
@@ -112,14 +112,14 @@ def build_recipient_contexts(path, organization, profile_key, clock=time.time, *
 
 
 def build_channel_preparation(path, organization, profile_key, clock=time.time, *, gateway=None, read_only=False,
-                              stage_ownership=False, remote_storage=None):
+                              stage_ownership=False, remote_storage=None, _database=None):
     """Installed offline model simulation only; no paid model, sender or review capability."""
     from acquisition.adapters.channel_fixtures import OfflineChannelModel
     from acquisition.adapters.sqlite.channel_content import SqliteChannelContent, SqliteChannelTasks
     from acquisition.workflows.channel_content import ChannelContentWorkflow, ChannelPreparation, compose_channel_admission
     from acquisition.reasoning import ModelConfig
     from acquisition.creative import CHANNEL_CONTENT_CAPABILITY, PAUSED_CHANNEL_ADMISSION, SYNTHETIC_CHANNEL_ADMISSION
-    recipients = build_recipient_contexts(path,organization,profile_key,clock,read_only=read_only,remote_storage=remote_storage)
+    recipients = build_recipient_contexts(path,organization,profile_key,clock,read_only=read_only,remote_storage=remote_storage,_database=_database)
     with recipients.store.contacts.database.connect() as db:
         if db.execute('PRAGMA user_version').fetchone()[0]<20:
             raise Conflict('Migrate the live store before inspecting channel artifacts')
@@ -140,7 +140,7 @@ def build_channel_preparation(path, organization, profile_key, clock=time.time, 
 
 
 def build_sequence_simulation(path, organization, profile_key, clock=time.time, *,
-                              email_scenario='success', call_scenario='success', read_only=False):
+                              email_scenario='success', call_scenario='success', read_only=False, remote_storage=None, _database=None):
     """Exact reviewed synthetic sequences only. No live provider or outbound authority."""
     from acquisition.adapters.simulated_engagements import synthetic_sequence_connections, SyntheticEngagementTransport
     from acquisition.adapters.sqlite.sequence_proposals import SqliteSequenceProposals
@@ -150,8 +150,8 @@ def build_sequence_simulation(path, organization, profile_key, clock=time.time, 
     from acquisition.campaigns import SequenceCampaigns
     from acquisition.engagements import EngagementSimulator
     from acquisition.workflows.sequences import SequenceSimulation
-    channels=build_channel_preparation(path,organization,profile_key,clock,read_only=read_only)
-    decisions=build_audience_decisions(path,organization,profile_key,clock=clock,read_only=read_only)
+    channels=build_channel_preparation(path,organization,profile_key,clock,read_only=read_only,remote_storage=remote_storage,_database=_database)
+    decisions=build_audience_decisions(path,organization,profile_key,clock=clock,read_only=read_only,remote_storage=remote_storage,_database=_database)
     with channels.store.database.connect() as db:
         if db.execute('PRAGMA user_version').fetchone()[0]<(21 if read_only else 22):
             raise Conflict('Migrate the live store before reviewing sequences')
@@ -164,7 +164,7 @@ def build_sequence_simulation(path, organization, profile_key, clock=time.time, 
     return SequenceSimulation(SequenceCampaigns(proposals),simulator,SequenceReviews(reviews))
 
 
-def build_sequence_journeys(path,clock=time.time,*,stage_ownership=False):
+def build_sequence_journeys(path,clock=time.time,*,stage_ownership=False, remote_storage=None, read_only=False, _database=None, _gateway=None, _preparation_clock=False):
     """Wire bounded conversation continuation to installed synthetic module APIs."""
     from acquisition.adapters.local_profiles import LocalProfiles
     from acquisition.adapters.contact_fixtures import synthetic_contact_snapshots
@@ -172,7 +172,7 @@ def build_sequence_journeys(path,clock=time.time,*,stage_ownership=False):
     from acquisition.adapters.sqlite.sequence_journeys import SqliteSequenceJourneys
     from acquisition.conversations import SequenceJourneys
     from acquisition.workflows.sequence_journey import JourneyCapabilities, SequenceJourneyWorkflow
-    database=Database(path)
+    database=_database or build_database(path,clock=clock,remote_storage=remote_storage,read_only=read_only)
     store=SqliteSequenceJourneys(database,clock)
     config_root=Path(__file__).resolve().parents[2]/'config/profiles'
     def catalogue(organization):
@@ -194,6 +194,7 @@ def build_sequence_journeys(path,clock=time.time,*,stage_ownership=False):
                 'aliases':['iwoca','flexi loan','flexi-loan'] if key=='iwoca' else ['fielddesk','field desk'],
                 'connections':connections,'segments':[{'key':s.key,'label':s.label} for s in profile.taxonomy.segments]})
         return {'schema':'installed-conversational-sequences/v1','organization':organization,'profiles':profiles,
+            **({'preparation_clock':'real-invocation/v1','preparation_cadence':'synthetic-hourly/v1'} if _preparation_clock else {}),
             'mode':'SYNTHETIC_ONLY','strategy':'taxonomy-order','channels':['email','human_call','followup'],
             'model_config':ModelConfig('offline/channel-content-v1',max_calls=5,max_output_tokens=2400,
                 max_input_bytes=32000,max_prompt_usd_per_million=0,max_completion_usd_per_million=0,
@@ -201,13 +202,13 @@ def build_sequence_journeys(path,clock=time.time,*,stage_ownership=False):
             'max_content_runs':3,'max_calls':15,'shared_conversation_call_limit':48,'authority':'none'}
     def capabilities(frozen,inspection):
         native=frozen['native_organization'];key=frozen['interpretation']['profile_key']
-        scoped_clock=lambda:store.simulation_time(frozen['organization'],frozen['id'])
-        directory=build_contact_directory(path,native,key,scoped_clock,read_only=inspection)
-        audiences=build_audience_decisions(path,native,key,clock=scoped_clock,read_only=inspection)
-        contexts=build_recipient_contexts(path,native,key,scoped_clock,read_only=inspection)
+        scoped_clock=clock if frozen['catalogue'].get('preparation_clock')=='real-invocation/v1' else lambda:store.simulation_time(frozen['organization'],frozen['id'])
+        directory=build_contact_directory(path,native,key,scoped_clock,read_only=inspection,remote_storage=remote_storage,_database=database)
+        audiences=build_audience_decisions(path,native,key,clock=scoped_clock,read_only=inspection,remote_storage=remote_storage,_database=database)
+        contexts=build_recipient_contexts(path,native,key,scoped_clock,read_only=inspection,remote_storage=remote_storage,_database=database)
         channels=build_channel_preparation(path,native,key,scoped_clock,read_only=inspection,
-                                           stage_ownership=stage_ownership)
-        sequence=build_sequence_simulation(path,native,key,scoped_clock,read_only=inspection)
+                                           stage_ownership=stage_ownership,remote_storage=remote_storage,_database=database,gateway=_gateway)
+        sequence=build_sequence_simulation(path,native,key,scoped_clock,read_only=inspection,remote_storage=remote_storage,_database=database)
         def initialize_reviewers():
             roles=SqliteReviews(sequence.campaigns.store.database,scoped_clock,SqliteSimulatedDelivery)
             roles.initialize_actor(native,'local-operator',('operator',))
@@ -397,7 +398,7 @@ def build_database(path, *, clock=time.time, verified_admissions=False, remote_s
         raise ValueError('Remote storage cannot replace a local root implicitly')
     from acquisition.adapters.turso import TursoDatabase
     return TursoDatabase(remote_storage['url'], remote_storage['token'], clock=clock,
-                         verified_admissions=verified_admissions, initialize=not read_only)
+                         verified_admissions=verified_admissions, initialize=not read_only, deadline=remote_storage.get('deadline'))
 
 
 def build_admissions(path, clock=time.time, *, _database=None, verified_admissions=False, remote_storage=None):
@@ -616,3 +617,28 @@ def build_recovery_error_boundary():
     """Normalize storage failures without importing SQLite in command startup."""
     from acquisition.adapters.sqlite.errors import recovery_storage_errors
     return recovery_storage_errors()
+
+
+def build_hosted_preparations(path, organization, clock=time.time, *, remote_storage=None, _database=None, _gateway=None):
+    """Open an already migrated store. Per-request composition never initializes or repairs it."""
+    from acquisition.conversations import HostedPreparations
+    database=_database or build_database(path,clock=clock,remote_storage=remote_storage,read_only=True)
+    from acquisition.adapters.turso import TursoDatabase
+    if isinstance(database,TursoDatabase):database.memoize_transactions=True
+    journeys=build_sequence_journeys(path,clock,remote_storage=remote_storage,_database=database,_gateway=_gateway,_preparation_clock=True)
+    return HostedPreparations(organization,SqliteConversations(database),journeys,clock)
+
+
+def build_serverless_preparation_handler():
+    """Server-owned operator identity and credentials. No local store or worker fallback."""
+    import os
+    from acquisition.adapters.http.serverless_preparation import preparation_handler
+    token=os.environ.get('PREPARATION_OPERATOR_TOKEN','')
+    hosts=os.environ.get('PREPARATION_ALLOWED_HOSTS','').split(',')
+    if os.environ.get('VERCEL_URL'):hosts.append(os.environ['VERCEL_URL'])
+    origins=os.environ.get('PREPARATION_ALLOWED_ORIGINS','').split(',')
+    def factory():
+        remote={'url':os.environ['TURSO_DATABASE_URL'],'token':os.environ['TURSO_AUTH_TOKEN'],
+                'deadline':time.monotonic()+120}
+        return build_hosted_preparations(None,os.environ['PREPARATION_ORGANIZATION'],remote_storage=remote)
+    return preparation_handler(factory,token,[h.strip() for h in hosts if h.strip()],[o.strip() for o in origins if o.strip()])

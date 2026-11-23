@@ -3592,3 +3592,101 @@ path. Both old and new paths remain visible to the selector. All eight CI-tool
 tests and architecture (213 modules, zero exceptions) passed locally. No test
 cases were removed, and production application code is unchanged. Full hosted
 checks will verify the fix branch's selected suite before merge.
+
+## Request-bound synthetic serverless preparation
+
+The protected operator surface reuses native conversation and sequence journals.
+Its invariant oracles are committed SQLite data, original receipts and actual
+call reservations across independent processes, rather than process-local locks.
+
+| Invariant | Regression and independent observation |
+| --- | --- |
+| Exact start converges | Concurrent starts retain one conversation/journey and reject changed profile or budget |
+| One displayed stage per request | Cold-process continuation and same-stage replay retain exact native runs, calls and progress |
+| Reads have no work effects | Repeated status requests, including ready review, leave the database dump unchanged |
+| Authority stays server-owned | Wrong Host/Origin/token and client organization/role/model fields fail before composition |
+| Native leases remain real | A killed claim expires and a cold invocation resumes its original run; late settlement cannot publish |
+| Stop fences effects | Stop before reservation makes zero calls; stop after recorded generation cannot publish an artifact |
+| Uncertainty survives death | Process exit after reservation and I/O-budget expiry retain one reserved call with no repeat or artifact |
+| No approval through continuation | The ready sequence retains zero review decisions and no simulation |
+
+See [serverless preparation](serverless-preparation.md) for bounded request,
+clock, storage and preview deployment contracts. These are synthetic operator
+checks, not live-model, public-access or autonomous-background guarantees.
+
+Hosted transport reuse retains exact independent request payloads on one HTTP
+connection. The focused regressions prove no retry after a lost response on a
+reused socket, no redirect forwarding and no submission after budget expiry.
+The start-race regression commits an independent original admission between the
+first receipt lookup and source read, then requires the original receipt rather
+than a revision conflict. Changed-input conflicts remain enforced.
+
+Hosted cadence is frozen separately from lease time. The complete preparation
+regression runs on 22 November, rather than a historical fixture clock. The
+one-day hourly demonstration still blocks expired product evidence before any
+inference reservation. Historical/local multi-day journeys retain their cadence.
+
+Physical HTTP sockets are retired before submission after one idle second. A
+real HTTP regression verifies a new socket and exactly one new request; lost
+acknowledgements on an active reused socket still receive no retry. This keeps
+long operator or provider waits from relying on an old keep-alive socket.
+
+Remote continuation exposed HTTP 429 under the native provenance read volume.
+Hosted-only transaction snapshot reuse retains all validation while reducing
+identical deterministic SELECT round trips. Aggregate/JSON reads are eligible;
+volatile, quoted or commented functions remain fresh. Regressions cover fresh
+cursors, exact inputs, write/new-transaction invalidation, combined key/result
+bounds and provider rollback before COMMIT, which must prevent dispatch. No
+memoized row is used across transactions or as approval authority.
+
+Verification on `2ba484a`: `make test` passed all 1,118 tests in 1196.796 seconds.
+The focused suite passed 22 tests. Architecture passed with 216 modules and zero
+exceptions. All five native boundary cases passed with zero network attempts,
+stable source and unchanged historical bytes. The clean protected Ireland
+preview completed seven stages, exact replay and read-only status with nine
+fixture calls, three content runs and zero review decisions. Its longest stage
+request took 20.221 seconds including CLI overhead. A real process exit after a
+remote claim recovered the same task/run after lease expiry, retained three
+fixture calls, and preserved cancellation, replay and foreign-scope fences.
+
+See the [commit-bound verification record](evaluations/issue-60-serverless-preparation-2026-11-22.json)
+for failed observations, the HTTP 429 diagnosis, provenance equivalence, package
+hashes and the operator-only scope. No live model or public release is claimed.
+
+## Hosted continuation stage binding, 22 November 2026
+
+The requested preparation stage is checked against the exact row passed to
+workflow selection, after the hosted ownership/preflight read. If a competing
+invocation has completed that stage, continuation only observes its progress.
+It cannot prepare the next stage, admit its content run or reserve its inference.
+A future stage conflicts before the journey's blocking/error handler and changes
+no durable state. Existing local callers can still advance without a stage bound.
+
+Two real SQLite regressions reproduced the old behavior before the fix. They now
+cover all seven delayed-request boundaries, with a separate cold process
+committing the winning request. Exact database dumps remain equal after each
+losing continuation. Generation retains one run and three fixture calls per
+requested content stage, with no approval decisions. The existing Hrana wire
+journey also exercises all seven delayed-request boundaries on independent
+connections. These are finite deterministic schedules, not a claim about every
+possible distributed interleaving. Verification for this fix is recorded
+separately from the earlier immutable deployment evidence.
+
+Verification of source `4a6d94d`: `make test` passed 1,120 tests in 1133.783
+seconds; the focused suite passed 24 tests in 43.544 seconds. `make arch-check`
+passed with 216 modules and zero exceptions. All five `make boundary-check`
+cases passed with zero network attempts, stable source and unchanged historical
+bytes. One final full backend run was used for this fix.
+
+The existing isolated Turso database also retained all seven requested-stage
+fences, three original content runs, nine fixture calls and zero approvals.
+That probe includes partial responses: the first admission conflicted and was
+reconciled under its original command; stage 5 failed during status projection,
+and the final review winner committed ready before its response failed. Fresh
+reads confirmed saved progress, and a fresh stage-6 execution-service replay
+changed no durable evidence. Causes of those response failures were not
+established. This proves the recorded stage gates and reconciliation results,
+not a fully passing remote response-path run. No new deployment was made.
+
+See the separate [review-fix verification record](evaluations/issue-60-serverless-stage-binding-2026-11-22.json)
+for exact schedules, source commit, artifact hashes and retained failures.

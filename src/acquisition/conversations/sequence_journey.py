@@ -109,13 +109,22 @@ class SequenceJourneys:
         revision_number(revision)
         text(content)
         key='journey_request_'+digest({'organization':organization,'conversation_id':conversation_id,'request_id':request_id})
-        old=self.store.request(organization,conversation_id,key,revision+1,allow_generation)
-        if old is not None:
-            message=old['inputs']['messages'][-1]
-            if message['id']!=request_id or message['content']!=content:
-                raise Conflict('The original sequence message already binds different exact inputs')
+        def original():
+            old=self.store.request(organization,conversation_id,key,revision+1,allow_generation)
+            if old is not None:
+                message=old['inputs']['messages'][-1]
+                if message['id']!=request_id or message['content']!=content:
+                    raise Conflict('The original sequence message already binds different exact inputs')
             return old
-        source=self.store.source(organization,conversation_id,revision)
+        old=original()
+        if old is not None:return old
+        try:source=self.store.source(organization,conversation_id,revision)
+        except Conflict:
+            # Another invocation can commit the same message and journey after
+            # our first lookup. Observe its exact admission, never reinterpret it.
+            old=original()
+            if old is None:raise
+            return old
         now=self.clock()
         messages=source['messages']+[{'id':request_id,'revision':revision+1,'role':'user','content':content,'created_at':now}]
         catalogue=self.host.catalogue(organization)
@@ -133,8 +142,16 @@ class SequenceJourneys:
             catalogue,proposal,allow_generation,self.clock())
         return self.store.admit(organization,frozen)
 
-    def advance(self, organization, journey_id):
+    def advance(self, organization, journey_id, *, expected_stage=None):
+        if expected_stage is not None and (type(expected_stage) is not int or not 0<=expected_stage<len(JOURNEY_STAGES)):
+            raise ValueError('Continue one displayed preparation stage')
         row=self.store.current(organization,journey_id)
+        # Bind execution to this exact row, which the host uses to select work.
+        # A concurrent continuation may have completed the requested stage since
+        # the caller's preflight check. Observing it grants no next-stage work.
+        if expected_stage is not None:
+            if row['stage']<expected_stage:raise Conflict('Reload the current preparation stage')
+            if row['stage']>expected_stage:return row
         if not row['current'] or row['status'] not in JOURNEY_ACTIVE:return row
         try:
             result=self.host.step(organization,row)
