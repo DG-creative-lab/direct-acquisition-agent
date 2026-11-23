@@ -3722,3 +3722,12 @@ lost acknowledgements, inactive transactions and uncertain COMMIT retain their
 no-retry and no-dispatch assertions. The previous admission/status failures were
 retained as evidence rather than rewritten as passes. Focused red tests caught
 the admission mismatch and 1,080-call status projection before these fixes.
+
+Counter-review also exercised leading, repeated and trailing Tcl namespace
+separators. Native SQLite accepts these parameter names, so they must not be
+partially rewritten. The corrected tokenizer matches all 11 explicit edge
+forms. A separate seed-23 differential probe generated 3,000 names; all 2,940
+accepted by native SQLite retained the same value and REAL type. This is a
+finite grammar probe, not a claim about every possible SQL statement. The
+first broader run was stopped when this edge case was found; final verification
+uses the corrected committed source.

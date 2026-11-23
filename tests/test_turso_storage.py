@@ -183,6 +183,11 @@ class RemoteStorageTests(unittest.TestCase):
             sql='SELECT :x\u0301,typeof(:x\u0301),\u0301a$b FROM (SELECT 9 AS \u0301a$b)'
             args={'x\u0301':1795379458.2227573}
             self.assertEqual(tuple(db.execute(sql,args).fetchone()),native.execute(sql,args).fetchone())
+            for marker in ('$a::','$a::::b','$a::b::','$a::(x)',':a::','@a::','$::a',':::a',
+                           '$a(quoted\'?)','$a()','$a$b'):
+                with self.subTest(marker=marker):
+                    sql='SELECT '+marker+',typeof('+marker+')';args={marker[1:]:1795379458.2227573}
+                    self.assertEqual(tuple(db.execute(sql,args).fetchone()),native.execute(sql,args).fetchone())
             sql="SELECT ?1,?1,?3,?,?1,'literal '' ?9',`a?b` FROM (SELECT 9 AS `a?b`)"
             args=(1795379458.2227573,0,-5e-324,2.5)
             self.assertEqual(tuple(db.execute(sql,args).fetchone()),native.execute(sql,args).fetchone())
