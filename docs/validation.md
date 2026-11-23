@@ -3789,3 +3789,21 @@ invalid dictionary schedules were excluded by the independent native oracle.
 The finite checks do not claim every possible SQL or concurrency schedule.
 No durable identities, schema version, deadlines, cache rules or uncertain-call
 fences changed. Earlier commit-bound evidence remains immutable.
+
+Verification on `9da95db`: the focused storage/serverless suite passed all 41
+tests in 54.291 seconds. `make test` passed all 1,127 tests in 1519.742 seconds.
+Architecture passed with 216 modules and zero exceptions. All five native
+recovery boundary cases passed with zero network attempts, stable source and
+unchanged historical bytes. The real-provider binding probe passed all 15
+checks and independently confirmed its DDL/data rollback.
+
+The same committed source also completed all seven cold-process Turso stages,
+original replay, changed-input rejection and repeated read-only status. Its
+slowest stage took 48.044 seconds within the unchanged 120-second I/O budget.
+The exact journey retained three runs, nine fixture calls and zero approvals.
+No live model, new resource or deployment was used for this review correction.
+
+The separate [binding-review verification record](evaluations/issue-60-remote-binding-review-2026-11-23.json)
+retains both findings, native differential oracles, red assertions, the provider
+prefix observation, final commit-bound results and artifact hashes. Earlier
+preview and reliability evidence retain their original source attribution.

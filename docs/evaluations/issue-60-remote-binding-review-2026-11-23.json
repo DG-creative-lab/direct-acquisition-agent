@@ -1,0 +1,240 @@
+{
+  "schema": "remote-binding-review/v1",
+  "recorded_on": "2026-11-23",
+  "source_commit": "9da95db40d94afc00690c83bcee2a5ae56593348",
+  "comparison_base": "191d7ae",
+  "findings": [
+    {
+      "priority": "P2",
+      "finding": "Preserve parameter comparison affinity",
+      "confirmed_regression": "An internal CAST made a native no-affinity parameter acquire REAL affinity. TEXT values such as 1.00 were selected or updated differently.",
+      "fix": "Apply unary plus to remove the internal CAST affinity while preserving exact REAL bits and any explicit caller CAST."
+    },
+    {
+      "priority": "P2",
+      "finding": "Resolve numbered aliases to their actual binding slot",
+      "confirmed_regression": "SELECT :x,?1 with x=1.5 returned the encoded significand through ?1. Earlier anonymous and alternate-number-spelling aliases were also affected.",
+      "fix": "Assign all final slot names before rewriting. Resolve every occurrence through canonical slot identity, including names introduced later. Send fully prefixed Hrana names, preserve all value types and ignore unused dictionary keys. Reject missing or anonymous dictionary slots before dispatch."
+    }
+  ],
+  "authority_map": {
+    "oracle": "Native SQLite executes original SQL and original parameters on the same logical fixture. The independent wire fixture perturbs JSON float inputs by one ULP.",
+    "effects": "Parameter rewriting selects values for reads, predicates and writes before a single Hrana submission. Existing transaction, lease-at-commit, original-request and uncertain-inference fences remain unchanged.",
+    "scope": "Only the adapter binding compiler and regression fixture changed; no schema, runtime authority or frontend behavior was added."
+  },
+  "regressions": {
+    "red": {
+      "passed": false,
+      "tests": 2,
+      "failed_assertions": 19,
+      "seconds": 1.339,
+      "path": "/private/tmp/iwoca-binding-review-red.log",
+      "sha256": "18eb6984f81e4549d23a59cc70f5b8054d87afedd125a0a476ba0449547890bb"
+    },
+    "affinity_matrix": {
+      "column_affinities": [
+        "TEXT",
+        "NUMERIC",
+        "REAL",
+        "INTEGER",
+        "BLOB"
+      ],
+      "values": [
+        1.0,
+        1.5,
+        -0.0
+      ],
+      "predicate_forms": 13,
+      "select_comparisons": 195,
+      "update_comparisons": 5,
+      "oracles": [
+        "selected row IDs",
+        "UPDATE row count",
+        "updated row IDs"
+      ]
+    },
+    "slot_identity": "Named/numbered aliases, repeated and leading-zero markers, later names for anonymous slots, sparse slot ordering, distinct prefixes, unused keys and missing/unnamed dictionary rejection. Existing 134 finite-value bit/type, Unicode/Tcl and opaque-SQL cases remain active.",
+    "seeded_alias_schedules": {
+      "seed": 124,
+      "generated": 2000,
+      "native_valid": 1177,
+      "native_invalid_excluded": 823,
+      "float_bit_mismatches": 0,
+      "source_scope": "Candidate-worktree differential probe before final commit, retained with its result hash.",
+      "path": "/private/tmp/iwoca-binding-review-alias-fuzz.json",
+      "sha256": "fd41f4b424448d96cea45cb034ca4db1d7c898450f9e1f33084064b39f4524f2"
+    }
+  },
+  "verification": {
+    "make_test": {
+      "passed": true,
+      "tests": 1127,
+      "seconds": 1519.742,
+      "path": "/private/tmp/iwoca-binding-review-full.log",
+      "sha256": "3e0f9776032fa37d342daabd41e5bf1ae0fb7a9bfa94fb95c62e06d26f794633"
+    },
+    "focused": {
+      "passed": true,
+      "tests": 41,
+      "seconds": 54.291,
+      "path": "/private/tmp/iwoca-binding-review-focused-verified.log",
+      "sha256": "48de0dd061a13472cba879ff57ea4a3f159ba5c828a20375a24188f31a13e97f"
+    },
+    "make_arch_check": {
+      "passed": true,
+      "modules": 216,
+      "exceptions": 0,
+      "path": "/private/tmp/iwoca-binding-review-architecture.log",
+      "sha256": "c5c330f61f676177b4d72da6967d17081268737443223c212f441f737f141124"
+    },
+    "make_boundary_check": {
+      "passed": true,
+      "cases": 5,
+      "network_attempts": 0,
+      "source_stable": true,
+      "historical_bytes_unchanged": true,
+      "path": "/private/tmp/iwoca-binding-review-boundary/results.json",
+      "sha256": "be01c5087cf104a8e4d7471560452f837ecc8efd2ee5c4b068277645da2f3f88"
+    },
+    "real_provider_bindings": {
+      "schema": "remote-binding-review/v1",
+      "passed": true,
+      "synthetic": true,
+      "source_commit": "9da95db40d94afc00690c83bcee2a5ae56593348",
+      "source_dirty": false,
+      "transport_sha256": "f8180feaba3f69ae007b4e372313302a4d220927424c5d948d32e26d9ae04e17",
+      "checks": [
+        {
+          "query": "SELECT :x,?1,typeof(?1)",
+          "matched_native": true
+        },
+        {
+          "query": "SELECT :x,?1,:y,?2",
+          "matched_native": true
+        },
+        {
+          "query": "SELECT :x,@x,?1,?2",
+          "matched_native": true
+        },
+        {
+          "query": "SELECT ?1,?01,?001",
+          "matched_native": true
+        },
+        {
+          "query": "SELECT ?01,?1",
+          "matched_native": true
+        },
+        {
+          "query": "SELECT ?,?1",
+          "matched_native": true
+        },
+        {
+          "query": "SELECT ?3,:x,?4,?1,?2",
+          "matched_native": true
+        },
+        {
+          "query": "SELECT :x,?1",
+          "matched_native": true
+        },
+        {
+          "predicate": "x=?",
+          "matched_native": true
+        },
+        {
+          "predicate": "?=x",
+          "matched_native": true
+        },
+        {
+          "predicate": "x<?",
+          "matched_native": true
+        },
+        {
+          "predicate": "?<x",
+          "matched_native": true
+        },
+        {
+          "predicate": "x IN (SELECT ?)",
+          "matched_native": true
+        },
+        {
+          "predicate": "x BETWEEN ? AND 2",
+          "matched_native": true
+        },
+        {
+          "update_rows_matched_native": true
+        }
+      ],
+      "probe_ddl_rolled_back": true,
+      "live_model_calls": 0,
+      "artifact": {
+        "path": "/private/tmp/iwoca-binding-review-remote-verified.json",
+        "sha256": "77efeeb2a3177f25f72806a454edb74d5a9805951890022e1df6021f1ba648ee"
+      },
+      "helper": {
+        "path": "/private/tmp/iwoca-binding-review-remote.py",
+        "sha256": "17a0811734ff552b73a9a1232630c8bd403fb2a5d9f00d49769c1d50224ca224"
+      }
+    },
+    "cold_process_workflow": {
+      "schema": "serverless-preparation-conformance/v1",
+      "synthetic": true,
+      "passed": true,
+      "source_commit": "9da95db40d94afc00690c83bcee2a5ae56593348",
+      "organization": "hosted_probe_c6d8f880380f454ca3a9baf3fc33ec33",
+      "source_dirty": false,
+      "phase": "verify_read_only_and_authority",
+      "observed": {
+        "organization": "hosted_probe_c6d8f880380f454ca3a9baf3fc33ec33",
+        "journey_id": "journey_7dc2e9963b97af27fa8a9dc2b551372dca182e662e29948700c746f6f2f241c9",
+        "status": "ready",
+        "authority": "none",
+        "fixture_calls": 9,
+        "unapproved": true,
+        "processes_rebuilt_between_steps": true,
+        "same_stage_replay_read_only": true,
+        "status_read_only": true,
+        "changed_input_rejected": true,
+        "seconds": {
+          "start": [
+            3.875,
+            3.994
+          ],
+          "0": 6.351,
+          "1": 6.02,
+          "2": 19.416,
+          "3": 40.875,
+          "4": 39.505,
+          "5": 48.044,
+          "6": 28.433
+        },
+        "live_model_calls": 0
+      },
+      "artifact": {
+        "path": "/private/tmp/iwoca-binding-review-cold-remote.json",
+        "sha256": "bbe700863355f31615b49527a065cb7bc40b13dc87c73995c3bf9592ee9baf14"
+      }
+    }
+  },
+  "retained_intermediate_failure": {
+    "result": "A candidate fixed the two examples but the real provider rejected bare x when both :x and @x needed binding. Read-only prefixed-name probes confirmed the protocol syntax; final canonical names bind both slots explicitly.",
+    "artifact": {
+      "path": "/private/tmp/iwoca-binding-review-remote-candidate.log",
+      "sha256": "39d75bd8a116d40662274a422d77147103e344bea38b4130ac88fad9b2a8b8ef"
+    },
+    "provider_probe_helper": {
+      "path": "/private/tmp/iwoca-binding-review-names.py",
+      "sha256": "d092e84ab26394359b6dd7cd843e3ade4a111c4d9de4aa6fcd8e350d36a25e94"
+    }
+  },
+  "references": [
+    "https://www.sqlite.org/datatype3.html#affinity_of_expressions",
+    "https://www.sqlite.org/c3ref/bind_parameter_name.html",
+    "https://github.com/tursodatabase/libsql/blob/main/docs/HRANA_3_SPEC.md"
+  ],
+  "limits": [
+    "Finite SQL/slot cases do not exhaust all possible statements, values or concurrency schedules.",
+    "This verification used local SQLite and the existing isolated Turso resource with fixture generation. No live model, new resource, outbound delivery or public release.",
+    "No new Vercel deployment was made for this review correction. Earlier preview evidence remains bound to its original source.",
+    "Earlier historical evidence was retained byte-for-byte. The unrelated original checkout was preserved."
+  ]
+}
