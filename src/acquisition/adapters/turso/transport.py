@@ -13,6 +13,12 @@ from urllib.parse import urlsplit
 class RemoteUnavailable(RuntimeError):
     """Provider outcome could not be established. Resume the original command."""
 
+    def __init__(self, message, *, reason='unclassified', http_status=None):
+        super().__init__(message)
+        # Only adapter-owned categories and numeric status, never provider text,
+        # SQL, parameters, credentials or response bodies.
+        self.reason, self.http_status = reason, http_status
+
 
 class CommitUncertain(RemoteUnavailable):
     """Commit acknowledgement was lost; reconcile the original receipt."""
@@ -55,7 +61,8 @@ class Http:
         # streams still require provider-side concurrency and commit authority.
         with self._lock:
             remaining = self.timeout if self.deadline is None else min(self.timeout,self.deadline-time.monotonic())
-            if remaining <= 0:raise RemoteUnavailable('Invocation storage budget exhausted')
+            if remaining <= 0:
+                raise RemoteUnavailable('Invocation storage budget exhausted',reason='invocation_budget_exhausted')
             # Retire idle physical sockets before submission. Hrana's logical
             # transaction and baton are independent of this HTTP connection.
             if self._last_response is not None and time.monotonic()-self._last_response>=1:
@@ -73,14 +80,19 @@ class Http:
                 response = connection.getresponse()
                 raw = response.read()
                 # Never follow a redirect or forward credentials to another host.
-                if response.status != 200:raise ValueError('Remote HTTP response rejected')
+                if response.status != 200:
+                    raise RemoteUnavailable('Remote HTTP response rejected',reason='http_response_rejected',http_status=response.status)
                 result = json.loads(raw)
                 self._last_response = time.monotonic()
                 return result
-            except Exception:
+            except RemoteUnavailable:
+                self.close();raise
+            except Exception as error:
                 self.close()
                 # No reconnect-and-repeat, including a lost response on a reused socket.
-                raise RemoteUnavailable('Remote storage acknowledgement unavailable') from None
+                reason=('invocation_budget_exhausted' if self.deadline is not None and time.monotonic()>=self.deadline
+                        else 'transport_timeout' if isinstance(error,TimeoutError) else 'transport_ack_unavailable')
+                raise RemoteUnavailable('Remote storage acknowledgement unavailable',reason=reason) from None
 
 
 
@@ -103,6 +115,77 @@ def decode(value):
     if kind == 'text':return value['value']
     if kind == 'blob':return base64.b64decode(value['base64'] + '=' * (-len(value['base64']) % 4), validate=True)
     raise ValueError('Unsupported remote SQL value')
+
+
+# SQLite parameter tokens, with strings, identifiers and comments kept opaque.
+# Named slots may repeat; ?NNN and anonymous slots share SQLite's slot numbering.
+_BINDING_TOKEN = re.compile(
+    r"(?P<opaque>'(?:''|[^'])*'|\"(?:\"\"|[^\"])*\"|`(?:``|[^`])*`|\[[^\]]*\]|"
+    r"--[^\n]*(?:\n|$)|/\*[\s\S]*?(?:\*/|$))|"
+    r"(?P<parameter>\?[0-9]*|[:@$](?:[\w$\u0080-\U0010ffff]|::)+(?:\([^\s)]*\))?)|"
+    r"[A-Za-z_\u0080-\U0010ffff][A-Za-z_0-9$\u0080-\U0010ffff]*"
+)
+
+
+def _float_binding(marker, value):
+    """Reconstruct an exact binary64 from one exactly representable integer.
+
+    Some providers round JSON float bindings by one ULP. Decimal CAST also
+    rounds some finite values. Integer significands and power-of-two scaling
+    avoid both conversions, preserving REAL type, subnormals and signed zero.
+    """
+    if not math.isfinite(value):raise ValueError('Unsupported SQL binding value')
+    fraction, exponent = math.frexp(value)
+    significand = int(fraction * (1 << 53)); exponent -= 53
+    if significand:
+        while significand % 2 == 0:significand //= 2;exponent += 1
+    else:exponent = 0
+    # A bound parameter has no expression affinity. Unary + removes the CAST's
+    # REAL affinity while preserving its exact REAL value for comparisons.
+    expression = '+CAST('+marker+' AS REAL)'
+    if value == 0 and math.copysign(1,value)<0:expression += ' * -1.0'
+    while exponent:
+        bits = min(abs(exponent),52)
+        expression += (' * ' if exponent>0 else ' / ')+str(1 << bits)
+        exponent += -bits if exponent>0 else bits
+    return '('+expression+')', significand
+
+
+def _exact_parameters(sql, parameters):
+    if not isinstance(parameters,dict) and not any(isinstance(v,float) for v in parameters):
+        return sql, parameters
+    largest=0; named={}; slot_names={}; slots={}
+    # Finish slot naming before rewriting: ?NNN can alias a named parameter or
+    # retroactively name an earlier anonymous slot. Dictionary keys belong to
+    # the slot's canonical name, not necessarily the current marker's spelling.
+    for match in _BINDING_TOKEN.finditer(sql):
+        marker=match.group('parameter')
+        if marker is None:continue
+        if marker.startswith('?') and len(marker)>1:
+            slot=int(marker[1:]);largest=max(largest,slot)
+            slot_names.setdefault(slot,marker)
+        elif marker=='?':largest+=1;slot=largest
+        else:
+            if marker not in named:largest+=1;named[marker]=largest
+            slot=named[marker]
+            slot_names.setdefault(slot,marker)
+        slots[match.start()]=slot
+    def replace(match):
+        marker=match.group('parameter')
+        if marker is None:return match[0]
+        slot=slots[match.start()];name=slot_names.get(slot)
+        if isinstance(parameters,dict):value=parameters.get(name[1:]) if name else None
+        else:value=parameters[slot-1] if 1<=slot<=len(parameters) else None
+        return _float_binding(marker,value)[0] if isinstance(value,float) else marker
+    sql=_BINDING_TOKEN.sub(replace,sql)
+    def wire(value):return _float_binding('?',value)[1] if isinstance(value,float) else value
+    if isinstance(parameters,dict):
+        if len(slot_names)!=largest or any(name[1:] not in parameters for name in slot_names.values()):
+            raise ValueError('Supply every canonical named SQL binding')
+        # Hrana needs the explicit prefix to distinguish :x from @x. SQLite's
+        # dictionary interface supplies both from key x and ignores unused keys.
+        return sql, {name:wire(parameters[name[1:]]) for name in slot_names.values()}
+    return sql, tuple(wire(v) for v in parameters)
 
 
 class Row:
@@ -137,12 +220,16 @@ class Connection:
         # Closed built-in set over unchanged rows. Unknown functions, comments,
         # quoted function names and SQL clocks always execute and clear the memo.
         text=sql.strip().removesuffix(';')
-        if (not text.isascii() or re.match(r'SELECT\b',text,re.I) is None or ';' in text or '--' in text or '/*' in text
+        read = re.match(r'SELECT\b',text,re.I) is not None
+        if re.match(r'WITH\b',text,re.I):
+            read = (re.search(r'\bSELECT\b',text,re.I) is not None and
+                    re.search(r'\b(?:INSERT|UPDATE|DELETE|REPLACE|CREATE|DROP|ALTER|PRAGMA|ATTACH|DETACH)\b',text,re.I) is None)
+        if (not text.isascii() or not read or ';' in text or '--' in text or '/*' in text
                 or '"' in text or '`' in text or re.search(r"['\]]\s*\(",text)
                 or re.search(r'\bCURRENT_(?:DATE|TIME|TIMESTAMP)\b',text,re.I)):
             return False
         names={name.upper() for name in re.findall(r'\b([a-zA-Z_][a-zA-Z_0-9]*)\s*\(',text)}
-        stable={'COUNT','JSON_EXTRACT','MIN','MAX','SUM','COALESCE','CAST',
+        stable={'COUNT','JSON_EXTRACT','JSON_VALID','MIN','MAX','SUM','COALESCE','CAST',
                 'IN','EXISTS','AND','OR','NOT','WHERE','ON','FROM','AS','SELECT'}
         return names<=stable
 
@@ -154,6 +241,7 @@ class Connection:
         if any(not self._plain_read(sql) for sql, _ in statements):self._clear_memo()
         requests = []
         for sql, parameters in statements:
+            sql,parameters=_exact_parameters(sql,parameters)
             stmt = {'sql': sql}
             if isinstance(parameters, dict):
                 stmt['named_args'] = [{'name': k, 'value': encode(v)} for k, v in parameters.items()]
@@ -171,7 +259,7 @@ class Connection:
             self.baton = result['baton']
             if len(result['results']) != 1:raise ValueError('Missing batch result')
             item = result['results'][0]
-            if item['type'] == 'error':raise RemoteUnavailable('Remote batch rejected')
+            if item['type'] == 'error':raise RemoteUnavailable('Remote batch rejected',reason='provider_batch_rejected')
             batch = item['response']['result']
             if len(batch['step_results']) != len(requests) or len(batch['step_errors']) != len(requests):
                 raise ValueError('Missing statement results')
@@ -182,8 +270,8 @@ class Connection:
                     if code.startswith('SQLITE_CONSTRAINT'):
                         raise sqlite3.IntegrityError('Remote storage constraint rejected the operation')
                     if code in {'SQLITE_BUSY', 'SQLITE_LOCKED'}:raise Busy('Remote writer is busy')
-                    raise RemoteUnavailable('Remote statement rejected')
-                if step is None:raise RemoteUnavailable('Remote transaction is no longer active')
+                    raise RemoteUnavailable('Remote statement rejected',reason='provider_statement_rejected')
+                if step is None:raise RemoteUnavailable('Remote transaction is no longer active',reason='transaction_inactive')
                 cursors.append(Cursor(step))
             for sql, _ in statements:
                 verb = sql.strip().split(None,1)[0].upper()
@@ -191,9 +279,11 @@ class Connection:
                 elif verb in {'COMMIT','ROLLBACK'}:self.in_transaction = False
             return cursors
         except (sqlite3.IntegrityError, Busy):raise
+        except RemoteUnavailable:
+            self.failed=True;raise
         except Exception:
             self.failed = True
-            raise RemoteUnavailable('Remote storage outcome requires reconciliation') from None
+            raise RemoteUnavailable('Remote storage outcome requires reconciliation',reason='protocol_invalid') from None
 
     def execute(self, sql, parameters=()):
         if self.failed:raise RemoteUnavailable('Remote connection requires reconciliation')
@@ -223,8 +313,9 @@ class Connection:
     def commit(self):
         if not self.in_transaction:return
         try:self.execute('COMMIT')
-        except RemoteUnavailable:
-            raise CommitUncertain('Reconcile the original command before further writes') from None
+        except RemoteUnavailable as error:
+            raise CommitUncertain('Reconcile the original command before further writes',
+                                  reason=error.reason,http_status=error.http_status) from None
     def rollback(self):
         if not self.failed and self.in_transaction:self.execute('ROLLBACK')
     def close(self):

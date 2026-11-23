@@ -3690,3 +3690,120 @@ not a fully passing remote response-path run. No new deployment was made.
 
 See the separate [review-fix verification record](evaluations/issue-60-serverless-stage-binding-2026-11-22.json)
 for exact schedules, source commit, artifact hashes and retained failures.
+
+## Remote response reliability, 23 November 2026
+
+Exact request admission must compare the same values that were frozen, and a
+successful stage must remain inspectable within the invocation's bounded I/O
+budget. A seeded real-provider probe reproduced one-ULP drift in 121 of 1,000
+full-precision timestamp bindings. A separate ready-status read made 1,083 HTTP
+requests. The earlier generic exception wrapper hid the distinction between
+transport, deadline and provider failures.
+
+Float parameters now travel as exact integer significands with SQL binary
+scaling, preserving REAL types and finite binary64 values. The native-SQLite
+oracle covers 134 fixed/seeded values, slot identity, repeated bindings, opaque
+strings/comments/identifiers, Tcl-style and Unicode names. A wire fixture injects
+one-ULP float-input drift independently of the encoder. The complete frozen
+message now admits and replays once with its original timestamp. Historical
+stored values and request identities remain unchanged.
+
+Journey-current reads use a coherent transaction snapshot. Deterministic
+JSON_VALID and read-only WITH queries may reuse exact results inside it; a
+write-bearing CTE still executes each time and invalidates the memo. Existing
+unknown-function, clock, write, bounds and provider-rollback regressions remain
+active. No memo crosses a transaction or connection, grants approval or skips
+native commit authority. The existing full Hrana journey now checks ready
+status stays within 400 round trips, and its database dump remains unchanged.
+
+Error categories and numeric HTTP status survive wrapping without raw provider
+text, SQL parameters or credentials. Redirect/429, pre-submit budget exhaustion,
+lost acknowledgements, inactive transactions and uncertain COMMIT retain their
+no-retry and no-dispatch assertions. The previous admission/status failures were
+retained as evidence rather than rewritten as passes. Focused red tests caught
+the admission mismatch and 1,080-call status projection before these fixes.
+
+Counter-review also exercised leading, repeated and trailing Tcl namespace
+separators. Native SQLite accepts these parameter names, so they must not be
+partially rewritten. The corrected tokenizer matches all 11 explicit edge
+forms. A separate seed-23 differential probe generated 3,000 names; all 2,940
+accepted by native SQLite retained the same value and REAL type. This is a
+finite grammar probe, not a claim about every possible SQL statement. The
+first broader run was stopped when this edge case was found; final verification
+uses the corrected committed source.
+
+Final verification on `e761b3a`: `make test` passed all 1,126 tests in 1193.561
+seconds. The focused storage/serverless suite passed all 40 tests in 50.393
+seconds. Architecture passed with 216 modules and zero exceptions. All five
+native recovery boundary cases passed with zero network attempts, stable source
+and unchanged historical bytes.
+
+The real Turso cold-process conformance run passed all seven stages, original
+replays, read-only status and changed-input rejection. Its slowest stage took
+45.703 seconds. The protected Ireland preview of the same committed package
+also passed concurrent original starts, all seven HTTP stage responses and
+replays, changed-input rejection and repeated read-only status. Its slowest stage
+request took 17.639 seconds including CLI overhead. Each exact journey retained
+three content runs, nine recorded fixture calls and zero review decisions.
+The committed-source package contains 236 verified payload hashes. No live model,
+new resource, production promotion or outbound delivery was used.
+
+The earlier generic failures cannot all be classified retrospectively. The
+reproduced admission precision mismatch and excessive status reads are fixed,
+and both final remote response paths now pass. Interim numeric/timing probes
+remain candidate-worktree observations; the full, boundary, cold-process and
+protected-preview results bind to the final commit. The initial preview helper
+incorrectly counted historical calls in the shared native scope; an independent
+read confirmed 18 global calls versus nine for its exact journey. The final
+helper checks exact journey run IDs and proposal, preserving all history.
+
+The separate [response-reliability record](evaluations/issue-60-remote-response-reliability-2026-11-23.json)
+retains those observations, red tests, the interrupted earlier full run, final
+results, source/package identities and evidence hashes. Historical reports were
+not regenerated.
+
+## Remote binding review corrections, 23 November 2026
+
+Two P2 review findings reproduced against source `191d7ae`: internal REAL CAST
+affinity changed which TEXT rows were selected or updated, and numbered aliases
+could expose the encoded integer significand instead of their named slot's
+float. Two differential regressions failed with 19 assertions before the fix.
+
+The exact-value expression now has no affinity, matching a native parameter.
+The native SQLite oracle covers five column affinities, three floats and 13
+predicate forms, plus five UPDATE row-count/result comparisons. Explicit caller
+CASTs retain their original meaning. Existing bit-exact finite-number, signed
+zero and subnormal checks remain active.
+
+Binding compilation first assigns every slot and its canonical name, including
+numbered aliases and later names for earlier anonymous markers. Each marker is
+then reconstructed using the value for that slot. Dictionary arguments use
+explicit Hrana prefixes, preserving distinct `:x`/`@x` slots, integer/blob/text
+types and ignored extra keys. Missing canonical names and unnamed gaps fail
+before dispatch. The real provider confirmed 15 comparison, update and mixed-
+alias checks in a transaction whose probe schema/data were rolled back.
+
+A seed-124 differential probe generated 2,000 alias schedules. All 1,177 accepted
+by native SQLite retained identical float bits after reconstruction; the 823
+invalid dictionary schedules were excluded by the independent native oracle.
+The finite checks do not claim every possible SQL or concurrency schedule.
+No durable identities, schema version, deadlines, cache rules or uncertain-call
+fences changed. Earlier commit-bound evidence remains immutable.
+
+Verification on `9da95db`: the focused storage/serverless suite passed all 41
+tests in 54.291 seconds. `make test` passed all 1,127 tests in 1519.742 seconds.
+Architecture passed with 216 modules and zero exceptions. All five native
+recovery boundary cases passed with zero network attempts, stable source and
+unchanged historical bytes. The real-provider binding probe passed all 15
+checks and independently confirmed its DDL/data rollback.
+
+The same committed source also completed all seven cold-process Turso stages,
+original replay, changed-input rejection and repeated read-only status. Its
+slowest stage took 48.044 seconds within the unchanged 120-second I/O budget.
+The exact journey retained three runs, nine fixture calls and zero approvals.
+No live model, new resource or deployment was used for this review correction.
+
+The separate [binding-review verification record](evaluations/issue-60-remote-binding-review-2026-11-23.json)
+retains both findings, native differential oracles, red assertions, the provider
+prefix observation, final commit-bound results and artifact hashes. Earlier
+preview and reliability evidence retain their original source attribution.

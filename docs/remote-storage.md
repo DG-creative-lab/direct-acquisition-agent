@@ -19,11 +19,39 @@ the distinct Turso Database engine or its `turso_serverless` driver.
 [Hrana 3 specification](https://github.com/tursodatabase/libsql/blob/main/docs/HRANA_3_SPEC.md)
 define the selected transport. Server support is a conformance requirement.
 
-Named parameters are transmitted as native named bindings, with no SQL parsing
-or reordering. Integer precision, blobs including unpadded response base64,
-nulls, finite floats and positional/named rows have explicit serialization.
+Named parameters retain their original names and slot order. Integer precision,
+blobs including unpadded response base64, nulls, finite floats and positional/named
+rows have explicit serialization.
 Credentials cannot follow HTTP redirects. Provider failures expose bounded
 application messages, not raw provider text or parameter values.
+
+Full-precision float bindings require special treatment: the existing provider's
+JSON number parser changed 121 of 1,000 seeded timestamp values by one ULP in
+the 23 November probe. That can reject exact frozen-message admission. Decimal
+text plus SQL CAST also loses precision for some finite doubles. The adapter
+therefore binds each float as its exact integer significand and reconstructs
+the REAL value using power-of-two SQL arithmetic. Parameter tokens retain their
+names/numbers; quoted text, identifiers and comments remain opaque. Only fixed
+operators and derived integer powers are inserted, never user text. Native
+SQLite comparisons cover positional, numbered, repeated, named, Tcl-style and
+Unicode parameters, signed zero, subnormals and large finite values. Non-finite
+floats remain rejected. Historical stored values are not rewritten.
+
+Float reconstruction has no expression affinity, matching a native parameter:
+unary plus removes the internal CAST affinity without changing the REAL value.
+This preserves comparisons and updates against TEXT, numeric and untyped
+columns, including explicit caller CASTs and CASE expressions. Dictionary
+bindings resolve through the prepared statement's final slot identities before
+rewriting. A numbered marker can alias a named slot or name a preceding anonymous
+slot. Fully qualified Hrana names distinguish `:x` and `@x`; SQLite's dictionary
+key `x` supplies both. Unused dictionary keys are ignored, while missing canonical
+names or anonymous gaps are rejected before submission.
+
+Storage failures carry adapter-owned `reason` categories and an optional numeric
+HTTP status for operator diagnostics. These survive the transaction wrapper and
+uncertain COMMIT exception. HTTP clients still receive the bounded generic
+reconciliation response. The adapter never automatically repeats a submitted
+request, follows a redirect or exposes raw provider bodies/messages.
 
 Every writer uses the existing `BEGIN IMMEDIATE` transaction and domain writer.
 Only a positively rejected busy lock acquisition can retry, on a fresh stream,

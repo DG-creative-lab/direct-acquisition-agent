@@ -398,6 +398,9 @@ class SqliteSequenceJourneys:
 
     def current(self,organization,journey_id):
         with self.database.connect() as db:
+            # One read snapshot keeps provenance coherent and permits bounded
+            # transaction-local remote reuse. Execution still rechecks at commit.
+            db.execute('BEGIN')
             value=saved_journey(db,organization,journey_id)
             frozen=value['inputs']
             try:

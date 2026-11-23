@@ -305,8 +305,24 @@ class HostedWireTests(unittest.TestCase):
             self.assertEqual(state['progress']['stage'],stage+1)
         self.assertEqual(state['progress']['status'],'ready')
         before=self.snapshot()
-        for _ in range(3):self.service().status(jid)
+        for _ in range(3):
+            database=self.wire.database();send=database.send;requests=[]
+            def counted(payload):requests.append(True);return send(payload)
+            database.send=counted
+            self.service(database=database).status(jid)
+            self.assertLessEqual(len(requests),400,'Status exhausted the bounded remote round-trip allowance')
         self.assertEqual(before,self.snapshot())
+
+    def test_full_precision_clock_admits_and_replays_exact_original_message(self):
+        self.now[0]=1795379458.2227573;self.wire.round_float_bindings=True
+        started=self.service().start('precise','fielddesk',10000,True)
+        self.assertEqual(self.service().start('precise','fielddesk',10000,True)['receipt'],started['receipt'])
+        jid=started['receipt']['journey_id']
+        row=self.service().journeys.store.get('operator',jid)
+        self.assertEqual(row['inputs']['messages'][0]['created_at'],self.now[0])
+        with closing(sqlite3.connect(self.path)) as db:
+            self.assertEqual(db.execute('SELECT created_at FROM conversation_messages').fetchone()[0],self.now[0])
+            self.assertEqual(db.execute('SELECT count(*) FROM sequence_journeys').fetchone()[0],1)
     def test_expired_io_budget_leaves_reserved_call_fenced_on_fresh_invocation(self):
         state=self.service().start('budget','fielddesk',10000,True);jid=state['receipt']['journey_id']
         for stage in range(3):self.service().advance(jid,stage)
@@ -403,20 +419,24 @@ class PersistentTransportTests(unittest.TestCase):
     def test_lost_ack_on_reused_socket_is_not_repeated(self):
         from acquisition.adapters.turso.transport import RemoteUnavailable
         self.http({'first':True});self.mode='lost'
-        with self.assertRaises(RemoteUnavailable):self.http({'effect':'uncertain'})
+        with self.assertRaises(RemoteUnavailable) as lost:self.http({'effect':'uncertain'})
+        self.assertEqual(lost.exception.reason,'transport_ack_unavailable')
         self.assertEqual([r[1] for r in self.requests],[{'first':True},{'effect':'uncertain'}])
         self.assertIsNone(self.http._connection)
 
     def test_redirect_and_expired_budget_do_not_send_another_request(self):
         from acquisition.adapters.turso.transport import RemoteUnavailable
         self.mode='redirect'
-        with self.assertRaises(RemoteUnavailable):self.http({'first':True})
+        with self.assertRaises(RemoteUnavailable) as redirect:self.http({'first':True})
+        self.assertEqual((redirect.exception.reason,redirect.exception.http_status),('http_response_rejected',307))
         self.assertEqual(len(self.requests),1)
         self.mode='rate_limit'
-        with self.assertRaises(RemoteUnavailable):self.http({'rate_limited':True})
+        with self.assertRaises(RemoteUnavailable) as limited:self.http({'rate_limited':True})
+        self.assertEqual((limited.exception.reason,limited.exception.http_status),('http_response_rejected',429))
         self.assertEqual(len(self.requests),2)
         self.http.deadline=time.monotonic()-1
-        with self.assertRaises(RemoteUnavailable):self.http({'second':True})
+        with self.assertRaises(RemoteUnavailable) as expired:self.http({'second':True})
+        self.assertEqual(expired.exception.reason,'invocation_budget_exhausted')
         self.assertEqual(len(self.requests),2)
 
 class TransactionSnapshotTests(unittest.TestCase):
@@ -438,16 +458,22 @@ class TransactionSnapshotTests(unittest.TestCase):
             with self.db.transaction() as db:db.execute('UPDATE memo_marker SET value=2')
             self.assertEqual(reader.execute('SELECT value FROM memo_marker').fetchone()[0],2)
         with self.db.transaction() as db:self.assertEqual(db.execute('SELECT value FROM memo_marker').fetchone()[0],2)
+        with self.db.transaction() as db:
+            db.execute('SELECT value FROM memo_marker').fetchone()
+            query='WITH delta AS (SELECT 1) UPDATE memo_marker SET value=value+(SELECT * FROM delta)'
+            db.execute(query);db.execute(query)
+            self.assertEqual(db.execute('SELECT value FROM memo_marker').fetchone()[0],4)
     def test_expired_snapshot_cannot_commit_or_dispatch_from_memoized_data(self):
         from acquisition.adapters.turso import CommitUncertain
         dispatched=False
-        with self.assertRaises(CommitUncertain):
+        with self.assertRaises(CommitUncertain) as uncertain:
             with self.db.transaction() as db:
                 db.execute('SELECT value FROM memo_marker').fetchone()
                 self.wire.sessions[db.baton].execute('ROLLBACK')
                 self.assertEqual(db.execute('SELECT value FROM memo_marker').fetchone()[0],0)
             dispatched=True
         self.assertFalse(dispatched)
+        self.assertEqual(uncertain.exception.reason,'transaction_inactive')
         with closing(sqlite3.connect(self.path)) as raw:
             self.assertEqual(raw.execute('SELECT value FROM memo_marker').fetchall(),[(0,)])
     def test_functions_are_reexecuted_and_result_cursors_are_independent(self):
@@ -461,7 +487,9 @@ class TransactionSnapshotTests(unittest.TestCase):
             a=db.execute('SELECT value FROM memo_marker');b=db.execute('SELECT value FROM memo_marker')
             self.assertEqual(a.fetchall()[0][0],0);self.assertEqual(b.fetchall()[0][0],0)
             for query,bindings in (("SELECT count(*) FROM memo_marker",()),
-                    ("SELECT json_extract(?, '$.value')",('{"value":7}',))):
+                    ("SELECT json_extract(?, '$.value')",('{"value":7}',)),
+                    ('SELECT json_valid(?)',('{"value":7}',)),
+                    ('WITH chosen AS (SELECT value FROM memo_marker) SELECT * FROM chosen',())):
                 self.assertEqual(db.execute(query,bindings).fetchone()[0],db.execute(query,bindings).fetchone()[0])
             for query in ('SELECT random()', 'SELECT random /* volatile */ ()',
                           'SELECT "random"()', 'SELECT CURRENT_TIMESTAMP'):
@@ -473,6 +501,8 @@ class TransactionSnapshotTests(unittest.TestCase):
         self.assertEqual(queries.count('SELECT CURRENT_TIMESTAMP'),2)
         self.assertEqual(queries.count('SELECT count(*) FROM memo_marker'),1)
         self.assertEqual(queries.count("SELECT json_extract(?, '$.value')"),1)
+        self.assertEqual(queries.count('SELECT json_valid(?)'),1)
+        self.assertEqual(queries.count('WITH chosen AS (SELECT value FROM memo_marker) SELECT * FROM chosen'),1)
 
     def test_large_bindings_and_rows_are_not_retained_by_the_snapshot_memo(self):
         large='x'*(1024*1024+1)

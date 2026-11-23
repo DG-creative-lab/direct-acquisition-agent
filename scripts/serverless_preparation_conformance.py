@@ -84,7 +84,13 @@ def main():
         'source_dirty':bool(subprocess.check_output(['git','status','--porcelain','--untracked-files=all','--',
             'src','scripts','config','api','vercel.json'],text=True))}
     try:report['observed']=run(report['organization'],report);report['passed']=True
-    except Exception as error:report['error_type']=type(error).__name__
+    except Exception as error:
+        report['error_type']=type(error).__name__
+        # Adapter-owned categories only. Never persist raw exception/provider
+        # messages, SQL parameters, response bodies or credentials.
+        from acquisition.adapters.turso import RemoteUnavailable
+        if isinstance(error,RemoteUnavailable):
+            report['storage_reason']=error.reason;report['http_status']=error.http_status
     args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report));return 0 if report['passed'] else 1
 

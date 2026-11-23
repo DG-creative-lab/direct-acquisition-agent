@@ -95,8 +95,11 @@ reconciled before another effect. Socket serialization provides transport thread
 safety only. Provider transactions and native authority checks still coordinate
 independent invocations. All native validation still runs. Hosted connections reuse exact deterministic
 SELECT results only within one explicit transaction snapshot, with fresh result
-cursors and exact typed bindings. The closed function set includes COUNT and
-JSON_EXTRACT; unknown functions, SQL clocks, comments, writes and transaction
+cursors and exact typed bindings. Journey-current inspection now opens one read
+snapshot before checking provenance. The closed function set includes COUNT,
+JSON_EXTRACT and JSON_VALID. Read-only WITH queries qualify under the same
+function checks; mutating CTE statements remain writes and invalidate reuse.
+Unknown functions, SQL clocks, comments, writes and transaction
 control clear the memo. It never crosses a connection or transaction. The memo
 holds at most 4,096 entries and 16 MiB including keys, with 1 MiB limits on each
 key and result. COMMIT always reaches the provider with the active-transaction
@@ -145,3 +148,16 @@ committed payload. The direct-process command remains sensitive to network
 distance; its failed budget observations are retained. The deployed acceptance
 ran beside the existing Ireland database. HTTP 429 and lost acknowledgements
 retain their original-command reconciliation contract.
+
+The 23 November response-reliability fix preserves exact float bindings through
+integer significands and binary scaling, eliminating the reproduced timestamp
+drift that rejected frozen-message admission. It also removes repeated remote
+reads within the same transaction snapshot without dropping validation. On the
+same saved ready journey, one direct-process status observation fell from 1,083
+requests in 28.893 seconds to 273 requests in 8.281 seconds. These are single
+observations, not latency guarantees. A ready-status wire regression limits the
+fixed six-contact/three-run fixture to 400 round trips, retaining room within
+the 120-second I/O budget for distant clients. Invocation deadlines and native
+lease/stop/COMMIT fences remain unchanged. Safe storage reason categories make
+deadline exhaustion, HTTP rejection and inactive transactions distinguishable
+in the operator conformance report.
