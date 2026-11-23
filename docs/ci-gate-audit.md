@@ -8,13 +8,13 @@ are in [validation.md](validation.md).
 
 | Check | Protection | Decision |
 | --- | --- | --- |
-| Backend on 3.14 | Domain behavior, scoped SQLite transactions, restart/replay, approval and final authority, inference budgets and synthetic learning | Keep the full suite in four module partitions on the selected runtime. Other Python versions are not checked. |
+| Backend on 3.14 | Domain behavior, scoped SQLite transactions, restart/replay, approval and final authority, inference budgets and synthetic learning | Keep every case in four partitions. Modules stay whole except the explicitly isolated expensive journey class. Other Python versions are not checked. |
 | Architecture | Module boundaries, private imports and cycles | Keep once, before backend tests. |
 | Mutation catalogue | Audits whether existing regression tests detect deliberately damaged implementations | Manual full audit for the MVP. Run on approval/isolation/lease/replay changes or before release. It is not a routine PR gate. |
-| Build and type check | Broken frontend types, imports and production assets | Keep for each isolated browser runner. |
-| Browser partitions | Displayed subjects, user decisions, reloads and lost responses against the real loopback API | Keep all cases. Default on PRs, explicit `skip-browser-checks` PR opt-out, mandatory on main pushes. One worker per isolated root preserves fixture sequencing. |
+| Build and type check | Broken frontend types, imports and production assets | Keep once on routine PRs; once per isolated runner when full browsers run. |
+| Browser partitions | Displayed subjects, user decisions, reloads and lost responses against the real loopback API | Retain all cases. Routine PRs use 11 critical smoke cases; product UI/API/persistence/runtime/recovery/configuration changes and main use all 118. Explicit full and skip labels are available. |
 | Formatting | Source consistency | Optional quality policy; run once. |
-| Timing and browser artifacts | Diagnosis and shard estimates | Keep as diagnostics, not correctness checks. |
+| Timing and browser artifacts | Diagnosis and shard estimates | Keep as diagnostics, with non-blocking uploads. |
 | Integrated crash, rebuild and replay | Preserve authoritative rows and original command receipts through projection loss and process restart | Extend the existing lifecycle test in the backend suite. Run the broader evidence bundle on demand for boundary changes. |
 
 New CI gates and runtime versions should document the failure they catch, their
@@ -22,6 +22,25 @@ value beyond existing checks, cost and cadence. Offline checks do not establish
 live model quality, real delivery, public authentication or universal race
 coverage. GitHub's effective main-branch rules had no required checks when
 inspected on 15 November 2026; repository settings were not changed.
+
+## MVP refinement, 23 November 2026
+
+The user authorized another leaner pass for MVP iteration. Every backend case
+still runs on PRs. Only browser cadence changes: the 11-case smoke contract is
+required on routine PRs, while full coverage is selected automatically for product
+UI, HTTP, persistence, runtime, composition, recovery and configuration changes,
+and for unknown changes. Full browser coverage remains mandatory on main.
+The deliberate `full-browser-checks` label can request it elsewhere. The existing
+skip label remains available; full wins if both labels are present. This keeps
+product integration regressions before merge on affected changes and retains the
+wider browser portfolio after every merge, without repeating all 118 cases on
+routine domain, CI, test-harness or documentation PRs.
+
+Build/type, formatting and catalogue verification run once on routine PRs;
+architecture remains mandatory. Timing/browser evidence upload failures no longer
+block successful correctness checks. Mutation audit cadence is unchanged.
+The current implementation and limits are in [ci-performance.md](ci-performance.md).
+Earlier cadence descriptions below are historical.
 
 ## Current browser opt-out, 22 November 2026
 

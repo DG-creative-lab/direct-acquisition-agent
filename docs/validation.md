@@ -3518,3 +3518,49 @@ Formatting and architecture passed (213 modules, zero exceptions). The
 [attributable record](evaluations/ci-pause-reload-fix-2026-11-23.json) includes
 source and log hashes. Full hosted checks will run on the correction commit in
 PR #122; their result is not preclaimed by this local record.
+
+## Lean MVP gate, 23 November 2026
+
+The user authorized a further leaner CI pass within PR #122. Every existing
+backend test remains required on PRs. Comparing current discovery with the
+actual successful parent-run timing artifacts retained all 1,096 original IDs;
+four new small scheduling/scope regressions bring the total to 1,100. Both two-
+and four-way allocations preserve ID multiplicity. Modules remain whole except
+`SequenceJourneyTests`, whose isolated per-test SQLite backups permit explicit
+case partitioning. The allocator charges class setup once per runner using it,
+and a regression prevents leaving and re-entering a class within one runner.
+No production code, native test body or browser test body changed.
+
+Routine PRs use the 11 existing critical browser cases in
+`frontend/browser-smoke.json`. Each entry records the behavior it protects.
+Product UI, HTTP, persistence, runtime, composition, recovery/checkpoint,
+configuration and unclassified changes automatically select the full suite.
+Main always uses full coverage. Explicit full and skip PR labels remain available;
+full takes precedence if both are present. Missing change information falls back
+to full. A real Git rename regression verifies that the old product path cannot
+be hidden by moving it outside a product directory.
+
+The browser catalogue check executes actual Playwright discovery. It found the
+same 118 full-suite IDs as the earlier baseline, requires every smoke contract
+entry, and proves full partitions 38/80 have identical union and no overlap.
+This preserves the larger portfolio while moving unrelated browser permutations
+off routine PRs. Backend checks do not depend on browser selection. Only one
+interface runner installs tools/builds on routine PRs; the second explicitly
+records that it has no selected full partition. Diagnostic uploads are non-blocking,
+while test/build/type/format/architecture failures remain blocking.
+
+Local `BROWSER_SUITE=smoke make interface-check` passed all 11 smoke cases in
+68.499 seconds, plus production build/type checking and formatting. All eight
+CI-tool checks passed in 1.099 seconds. Actionlint 1.7.12 and six actual workflow
+suite/shard combinations evaluated with GitHub's expression interpreter passed.
+Architecture passed with 213 modules and zero exceptions. Full browser execution
+already passed all 118 cases on the parent `3f057dc`; this slice leaves their bodies
+and identities unchanged, verifies full selection, and executes the PR portfolio.
+
+The [attributable record](evaluations/ci-mvp-lean-2026-11-23.json) retains parent
+identity, source/log hashes, suite policy and the measured-allocation projection.
+The new backend allocation projects approximately 336 seconds per shard using
+the parent run's observed costs; this includes repeated fixture setup and is not
+a hosted timing guarantee. Full hosted backend verification will run on the pushed
+correction commit in PR #122. No live model or remote database was used, and no
+historical evidence was rewritten.

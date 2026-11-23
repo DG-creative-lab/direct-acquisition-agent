@@ -1,5 +1,58 @@
 # CI execution cost
 
+## MVP PR gate, 23 November 2026
+
+Every PR still executes all backend cases. Four small CI-selection regressions
+bring the suite to 1,100 tests; none of the previous 1,096 cases were removed.
+The expensive `SequenceJourneyTests` class now explicitly permits case-level
+partitioning because every method backs up a closed class template into its own
+SQLite root. Other modules remain whole. Each class runs contiguously on a runner,
+and the allocator charges its measured setup cost once per runner which uses it.
+
+Using successful run
+[45129497433](https://github.com/DG-creative-lab/direct-acquisition-agent/actions/runs/45129497433),
+the old backend partitions cost 462.2, 279.1, 341.8 and 246.4 seconds of test
+execution. The new allocation projects about 336.1 seconds each. It builds the
+expensive class template on two runners instead of one, adding about 15.1 seconds
+of total setup work to shorten the critical path. These are projections using
+recorded costs, not runtime guarantees.
+
+Routine PRs now run the 11 existing browser cases listed in
+[the smoke contract](../frontend/browser-smoke.json). These cover displayed-subject
+approval, exact exports, consent, uncertain-command replay, stop/accounting,
+suppression, browser funding and sequence scope. No browser test body or
+assertion changed. The complete 118-case portfolio remains available.
+
+The full browser suite runs automatically for product frontend, HTTP adapter,
+persistence, runtime, workspace composition, recovery/checkpoint and configuration
+changes. Unclassified paths or unavailable change information also select full
+coverage. Domain-only backend, test harness, CI and documentation changes use
+smoke coverage while still running every backend test. Main always runs full
+coverage. The classifier includes both old and new paths of a rename.
+
+`full-browser-checks` explicitly requests full coverage on a PR.
+`skip-browser-checks` retains the existing opt-out for Chromium; build/type and
+format checks remain. Main overrides both labels, and an explicit full label wins
+if both labels are present. Labels are a deliberate override, not automatic proof
+that omitted browser cases passed.
+
+Only the first interface runner installs dependencies and builds for routine PRs;
+the second records that no full partition was selected. Full runs retain both
+isolated browser roots and one worker per root. A catalogue check uses actual
+Playwright discovery to require every smoke contract entry and verify that the
+two full partitions cover all discovered test identities exactly once. Diagnostics
+uploads are non-blocking; test, build, type, format and architecture failures still
+fail their jobs.
+
+Local `make interface-check` defaults to all browser tests. To exercise the PR gate:
+
+```sh
+BROWSER_SUITE=smoke make interface-check
+```
+
+The following sections retain previous allocations and measurements.
+
+
 ## Current allocation, 22 November 2026
 
 The current calibration uses successful main Actions run

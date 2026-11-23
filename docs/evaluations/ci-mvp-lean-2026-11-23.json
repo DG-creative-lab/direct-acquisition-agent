@@ -1,0 +1,120 @@
+{
+  "date": "2026-11-23",
+  "parent_commit": "3f057dc5e149be12373ee7320c1b333eb829f6f3",
+  "timing_source_run": "https://github.com/DG-creative-lab/direct-acquisition-agent/actions/runs/45129497433",
+  "existing_backend_cases_retained": 1096,
+  "current_backend_cases": 1100,
+  "new_ci_regressions": [
+    "test_ci_tools.CIToolTests.test_browser_scope_cli_falls_back_to_full_for_missing_event",
+    "test_ci_tools.CIToolTests.test_browser_scope_keeps_full_coverage_for_product_and_unknown_changes",
+    "test_ci_tools.CIToolTests.test_case_partition_charges_one_fixture_setup_per_runner",
+    "test_ci_tools.CIToolTests.test_product_rename_cannot_hide_the_old_path_from_browser_scope"
+  ],
+  "backend_partitions": [
+    {
+      "shard": 1,
+      "cases": 247,
+      "estimated_seconds": 336.092,
+      "journey_case_count": 0
+    },
+    {
+      "shard": 2,
+      "cases": 372,
+      "estimated_seconds": 336.085,
+      "journey_case_count": 0
+    },
+    {
+      "shard": 3,
+      "cases": 261,
+      "estimated_seconds": 336.132,
+      "journey_case_count": 7
+    },
+    {
+      "shard": 4,
+      "cases": 220,
+      "estimated_seconds": 336.156,
+      "journey_case_count": 9
+    }
+  ],
+  "allocation_limit": "Reallocation of recorded costs. Added class setup is charged once per runner, not a runtime guarantee.",
+  "existing_browser_cases_retained": 118,
+  "browser_smoke_cases": 11,
+  "smoke_seconds": 68.499,
+  "catalogue_check": "Browser catalogue: 118 full, 11 smoke; full partitions 38/80. All identities covered exactly once.",
+  "suite_policy": {
+    "evaluator": "@actions/expressions@0.3.25",
+    "results": [
+      {
+        "suite": "smoke",
+        "shard": 1,
+        "build": true,
+        "browser": true,
+        "partitions": 1
+      },
+      {
+        "suite": "smoke",
+        "shard": 2,
+        "build": false,
+        "browser": false,
+        "partitions": 1
+      },
+      {
+        "suite": "full",
+        "shard": 1,
+        "build": true,
+        "browser": true,
+        "partitions": 2
+      },
+      {
+        "suite": "full",
+        "shard": 2,
+        "build": true,
+        "browser": true,
+        "partitions": 2
+      },
+      {
+        "suite": "skip",
+        "shard": 1,
+        "build": true,
+        "browser": false,
+        "partitions": 1
+      },
+      {
+        "suite": "skip",
+        "shard": 2,
+        "build": false,
+        "browser": false,
+        "partitions": 1
+      }
+    ]
+  },
+  "local_ci_tool_tests": {
+    "cases": 8,
+    "seconds": 1.099,
+    "result": "passed"
+  },
+  "architecture": {
+    "modules": 213,
+    "exceptions": 0,
+    "result": "passed"
+  },
+  "format": "passed",
+  "build": "passed",
+  "source_hashes": {
+    "scripts/run_backend_shard.py": "1e638e687981669b5f9655e0b0434e141ea5204bebd2955de89846403d97b45b",
+    "scripts/browser_ci_scope.py": "8ad581e191902ce4653dada45ffbb427db6c428a5a7f58339081ab3f8da6cb7c",
+    "frontend/playwright.config.ts": "4b00b3f6fb8972124b05806595ac623a2655336d272946010a635fec47853354",
+    "frontend/browser-smoke.json": "a1cecf7bcadaee360ca78caa8f86e65ad2140fdbfbf473b9a3ae8dde4702e3fc",
+    "frontend/scripts/check-browser-suites.mjs": "994808db616ca9d99e7990e5006d4a958d7457cecd5811f57543e3746d8c32ac",
+    ".github/workflows/ci.yml": "90e37e275ba5a8f4f4411503ab991d3f87b0b56ba335ed1a0bc14bbc5591adb2"
+  },
+  "log_hashes": {
+    "iwoca-ci-lean-focused.log": "58d193d5b2ee513a147996468079c0f430e97d1d91ef5b32693cd119c08f99a9",
+    "iwoca-ci-lean-smoke.log": "d6e466fd83fd4dc2113bd1f67cf7f2e35ddffa1600c6f0334f5aade1ddb50e32",
+    "iwoca-ci-lean-catalog.log": "1e094a032196d0ce61bb7ddb218d72d9cee8a7425b50b9f55725dc70047b96d4"
+  },
+  "hosted_verification": "Pending at capture; follow the correction commit check runs in PR #122.",
+  "full_browser_execution": "All 118 passed on parent 3f057dc. Browser bodies and identities are unchanged; this slice validates full discovery/partitions and executes the 11-case PR gate.",
+  "live_remote_database_run": false,
+  "live_model_run": false
+}
