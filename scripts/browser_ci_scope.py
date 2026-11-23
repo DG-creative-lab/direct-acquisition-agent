@@ -20,8 +20,19 @@ PRODUCT_FILES = frozenset({
     'src/acquisition/bootstrap.py', 'src/acquisition/entrypoints/workspace.py',
     'src/acquisition/workspace_server.py', 'pyproject.toml',
 })
+BROWSER_PREFIXES = ('frontend/tests/', 'frontend/scripts/')
+BROWSER_FILES = frozenset({
+    'frontend/playwright.config.ts', 'frontend/browser-smoke.json',
+    '.github/workflows/ci.yml', 'scripts/browser_ci_scope.py',
+    'scripts/offline_journey_fixture.py',
+    # Python helpers imported by browser drivers are part of their harness too.
+    'tests/test_preparations.py', 'tests/test_conversations.py',
+    'tests/test_conversation_actions.py', 'tests/test_conversational_copy_revision.py',
+    'tests/test_copy_revisions.py', 'tests/test_model_copy.py',
+    'tests/prepared_workspace_fixture.py',
+})
 FAST_PREFIXES = (
-    'docs/', 'tests/', 'scripts/', '.github/', 'frontend/tests/', 'frontend/scripts/',
+    'docs/', 'tests/', 'scripts/', '.github/',
     'src/acquisition/audiences/', 'src/acquisition/campaigns/',
     'src/acquisition/creative/', 'src/acquisition/reasoning/',
     'src/acquisition/learning/', 'src/acquisition/reviews/',
@@ -29,7 +40,6 @@ FAST_PREFIXES = (
 )
 FAST_FILES = frozenset({
     'README.md', 'AGENTS.md', '.gitignore', 'Makefile',
-    'frontend/playwright.config.ts', 'frontend/browser-smoke.json',
 })
 
 
@@ -39,10 +49,12 @@ def select_suite(event_name, labels, paths):
         return 'full', 'Main always runs the full browser suite'
     if 'full-browser-checks' in labels:
         return 'full', 'Explicit full-browser-checks label'
-    if 'skip-browser-checks' in labels:
-        return 'skip', 'Explicit skip-browser-checks label'
     if paths is None:
         return 'full', 'Changed paths could not be established'
+    if any(path in BROWSER_FILES or path.startswith(BROWSER_PREFIXES) for path in paths):
+        return 'full', 'Browser tests, shared harness or coverage configuration changed'
+    if 'skip-browser-checks' in labels:
+        return 'skip', 'Explicit skip-browser-checks label'
     if any(path in PRODUCT_FILES or path.startswith(PRODUCT_PREFIXES) for path in paths):
         return 'full', 'Product UI, HTTP, persistence, runtime or composition changed'
     if any(path.startswith('src/') and any(term in Path(path).name for term in ('recovery', 'checkpoint'))

@@ -73,7 +73,20 @@ class CIToolTests(unittest.TestCase):
     def test_browser_scope_keeps_full_coverage_for_product_and_unknown_changes(self):
         # This contract is independent of the selector's own path lists: deleting
         # an important path there must not silently delete its expected coverage.
-        for path in (
+        browser_changes = (
+            'frontend/tests/new-regression.spec.mjs',
+            'frontend/tests/offline-journey.spec.mjs',
+            'frontend/tests/fixtures/shared.mjs',
+            'frontend/scripts/offline-journey.mjs',
+            'frontend/playwright.config.ts', 'frontend/browser-smoke.json',
+            'scripts/browser_ci_scope.py', 'scripts/offline_journey_fixture.py',
+            '.github/workflows/ci.yml',
+            'tests/test_preparations.py', 'tests/test_conversations.py',
+            'tests/test_conversation_actions.py', 'tests/test_conversational_copy_revision.py',
+            'tests/test_copy_revisions.py', 'tests/test_model_copy.py',
+            'tests/prepared_workspace_fixture.py',
+        )
+        for path in browser_changes + (
             'frontend/src/App.tsx', 'frontend/src/brand/tokens.css', 'frontend/public/logo.svg',
             'frontend/index.html', 'frontend/package.json', 'frontend/pnpm-lock.yaml',
             'frontend/vite.config.ts', 'frontend/tsconfig.json', 'config/product.json',
@@ -88,6 +101,11 @@ class CIToolTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(select_suite('pull_request', [], [path])[0], 'full')
         self.assertEqual(select_suite('pull_request', [], None)[0], 'full')
+        self.assertEqual(select_suite('pull_request', ['skip-browser-checks'], None)[0], 'full')
+        for path in browser_changes:
+            with self.subTest(path=path, label='existing skip label'):
+                self.assertEqual(select_suite('pull_request', ['skip-browser-checks'], [path])[0], 'full')
+        self.assertEqual(select_suite('pull_request', [], ['README.md', browser_changes[0]])[0], 'full')
         self.assertIsNone(changed_paths('not-a-commit'))
         self.assertEqual(select_suite('pull_request', [], ['README.md', 'tests/test_ci_tools.py'])[0], 'smoke')
         self.assertEqual(select_suite('push', ['skip-browser-checks'], ['README.md'])[0], 'full')
@@ -106,26 +124,30 @@ class CIToolTests(unittest.TestCase):
 
     def test_product_rename_cannot_hide_the_old_path_from_browser_scope(self):
         script_root = Path(__file__).resolve().parents[1]
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            def git(*args):
-                return subprocess.check_output(['git', '-C', directory, *args], stderr=subprocess.DEVNULL, text=True).strip()
-            git('init')
-            product = root / 'frontend/src/example.ts'
-            product.parent.mkdir(parents=True)
-            product.write_text('export const example = true;\n')
-            git('add', '.')
-            git('-c', 'user.name=CI fixture', '-c', 'user.email=ci@example.invalid', 'commit', '-m', 'Initial fixture')
-            base = git('rev-parse', 'HEAD')
-            product.rename(root / 'example.ts')
-            git('add', '-A')
-            git('-c', 'user.name=CI fixture', '-c', 'user.email=ci@example.invalid', 'commit', '-m', 'Move fixture')
-            code = 'from scripts.browser_ci_scope import changed_paths; import json; print(json.dumps(changed_paths("' + base + '")))'
-            result = subprocess.check_output([sys.executable, '-c', code], cwd=root,
-                env=dict(os.environ, PYTHONPATH=str(script_root)), text=True)
-            paths = json.loads(result)
-            self.assertIn('frontend/src/example.ts', paths)
-            self.assertEqual(select_suite('pull_request', [], paths)[0], 'full')
+        for original in ('frontend/src/example.ts', 'frontend/tests/regression.spec.mjs'):
+            with self.subTest(original=original), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                def git(*args):
+                    return subprocess.check_output(['git', '-C', directory, *args], stderr=subprocess.DEVNULL, text=True).strip()
+                git('init')
+                product = root / original
+                product.parent.mkdir(parents=True)
+                product.write_text('export const example = true;\n')
+                git('add', '.')
+                git('-c', 'user.name=CI fixture', '-c', 'user.email=ci@example.invalid', 'commit', '-m', 'Initial fixture')
+                base = git('rev-parse', 'HEAD')
+                moved = root / 'docs/moved-example.txt'
+                moved.parent.mkdir()
+                product.rename(moved)
+                git('add', '-A')
+                git('-c', 'user.name=CI fixture', '-c', 'user.email=ci@example.invalid', 'commit', '-m', 'Move fixture')
+                code = 'from scripts.browser_ci_scope import changed_paths; import json; print(json.dumps(changed_paths("' + base + '")))'
+                result = subprocess.check_output([sys.executable, '-c', code], cwd=root,
+                    env=dict(os.environ, PYTHONPATH=str(script_root)), text=True)
+                paths = json.loads(result)
+                self.assertIn(original, paths)
+                self.assertIn('docs/moved-example.txt', paths)
+                self.assertEqual(select_suite('pull_request', [], paths)[0], 'full')
 
     def test_timing_preserves_test_identity_when_fixture_assigns_id(self):
         class UsesSubjectId(unittest.TestCase):
