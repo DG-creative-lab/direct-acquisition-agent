@@ -1,0 +1,277 @@
+{
+  "schema": "remote-response-reliability/v1",
+  "recorded_on": "2026-11-23",
+  "source_commit": "e761b3a38a778f18f05df0b8878ab8d5763ffc7b",
+  "base_commit": "c009b693efc5b54e417f107dce8f39c041dc071b",
+  "domain_evidence": {
+    "confirmed": "Hosted start freezes an exact message and native SQLite admission compares the persisted message inside the transaction. Hosted continuation commits its native stage before status projection. Status runs current-provenance and exact-review checks and grants no authority.",
+    "confirmed_failures": [
+      "The real provider changed 121/1000 seeded JSON timestamp bindings by one ULP. A wire-injected one-ULP change rejected message admission.",
+      "Ready status made 1083 real HTTP requests. Repeated JSON_VALID and read-only WITH queries cleared snapshot reuse; journey-current inspection had no encompassing read snapshot."
+    ],
+    "inferred": "Float decoding/binding precision and excessive round trips explain reproduced admission rejection and request-budget pressure. The exact transport cause of every historical generic RemoteUnavailable cannot be retrospectively recovered.",
+    "authority": "Original organization/request/inputs, native reservations, current account/stop evidence and lease-at-commit checks remain authoritative. No response, cached read or reconciliation result grants approval or dispatch."
+  },
+  "fixes": [
+    "Bind finite floats as exact integer significands and reconstruct REAL values using only power-of-two operations. Preserve placeholder identity and opaque SQL text. No decimal coercion or fact/timestamp rounding.",
+    "Use one read snapshot for journey-current provenance. Admit JSON_VALID and read-only WITH queries to the same bounded closed deterministic-read cache. CTE writes invalidate reuse. No cross-transaction memo or skipped validation.",
+    "Preserve safe adapter reason categories and optional numeric HTTP status through pipeline and uncertain-COMMIT wrapping. No submitted-request retry or raw provider text."
+  ],
+  "measurements": {
+    "source_scope": "Interim candidate-worktree probes, retained with helper/result hashes. The final full, boundary, cold-process and protected-preview gates below are separately bound to the final source commit.",
+    "timestamps": {
+      "cases": 1000,
+      "before_mismatches": 121,
+      "after_mismatches": 0,
+      "before": {
+        "path": "/private/tmp/iwoca-response-floats-full-precision.json",
+        "sha256": "2f0edf65d45e0308ad650dc65ad32daf7b5ae958df15e01600a82c92f06cd29d"
+      },
+      "after": {
+        "path": "/private/tmp/iwoca-response-floats-fixed.json",
+        "sha256": "05d59663754db0f4a3b406591195ef83e6e19f14307bbe5612b05eeb269765e9"
+      }
+    },
+    "float_edges": {
+      "cases": 261,
+      "mismatches": 0,
+      "decimal_cast_mismatches": 34,
+      "path": "/private/tmp/iwoca-response-float-bits-fixed.json",
+      "sha256": "aee23bb051176018b9da5ac96125ea6f4ad8ce3f97a63523ba1420f805d5913e"
+    },
+    "ready_status": {
+      "before_requests": 1083,
+      "after_requests": 273,
+      "before_seconds": 28.893,
+      "after_seconds": 8.281,
+      "sampling": "One before/after observation on the same ready journey, not a latency guarantee.",
+      "before": {
+        "path": "/private/tmp/iwoca-response-status-baseline.json",
+        "sha256": "085604e9f8f12217300589aceb5e9d6a03f0219ac431f67aa2d5f3b47dbd3ee7"
+      },
+      "after": {
+        "path": "/private/tmp/iwoca-response-status-snapshot.json",
+        "sha256": "a60b2f1efef23233d61f9ede42716846bad8d47bd585f4df43fb355436b879a9"
+      }
+    },
+    "parameter_grammar": {
+      "seed": 23,
+      "generated": 3000,
+      "native_accepted": 2940,
+      "mismatches": 0,
+      "path": "/private/tmp/iwoca-response-parameter-fuzz.json",
+      "sha256": "02d29eae96d7933d9fddfc31526ca2c09ed272d008c61594da88cc8e91a5b485"
+    }
+  },
+  "verification": {
+    "make_test": {
+      "passed": true,
+      "tests": 1126,
+      "seconds": 1193.561,
+      "path": "/private/tmp/iwoca-response-full-final.log",
+      "sha256": "e18fb39f1030b853d1da67dd4edf92618db4438f339949dd999298d33bdf088a"
+    },
+    "focused": {
+      "passed": true,
+      "tests": 40,
+      "seconds": 50.393,
+      "path": "/private/tmp/iwoca-response-focused-reviewed.log",
+      "sha256": "4f453ee53ae1070ed6546050ee76cc616647963dc203e93b22fa33e7ea9850d1"
+    },
+    "make_arch_check": {
+      "passed": true,
+      "modules": 216,
+      "exceptions": 0,
+      "path": "/private/tmp/iwoca-response-architecture-final.log",
+      "sha256": "c5c330f61f676177b4d72da6967d17081268737443223c212f441f737f141124"
+    },
+    "make_boundary_check": {
+      "passed": true,
+      "cases": 5,
+      "network_attempts": 0,
+      "source_stable": true,
+      "historical_bytes_unchanged": true,
+      "path": "/private/tmp/iwoca-response-boundary-final/results.json",
+      "sha256": "5406d625cbd0070c45c5ceb31fa581f900dcb2422bec63459f9a69c5b5e903d0"
+    },
+    "real_cold_processes": {
+      "schema": "serverless-preparation-conformance/v1",
+      "synthetic": true,
+      "passed": true,
+      "source_commit": "e761b3a38a778f18f05df0b8878ab8d5763ffc7b",
+      "organization": "hosted_probe_48e88e8f158d4799ad762aa3a83e86c2",
+      "source_dirty": false,
+      "phase": "verify_read_only_and_authority",
+      "observed": {
+        "organization": "hosted_probe_48e88e8f158d4799ad762aa3a83e86c2",
+        "journey_id": "journey_dbc1cc2953e0dc3e2bff7d49fe6cdcfef8fa5cddd477d8d88e2936abd160d03c",
+        "status": "ready",
+        "authority": "none",
+        "fixture_calls": 9,
+        "unapproved": true,
+        "processes_rebuilt_between_steps": true,
+        "same_stage_replay_read_only": true,
+        "status_read_only": true,
+        "changed_input_rejected": true,
+        "seconds": {
+          "start": [
+            2.977,
+            3.062
+          ],
+          "0": 5.599,
+          "1": 4.955,
+          "2": 14.397,
+          "3": 31.55,
+          "4": 43.428,
+          "5": 45.703,
+          "6": 27.858
+        },
+        "live_model_calls": 0
+      },
+      "artifact": {
+        "path": "/private/tmp/iwoca-response-remote-conformance-final.json",
+        "sha256": "d8912076c0d6189160fcea0888833928750c9e0343459f0647e9941a2930d6eb"
+      }
+    },
+    "protected_preview": {
+      "schema": "protected-serverless-http-conformance/v1",
+      "source_commit": "e761b3a38a778f18f05df0b8878ab8d5763ffc7b",
+      "deployment_url": "https://direct-acquisition-feasibility-4mju1lnrl-dessigs-projects.vercel.app",
+      "target": "preview",
+      "organization": "hosted_snapshot_final_2ba484a",
+      "synthetic": true,
+      "passed": true,
+      "phases": [
+        {
+          "stage": "start",
+          "seconds": [
+            2.783,
+            2.77
+          ]
+        },
+        {
+          "stage": 0,
+          "seconds": 6.465,
+          "replay_seconds": 2.47
+        },
+        {
+          "stage": 1,
+          "seconds": 4.781,
+          "replay_seconds": 2.48
+        },
+        {
+          "stage": 2,
+          "seconds": 10.581,
+          "replay_seconds": 2.529
+        },
+        {
+          "stage": 3,
+          "seconds": 17.639,
+          "replay_seconds": 3.001
+        },
+        {
+          "stage": 4,
+          "seconds": 16.098,
+          "replay_seconds": 2.369
+        },
+        {
+          "stage": 5,
+          "seconds": 16.272,
+          "replay_seconds": 2.439
+        },
+        {
+          "stage": 6,
+          "seconds": 13.142,
+          "replay_seconds": 4.55
+        }
+      ],
+      "operator_auth_required": true,
+      "journey_id": "journey_3aed36246b022620bd1dafb775f43720fe305c5c945a32c89a5e961573339e7c",
+      "concurrent_start_converged": true,
+      "changed_input_rejected": true,
+      "status": "ready",
+      "unapproved": true,
+      "fixture_calls": 9,
+      "content_runs": 3,
+      "review_decisions": 0,
+      "live_model_calls": 0,
+      "status_read_only": true,
+      "same_stage_replay_observed": true,
+      "artifact": {
+        "path": "/private/tmp/iwoca-response-preview-final-check.json",
+        "sha256": "132b68eb6dc187ee2185c9daa58102a412c9c8bf2c6d1c79e1890ed73f67810a"
+      },
+      "helper": {
+        "path": "/private/tmp/iwoca-response-preview-final-check.py",
+        "sha256": "811811244abaec73a1bc39de4df34ebef2a5093252068a66fdd610108f834b75"
+      }
+    },
+    "package": {
+      "source_commit": "e761b3a38a778f18f05df0b8878ab8d5763ffc7b",
+      "verified_payload_hashes": 236,
+      "manifest": {
+        "path": "/private/tmp/iwoca-response-preview-final-package/serverless-preparation-source.json",
+        "sha256": "c35312bc8ca39896c95825e9a7f09038746b2f22f96938b471db6bab5b436dfd"
+      },
+      "deployment": {
+        "id": "dpl_8fwrGpcq2qpZ2mYd6hJq4BiiY2iB",
+        "url": "https://direct-acquisition-feasibility-4mju1lnrl-dessigs-projects.vercel.app",
+        "inspectorUrl": "https://vercel.com/dessigs-projects/direct-acquisition-feasibility/8fwrGpcq2qpZ2mYd6hJq4BiiY2iB",
+        "readyState": "READY",
+        "target": null,
+        "deploymentApiUrl": "https://api.vercel.com/v13/deployments/dpl_8fwrGpcq2qpZ2mYd6hJq4BiiY2iB"
+      }
+    }
+  },
+  "bounded_failure_space": {
+    "precision": "134 fixed/seeded finite doubles compared to native SQLite with an independently injected one-ULP wire fault; plus 1000 timestamp and 261 finite-edge real-provider cases.",
+    "identity": "Numbered/repeated/anonymous slots, named/Tcl/Unicode names, quoted text/identifiers/comments and 11 namespace-edge forms; 2940 generated legal names also matched native SQLite.",
+    "cache": "Fresh cursors, exact bindings, writes and write-bearing CTE invalidation, new transaction/current state, volatile and quoted functions, clocks, capacity bounds and provider rollback before COMMIT.",
+    "failure_categories": "Redirect, HTTP429, pre-submit budget exhaustion, lost acknowledgement, inactive transaction and uncertain COMMIT retain no-repeat/no-dispatch behavior.",
+    "recovery": "Seven cold-process stages, original receipt replay, changed-input rejection, read-only status, unapproved readiness and five native offline boundary cases. This does not exhaust all distributed schedules."
+  },
+  "retained_nonpassing_observations": [
+    {
+      "kind": "red_regressions",
+      "result": "Before fixes, admission rejected the drifted timestamp and ready status made 1080 wire requests. Float subtests also failed under injected drift.",
+      "artifact": {
+        "path": "/private/tmp/iwoca-response-red.log",
+        "sha256": "208eff917e68520d866d76ffa552e6e546cd741d0424a40087c4fb4f9448bae0"
+      }
+    },
+    {
+      "kind": "intermediate_focused_run",
+      "result": "First optimization left 930 status calls. A test also attempted named markers with positional bindings, which Python 3.14 forbids; that invalid oracle input was corrected.",
+      "artifact": {
+        "path": "/private/tmp/iwoca-response-focused-v1.log",
+        "sha256": "db8463abc3e8141567ab5dd53fa1ccdf59f85c47751b781c06a05c7ed975b527"
+      }
+    },
+    {
+      "kind": "interrupted_full_run",
+      "result": "Stopped for a counter-review correction after discovering native SQLite accepts leading/repeated/trailing Tcl namespace separators. No full pass is claimed for this attempt.",
+      "artifact": {
+        "path": "/private/tmp/iwoca-response-full.log",
+        "sha256": "4445f1d0cb6a7ef11b39bd56ef67bfe9bdb6a7db5b0878af3beed6556411e792"
+      }
+    },
+    {
+      "kind": "initial_preview_count_oracle",
+      "result": "All seven stage responses and replays completed, but the old helper counted all historical runs in the shared native organization. A read-only check confirmed 18 global calls versus nine for the exact journey. Final helper counts only the exact journey run IDs/proposal and retains historical records.",
+      "artifact": {
+        "path": "/private/tmp/iwoca-response-preview-check.json",
+        "sha256": "ba5bc7aa47ed28e32231c29ec376fce6b5611ed46036c39840ffe40e4b839cc6"
+      },
+      "oracle_check": {
+        "path": "/private/tmp/iwoca-response-preview-oracle.json",
+        "sha256": "e49632e245c68417e7f5b5741c23e4cede37491c1afb38767ec23073fb1bc7b0"
+      }
+    }
+  ],
+  "limits": [
+    "Earlier immutable evidence remains unchanged. Historical generic error causes cannot all be recovered.",
+    "No live model calls, paid fallback, new resource, production promotion, real outbound delivery or visitor access.",
+    "Preview uses the existing protected direct-acquisition-feasibility project in dub1 and existing acquisition-hosting-probe database.",
+    "No frontend changes; interface-check was not required. Broader tenant/load testing is not claimed."
+  ]
+}

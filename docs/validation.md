@@ -3731,3 +3731,33 @@ accepted by native SQLite retained the same value and REAL type. This is a
 finite grammar probe, not a claim about every possible SQL statement. The
 first broader run was stopped when this edge case was found; final verification
 uses the corrected committed source.
+
+Final verification on `e761b3a`: `make test` passed all 1,126 tests in 1193.561
+seconds. The focused storage/serverless suite passed all 40 tests in 50.393
+seconds. Architecture passed with 216 modules and zero exceptions. All five
+native recovery boundary cases passed with zero network attempts, stable source
+and unchanged historical bytes.
+
+The real Turso cold-process conformance run passed all seven stages, original
+replays, read-only status and changed-input rejection. Its slowest stage took
+45.703 seconds. The protected Ireland preview of the same committed package
+also passed concurrent original starts, all seven HTTP stage responses and
+replays, changed-input rejection and repeated read-only status. Its slowest stage
+request took 17.639 seconds including CLI overhead. Each exact journey retained
+three content runs, nine recorded fixture calls and zero review decisions.
+The committed-source package contains 236 verified payload hashes. No live model,
+new resource, production promotion or outbound delivery was used.
+
+The earlier generic failures cannot all be classified retrospectively. The
+reproduced admission precision mismatch and excessive status reads are fixed,
+and both final remote response paths now pass. Interim numeric/timing probes
+remain candidate-worktree observations; the full, boundary, cold-process and
+protected-preview results bind to the final commit. The initial preview helper
+incorrectly counted historical calls in the shared native scope; an independent
+read confirmed 18 global calls versus nine for its exact journey. The final
+helper checks exact journey run IDs and proposal, preserving all history.
+
+The separate [response-reliability record](evaluations/issue-60-remote-response-reliability-2026-11-23.json)
+retains those observations, red tests, the interrupted earlier full run, final
+results, source/package identities and evidence hashes. Historical reports were
+not regenerated.
