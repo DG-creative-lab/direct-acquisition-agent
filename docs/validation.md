@@ -28,7 +28,18 @@ approval rollback and fresh-connection export. This is not hosted Turso evidence
 Bundled previews are functional but collect no viewer events. No provider calls,
 source-history import, live ad effect, deployment or source cutover is included.
 The retained [evidence record](evaluations/issue-132-youtube-flow-2026-11-24.json)
-will record completed gate counts and source attribution before handoff.
+records the source attribution, failure corrections and finite limits. Backend
+coverage passed all 1,165 discovered cases across four supported shards, with
+zero missing or repeated test identities; the affected 443-case partition was
+rerun after the read-only fix. All 65 final affected-module tests also passed.
+The final production build, formatting and both browser partitions passed all
+133 cases, with zero skipped, unexpected or flaky results. The final five-case
+boundary gate on `50792942ccfa9dc17372b3d01666bd5792a6d5bc` passed with
+stable source, zero network attempts, 228 classified modules, zero architecture
+exceptions and all 32 earlier evaluation artifacts unchanged. Desktop and 390px
+manual inspection included a real native JSON download and fresh-server reopen.
+Earlier browser runs under concurrent backend/build load failed; the final full
+browser run used stable assets without backend load and unchanged assertions.
 
 ## Intake recovery store binding, review correction, 24 November 2026
 
