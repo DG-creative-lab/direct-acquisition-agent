@@ -17,10 +17,13 @@ def compose_youtube_admission(scope, operation_id, frozen):
 
 
 class YouTubePreparation:
-    def __init__(self, campaigns, tasks, worker):
+    def __init__(self, campaigns, tasks, worker, *, initialize_authority=None):
         self.campaigns, self.tasks, self.worker = campaigns, tasks, worker
+        self.initialize_authority = initialize_authority
 
     def message(self, command):
+        if self.initialize_authority is not None:
+            self.initialize_authority()
         # Only the atomic admission can prove that this attempt saved no message.
         # Worker/publication/read failures below retain the original request.
         try:

@@ -169,6 +169,16 @@ class WorkspaceYouTubeHttpTests(unittest.TestCase):
         self.assertEqual(len(json.loads(raw)['youtube_interactions']), 2)
 
     def test_shared_reviewer_disable_and_reenable_cannot_renew_cached_youtube_approval(self):
+        # Capability construction, store reads and unrelated chat inspection are
+        # read-only. Local actor defaults belong to an explicit YouTube use.
+        app = self.server.workspace.youtube.campaigns
+        with app.store.database.connect() as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM review_actors').fetchone()[0], 0)
+        c = self.server.workspace.create_conversation('inspect', 'Inspect only')['id']
+        self.server.workspace.conversation(c)
+        self.request('/api/youtube/store')
+        with app.store.database.connect() as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM review_actors').fetchone()[0], 0)
         view = self.start()
         app = self.server.workspace.youtube.campaigns
         command = {'request_id': 'approved', 'campaign_id': self.campaign, 'subject': view['review']['subject']}

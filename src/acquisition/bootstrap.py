@@ -425,17 +425,23 @@ def build_youtube(path, clock=time.time, *, organization='local-conversations', 
     database = build_database(path, clock=clock, remote_storage=remote_storage, read_only=read_only,
                               verified_admissions=verified_admissions)
     reviewer = actor if authority is not None else 'local-reviewer'
+    initialize_authority = None
     if authority is None:
-        # Existing trusted local bootstrap policy, never an override of later
-        # role administration and never a write to an inspection/paused store.
-        from acquisition.adapters.sqlite.admission_guard import verified_required
-        with database.connect() as connection:
-            paused = verified_required(connection)
-        if not read_only and not paused:
+        authority = SqliteYouTubeAuthority(database, organization, PROFILE, actor, reviewer)
+        def initialize_authority():
+            # Configure trusted local defaults only at an explicit submission.
+            # Reads never create authority; missing roles in existing native
+            # history cannot be silently reinstated by reopening or replay.
+            if read_only:
+                return
+            from acquisition.adapters.sqlite.admission_guard import verified_required
+            with database.connect() as connection:
+                if verified_required(connection) or connection.execute(
+                    'SELECT 1 FROM youtube_requests WHERE organization=? LIMIT 1', (organization,)).fetchone():
+                    return
             roles = SqliteReviews(database, clock, None)
             roles.initialize_actor(organization, actor, ('operator',))
             roles.initialize_actor(organization, reviewer, ('reviewer',))
-        authority = SqliteYouTubeAuthority(database, organization, PROFILE, actor, reviewer)
     assets = assets or BundledComparisonAssets(Path(__file__).resolve().parents[2] / 'examples/youtube-media', origin)
     store = SqliteYouTube(database, authority, assets, FIXTURE, clock, compose_youtube_admission, read_only=read_only)
     campaigns = YouTubeCampaigns(store, YouTubeScope(organization), actor, reviewer=reviewer)
@@ -443,7 +449,7 @@ def build_youtube(path, clock=time.time, *, organization='local-conversations', 
     handler = AuthoredYouTubeHandler(store, FIXTURE)
     worker = Worker(tasks, {CAPABILITY: handler.prepare}, clock,
                     eligible=lambda capability, inputs: capability == CAPABILITY)
-    return YouTubePreparation(campaigns, tasks, worker)
+    return YouTubePreparation(campaigns, tasks, worker, initialize_authority=initialize_authority)
 
 
 def build_admissions(path, clock=time.time, *, _database=None, verified_admissions=False, remote_storage=None):
