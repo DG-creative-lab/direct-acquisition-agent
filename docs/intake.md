@@ -81,7 +81,8 @@ unsaved changes; it is an aid, not a durability guarantee. In particular,
 Before a save is dispatched, tab session storage retains its original request ID,
 complete body and the edit's base snapshot. While its outcome is uncertain, both
 forms are fenced and **Retry original save** repeats that exact command. Reloading
-restores the pending edit target and base revision. Known rejection allows editing
+restores the pending edit target and base revision. Separate unsaved edits in the
+other form remain in memory and retain their own leave-page warning. Known rejection allows editing
 again; network errors, server failures and unreadable replies retain the original
 command. Storage failure blocks dispatch. The client checks the domain's total ASCII-JSON
 size before retaining a command, including Unicode escape expansion. Oversized

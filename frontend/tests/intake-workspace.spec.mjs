@@ -280,6 +280,9 @@ test("intake lost brief acknowledgement preserves the pinned company and origina
     await page
       .getByLabel("Campaign objective", { exact: true })
       .fill("Original brief \u2014 preserve wording");
+    await page
+      .getByLabel("Company name", { exact: true })
+      .fill("Separate unsaved company edit");
     let original;
     await page.route("**/api/intake/briefs", async (route) => {
       if (route.request().method() !== "POST") return route.continue();
@@ -294,7 +297,12 @@ test("intake lost brief acknowledgement preserves the pinned company and origina
       page.getByRole("button", { name: "Retry original save" }),
     ).toBeEnabled();
     await page.unroute("**/api/intake/briefs");
-    await page.reload();
+    const warning = page.waitForEvent("dialog");
+    const reload = page.reload();
+    const leaving = await warning;
+    expect(leaving.type()).toBe("beforeunload");
+    await leaving.accept();
+    await reload;
     await page
       .getByRole("button", { name: "Company & brief", exact: true })
       .click();

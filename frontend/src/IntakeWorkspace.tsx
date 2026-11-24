@@ -172,7 +172,9 @@ export default function IntakeWorkspace({ active }: { active: boolean }) {
     JSON.stringify(companyBase?.draft ?? emptyCompany());
   const briefDirty =
     JSON.stringify(brief) !== JSON.stringify(briefBase?.draft ?? emptyBrief());
-  const unsaved = (companyDirty || briefDirty) && !pending;
+  const unsaved =
+    (companyDirty && pending?.kind !== "companies") ||
+    (briefDirty && pending?.kind !== "briefs");
   useEffect(() => {
     if (!unsaved) return;
     const warn = (event: BeforeUnloadEvent) => {
