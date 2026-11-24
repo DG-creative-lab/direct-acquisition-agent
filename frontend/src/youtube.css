@@ -1,0 +1,80 @@
+.youtube-artifact {
+  margin-block: 1.5rem;
+  padding: clamp(1rem, 3vw, 1.75rem);
+  border: 1px solid var(--border, #b6b5ae);
+  border-radius: 14px;
+}
+.youtube-artifact header,
+.youtube-actions {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+}
+.youtube-artifact h3 {
+  overflow-wrap: anywhere;
+}
+.youtube-state {
+  font-size: 0.85rem;
+}
+.youtube-artifact form {
+  display: grid;
+  gap: 0.6rem;
+  margin-block: 1.5rem;
+}
+.youtube-artifact input:not([type="checkbox"]),
+.youtube-artifact textarea {
+  width: 100%;
+  min-height: 48px;
+  padding: 0.75rem;
+  font: inherit;
+  font-size: max(1rem, 1em);
+  border: 1px solid #767676;
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+.youtube-artifact fieldset {
+  border: 0;
+  padding: 0;
+  margin-block: 0.75rem;
+}
+.youtube-placement {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 48px;
+}
+.youtube-artifact input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+}
+.youtube-artifact input:user-invalid,
+.youtube-artifact textarea:user-invalid {
+  border-color: #a32222;
+}
+.youtube-artifact :focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+.youtube-artifact button {
+  min-height: 48px;
+  border-radius: 8px;
+}
+.youtube-comparison {
+  margin-block: 1rem;
+}
+.youtube-artifact pre {
+  max-height: 22rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.youtube-hash {
+  font: 0.8rem/1.5 monospace;
+  overflow-wrap: anywhere;
+}
+.youtube-actions {
+  justify-content: flex-start;
+  margin-block-start: 1.5rem;
+}

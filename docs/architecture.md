@@ -43,6 +43,7 @@ entry point or Gateplane dependency is introduced by this slice.
 
 | Module | Responsibility | Authority it does not own |
 | --- | --- | --- |
+| `youtube` | Native authored placement packages, exact manual review, approval and export through one UI/tool command surface | Human decisions from model output, live ad buying or shared postal/sequence subjects |
 | `runtime` | Run/task lifecycle, leases, attempts, waiting and result commits | Campaign policy, copy quality, approval or outcomes |
 | `audiences` | Business records, immutable snapshots, versioned source discovery, scoped native account/contact identity, permission/pressure observations, objections and frozen categorization/decision strategy contracts | Model-generated eligibility or inferred source completeness |
 | `campaigns` | Selection, exclusions, A/B/no-mail assignment, integer money and exact drafts | Reviewer decisions or external dispatch |
@@ -60,7 +61,7 @@ entry point or Gateplane dependency is introduced by this slice.
 `make arch-check` statically inspects every Python file under `src/acquisition`,
 without importing product code. `scripts/architecture_policy.json` is the reviewed,
 exact module-to-role inventory and temporary exception ledger. It currently
-classifies 205 modules, including workspace application/views, startup and HTTP adapters, compatibility wrappers, engagements and supporting
+classifies 228 modules, including workspace application/views, startup and HTTP adapters, compatibility wrappers, engagements and supporting
 files and every root utility. An added file needs an explicit classification;
 removed files must lose their classifications. A file/package name collision is
 rejected. Tests and scripts are outside this production inventory and cannot be

@@ -72,7 +72,7 @@ def run(settings):
         except NotFound:pass
         else:raise AssertionError('Foreign organization accepted')
     with app.store.database.connect() as db:
-        assert db.execute('PRAGMA user_version').fetchone()[0] == 24
+        assert db.execute('PRAGMA user_version').fetchone()[0] == 25
         for table in ('runs','tasks','model_calls','drafts','review_decisions'):
             if table == 'tasks':
                 count = db.execute('SELECT count(*) FROM tasks JOIN runs ON runs.id=tasks.run_id WHERE organization=?',(organization,)).fetchone()[0]
@@ -85,7 +85,7 @@ def run(settings):
     return {'organization':organization,'company_revisions':2,'brief_revisions':1,'receipts':3,
             'competing_processes':2,'stale_edit_rejected':True,'lost_commit_ack_replayed':True,
             'foreign_scope_rejected':True,'changed_input_rejected':True,'company_revision_pinned':True,
-            'model_calls':0,'campaign_runs':0,'schema':24}
+            'model_calls':0,'campaign_runs':0,'schema':25}
 
 
 def main():

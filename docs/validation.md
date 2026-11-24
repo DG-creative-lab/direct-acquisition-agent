@@ -1,5 +1,31 @@
 # Validation and limits
 
+## Native YouTube preparation, issue 132, 24 November 2026
+
+The [authored local flow](youtube-preparation.md) adds a native channel module,
+`youtube.prepare.v1`, exact human review and manual JSON export in existing chat.
+Schema 25 appends native history without changing postal or sequence identities.
+The frozen request, runtime plan, current conversation revision and active lease
+bind publication. Stops, superseding messages and competing campaign edits block
+late drafts. Advice and ambiguous channel requests grant no draft permission.
+
+Approvals bind exact payload/media/context/origin and current local authority,
+with bounded expiry and explicit revocation. Export rechecks current state before
+replaying a receipt. Receipt recovery cannot restore stale authority. Human
+approval/download are absent from the typed agent tool surface. The guarded HTTP
+path and browser pending commands bind the original store; a reply lost after
+commit retries the original request. Definite admission rejection unlocks editing
+without treating post-commit uncertainty as failure to save.
+
+Real SQLite, fresh-process reads, migration rollback, lease expiry, concurrent
+edits, stop/resume, public media and scope substitution have executable targeted
+coverage. The existing libSQL transport also passes a local wire-simulator save,
+approval rollback and fresh-connection export. This is not hosted Turso evidence.
+Bundled previews are functional but collect no viewer events. No provider calls,
+source-history import, live ad effect, deployment or source cutover is included.
+The retained [evidence record](evaluations/issue-132-youtube-flow-2026-11-24.json)
+will record completed gate counts and source attribution before handoff.
+
 ## Intake recovery store binding, review correction, 24 November 2026
 
 The P2 review identified an ownership gap: an original save retained its inputs

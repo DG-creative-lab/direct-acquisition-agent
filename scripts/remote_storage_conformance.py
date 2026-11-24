@@ -121,7 +121,7 @@ def run(key):
     except sqlite3.IntegrityError:pass
     else:raise AssertionError('Constraint did not reject transaction')
     with store.database.connect() as db:
-        assert db.execute('PRAGMA user_version').fetchone()[0]==24
+        assert db.execute('PRAGMA user_version').fetchone()[0]==25
         assert db.execute("SELECT 1 FROM sqlite_master WHERE name=?",(marker,)).fetchone() is None
         assert db.execute('SELECT count(*) FROM runs WHERE organization=?',(org,)).fetchone()[0]==2
         assert db.execute('SELECT count(*) FROM execution_admissions WHERE organization=?',(org,)).fetchone()[0]==2

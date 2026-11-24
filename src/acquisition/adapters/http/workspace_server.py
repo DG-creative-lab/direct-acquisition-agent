@@ -6,10 +6,12 @@ import threading
 from contextlib import ExitStack
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from html import escape
 from urllib.parse import urlsplit, parse_qs
 from acquisition.contracts import Conflict, NotFound
 from acquisition.conversations import ActionNotSaved, AudienceSelectionRejected, MessageRejectedConflict, MessageRejectedInvalid, MessageRejectedNotFound
 from acquisition.reasoning import ModelError
+from acquisition.youtube import YouTubeError
 from acquisition.application.workspace import MonitoringRejected, ModelSelectionRejected, ModelSessionExpired
 
 
@@ -23,6 +25,10 @@ class WorkspaceHTTPServer(ThreadingHTTPServer):
         self.request_gate = threading.Lock()
         self.closing = False
         super().__init__(("127.0.0.1", port), Handler)
+        self.workspace.youtube_origin = 'http://127.0.0.1:' + str(self.server_port)
+        # Initialize the installed local capability at server startup, not during
+        # a read-only package/preview request.
+        self.workspace.youtube
 
     def process_request(self, request, client_address):
         with self.request_gate:
@@ -88,6 +94,32 @@ class Handler(BaseHTTPRequestHandler):
         try:
             path = self.parsed_target.path
             parts = path.strip('/').split('/')
+            if path == '/api/youtube/store' and not self.parsed_target.query:
+                return self._send(200, {'store_id': self.server.workspace.youtube.campaigns.store_identity()})
+            if len(parts) == 4 and parts[:3] == ['api', 'youtube', 'campaigns'] and not self.parsed_target.query:
+                return self._send(200, self.server.workspace.youtube.campaigns.read(parts[3]))
+            if len(parts) == 3 and parts[:2] in (['youtube', 'media'], ['youtube', 'compare']):
+                query = parse_qs(self.parsed_target.query, keep_blank_values=True)
+                field = 'sha256' if parts[1] == 'media' else 'content'
+                if set(query) != {field} or len(query[field]) != 1:
+                    raise ValueError('Use an exact bundled media fingerprint')
+                app = self.server.workspace.youtube.campaigns
+                if parts[1] == 'media':
+                    data = app.media(parts[2], query[field][0])
+                    return self._send(200, data, 'video/mp4' if parts[2].endswith('.mp4') else 'audio/mpeg')
+                content = app.preview(parts[2], query[field][0])
+                players = ''.join('<section><h2>' + escape(take['label']) + '</h2><'
+                    + ('video' if take['asset'].endswith('.mp4') else 'audio')
+                    + ' controls preload="metadata" src="' + escape(take['url'], quote=True) + '"></'
+                    + ('video' if take['asset'].endswith('.mp4') else 'audio') + '></section>'
+                    for take in content['takes'])
+                page = ('<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+                        '<title>' + escape(content['title']) + '</title><style>body{font:18px/1.6 system-ui;max-width:760px;margin:3rem auto;padding:1rem}'
+                        'video,audio{width:100%;border-radius:12px}section{margin-block:2rem}</style>'
+                        '<main><p>Authored synthetic voice preview</p><h1>' + escape(content['title']) + '</h1><p>'
+                        + escape(content['instruction']) + '</p><p>Transcript: ' + escape(content['passage']) + '</p>'
+                        + players + '<p>Preview only. No playback or choice events are collected.</p></main></html>')
+                return self._send(200, page.encode(), 'text/html; charset=utf-8')
             if path == '/api/intake/store' and not self.parsed_target.query:
                 return self._send(200, {'store_id': self.server.workspace.intake.store_identity()})
             if len(parts) in {3, 4} and parts[:2] == ['api', 'intake'] and parts[2] in {'companies', 'briefs'}:
@@ -144,6 +176,10 @@ class Handler(BaseHTTPRequestHandler):
             if target.name == "index.html":
                 body = body.replace(b"__WORKSPACE_TOKEN__", self.server.token.encode())
             self._send(200, body, mimetypes.guess_type(target)[0] or "application/octet-stream")
+        except YouTubeError as error:
+            self._send(409, {'error': str(error), 'code': error.code, 'message_not_saved': error.message_not_saved})
+        except PermissionError:
+            self._send(403, {'error': 'This operation is unavailable'})
         except (NotFound, ValueError, Conflict, ModelError) as error:
             self._send(404 if isinstance(error, NotFound) else 409, {"error": str(error)})
         except Exception:
@@ -165,7 +201,16 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(400, {"error": "Use a bounded JSON request"} |
                                   ({'intake_not_saved': True} if intake_save else {}))
             try:
-                data = json.loads(self.rfile.read(length))
+                raw = self.rfile.read(length)
+                def unique_pairs(pairs):
+                    result = {}
+                    for key, value in pairs:
+                        if key in result:
+                            raise ValueError('Duplicate JSON field')
+                        result[key] = value
+                    return result
+                youtube_request = path.startswith('/api/youtube/') or path.endswith('/youtube-messages')
+                data = json.loads(raw, object_pairs_hook=unique_pairs) if youtube_request else json.loads(raw)
                 if not isinstance(data, dict):
                     raise ValueError("Use a JSON object")
             except ValueError:
@@ -176,6 +221,26 @@ class Handler(BaseHTTPRequestHandler):
             authorization = self.headers.get("Authorization")
             handle = self.headers.get("X-OpenRouter-Handle")
             tab = self.headers.get("X-OpenRouter-Session")
+            if youtube_request:
+                if (authorization is not None or handle is not None or tab is not None or self.parsed_target.query
+                        or any(len(self.headers.get_all(name, [])) != 1 for name in
+                               ('Host', 'Origin', 'X-Workspace-Token', 'X-YouTube-Store'))):
+                    raise ValueError('Use a scoped offline YouTube command without model funding')
+                app = self.server.workspace.youtube.campaigns
+                if self.headers.get('X-YouTube-Store') != app.store_identity():
+                    return self._send(409, {'error': 'Restore the original YouTube workspace before retrying.',
+                                            'code': 'store_mismatch'})
+                if len(parts) == 4 and parts[:2] == ['api', 'conversations'] and parts[3] == 'youtube-messages':
+                    if set(data) != {'request_id', 'expected_revision', 'content', 'draft_permission'}:
+                        raise ValueError('Use exact YouTube message fields')
+                    return self._send(200, self.server.workspace.youtube_message(parts[2], **data))
+                if path == '/api/youtube/resume':
+                    if set(data) != {'request_id', 'operation_id', 'conversation_id'}:
+                        raise ValueError('Resume the exact original YouTube operation')
+                    return self._send(200, self.server.workspace.youtube_resume(data['operation_id'], data['conversation_id']))
+                if len(parts) == 3 and parts[:2] == ['api', 'youtube'] and parts[2] in {'save', 'approve', 'revoke', 'export'}:
+                    return self._send(200, self.server.workspace.youtube_command(parts[2], data))
+                raise ValueError('Use an installed YouTube command')
             if path == "/api/openrouter/check":
                 if data or not authorization or not authorization.startswith("Bearer "):
                     raise ValueError("Use an OpenRouter bearer key.")
@@ -272,6 +337,10 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, self.server.workspace.prepare(parts[2]))
                 return self._send(200, self.server.workspace.action(parts[2], parts[3], data))
             raise NotFound("Unknown workspace route")
+        except YouTubeError as error:
+            self._send(409, {'error': str(error), 'code': error.code, 'message_not_saved': error.message_not_saved})
+        except PermissionError:
+            self._send(403, {'error': 'This operation is unavailable'})
         except MonitoringRejected as error:
             self._send(409, {"error": str(error), "monitoring_not_saved": error.not_saved})
         except ModelSessionExpired as error:

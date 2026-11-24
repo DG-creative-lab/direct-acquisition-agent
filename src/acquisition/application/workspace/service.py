@@ -13,6 +13,7 @@ from acquisition.conversations import MessageRejectedConflict, MessageRejectedIn
 from .ports import WorkspaceStorageUnavailable, WorkspaceApplications, WorkspaceModelSessions
 from .state import WorkspaceStateAccess
 from .intake import WorkspaceIntake
+from acquisition.youtube import route_youtube
 from .views import WorkspaceViews, REVISION_BLOCKS, CHECKPOINT_BLOCKS, _partial_delivery
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.learning import finite, identifier
@@ -54,6 +55,7 @@ class Workspace(WorkspaceViews):
         self._authority = None
         self.pack = assets['product_facts']
         self._knowledge = assets['knowledge']
+        self.youtube_origin = 'http://127.0.0.1:8768'
 
     @property
     def authority(self):
@@ -171,6 +173,28 @@ class Workspace(WorkspaceViews):
         return WorkspaceIntake(self._applications.intake(verified=self._verified_mode()))
 
     @property
+    def youtube(self):
+        return self._applications.youtube(verified=self._verified_mode(), origin=self.youtube_origin)
+
+    def youtube_message(self, conversation_id, request_id, expected_revision, content, draft_permission='none'):
+        receipt = self.youtube.message({'conversation_id': conversation_id, 'request_id': request_id,
+            'expected_revision': expected_revision, 'content': content, 'draft_permission': draft_permission})
+        return self.conversation(conversation_id) | {'message_receipt': receipt['result']['message_receipt']}
+
+    def youtube_command(self, operation, command):
+        app = self.youtube.campaigns
+        receipt = app.command(operation, command)
+        return app.read(command['campaign_id']) | {'command_receipt': receipt}
+
+    def youtube_resume(self, operation_id, conversation_id):
+        self.youtube.resume(operation_id, conversation_id)
+        return self.conversation(conversation_id)
+
+    def _is_youtube_request(self, conversation_id, revision, content):
+        rows = self.youtube.campaigns.interactions(conversation_id)
+        return route_youtube(content, bound=bool(rows and rows[-1]['revision'] == revision)) != 'other'
+
+    @property
     def sequence_journeys(self):
         if self._sequence_journeys is None:
             self._sequence_journeys = self._sequence_journey_factory()
@@ -235,7 +259,8 @@ class Workspace(WorkspaceViews):
         # between reads; a terminal preparation must include its saved question.
         preparations = self.preparation_progress(conversation_id)
         view = application.conversations.view("local-conversations", conversation_id)
-        return view | {"sequence_journeys": self.sequence_journeys.listing("local-conversations",conversation_id),
+        return view | {"youtube_interactions": self.youtube.campaigns.interactions(conversation_id),
+                       "sequence_journeys": self.sequence_journeys.listing("local-conversations",conversation_id),
                        "sequence_interactions": self.sequence_journeys.store.interactions("local-conversations",conversation_id),
                        "typed_action_shortcuts": list(TYPED_ACTION_ALIASES), "writing_preferences": application.memory.preferences('local-conversations'),
                        "artifact_comments": comments, "execution":application.execution.view('local-conversations',conversation_id), "actions":actions, "preparations": preparations, "campaigns": [{"session_id": s["id"], "plan_id": s["conversation_plan"]["id"],
@@ -437,6 +462,8 @@ class Workspace(WorkspaceViews):
         }
 
     def route_followup(self, conversation_id, request_id, expected_revision, content, allow_model_copy):
+        if self._is_youtube_request(conversation_id, expected_revision, content):
+            return self.youtube_message(conversation_id, request_id, expected_revision, content)
         try:
             postal_transition=postal_request(content) and any(row['inputs']['revision']==expected_revision for row in self._sequence_rows(conversation_id))
             sequence=None if postal_transition else self._sequence_message(conversation_id,request_id,expected_revision,content,allow_generation=True)
@@ -948,6 +975,8 @@ class Workspace(WorkspaceViews):
                     self._set_revision_block(scope, row["id"], blocker)
 
     def message_conversation(self, conversation_id, request_id, expected_revision, content):
+        if self._is_youtube_request(conversation_id, expected_revision, content):
+            return self.youtube_message(conversation_id, request_id, expected_revision, content)
         try:sequence=self._sequence_message(conversation_id,request_id,expected_revision,content)
         except (Conflict,NotFound,ValueError) as error:
             kind=MessageRejectedConflict if isinstance(error,Conflict) else MessageRejectedNotFound if isinstance(error,NotFound) else MessageRejectedInvalid

@@ -2,6 +2,8 @@
 
 Issue [#129](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/129), 24 November 2026. Status: specified for implementation review. This contract does not install a capability, change a schema, enable inference or approve cutover.
 
+Implementation checkpoint: [issue #132 local preparation](youtube-preparation.md) installs authored drafts, review, approval, manual export and bundled preview links. The remaining viewer measurement, experiment and learning contracts below stay specified for #133; hosted/live context depends on the platform track.
+
 ## Decision and scope
 
 Add one business module, `acquisition.youtube`, for YouTube campaign packages, exact native review/manual export, comparison viewers, instruction experiments and evidence-backed findings. Reuse the destination's conversations, runtime, reviewed product context, inference journal and workspace. Workflows compose their public APIs; bootstrap selects adapters.

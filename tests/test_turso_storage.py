@@ -99,6 +99,41 @@ class RemoteStorageTests(unittest.TestCase):
         self.database = self.wire.database(True)
     def tearDown(self):self.wire.close();self.temp.cleanup()
 
+    def test_youtube_draft_approval_rollback_and_fresh_session_export(self):
+        from unittest.mock import patch
+        from acquisition.bootstrap import build_youtube
+        from acquisition.adapters.youtube_fixture import LocalYouTubeAuthority
+        authority = LocalYouTubeAuthority('youtube')
+        with patch('acquisition.bootstrap.build_database', return_value=self.database):
+            native = build(None, clock=lambda:NOW)
+            app = build_youtube(None, lambda:NOW, organization='youtube', authority=authority)
+        conversation = native.conversations.create('youtube','chat','YouTube')['id']
+        app.message({'request_id':'message','conversation_id':conversation,'expected_revision':0,
+                     'content':'Prepare YouTube placements for video editing','draft_permission':'placements'})
+        campaign = app.campaigns.interactions(conversation)[0]['campaign_id']
+        view = app.campaigns.read(campaign)
+        command = {'request_id':'approve','campaign_id':campaign,'subject':view['review']['subject']}
+        real = authority.require
+        attempts = []
+        def fail_at_commit(scope, actor, operation):
+            if operation == 'approve':
+                attempts.append(operation)
+                if len(attempts) == 2:raise OSError('rollback approval')
+            return real(scope, actor, operation)
+        with patch.object(authority,'require',side_effect=fail_at_commit):
+            with self.assertRaises(OSError):app.campaigns.command('approve',command)
+        self.assertIsNone(app.campaigns.read(campaign)['approval'])
+        approved = app.campaigns.command('approve',command)['result']['approval_id']
+        export = {'request_id':'export','campaign_id':campaign,'subject':view['review']['subject'],'approval_id':approved}
+        payload = app.campaigns.command('export',export)['result']['content']
+        with patch('acquisition.bootstrap.build_database', return_value=self.wire.database()):
+            reopened = build_youtube(None,lambda:NOW,organization='youtube')
+        self.assertEqual(reopened.campaigns.read(campaign)['campaign'],view['campaign'])
+        self.assertEqual(reopened.campaigns.command('export',export)['result']['content'],payload)
+        with closing(sqlite3.connect(self.path)) as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM youtube_approvals').fetchone()[0],1)
+            self.assertEqual(db.execute('SELECT count(*) FROM model_calls').fetchone()[0],0)
+
     def intent(self):
         # Composition uses exactly the same domain services and public ports.
         from unittest.mock import patch
@@ -128,7 +163,7 @@ class RemoteStorageTests(unittest.TestCase):
         with closing(sqlite3.connect(self.path)) as raw:
             self.assertEqual(raw.execute('select count(*) from runs').fetchone()[0],1)
             self.assertEqual(raw.execute('select count(*) from execution_admissions').fetchone()[0],1)
-            self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],24)
+            self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],25)
 
     def test_lost_commit_ack_reconciles_original_verified_receipt(self):
         store, intent = self.intent()
@@ -151,7 +186,7 @@ class RemoteStorageTests(unittest.TestCase):
                 db.execute('INSERT INTO rollback_marker VALUES(1)')
                 db.execute('INSERT INTO rollback_marker VALUES(1)')
         with closing(sqlite3.connect(self.path)) as raw:
-            self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],24)
+            self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],25)
             self.assertIsNone(raw.execute("select 1 from sqlite_master where name='rollback_marker'").fetchone())
 
     def test_intake_bootstrap_pinning_foreign_scope_and_lost_ack_replay(self):
@@ -227,7 +262,7 @@ class RemoteStorageTests(unittest.TestCase):
                 self.assertEqual(connection.execute('PRAGMA user_version').fetchone()[0],23)
                 self.assertIsNone(connection.execute("SELECT 1 FROM sqlite_master WHERE name='intake_requests'").fetchone())
             db._initialize(False,lambda:NOW,False)
-            with db.connect() as connection:self.assertEqual(connection.execute('PRAGMA user_version').fetchone()[0],24)
+            with db.connect() as connection:self.assertEqual(connection.execute('PRAGMA user_version').fetchone()[0],25)
         finally:other.close()
 
     def test_unpadded_remote_blobs_preserve_exact_bytes(self):
@@ -348,7 +383,7 @@ class RemoteStorageTests(unittest.TestCase):
                 self.assertEqual(raw.execute("select name from sqlite_master where name not like 'sqlite_%'").fetchall(),[])
             other.database(True)
             with closing(sqlite3.connect(other.path)) as raw:
-                self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],24)
+                self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],25)
         finally:other.close()
 
     def test_concurrent_fresh_initializers_converge_without_partial_schema(self):
@@ -357,7 +392,7 @@ class RemoteStorageTests(unittest.TestCase):
             with ThreadPoolExecutor(max_workers=2) as pool:
                 list(pool.map(lambda _:other.database(True),range(2)))
             with closing(sqlite3.connect(other.path)) as raw:
-                self.assertEqual(raw.execute('select version from acquisition_schema').fetchall(),[(24,)])
+                self.assertEqual(raw.execute('select version from acquisition_schema').fetchall(),[(25,)])
                 self.assertEqual(raw.execute('select count(*) from application_store_identity').fetchone()[0],1)
                 self.assertEqual(raw.execute('pragma foreign_key_check').fetchall(),[])
         finally:other.close()

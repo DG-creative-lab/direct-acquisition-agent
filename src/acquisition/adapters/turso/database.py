@@ -34,7 +34,7 @@ class TursoDatabase(Database):
         else:
             if verified_admissions:raise ValueError('Select verified policy during migration')
             with self.connect() as db:
-                if db.execute('PRAGMA user_version').fetchone()[0] != 24:
+                if db.execute('PRAGMA user_version').fetchone()[0] != 25:
                     raise ValueError('Migrate the remote application store before opening')
 
     @property

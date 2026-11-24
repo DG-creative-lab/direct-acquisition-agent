@@ -241,7 +241,7 @@ app.save_company('one','writer',os.environ['KEY'],CompanyDraft(company_name='Res
             self.assertIsNone(db.execute("SELECT 1 FROM sqlite_master WHERE name='intake_requests'").fetchone())
         build_intake(self.path)
         with Database.existing(self.path).connect() as db:
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 24)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 25)
             self.assertEqual([tuple(r) for r in db.execute('SELECT * FROM conversations')], [('old','chat','request','Preserved',0,123)])
             self.assertEqual([tuple(r) for r in db.execute('SELECT * FROM application_store_identity')], [tuple(r) for r in identity])
             self.assertEqual(db.execute('PRAGMA foreign_key_check').fetchall(), [])

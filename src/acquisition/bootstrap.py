@@ -413,6 +413,28 @@ def build_intake(path, clock=time.time, *, remote_storage=None, read_only=False,
     return CampaignIntake(SqliteCampaignIntake(database, read_only=read_only), clock)
 
 
+def build_youtube(path, clock=time.time, *, organization='local-conversations', actor='local-operator',
+                  origin='http://127.0.0.1:8768', read_only=False, verified_admissions=False,
+                  remote_storage=None, authority=None, assets=None):
+    """Install one explicit zero-provider authored capability in a local live store."""
+    from acquisition.youtube import YouTubeScope, YouTubeCampaigns, CAPABILITY
+    from acquisition.adapters.youtube_fixture import FIXTURE, LocalYouTubeAuthority, BundledComparisonAssets
+    from acquisition.adapters.sqlite.youtube import SqliteYouTube, SqliteYouTubeTasks
+    from acquisition.workflows.youtube_preparation import (compose_youtube_admission,
+                                                         AuthoredYouTubeHandler, YouTubePreparation)
+    database = build_database(path, clock=clock, remote_storage=remote_storage, read_only=read_only,
+                              verified_admissions=verified_admissions)
+    authority = authority or LocalYouTubeAuthority(organization, actor)
+    assets = assets or BundledComparisonAssets(Path(__file__).resolve().parents[2] / 'examples/youtube-media', origin)
+    store = SqliteYouTube(database, authority, assets, FIXTURE, clock, compose_youtube_admission, read_only=read_only)
+    campaigns = YouTubeCampaigns(store, YouTubeScope(organization), actor)
+    tasks = SqliteYouTubeTasks(database, store, clock)
+    handler = AuthoredYouTubeHandler(store, FIXTURE)
+    worker = Worker(tasks, {CAPABILITY: handler.prepare}, clock,
+                    eligible=lambda capability, inputs: capability == CAPABILITY)
+    return YouTubePreparation(campaigns, tasks, worker)
+
+
 def build_admissions(path, clock=time.time, *, _database=None, verified_admissions=False, remote_storage=None):
     """Compose admissions, selecting the paused format at database opening when requested."""
     from acquisition.adapters.sqlite.admission_sources import load_source
@@ -505,9 +527,10 @@ def build(path: str | Path, clock: Callable[[], float] = time.time,
     learning_store = SqliteLearning(database, clock)
     learning = LearningService(learning_store, AcceptedCohortSource(reviews, drafts),
                                LocalSyntheticReports(), SqliteReportMonitoring(learning_store))
+    from acquisition.youtube import CAPABILITY as YOUTUBE_CAPABILITY
     capabilities = revision_workflow.capabilities() | workflow.capabilities() | ConversationMail(audiences, campaigns).capabilities() | model_workflow.capabilities() | conversation_model.capabilities() | {PLANNER_CAPABILITY: planner.plan, FIXTURE_CAPABILITY: planner.fixture_plan, ACTION_CAPABILITY:router.route, COPY_ACTION_CAPABILITY:router.route, TYPED_ACTION_CAPABILITY:router.route}
     return Application(tasks, audiences, drafts, Worker(tasks, capabilities, execution_clock, lease_seconds=180 if inference else 60,
-                       eligible=lambda capability, inputs: model_workflow.eligible(capability, inputs) and conversation_model.eligible(capability, inputs) and planner.eligible(capability, inputs) and revision_workflow.eligible(capability, inputs) and router.eligible(capability, inputs)), clock,
+                       eligible=lambda capability, inputs: capability != YOUTUBE_CAPABILITY and model_workflow.eligible(capability, inputs) and conversation_model.eligible(capability, inputs) and planner.eligible(capability, inputs) and revision_workflow.eligible(capability, inputs) and router.eligible(capability, inputs)), clock,
                        campaigns.catalogue_hash, memory, calls, inference,
                        ReviewService(reviews),
                        learning, conversations, revision_service, SqliteFollowups(database),
@@ -557,6 +580,7 @@ class ScopedWorkspaceApplications:
     """Bounded construction for server-resolved workspace scopes, not a container."""
     def __init__(self, root, real_clock):
         self.root, self.real_clock = root, real_clock
+        self._youtube_apps = {}
 
     def verified_mode(self, *, select=False):
         path = self.root / 'conversations.sqlite'
@@ -565,6 +589,12 @@ class ScopedWorkspaceApplications:
 
     def intake(self, *, verified):
         return build_intake(self.root / 'conversations.sqlite', self.real_clock, verified_admissions=verified)
+
+    def youtube(self, *, verified, origin):
+        if origin not in self._youtube_apps:
+            self._youtube_apps[origin] = build_youtube(self.root / 'conversations.sqlite', self.real_clock, origin=origin,
+                                                       verified_admissions=verified)
+        return self._youtube_apps[origin]
 
     def campaign(self, organization, database_scope, clock, *, verified, legacy, gateway, model_config):
         if database_scope not in {'campaign', 'conversations'}:
