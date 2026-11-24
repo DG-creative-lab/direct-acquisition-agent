@@ -3966,3 +3966,35 @@ The separate [binding-review verification record](evaluations/issue-60-remote-bi
 retains both findings, native differential oracles, red assertions, the provider
 prefix observation, final commit-bound results and artifact hashes. Earlier
 preview and reliability evidence retain their original source attribution.
+
+## 24 November 2026: saved-intake planning
+
+Source `3232ffd8faa7c47b6ac5c670c6fd85b0b5921442` connects exact saved company and brief revisions
+to the existing bounded planner. It adds an append-only schema-25 source selection,
+separate proposal-only result, guarded loopback API and explicit browser consent.
+It creates no campaign, verified product facts, approval or outbound authority.
+
+`make test` passed 1160 cases in 1191.537 seconds. `make interface-check`
+passed all 135 Chromium cases, including six new desktop/mobile, competing-tab,
+recovery-storage and store-switch schedules. The interface was evaluated on
+`b4c145b8ed5743f34f376abb623e72b5cf6e39b3`; the later correction changes only
+legacy migration schema bounds and documentation. Its frontend, HTTP and planning
+workspace code is byte-identical. Architecture passes with 225 modules and no
+exceptions. All five boundary cases pass on the final source with zero network
+attempts, stable inputs and unchanged historical evidence.
+
+The first broad run exposed schema-24 upper bounds in legacy migration readiness
+and apply. Both now accept schema 25 without relaxing the seal or source checks;
+83 focused legacy/inventory/planning cases and the final full run pass. Two of
+two semantic mutations were caught: replacing independent intake evidence and
+accepting model-supplied authority. Two of two modeled real-process crash points
+(after reservation and after receipt) recover without a replacement model call.
+The managed Turso probe migrated to schema 25 and passed synthetic source,
+competing-write and original-request replay checks with one synthetic call and
+zero paid calls, campaign runs or approvals. Older probe binaries require rebuild.
+
+The original dirty checkout is unchanged. No live-model quality, hosted tester
+authentication or verified-format execution is claimed. See
+[intake planning](intake-planning.md) and the
+[dated evidence](evaluations/issue-60-intake-planning-2026-11-24.json) for exact
+commands, source hashes, finite acceptance coverage and limits.
