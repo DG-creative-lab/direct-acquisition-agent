@@ -1,0 +1,209 @@
+{
+  "schema": "intake-persistence-evaluation/v1",
+  "recorded_on": "2026-11-24",
+  "base_commit": "964744fa1b409f1261ef10eeafb1a49ccc3c4cac",
+  "evaluated_commit": "26ec0aea18a1b9980a67fbbcf631126ef5fa14ac",
+  "scope": "Internal company/product draft and campaign brief persistence only",
+  "architecture": {
+    "classified_modules": 220,
+    "errors": [],
+    "temporary_exceptions": 0
+  },
+  "focused": {
+    "local_intake_tests": 9,
+    "remote_storage_tests": 18,
+    "checkpoint_with_intake": "passed",
+    "historical_migration_tests": 9,
+    "full_suite": {
+      "command": "make test",
+      "tests": 1138,
+      "seconds": 1472.37,
+      "passed": true,
+      "log": "/private/tmp/iwoca-intake-full-test-final.log",
+      "log_sha256": "f1f5dacc99e03866efa863b63695e54636a40b84954086306f30d2456589f585"
+    },
+    "new_remote_intake_tests": 2
+  },
+  "remote": {
+    "passed": true,
+    "source_stable": true,
+    "source_dirty": false,
+    "source_fingerprint": "492d17c4ee6dc29873d0c78def4a455589eb08a80e44867fd3261e52b6986f7f",
+    "observed": {
+      "organization": "intake_conformance_f5414ca39dbd4c81b09394e68a8119db",
+      "company_revisions": 2,
+      "brief_revisions": 1,
+      "receipts": 3,
+      "competing_processes": 2,
+      "stale_edit_rejected": true,
+      "lost_commit_ack_replayed": true,
+      "foreign_scope_rejected": true,
+      "changed_input_rejected": true,
+      "company_revision_pinned": true,
+      "model_calls": 0,
+      "campaign_runs": 0,
+      "schema": 24
+    },
+    "raw_evidence": "/private/tmp/iwoca-intake-real-turso-final.json"
+  },
+  "boundary": {
+    "passed": true,
+    "source_stable": true,
+    "historical_bytes_unchanged": true,
+    "source_fingerprint": "3306bd9af291de80eb36db6333d78f9fc48cc6a3e89b20965c2856b0d4a3f69f",
+    "cases": [
+      {
+        "id": "compatibility-model-journey",
+        "network_attempts": 0
+      },
+      {
+        "id": "verified-commit-rebuild-replay",
+        "network_attempts": 0
+      },
+      {
+        "id": "uncertain-restart",
+        "network_attempts": 0
+      },
+      {
+        "id": "profile-replay",
+        "network_attempts": 0
+      },
+      {
+        "id": "engagement-replay",
+        "network_attempts": 0
+      }
+    ],
+    "raw_evidence": "/private/tmp/iwoca-intake-boundary-final/results.json"
+  },
+  "mutations": {
+    "detected": 4,
+    "total": 4,
+    "cases": [
+      {
+        "mutation": "stale_revision",
+        "test": "test_concurrent_duplicate_creates_and_stale_edits_have_one_effect",
+        "detected": true,
+        "exit_code": 1
+      },
+      {
+        "mutation": "changed_request",
+        "test": "test_exact_request_replay_remains_original_after_later_edits",
+        "detected": true,
+        "exit_code": 1
+      },
+      {
+        "mutation": "foreign_company",
+        "test": "test_cross_organization_reads_edits_and_company_reference_substitution",
+        "detected": true,
+        "exit_code": 1
+      },
+      {
+        "mutation": "split_commit",
+        "test": "test_failure_before_receipt_rolls_back_revision_and_retry_succeeds",
+        "detected": true,
+        "exit_code": 1
+      }
+    ],
+    "production_adapter_sha256": "6f51ff6fc2d1960c4ee901614596e063a2dcbb36d97630ffda638a7012e81a23"
+  },
+  "acceptance": [
+    {
+      "invariant": "User assertions remain unverified and save/read creates no execution authority",
+      "evidence": [
+        "test_reopen_history_pinned_brief_and_no_execution_effects",
+        "real_turso_zero_calls_and_runs"
+      ]
+    },
+    {
+      "invariant": "Organization scope covers get, latest, edit, pagination and company references",
+      "evidence": [
+        "test_cross_organization_reads_edits_and_company_reference_substitution",
+        "real_turso_foreign_scope_rejected"
+      ]
+    },
+    {
+      "invariant": "Competing edits cannot overwrite each other",
+      "evidence": [
+        "test_concurrent_duplicate_creates_and_stale_edits_have_one_effect",
+        "real_turso_two_processes"
+      ]
+    },
+    {
+      "invariant": "Original retries retain their receipt; changed requests conflict",
+      "evidence": [
+        "test_exact_request_replay_remains_original_after_later_edits",
+        "real_turso_changed_input_rejected"
+      ]
+    },
+    {
+      "invariant": "Brief revisions pin company wording rather than the moving latest revision",
+      "evidence": [
+        "test_reopen_history_pinned_brief_and_no_execution_effects",
+        "real_turso_company_revision_pinned"
+      ]
+    },
+    {
+      "invariant": "Revision and receipt commit atomically through process loss and lost acknowledgements",
+      "evidence": [
+        "test_failure_before_receipt_rolls_back_revision_and_retry_succeeds",
+        "test_process_exit_before_commit_rolls_back_and_after_commit_replays",
+        "real_turso_lost_commit_ack_replayed"
+      ]
+    },
+    {
+      "invariant": "Saved revisions and receipts reject SQL update, delete and replacement",
+      "evidence": [
+        "test_history_rejects_update_delete_and_replace"
+      ]
+    },
+    {
+      "invariant": "Atomic migration and checkpoint restore preserve historical data and inspection fencing",
+      "evidence": [
+        "test_schema23_upgrade_rollback_retry_and_historical_rows_unchanged",
+        "test_remote_intake_competing_writes_and_failed_migration_are_atomic",
+        "test_round_trip_preserves_scoped_authority_and_opaque_history",
+        "native_boundary_corpus"
+      ]
+    },
+    {
+      "invariant": "Partial drafts and bounded exact inputs can be saved and reopened",
+      "evidence": [
+        "test_partial_drafts_pagination_input_bounds_and_inspection_opening"
+      ]
+    }
+  ],
+  "limits": [
+    "No HTTP or frontend changes, hosted tester access, Gateplane integration, verified fact promotion, inference, actual CRM or outbound effects.",
+    "Internal organization and actor scope must come from trusted composition. Hosted authentication and read/write membership enforcement are deferred.",
+    "Draft market/channel capability is not assessed; unsupported requests are stored exactly without substitution.",
+    "The existing isolated remote probe is migrated to schema 24; schema-23-only preview binaries need a rebuild. No deployment was performed.",
+    "Retention and deletion policy is deferred. Lists are bounded pages rather than cross-request snapshots.",
+    "Real remote migration succeeded; rollback faults are exercised with real SQLite locally and over the Hrana wire, not injected into the managed provider.",
+    "Mutation results cover four selected harmful changes, not exhaustive failure-space coverage."
+  ],
+  "review": {
+    "base": "964744fa1b409f1261ef10eeafb1a49ccc3c4cac",
+    "head": "26ec0aea18a1b9980a67fbbcf631126ef5fa14ac",
+    "scope": "Intake producers, scoped SQL, migration/read-only compatibility, checkpoint recovery, exact replay and concurrent saves",
+    "findings_remaining": 0,
+    "evidence_inventory": "/private/tmp/iwoca-intake-review-inventory-final.json",
+    "limits": "This was a focused self-review; hosted access and future generation integration do not exist in this slice."
+  },
+  "full_run_history": {
+    "initial_run": "Stopped after two schema-11 factory errors caused by the new migration advancing the deliberately old fixture; no final result claimed.",
+    "correction": "Keep intake DDL and validation excluded in factories for historical schemas 4, 5, 11 and 22. Production code was unchanged by the correction.",
+    "initial_log": "/private/tmp/iwoca-intake-full-test.log",
+    "final_log": "/private/tmp/iwoca-intake-full-test-final.log"
+  },
+  "passed": true,
+  "modeled_invariant_coverage": {
+    "exercised": 9,
+    "modeled": 9,
+    "scope": "Finite selected intake persistence invariants; no hosted access or general distributed-system completeness claim."
+  },
+  "original_checkout": {
+    "preserved": true,
+    "verification": "Compared original HEAD, dirty status and hashes for the pre-existing .gitignore, channel plan draft and frontend test results.",
+    "snapshot": "/private/tmp/iwoca-intake-original-checkout.json"
+  }
+}
