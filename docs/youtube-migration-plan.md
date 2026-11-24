@@ -93,4 +93,15 @@ Open decisions for the contract stage:
 
 ## Implementation issue map
 
-Provisional issues are linked here after publication. They are planning items, not evidence that deployment or migration has occurred.
+Migration epic: [#128](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/128), under platform epic #60. All children are provisional planning items, not evidence that deployment or migration has occurred.
+
+| Issue | Deliverable | Dependency and owner |
+| --- | --- | --- |
+| [#129](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/129) | Freeze channel and compatibility contract | First YouTube task |
+| [#130](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/130) | Hosted frontend and preparation APIs | Platform; consumes #70 identity, #129 for YouTube integration |
+| [#131](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/131) | Saved intake to live preparation | Platform; reuse merged intake, agree funding/session contract with #129 |
+| [#132](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/132) | Native YouTube draft, review and export | YouTube; #129, authored context offline first |
+| [#133](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/133) | Viewer measurement and reviewed learning | YouTube; #129/#132, #130 for hosted delivery |
+| [#134](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/134) | Hosted parity and cutover recommendation | Joint under #74; #130/#131/#132/#133 and applicable #70 |
+
+Platform #70 and #74 retain their wider access and release-evidence ownership. Source [YouTube #136](https://github.com/DG-creative-lab/youtube-ad-agent/issues/136) coordinates the repository transition; source #133 to #135 retain UX/Knowledge/Learning requirements and defer duplicate standalone builds. No source issue is closed as delivered by this plan.

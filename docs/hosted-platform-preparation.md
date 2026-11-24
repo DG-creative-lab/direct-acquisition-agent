@@ -75,3 +75,11 @@ Real CRM reads, Resend delivery, human-call dispatch and a commercial pilot keep
 The next deployable milestone is achieved only when a permitted tester completes the intended workflow on the actual hosted composition. Passing a storage probe or generating a model answer alone does not establish that claim.
 
 Require an attributable report naming commit, schema, environment, identity mode, fixtures versus live components, model/prompt and authorized cost scope. Note failures and untested paths. Keep the existing YouTube preview until the migration's hosted parity and explicit cutover decision are complete.
+
+## Provisional implementation references
+
+- [#130](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/130): hosted frontend and workspace APIs, consuming #70's access boundary.
+- [#131](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/131): saved intake to real preparation context and live adapters.
+- [#134](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/134): YouTube hosted parity and cutover recommendation under #74.
+
+These link back to migration epic [#128](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/128). Their issue bodies distinguish narrower preparation/export acceptance from full CRM/outbound-pilot closure.
