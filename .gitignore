@@ -108,6 +108,8 @@ dist/
 !/docs/evaluations/issue-60-remote-binding-review-2026-11-23.json
 !/docs/intake.md
 !/docs/youtube-migration-plan.md
+!/docs/youtube-channel-contract.md
+!/docs/youtube-channel-contract-examples.json
 !/docs/hosted-platform-preparation.md
 !/docs/multichannel-workspace-design.md
 !/docs/evaluations/issue-60-intake-persistence-2026-11-24.json
