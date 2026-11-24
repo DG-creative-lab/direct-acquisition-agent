@@ -85,4 +85,6 @@ model request.
 The local browser and native harness are tested using injected synthetic model
 responses. Real OpenRouter response quality, hosted tester identity and live
 campaign generation from arbitrary company assertions remain unproven/deferred.
-Verified planning formats remain paused, including on the managed remote probe.
+Verified planning formats remain paused. The managed remote conformance uses
+its existing legacy execution policy and an in-process synthetic provider; it
+does not grant execution permission to a verified store.
