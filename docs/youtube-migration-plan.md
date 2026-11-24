@@ -6,6 +6,8 @@ This is the coordination entry point for two workstreams: platform preparation i
 
 Read alongside [shared product design](multichannel-workspace-design.md), [remaining hosted preparation](hosted-platform-preparation.md), and the existing [multichannel expansion plan](channel-expansion-plan.md). Epic [#60](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/60) remains the overarching platform roadmap.
 
+Issue #129 now specifies the [YouTube channel contract v1](youtube-channel-contract.md) and [authored acceptance examples](youtube-channel-contract-examples.json). The contract selects the native module, review/export format, routing and shared inference/funding boundaries. The open choices listed below belong to the earlier planning baseline; use the contract's implementation handoff for their resolution and remaining hosted prerequisites.
+
 ## Evidence baseline
 
 | Repository | Inspected baseline | Use |

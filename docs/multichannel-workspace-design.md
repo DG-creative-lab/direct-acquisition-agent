@@ -70,3 +70,5 @@ First reuse the existing shell, intake and application modules. Implement the Yo
 The immediate scope excludes a universal CRM, revenue attribution platform, autonomous cross-channel optimization, outbound YouTube ad buying, real email/call activation, subagent management and automatic global policy updates. Those may be future platform directions, with their own user need and authority/evaluation gates.
 
 Open design choices are the public channel module contract, the first supported export and viewer hosting format, the current-scope vocabulary, funding/session behavior and future history import. Resolve them in implementation issues before binding shared storage or authority to speculative abstractions.
+
+The subsequent [YouTube channel contract v1](youtube-channel-contract.md) resolves the native module, manual JSON export, organization/profile scope, viewer ingress and logical funding/session boundaries. Hosted mechanism choices and history import retain their separate implementation/release gates.

@@ -1,0 +1,889 @@
+{
+  "schema": "youtube-channel-acceptance/v1",
+  "contract": "youtube-channel/v1",
+  "status": "authored normative acceptance inputs; destination port not executed",
+  "baselines": {
+    "source": {
+      "repository": "DG-creative-lab/youtube-ad-agent",
+      "commit": "8250e1f4f4ce2150d911a8231cc03bd31c2cab8b"
+    },
+    "destination": {
+      "repository": "DG-creative-lab/direct-acquisition-agent",
+      "commit": "2244e06783bddd02c02a096732eee868ece4bb0a"
+    }
+  },
+  "semantics": "Scenario setup names and symbolic references must be realized by a public-command acceptance driver. Counts are deltas unless explicitly total. Normative result codes map source behaviors, not source exception strings. Advice fixture uses no live model. New migration invariants are labeled separately.",
+  "hash_vectors": [
+    {
+      "id": "ascii-order",
+      "value": {
+        "revision": 2,
+        "campaign_id": "authored-campaign",
+        "groups": []
+      },
+      "sha256": "081fe8c33603437280faf8e962c866d2038f1d4eb92d688bc69ed73f59192994"
+    },
+    {
+      "id": "unicode-order",
+      "value": {
+        "instruction": "Try café narration",
+        "takes": [
+          "b",
+          "a"
+        ]
+      },
+      "sha256": "ddbca210c07643b99567dfbd1663e7bc23992738da0ce565ce186718bcecea4d"
+    }
+  ],
+  "policy_vectors": [
+    {
+      "id": "collect",
+      "input": {
+        "id": "authored-snapshot",
+        "protocol": {
+          "decision_policy": {
+            "version": "instruction-beta-v1",
+            "prior_alpha": 1,
+            "prior_beta": 1,
+            "minimum_lift": 0.05,
+            "reuse_if_worthwhile": 1,
+            "reuse_otherwise": -9,
+            "keep_if_worthwhile": 0,
+            "keep_otherwise": 0,
+            "batch_cost": 0.01
+          },
+          "additional_batch_size": 10,
+          "sample_cap": 50
+        },
+        "rows": [
+          {
+            "arm": "original",
+            "cohorts": {
+              "participant": {
+                "mature_arrivals": 20,
+                "completions": 6,
+                "unresolved": 0
+              }
+            }
+          },
+          {
+            "arm": "revised",
+            "cohorts": {
+              "participant": {
+                "mature_arrivals": 20,
+                "completions": 10,
+                "unresolved": 0
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "action": "collect",
+        "batch_status": "evaluated",
+        "assigned": 40,
+        "sample_cap": 50,
+        "beta": [
+          [
+            7,
+            15
+          ],
+          [
+            11,
+            11
+          ]
+        ]
+      }
+    },
+    {
+      "id": "reuse",
+      "input": {
+        "id": "authored-snapshot",
+        "protocol": {
+          "decision_policy": {
+            "version": "instruction-beta-v1",
+            "prior_alpha": 1,
+            "prior_beta": 1,
+            "minimum_lift": 0.05,
+            "reuse_if_worthwhile": 1,
+            "reuse_otherwise": -9,
+            "keep_if_worthwhile": 0,
+            "keep_otherwise": 0,
+            "batch_cost": 0.01
+          },
+          "additional_batch_size": 10,
+          "sample_cap": 50
+        },
+        "rows": [
+          {
+            "arm": "original",
+            "cohorts": {
+              "participant": {
+                "mature_arrivals": 20,
+                "completions": 0,
+                "unresolved": 0
+              }
+            }
+          },
+          {
+            "arm": "revised",
+            "cohorts": {
+              "participant": {
+                "mature_arrivals": 20,
+                "completions": 20,
+                "unresolved": 0
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "action": "reuse",
+        "batch_status": "evaluated",
+        "assigned": 40,
+        "sample_cap": 50,
+        "beta": [
+          [
+            1,
+            21
+          ],
+          [
+            21,
+            1
+          ]
+        ]
+      }
+    },
+    {
+      "id": "keep",
+      "input": {
+        "id": "authored-snapshot",
+        "protocol": {
+          "decision_policy": {
+            "version": "instruction-beta-v1",
+            "prior_alpha": 1,
+            "prior_beta": 1,
+            "minimum_lift": 0.05,
+            "reuse_if_worthwhile": 1,
+            "reuse_otherwise": -9,
+            "keep_if_worthwhile": 0,
+            "keep_otherwise": 0,
+            "batch_cost": 0.01
+          },
+          "additional_batch_size": 10,
+          "sample_cap": 50
+        },
+        "rows": [
+          {
+            "arm": "original",
+            "cohorts": {
+              "participant": {
+                "mature_arrivals": 20,
+                "completions": 10,
+                "unresolved": 0
+              }
+            }
+          },
+          {
+            "arm": "revised",
+            "cohorts": {
+              "participant": {
+                "mature_arrivals": 20,
+                "completions": 6,
+                "unresolved": 0
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "action": "keep",
+        "batch_status": "evaluated",
+        "assigned": 40,
+        "sample_cap": 50,
+        "beta": [
+          [
+            11,
+            11
+          ],
+          [
+            7,
+            15
+          ]
+        ]
+      }
+    }
+  ],
+  "cases": [
+    {
+      "id": "YT01",
+      "operation": "read_campaign",
+      "given": [
+        "scoped_campaign",
+        "draft_permission_none"
+      ],
+      "input": {
+        "question": "Suggest two relevant YouTube contexts; keep this as advice."
+      },
+      "expected": {
+        "status": "completed",
+        "provider_calls_delta": 0,
+        "new_revisions": 0,
+        "new_approvals": 0
+      },
+      "evidence": [
+        {
+          "repository": "DG-creative-lab/youtube-ad-agent",
+          "path": "campaign_agent/agent/draft_permissions.py"
+        }
+      ]
+    },
+    {
+      "id": "YT02",
+      "operation": "route_intent",
+      "given": [
+        "youtube_and_email_installed"
+      ],
+      "input": {
+        "message": "Prepare a campaign for the product."
+      },
+      "expected": {
+        "status": "waiting",
+        "reason_code": "channel_ambiguous",
+        "provider_calls_delta": 0,
+        "new_campaigns": 0
+      },
+      "evidence": [
+        {
+          "repository": "DG-creative-lab/direct-acquisition-agent",
+          "path": "docs/youtube-channel-contract.md",
+          "basis": "new migration routing invariant"
+        }
+      ]
+    },
+    {
+      "id": "YT03",
+      "operation": "prepare_placements",
+      "given": [
+        "scoped_campaign",
+        "draft_permission_none"
+      ],
+      "input": {
+        "expected_revision": 2,
+        "placements": "authored_catalogue_candidates"
+      },
+      "expected": {
+        "status": "blocked",
+        "reason_code": "draft_permission_required",
+        "provider_calls_delta": 0,
+        "new_revisions": 0
+      },
+      "evidence": [
+        {
+          "repository": "DG-creative-lab/youtube-ad-agent",
+          "path": "campaign_agent/agent/draft_permissions.py"
+        }
+      ]
+    },
+    {
+      "id": "YT04",
+      "operation": "export_manual",
+      "given": [
+        "current_human_approval",
+        "complete_permitted_media",
+        "resolvable_delivery"
+      ],
+      "input": {
+        "subject": "current_subject",
+        "request_id": "export_once",
+        "repeat": 2
+      },
+      "expected": {
+        "status": "completed",
+        "same_payload_as_review": true,
+        "same_download_bytes_on_replay": true,
+        "new_export_receipts": 1,
+        "provider_calls_delta": 0
+      },
+      "evidence": [
+        {
+          "repository": "DG-creative-lab/youtube-ad-agent",
+          "path": "tests/test_package_handoff.py",
+          "test_name": "test_approval_and_export_are_bound_to_the_reviewed_revision"
+        }
+      ]
+    },
+    {
+      "id": "YT05",
+      "operation": "export_manual",
+      "given": [
+        "current_human_approval",
+        "media_changed_without_revision"
+      ],
+      "input": {
+        "subject": "previous_subject"
+      },
+      "expected": {
+        "status": "blocked",
+        "reason_code": "subject_changed",
+        "new_export_receipts": 0,
+        "approval_history_retained": true
+      },
+      "evidence": [
+        {
+          "repository": "DG-creative-lab/youtube-ad-agent",
+          "path": "tests/test_package_handoff.py",
+          "test_name": "test_edited_text_or_media_requires_new_approval_for_same_revision"
+        }
+      ]
+    },
+    {
+      "id": "YT06",
+      "operation": "approve_package",
+      "given": [
+        "actor_organization_A",
+        "subject_owned_by_B"
+      ],
+      "input": {
+        "subject": "foreign_subject"
+      },
+      "expected": {
+        "status": "blocked",
+        "reason_code": "scope_unavailable",
+        "new_approvals": 0,
+        "foreign_details_exposed": false
+      },
+      "evidence": [
+        {
+          "repository": "DG-creative-lab/youtube-ad-agent",
+          "path": "tests/test_package_handoff.py",
+          "test_name": "test_approval_unit_rolls_back_when_the_response_cannot_be_completed"
+        }
+      ]
+    },
+    {
+      "id": "YT07",
+      "operation": "approve_package",
+      "given": [
+        "current_review_subject",
+        "failure_before_transaction_commit"
+      ],
+      "input": {
+        "subject": "current_subject",
+        "request_id": "approve_once"
+      },
+      "expected": {
+        "status": "failed",
+        "reason_code": "storage_unavailable",
+        "new_approvals": 0,
+        "new_command_receipts": 0,
+        "fresh_process_approval_present": false
+      },
+      "evidence": [
+        {
+          "repository": "DG-creative-lab/youtube-ad-agent",
+          "path": "tests/test_package_handoff.py",
+          "test_name": "test_approval_unit_rolls_back_when_the_response_cannot_be_completed"
+        }
+      ]
+    },
+    {
+      "id": "YT08",
+      "operation": "prepare_placements",
+      "given": [
+        "placements_permission",
+        "two_concurrent_same_semantic_operations"
+      ],
+      "input": {
+        "expected_revision": 2,
+        "request_ids": [
+          "prepare_A",
+          "prepare_B"
+        ],
+        "placements": "same_authored_rows"
+      },
+      "expected": {
+        "new_revisions": 1,
+        "max_successful_semantic_operations": 1,
+        "second_result": "original_result_or_revision_conflict",
+        "provider_calls_delta": 0
+      },
+      "evidence": [
+        {
+          "repository": "DG-creative-lab/direct-acquisition-agent",
+          "path": "docs/youtube-channel-contract.md",
+          "basis": "new native transaction acceptance invariant"
+        }
+      ]
+    },
+    {
+      "id": "YT09",
+      "operation": "resume_inference",
+      "given": [
+        "source_v8_body_frozen",
+        "provider_result_recorded",
+        "semantic_publication_missing",
+        "latest_server_prompt_v9"
+      ],
+      "input": {
+        "run": "original_run",
+        "key_available": false
+      },
+      "expected": {
+        "provider_calls_delta": 0,
+        "wire_request_hash_unchanged": true,
+        "prompt_pin": "campaign-planner-v8",
+        "semantic_publications": 1
+      },
+      "evidence": [
+        {
+          "repository": "DG-creative-lab/youtube-ad-agent",
+          "path": "tests/test_foreground_inference.py",
+          "test_name": "test_v8_upgrade_recovers_paid_ledger_receipt_without_redispatch"
+        },
+        {
+          "repository": "DG-creative-lab/youtube-ad-agent",
+          "path": "tests/fixtures/planner_prompt_versions.json"
+        }
+      ]
+    },
+    {
+      "id": "YT10",
+      "operation": "resume_inference",
+      "given": [
+        "dispatched_result_unknown",
+        "session_reconnected"
+      ],
+      "input": {
+        "run": "original_run"
+      },
+      "expected": {
+        "status": "unknown",
+        "reason_code": "inference_unknown",
+        "provider_calls_delta": 0,
+        "semantic_publications": 0
+      },
+      "evidence": [
+        {
+          "repository": "DG-creative-lab/youtube-ad-agent",
+          "path": "tests/test_foreground_inference.py",
+          "test_name": "test_timeout_is_unknown_and_never_redispatched_even_after_reopen"
+        }
+      ]
+    },
+    {
+      "id": "YT11",
+      "operation": "resume_inference",
+      "given": [
+        "recorded_provider_result",
+        "request_stopped_or_superseded"
+      ],
+      "input": {
+        "run": "original_run"
+      },
+      "expected": {
+        "status": "stopped",
+        "provider_calls_delta": 0,
+        "semantic_publications": 0,
+        "accounting_retained": true
+      },
+      "evidence": [
+        {
+          "repository": "DG-creative-lab/youtube-ad-agent",
+          "path": "tests/test_foreground_inference.py",
+          "test_name": "test_revocation_and_supersession_after_dispatch_keep_cost_but_block_domain_effect"
+        }
+      ]
+    },
+    {
+      "id": "YT12",
+      "operation": "dispatch_inference",
+      "given": [
+        "known_tool_model",
+        "applicable_cache_charge_unknown"
+      ],
+      "input": {
+        "funding_mode": "demo_zero_price",
+        "run_budget_usd": "0"
+      },
+      "expected": {
+        "status": "blocked",
+        "reason_code": "pricing_unsupported",
+        "provider_calls_delta": 0
+      },
+      "evidence": [
+        {
+          "repository": "DG-creative-lab/youtube-ad-agent",
+          "path": "tests/test_foreground_inference.py",
+          "test_name": "test_cache_write_cost_is_reserved_and_zero_budget_cannot_select_it"
+        },
+        {
+          "repository": "DG-creative-lab/youtube-ad-agent",
+          "path": "tests/test_foreground_inference.py",
+          "test_name": "test_applicable_or_unknown_price_tiers_cannot_be_selected"
+        }
+      ]
+    },
+    {
+      "id": "YT13",
+      "operation": "open_comparison",
+      "given": [
+        "approved_experiment",
+        "valid_participant_grant"
+      ],
+      "input": {
+        "browser_ref": "11111111111111111111111111111111",
+        "repeat": 2
+      },
+      "expected": {
+        "assignments": 1,
+        "assigned_arrivals": 1,
+        "arm_unchanged": true,
+        "visit_unchanged": true
+      },
+      "evidence": [
+        {
+          "repository": "DG-creative-lab/youtube-ad-agent",
+          "path": "tests/test_instruction_tests.py",
+          "test_name": "test_assignment_survives_restart_and_excludes_other_visits"
+        }
+      ]
+    },
+    {
+      "id": "YT14",
+      "operation": "record_event",
+      "given": [
+        "assigned_visit",
+        "both_takes_finished"
+      ],
+      "input": {
+        "event_id": "22222222222222222222222222222222",
+        "kind": "choose",
+        "take": "b",
+        "repeat": 2
+      },
+      "expected": {
+        "completions": 1,
+        "same_progress_on_replay": true,
+        "changed_payload_under_same_id": "request_conflict"
+      },
+      "evidence": [
+        {
+          "repository": "DG-creative-lab/youtube-ad-agent",
+          "path": "tests/test_viewer_measurement.py",
+          "test_name": "test_completes_once_and_keeps_choice_on_reopen"
+        }
+      ]
+    },
+    {
+      "id": "YT15",
+      "operation": "record_event",
+      "given": [
+        "assigned_visit",
+        "take_b_not_finished"
+      ],
+      "input": {
+        "event_id": "33333333333333333333333333333333",
+        "kind": "choose",
+        "take": "a"
+      },
+      "expected": {
+        "status": "blocked",
+        "reason_code": "event_sequence_invalid",
+        "new_completions": 0
+      },
+      "evidence": [
+        {
+          "repository": "DG-creative-lab/youtube-ad-agent",
+          "path": "campaign_agent/measurement.py"
+        }
+      ]
+    },
+    {
+      "id": "YT16",
+      "operation": "snapshot_evidence",
+      "given": [
+        "pinned_protocol",
+        "all_listed_visits_mature"
+      ],
+      "input": {
+        "participant": {
+          "original": {
+            "arrivals": 20,
+            "completions": 6
+          },
+          "revised": {
+            "arrivals": 20,
+            "completions": 10
+          }
+        },
+        "excluded_sources": {
+          "rehearsal": 2,
+          "fixture": 2,
+          "unknown": 2
+        },
+        "allow_additional_batch": true
+      },
+      "expected": {
+        "participant_assigned": 40,
+        "original_beta": [
+          7,
+          15
+        ],
+        "revised_beta": [
+          11,
+          11
+        ],
+        "action": "collect",
+        "sample_cap": 50,
+        "excluded_added_to_participant": 0
+      },
+      "evidence": [
+        {
+          "repository": "DG-creative-lab/youtube-ad-agent",
+          "path": "tests/test_instruction_tests.py",
+          "test_name": "test_saved_decision_uses_pinned_allowance_and_stops_at_sample_cap"
+        },
+        {
+          "repository": "DG-creative-lab/youtube-ad-agent",
+          "path": "tests/test_instruction_tests.py",
+          "test_name": "test_learning_snapshot_is_cumulative_idempotent_and_separates_assignment_sources"
+        }
+      ]
+    },
+    {
+      "id": "YT17",
+      "operation": "apply_finding",
+      "given": [
+        "distinct_current_brief",
+        "matching_context_policy_and_media",
+        "current_keep_takes_correction",
+        "active_eligible_reuse_finding",
+        "instruction_test_permission"
+      ],
+      "input": {
+        "finding": "current_finding",
+        "correction": "current_correction",
+        "expected_revision": 2
+      },
+      "expected": {
+        "new_revisions": 1,
+        "new_approvals": 0,
+        "tested_wording_unchanged": true,
+        "lineage_retained": true,
+        "provider_calls_delta": 0
+      },
+      "evidence": [
+        {
+          "repository": "DG-creative-lab/youtube-ad-agent",
+          "path": "tests/test_instruction_tests.py",
+          "test_name": "test_finding_reuses_exact_tested_wording_after_restart_and_requires_package_approval"
+        }
+      ]
+    },
+    {
+      "id": "YT18",
+      "operation": "apply_finding",
+      "given": [
+        "eligible_finding_saved",
+        "new_participant_evidence_after_snapshot"
+      ],
+      "input": {
+        "finding": "previous_finding",
+        "correction": "current_correction",
+        "expected_revision": 2
+      },
+      "expected": {
+        "status": "blocked",
+        "reason_code": "evidence_stale",
+        "new_revisions": 0,
+        "provider_calls_delta": 0
+      },
+      "evidence": [
+        {
+          "repository": "DG-creative-lab/youtube-ad-agent",
+          "path": "tests/test_instruction_tests.py",
+          "test_name": "test_matching_brief_rejects_a_finding_after_new_participant_evidence"
+        }
+      ]
+    },
+    {
+      "id": "YT19",
+      "operation": "apply_finding",
+      "given": [
+        "retired_finding",
+        "valid_instruction_test_permission"
+      ],
+      "input": {
+        "finding": "retired_finding",
+        "request_id": "new_apply_key"
+      },
+      "expected": {
+        "status": "blocked",
+        "reason_code": "finding_retired",
+        "new_revisions": 0,
+        "observation_history_unchanged": true
+      },
+      "evidence": [
+        {
+          "repository": "DG-creative-lab/youtube-ad-agent",
+          "path": "tests/test_instruction_tests.py",
+          "test_name": "test_superseded_and_retired_findings_do_not_revive"
+        }
+      ]
+    },
+    {
+      "id": "YT20",
+      "operation": "prepare_placements",
+      "given": [
+        "scoped_campaign",
+        "unsupported_contract_version"
+      ],
+      "input": {
+        "contract": "youtube-channel/v999"
+      },
+      "expected": {
+        "status": "blocked",
+        "reason_code": "unsupported_contract",
+        "new_revisions": 0,
+        "provider_calls_delta": 0
+      },
+      "evidence": [
+        {
+          "repository": "DG-creative-lab/direct-acquisition-agent",
+          "path": "docs/youtube-channel-contract.md",
+          "basis": "new versioned-channel invariant"
+        }
+      ]
+    },
+    {
+      "id": "YT21",
+      "operation": "qualify_model",
+      "given": [
+        "non_allowlisted_model_with_tools",
+        "qualified_required_tool_route",
+        "known_prices_within_effective_limits",
+        "valid_funding_session"
+      ],
+      "input": {
+        "model": "authored/tool-model"
+      },
+      "expected": {
+        "status": "ready",
+        "provider_completion_calls_delta": 0,
+        "arbitrary_model_allowlist_required": false
+      },
+      "evidence": [
+        {
+          "repository": "DG-creative-lab/youtube-ad-agent",
+          "path": "tests/test_foreground_inference.py",
+          "test_name": "test_live_route_accepts_non_allowlisted_model_cache_rates_and_replays_pinned_selection"
+        }
+      ]
+    },
+    {
+      "id": "YT22",
+      "operation": "dispatch_inference",
+      "given": [
+        "fresh_function",
+        "original_byok_session_unavailable",
+        "no_recorded_provider_result"
+      ],
+      "input": {
+        "run": "original_run"
+      },
+      "expected": {
+        "status": "blocked",
+        "reason_code": "model_session_unavailable",
+        "provider_calls_delta": 0,
+        "operator_key_fallback": false
+      },
+      "evidence": [
+        {
+          "repository": "DG-creative-lab/direct-acquisition-agent",
+          "path": "src/acquisition/adapters/models/workspace_sessions.py",
+          "basis": "current process-local session evidence plus new hosted no-fallback invariant"
+        }
+      ]
+    },
+    {
+      "id": "YT23",
+      "operation": "export_manual",
+      "given": [
+        "current_human_approval",
+        "viewer_delivery_manifest_changed"
+      ],
+      "input": {
+        "subject": "previous_subject"
+      },
+      "expected": {
+        "status": "blocked",
+        "reason_code": "subject_changed",
+        "new_export_receipts": 0
+      },
+      "evidence": [
+        {
+          "repository": "DG-creative-lab/direct-acquisition-agent",
+          "path": "docs/youtube-channel-contract.md",
+          "basis": "new exact-delivery review invariant"
+        }
+      ]
+    },
+    {
+      "id": "YT24",
+      "operation": "route_intent",
+      "given": [
+        "youtube_capability_uninstalled"
+      ],
+      "input": {
+        "message": "Prepare YouTube placements."
+      },
+      "expected": {
+        "status": "blocked",
+        "reason_code": "capability_unavailable",
+        "provider_calls_delta": 0,
+        "new_postal_jobs": 0
+      },
+      "evidence": [
+        {
+          "repository": "DG-creative-lab/direct-acquisition-agent",
+          "path": "docs/youtube-channel-contract.md",
+          "basis": "new installed-capability routing invariant"
+        }
+      ]
+    },
+    {
+      "id": "YT25",
+      "operation": "prepare_placements",
+      "given": [
+        "youtube_capability_installed",
+        "authored_reviewed_context",
+        "placements_permission",
+        "no_advertising_budget"
+      ],
+      "input": {
+        "message": "Prepare YouTube placements for review; leave the ad budget unset.",
+        "funding_mode": "offline"
+      },
+      "expected": {
+        "status": "completed",
+        "new_revisions": 1,
+        "provider_calls_delta": 0,
+        "postal_budget_question": false,
+        "crm_required": false
+      },
+      "evidence": [
+        {
+          "repository": "DG-creative-lab/youtube-ad-agent",
+          "path": "campaign_agent/application/planner_context.py",
+          "basis": "source manual package permits unset budget"
+        },
+        {
+          "repository": "DG-creative-lab/direct-acquisition-agent",
+          "path": "src/acquisition/conversations/budgets.py",
+          "basis": "current postal-only budget resolver must not precede channel routing"
+        }
+      ]
+    }
+  ]
+}

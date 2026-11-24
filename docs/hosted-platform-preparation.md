@@ -41,6 +41,8 @@ New claims, unsupported channels and contradictions should produce an editable d
 
 Choose one explicit contract before enabling migrated live tools. The source YouTube app permits tab-memory BYOK and selectable bounded paid routes; current destination generation uses server-side credentials and explicit admission. The hosted free-demo proposal has stricter zero-price/no-paid-fallback goals.
 
+The [YouTube channel contract](youtube-channel-contract.md) specifies three mutually exclusive funding modes, one shared inference journal and current session-binding/recovery rules. #70/#130/#131 still own the secure hosted mechanism and implementation evidence. The existing process-memory model session adapter is not a cross-function credential service.
+
 Separate hosted demo allowance, user-funded requests and any operator-funded benchmark. Specify permitted models/routes, spending principal, local reservation ceilings, batch/session limits, expiry, revocation and cost uncertainty. A local ceiling is not an external billing guarantee. A model listing is not route qualification. Unknown billing or uncertain provider execution must block further unsafe calls.
 
 Keys never enter Git, prompts, browser history, receipts or exports. Never transfer an old tab key, read it out of the browser, or turn a deployment change into authorization for a new paid test. Paid verification remains a separate owner-authorized action.
