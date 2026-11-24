@@ -81,7 +81,12 @@ class WorkspaceCheckpointTests(TestCase):
         intake = build_intake(self.source / legacy_key)
         company = intake.save_company('backup','writer','company',CompanyDraft(company_name='Unverified input'))['snapshot']
         brief = intake.save_brief('backup','writer','brief',CampaignBriefDraft(company['id'],1))['snapshot']
-        legacy = build(self.source / legacy_key, clock=lambda: self.now)
+        from test_intake_planning import IntakeModel
+        from acquisition.reasoning import ModelConfig
+        legacy = build(self.source / legacy_key, clock=lambda: self.now, gateway=IntakeModel(),
+                       model_config=ModelConfig('test/model',max_calls=2,force_tool_choice=True))
+        legacy.intake_planning.request('backup','writer','intake-plan',brief['id'],1)
+        planning_source = legacy.intake_planning.view('backup','intake-plan')['source']
         queued = legacy.start('another-org', 'pending', size=20)
         contacts = build_contact_directory(self.source / legacy_key,'contact-scope','fielddesk',lambda:1794528000.)
         contact_assessment = contacts.prepare('contact-scope','contact-request','fielddesk-crm-a',1,'email')
@@ -189,6 +194,13 @@ class WorkspaceCheckpointTests(TestCase):
         restored_intake = build_intake(self.restore / legacy_key)
         self.assertEqual(restored_intake.company('backup',company['id']),company)
         self.assertEqual(restored_intake.brief('backup',brief['id']),brief)
+        self.assertEqual(reopened.intake_planning.view('backup','intake-plan')['source'],planning_source)
+        restored_model = IntakeModel()
+        restored_planner = build(self.restore / legacy_key,gateway=restored_model,
+                                 model_config=ModelConfig('test/model',max_calls=2,force_tool_choice=True))
+        with self.assertRaises(Conflict):
+            restored_planner.intake_planning.request('backup','writer','intake-plan',brief['id'],1)
+        self.assertEqual(restored_model.requests,[])
         with self.assertRaises(Conflict):
             restored_intake.save_company('backup','writer','company',CompanyDraft(company_name='Unverified input'))
         view = reopened.learning.store.view(learning['organization'], learning['cohort_id'])

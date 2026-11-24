@@ -12,7 +12,7 @@ from acquisition.runtime import TaskStore, Worker
 from acquisition.reviews import ReviewService, CopyRevisionService
 from acquisition.learning import LearningService
 from acquisition.conversations import (ConversationService, ConversationAudiences, ConversationActions,
-    ConversationExecution, WorkflowAdmissions)
+    ConversationExecution, WorkflowAdmissions, IntakePlanning)
 from .monthly_mail import task_plan, conversation_task_plan
 from .model_mail import model_task_plan, conversation_model_task_plan
 
@@ -45,6 +45,7 @@ class Application:
     draft_exporter: Callable
     learning_reporter: Callable
     review_reporter: Callable
+    intake_planning: IntakePlanning | None = None
 
     def _legacy_campaign(self, organization, request_id, snapshot_id, brief, *, model=False,
                          contexts_override=None, objective=None, parent_run_id=None):

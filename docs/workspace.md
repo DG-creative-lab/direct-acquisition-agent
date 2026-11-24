@@ -48,8 +48,15 @@ The **Company & brief** navigation area saves user-supplied company/product draf
 and campaign requirements in the local application store. Reopen/edit each saved
 record, explicitly select the company version behind a brief, and recover an
 uncertain save with its original command. These drafts remain unverified and
-are not yet connected to campaign interpretation or generation. See the
-[intake contract](intake.md) for routes, limits and recovery behavior. Hosted
+can be explicitly interpreted with **Plan from this brief** after saving. Connect
+a model through the existing local reviewer settings, then grant the separate
+two-call planning permission for the selected saved brief. Unsaved edits block
+planning. Results retain their exact source and remain proposals only. Older
+versions stay visible as historical interpretations. An uncertain reply retains
+the original request and store identity; retry or resume that request, including
+after restart. Read-only progress and history refreshes make no model calls.
+Campaign generation remains a separate grounded workflow. See the
+[intake contract](intake.md) and [planning contract](intake-planning.md). Hosted
 tester sign-in and access remain Gateplane integration work.
 
 Follow the [user guide](user-guide.md) for campaign creation, audience and copy inspection, exact-subject approval, simulated handoff and learning. The [product overview](product.md) separates demonstrated capabilities from future work.

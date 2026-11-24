@@ -111,3 +111,6 @@ dist/
 !/docs/evaluations/issue-60-intake-punctuation-review-2026-11-24.json
 !/docs/evaluations/issue-60-intake-workspace-2026-11-24.json
 !/docs/evaluations/issue-60-intake-store-review-2026-11-24.json
+
+!/docs/intake-planning.md
+!/docs/evaluations/issue-60-intake-planning-2026-11-24.json

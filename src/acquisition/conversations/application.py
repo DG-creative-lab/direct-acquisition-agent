@@ -9,6 +9,7 @@ from .domain import CAPABILITY, FIXTURE_CAPABILITY, FIXTURE_MESSAGE, KNOWLEDGE
 from .ports import ConversationStore
 from .scope import requested_scope
 from .budgets import BUDGET_POLICY
+from .intake_planning import INTAKE_KNOWLEDGE, bind_intake_source
 
 
 class MessageRejectedConflict(Conflict):
@@ -32,11 +33,14 @@ class ConversationService:
         self.admissions=admissions
 
     def _knowledge(self, organization, conversation_id, request_id):
-        admissions = self.store.snapshot(organization, conversation_id)["admissions"]
+        snapshot = self.store.snapshot(organization, conversation_id)
+        admissions = snapshot["admissions"]
         old = next((item for item in admissions if item["request_id"] == request_id), None)
         if old:
             return old["knowledge"]
-        knowledge = KNOWLEDGE | ({"playbooks": self.guidance()} if self.guidance else {})
+        selected = snapshot.get('intake_source')
+        knowledge = (INTAKE_KNOWLEDGE | {'playbooks': {'version': 'intake-interpretation/v1', 'guidance': INTAKE_KNOWLEDGE['procedures']}}
+                     if selected else KNOWLEDGE | ({"playbooks": self.guidance()} if self.guidance else {}))
         return knowledge | {"agent_assets": self.assets(organization, knowledge)} if self.assets else knowledge
 
     def create(self, organization: str, request_id: str, title: str = "New campaign conversation") -> dict:
@@ -62,6 +66,8 @@ class ConversationService:
     def planning_context(self, organization, conversation_id, request_id, expected_revision, fixture):
         """Freeze bounded planning inputs without admitting a task or inference."""
         source = self.view(organization, conversation_id)
+        if source.get('intake_source'):
+            raise Conflict('Use the saved brief planning action; intake cannot authorize campaign preparation')
         if source["revision"] != expected_revision or expected_revision < 1:
             raise Conflict("Conversation changed before preparation admission")
         existing = next((p for p in source["plans"] if p["revision"] == expected_revision), None)
@@ -86,13 +92,42 @@ class ConversationService:
             self.preflight(context)
         return context
 
-    def plan(self, organization: str, conversation_id: str, request_id: str, expected_revision: int, *, frozen_context=None) -> str:
+    def intake_context(self, source, messages=None):
+        organization, conversation_id, request_id = source['organization'], source['conversation_id'], source['request_id']
+        if messages is None:
+            snapshot = self.store.snapshot(organization, conversation_id)
+            messages = [m for m in snapshot['messages'] if m['revision'] <= source['revision']]
+            knowledge = self._knowledge(organization, conversation_id, request_id)
+        else:
+            knowledge = INTAKE_KNOWLEDGE | {'playbooks': {'version': 'intake-interpretation/v1', 'guidance': INTAKE_KNOWLEDGE['procedures']}}
+            if self.assets:
+                knowledge = knowledge | {'agent_assets': self.assets(organization, knowledge)}
+        context = {'knowledge': knowledge, 'knowledge_id': 'knowledge_' + digest(knowledge),
+                   'model_config': self.config.payload() if self.config else None,
+                   'intake_source': source, 'previous_results': [], 'messages': messages,
+                   'budget_policy': BUDGET_POLICY}
+        bind_intake_source(context, organization)
+        self.preflight(context)
+        return context
+
+    def plan_intake(self, source):
+        actual = self.store.intake_source(source['organization'], source['conversation_id'], source['revision'])
+        if actual != source:
+            raise Conflict('Intake interpretation differs from its original source selection')
+        return self.plan(source['organization'], source['conversation_id'], source['request_id'], source['revision'], _intake=True)
+
+    def plan(self, organization: str, conversation_id: str, request_id: str, expected_revision: int, *, frozen_context=None, _intake=False) -> str:
         if self.config is None:
             raise ValueError("Configure the planner model before explicitly requesting generation")
+        selected = self.store.intake_source(organization, conversation_id, expected_revision)
+        if bool(selected) != _intake:
+            raise Conflict('Use the explicit saved intake planning action for this source')
         if self.admissions and self.admissions.required():
             return self.admissions.planning(organization,conversation_id,request_id,expected_revision,
                 fixture=False,config=self.config,frozen_context=frozen_context,
-                context_factory=lambda:self.planning_context(organization,conversation_id,request_id,expected_revision,False))
+                context_factory=lambda:self.intake_context(selected) if selected else self.planning_context(organization,conversation_id,request_id,expected_revision,False))
+        if selected and frozen_context is None:
+            frozen_context = self.intake_context(selected)
         if frozen_context is None:
             source=self.view(organization, conversation_id)
             previous = [p["result"] for p in source["plans"] if p["result"]]
@@ -116,6 +151,8 @@ class ConversationService:
             raise ValueError("The offline example requires its exact synthetic example message")
 
     def plan_fixture(self, organization: str, conversation_id: str, request_id: str, expected_revision: int, *, frozen_context=None) -> str:
+        if self.store.intake_source(organization, conversation_id, expected_revision):
+            raise Conflict('Intake interpretation cannot use the fixed offline example')
         if self.admissions and self.admissions.required():
             return self.admissions.planning(organization,conversation_id,request_id,expected_revision,
                 fixture=True,config=None,frozen_context=frozen_context,
