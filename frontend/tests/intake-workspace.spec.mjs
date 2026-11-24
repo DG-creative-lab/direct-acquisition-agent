@@ -508,6 +508,76 @@ test("intake loads saved companies beyond its first bounded page", async ({
   }, 52);
 });
 
+test("intake oversized drafts stay editable before dispatch including Unicode serialization", async ({
+  page,
+}) => {
+  await isolated(async (url, root) => {
+    await enter(page, url);
+    const posts = [];
+    page.on("request", (request) => {
+      if (
+        request.method() === "POST" &&
+        request.url().endsWith("/api/intake/companies")
+      )
+        posts.push(request);
+    });
+    await page.getByLabel("Company name", { exact: true }).fill("Large draft");
+    await page
+      .getByLabel("Company and product description")
+      .fill("x".repeat(8000));
+    await page
+      .getByLabel("Company reference URLs")
+      .fill(
+        Array.from(
+          { length: 20 },
+          (_, i) => "https://example.invalid/" + "x".repeat(1960) + i,
+        ).join("\n"),
+      );
+    for (let i = 1; i <= 3; i++) {
+      await page.getByRole("button", { name: "Add product claim" }).click();
+      await page
+        .getByLabel(`Claim ${i} statement`, { exact: true })
+        .fill("s".repeat(4000));
+      await page
+        .getByLabel(`Claim ${i} qualifications`, { exact: true })
+        .fill("q".repeat(4000));
+    }
+    await page
+      .getByRole("button", { name: "Save company draft", exact: true })
+      .click();
+    await expect(page.getByRole("alert")).toContainText("too large to save");
+    expect(posts).toHaveLength(0);
+    expect(
+      await page.evaluate(() =>
+        sessionStorage.getItem("workspace-intake-save:v1"),
+      ),
+    ).toBeNull();
+    await expect(
+      page.getByLabel("Company name", { exact: true }),
+    ).toBeEditable();
+    expect(rows(root).intake_company_revisions).toEqual([]);
+    await page.getByLabel("Company reference URLs").fill("");
+    await page
+      .getByRole("button", { name: "Save company draft", exact: true })
+      .click();
+    await expect(
+      page.getByRole("status").filter({ hasText: "Company saved: version 1." }),
+    ).toBeVisible();
+    await page
+      .getByLabel("Company and product description")
+      .fill("é".repeat(8000));
+    await page
+      .getByRole("button", { name: "Save company draft", exact: true })
+      .click();
+    await expect(page.getByRole("alert")).toContainText("too large to save");
+    expect(posts).toHaveLength(1);
+    await expect(
+      page.getByLabel("Company and product description"),
+    ).toHaveValue("é".repeat(8000));
+    expect(rows(root).intake_company_revisions).toHaveLength(1);
+  });
+});
+
 test("intake validates after interaction and ignores a stale company-version preview", async ({
   page,
 }) => {

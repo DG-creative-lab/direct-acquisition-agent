@@ -143,6 +143,17 @@ export function queueIntake(
 ): PendingIntake {
   if (pendingIntake())
     throw new Error("Confirm the original save before starting another.");
+  // Match the domain's ASCII JSON bound without rewriting any source wording.
+  // Unicode escapes can occupy more serialized bytes than their UTF-8 input.
+  const serialized = JSON.stringify(payload.draft).replace(
+    /[\u007f-\uffff]/g,
+    (character) =>
+      "\\u" + character.charCodeAt(0).toString(16).padStart(4, "0"),
+  );
+  if (serialized.length > 64000)
+    throw new Error(
+      "This draft is too large to save. Shorten the text or remove some references, then try again.",
+    );
   const pending = {
     kind,
     payload: { ...payload, request_id: crypto.randomUUID() },

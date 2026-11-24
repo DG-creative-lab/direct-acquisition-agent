@@ -83,7 +83,9 @@ complete body and the edit's base snapshot. While its outcome is uncertain, both
 forms are fenced and **Retry original save** repeats that exact command. Reloading
 restores the pending edit target and base revision. Known rejection allows editing
 again; network errors, server failures and unreadable replies retain the original
-command. Storage failure blocks dispatch. An original receipt is labelled as an
+command. Storage failure blocks dispatch. The client checks the domain's total ASCII-JSON
+size before retaining a command, including Unicode escape expansion. Oversized
+drafts remain editable and are never dispatched. An original receipt is labelled as an
 original save confirmation and shows its exact historical version. Tab recovery
 data is removed only after a confirmed response or explicit server rejection.
 Closing the tab can discard tab recovery data, so use the saved records and retain

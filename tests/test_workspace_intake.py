@@ -74,6 +74,9 @@ print(json.dumps([app.company('local-conversations',sys.argv[2],1),app.brief('lo
         self.assertEqual(json.loads(self.request('/api/intake/companies')[1])['items'],[])
 
     def test_stale_edits_and_bad_shapes_are_definitive_rejections(self):
+        status, body, _ = self.request('/api/intake/companies', [])
+        self.assertEqual(status,400)
+        self.assertTrue(json.loads(body)['intake_not_saved'])
         status, body, _ = self.save('companies','company',{})
         company = json.loads(body)['snapshot']
         self.assertEqual(status,200)
@@ -91,6 +94,11 @@ print(json.dumps([app.company('local-conversations',sys.argv[2],1),app.brief('lo
         self.assertEqual(self.request('/api/intake/companies?limit=101')[0],400)
         self.assertEqual(self.request('/api/intake/companies?limit=2&limit=1')[0],400)
         self.assertEqual(self.request('/api/intake/companies/'+company['id']+'?revision=0')[0],400)
+        for headers in ({'Authorization':'Bearer test-only'}, {'X-OpenRouter-Handle':'test-only'}):
+            status, body, _ = self.request('/api/intake/companies', {'request_id':'funding', 'id':None,
+                'expected_revision':0, 'draft':{}}, headers)
+            self.assertEqual(status,400)
+            self.assertTrue(json.loads(body)['intake_not_saved'])
         page = json.loads(self.request('/api/intake/companies?limit=1')[1])['items']
         self.assertEqual(len(page),1)
         self.assertEqual(page[0]['draft']['company_name'],'Winner')
@@ -106,4 +114,6 @@ print(json.dumps([app.company('local-conversations',sys.argv[2],1),app.brief('lo
         self.assertTrue(verified_admission_mode(self.root/'data'/'conversations.sqlite'))
         too_large = {'description':'x'*8000, 'claims':[{'statement':'x'*3000} for _ in range(19)]}
         self.assertEqual(self.save('companies','too-large',too_large)[0],400)
-        self.assertEqual(self.save('companies','transport-limit',{'description':'x'*72000})[0],400)
+        status, body, _ = self.save('companies','transport-limit',{'description':'x'*72000})
+        self.assertEqual(status,400)
+        self.assertTrue(json.loads(body)['intake_not_saved'])

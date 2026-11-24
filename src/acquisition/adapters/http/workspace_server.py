@@ -160,10 +160,16 @@ class Handler(BaseHTTPRequestHandler):
             intake_save = path in {'/api/intake/companies', '/api/intake/briefs'}
             limit = 34 * 1024 * 1024 if monitoring_upload else 70 * 1024 if intake_save else 16384
             if not 0 < length <= limit or self.headers.get("Content-Type", "").split(";")[0] != "application/json":
-                return self._send(400, {"error": "Use a bounded JSON request"})
-            data = json.loads(self.rfile.read(length))
-            if not isinstance(data, dict):
-                raise ValueError("Use a JSON object")
+                return self._send(400, {"error": "Use a bounded JSON request"} |
+                                  ({'intake_not_saved': True} if intake_save else {}))
+            try:
+                data = json.loads(self.rfile.read(length))
+                if not isinstance(data, dict):
+                    raise ValueError("Use a JSON object")
+            except ValueError:
+                if intake_save:
+                    return self._send(400, {'error': 'Use a bounded JSON object', 'intake_not_saved': True})
+                raise
             path = self.parsed_target.path
             authorization = self.headers.get("Authorization")
             handle = self.headers.get("X-OpenRouter-Handle")
@@ -174,6 +180,8 @@ class Handler(BaseHTTPRequestHandler):
                 connection = self.server.workspace.models.connect(authorization.removeprefix("Bearer "), tab, handle)
                 return self._send(200, connection)
             if authorization is not None:
+                if intake_save:
+                    return self._send(400, {'error': 'Intake saves do not use model funding', 'intake_not_saved': True})
                 raise ValueError("Use an OpenRouter connection handle.")
             if intake_save:
                 try:
