@@ -98,6 +98,8 @@ Idempotency key: `(organization, actor, operation, request_id)`, with exact orig
 
 Exact replay may return the original immutable receipt, labeled historical if current state changed. It must reauthorize inspection first and must not repeat effects. Different inputs under the key give `request_conflict`. A receipt does not make an old approval, evidence snapshot or session current again.
 
+An export receipt replay is not a download grant. Returning file bytes, a signed asset URL or an active viewer grant always rechecks the operation's current export/access guards, even on a cached result. Historical receipt inspection may show identity/status without restoring a stale download.
+
 ### Command surface
 
 Names are proposed public operations, not new HTTP endpoints in this PR. Typed model tools and HTTP/CLI translate to these operations.
@@ -135,6 +137,8 @@ Retain the source package vocabulary: `campaign_id, revision, data_label, title,
 First format: `youtube-manual-export/v1`, downloadable UTF-8 JSON, MIME `application/json`. It is a **manual setup artifact**, not an executable Google Ads request. Keep objective/format and unset or explicitly supplied budget/schedule truthful. No purchased placements or conversion outcomes are implied.
 
 The review preview freezes a payload containing the native package, safe delivery references and manual limitations. SubjectRef binds its canonical payload bytes plus delivery/media manifest. Delivery includes actual supported viewer origin/routes and content hashes. Ephemeral bearer secrets, private media paths and model credentials never enter the exported payload. Public viewer grants are limited to content explicitly approved for that exposure.
+
+`review_package` computes this preview without a write or capability grant. Derive the subject ID from a namespaced digest of scoped campaign/revision, package/payload/delivery hashes, review policy and current evidence/authority generation. `approve_package` rebuilds and compares that exact preview inside the native transaction, then stores the subject, snapshot and decision atomically. A caller-supplied subject ID cannot substitute for recomputation.
 
 Approval records the frozen payload, subject and human decision. The download envelope contains that exact payload and an immutable approval receipt. Its own bytes/digest are frozen on the first export and returned identically on replay. Approval metadata is outside the payload hash to avoid a circular dependency. Show the same payload in review and download.
 
