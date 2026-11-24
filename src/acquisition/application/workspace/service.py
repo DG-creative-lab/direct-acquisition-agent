@@ -191,7 +191,13 @@ class Workspace(WorkspaceViews):
         return self.conversation(conversation_id)
 
     def _is_youtube_request(self, conversation_id, revision, content):
-        rows = self.youtube.campaigns.interactions(conversation_id)
+        # Invalid legacy requests must retain their existing rejection contract.
+        if type(content) is not str or not content.strip() or len(content) > 2000:
+            return False
+        try:
+            rows = self.youtube.campaigns.interactions(conversation_id)
+        except NotFound:
+            return False
         return route_youtube(content, bound=bool(rows and rows[-1]['revision'] == revision)) != 'other'
 
     @property
