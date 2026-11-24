@@ -114,7 +114,10 @@ Names are proposed public operations, not new HTTP endpoints in this PR. Typed m
 | `review_package` | RevisionRef and current delivery composition | Exact preview/SubjectRef, blockers and prior history; read only |
 | `approve_package`, `revoke_approval` | Exact SubjectRef or ApprovalRef; explicit human decision | Immutable decision receipt; current human review authority; never a model tool |
 | `export_manual` | Exact SubjectRef + current ApprovalRef | Frozen manual export and digest; current subject/assets/delivery and export authority |
+| `review_performance` | Approved RevisionRef, scoped captured delivery/viewer evidence and current correction | Saved advisory review after transactional currentness checks; no draft or approval |
+| `record_correction` | Exact review/package target and an explicit human correction, including keep-takes | Current correction receipt; review authority. It changes interpretation/constraints, never measured observations |
 | `start_experiment` | Approved test revision, original approved snapshot, current keep-takes correction, explicit batch allowance | Pinned experiment and narrowly scoped viewer grant; review-write authority |
+| `assess_instruction_experiment` | Evidence captured for both bound arms, current correction and allowed assessment reason | Saved verified assessment; review-write authority and current evidence. Insufficient evidence remains an explicit result |
 | `snapshot_evidence` | ExperimentRef and original operation ID | Cumulative immutable SnapshotRef with per-source counts, same result on exact replay |
 | `read_learning`, `save_finding` | RevisionRef, current snapshot/decision as applicable | Typed evidence/recommendation or active finding; save only for an eligible reuse decision and learning-manage authority |
 | `apply_finding` | Current target RevisionRef, finding ID and correction ID | One new unapproved revision; `instruction_test` permission, tested wording/hash, matching policy/context and current evidence |
@@ -158,6 +161,8 @@ Public operations are `open_comparison(grant, browser_ref?)` and `record_event(g
 - Same media/comparison, only instruction wording changed; both approved versions and current keep-takes correction are required before a test starts. Missing media blocks the operation without destroying prior assignments/progress.
 
 Snapshot v1 is cumulative and idempotent, retaining exact protocol, cutoff, per-arm content fingerprints and `mature_arrivals/completions/unresolved` per source. Recompute evidence under the current transaction, including same-millisecond cutoff changes, before saving or applying a finding.
+
+The source's saved agent assessment is separate from the Bayesian action. It uses the pinned `evidence-reasons-v2` reason contract and a minimum of 20 eligible arrivals per version; below that it must report insufficient visits. Preserve its current correction and content checks. Do not substitute an assessment reason for a posterior decision or confuse the per-version assessment threshold with the optional-batch policy's total-assignment checkpoint. All evidence capture is read outside a write lock where necessary and revalidated transactionally before saving.
 
 Pin `instruction-beta-v1`: Beta(1,1) prior per arm, minimum worthwhile lift 0.05, reuse utility +1 if worthwhile and -9 otherwise, keep utility 0, batch cost 0.01. Initial optional-batch checkpoint is 40 assigned visits, one additional batch of 10, cap 50; unresolved outcomes and recorded checkpoint govern continuation. No allowance means no automatic batch recommendation. Model calculation limit remains 400 mature visits. Preserve source action/status vocabulary, including `wait_for_evidence, collect, continue_batch, wait_batch, keep, reuse, unavailable` and currentness state `refresh_snapshot`.
 
