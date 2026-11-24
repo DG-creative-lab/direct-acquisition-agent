@@ -23,3 +23,6 @@ __all__ += ['SequenceProposalStore','SequenceCampaigns']
 
 from .contact_eligibility import contact_eligibility as evaluate_contact_eligibility
 __all__ += ['evaluate_contact_eligibility']
+from .intake import CampaignBriefDraft, intake_identity, intake_revision
+from .intake_application import CampaignIntake
+__all__ += ['CampaignBriefDraft', 'CampaignIntake', 'intake_identity', 'intake_revision']

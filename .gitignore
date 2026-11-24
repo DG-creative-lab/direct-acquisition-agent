@@ -104,3 +104,6 @@ dist/
 !/docs/evaluations/issue-60-serverless-stage-binding-2026-11-22.json
 !/docs/evaluations/issue-60-remote-response-reliability-2026-11-23.json
 !/docs/evaluations/issue-60-remote-binding-review-2026-11-23.json
+!/docs/intake.md
+!/docs/evaluations/issue-60-intake-persistence-2026-11-24.json
+!/docs/evaluations/issue-60-intake-punctuation-review-2026-11-24.json

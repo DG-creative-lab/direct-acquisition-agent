@@ -35,6 +35,12 @@ The [local checkpoint adapter](workspace-checkpoints.md) uses the same root lock
 
 ## Module ownership
 
+The [intake persistence slice](intake.md) keeps user-supplied company draft values
+in `creative` and campaign requirements plus intake coordination in `campaigns`.
+Its organization-scoped immutable revisions grant no grounding or execution
+authority. Bootstrap selects the shared local SQLite or Turso adapter; no hosted
+entry point or Gateplane dependency is introduced by this slice.
+
 | Module | Responsibility | Authority it does not own |
 | --- | --- | --- |
 | `runtime` | Run/task lifecycle, leases, attempts, waiting and result commits | Campaign policy, copy quality, approval or outcomes |

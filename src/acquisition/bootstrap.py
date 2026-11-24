@@ -401,6 +401,17 @@ def build_database(path, *, clock=time.time, verified_admissions=False, remote_s
                          verified_admissions=verified_admissions, initialize=not read_only, deadline=remote_storage.get('deadline'))
 
 
+def build_intake(path, clock=time.time, *, remote_storage=None, read_only=False):
+    """Internal intake API; the caller supplies trusted organization and actor scope.
+
+    No hosted access or inferred campaign capability is activated here.
+    """
+    from acquisition.campaigns import CampaignIntake
+    from acquisition.adapters.sqlite.intake import SqliteCampaignIntake
+    database = build_database(path, clock=clock, remote_storage=remote_storage, read_only=read_only)
+    return CampaignIntake(SqliteCampaignIntake(database, read_only=read_only), clock)
+
+
 def build_admissions(path, clock=time.time, *, _database=None, verified_admissions=False, remote_storage=None):
     """Compose admissions, selecting the paused format at database opening when requested."""
     from acquisition.adapters.sqlite.admission_sources import load_source

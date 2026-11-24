@@ -128,7 +128,7 @@ class RemoteStorageTests(unittest.TestCase):
         with closing(sqlite3.connect(self.path)) as raw:
             self.assertEqual(raw.execute('select count(*) from runs').fetchone()[0],1)
             self.assertEqual(raw.execute('select count(*) from execution_admissions').fetchone()[0],1)
-            self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],23)
+            self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],24)
 
     def test_lost_commit_ack_reconciles_original_verified_receipt(self):
         store, intent = self.intent()
@@ -151,8 +151,84 @@ class RemoteStorageTests(unittest.TestCase):
                 db.execute('INSERT INTO rollback_marker VALUES(1)')
                 db.execute('INSERT INTO rollback_marker VALUES(1)')
         with closing(sqlite3.connect(self.path)) as raw:
-            self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],23)
+            self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],24)
             self.assertIsNone(raw.execute("select 1 from sqlite_master where name='rollback_marker'").fetchone())
+
+    def test_intake_bootstrap_pinning_foreign_scope_and_lost_ack_replay(self):
+        from dataclasses import replace
+        from unittest.mock import patch
+        from acquisition.bootstrap import build_intake
+        from acquisition.campaigns import CampaignBriefDraft, CampaignIntake
+        from acquisition.creative import CompanyDraft
+        from acquisition.contracts import NotFound
+        from acquisition.adapters.sqlite.intake import SqliteCampaignIntake
+        settings = {'url':'https://example.turso.io', 'token':'test-only'}
+        with patch('acquisition.adapters.turso.database.Http', return_value=self.database.send):
+            app = build_intake(None, clock=lambda:NOW, remote_storage=settings)
+        company = app.save_company('intake','writer','company',CompanyDraft(company_name='Synthetic \u2014 input'))['snapshot']
+        objective = 'Preserve exact input \u2014 including punctuation'
+        draft = CampaignBriefDraft(company['id'],1,objective=objective,budget_minor=9007199254740991//10000000)
+        original = app.store.database.send
+        def lose_ack(payload):
+            result = original(payload)
+            if any(r.get('stmt',{}).get('sql')=='COMMIT' for request in payload['requests'] for r in request.get('batch',{}).get('steps',[])):
+                raise RemoteUnavailable('lost intake acknowledgement')
+            return result
+        app.store.database.send = lose_ack
+        with self.assertRaises(CommitUncertain):app.save_brief('intake','writer','brief',draft)
+        restarted = CampaignIntake(SqliteCampaignIntake(self.wire.database()), lambda:NOW+1)
+        receipt = restarted.save_brief('intake','writer','brief',draft)
+        self.assertTrue(receipt['replayed'])
+        self.assertEqual(receipt['snapshot']['saved_at'], NOW)
+        self.assertEqual(restarted.brief('intake',receipt['snapshot']['id']),receipt['snapshot'])
+        restarted.save_company('intake','writer','edit',CompanyDraft(company_name='New'),company_id=company['id'],expected_revision=1)
+        self.assertEqual(restarted.company('intake',company['id'],1),company)
+        self.assertEqual(restarted.company('intake',company['id'],1)['draft']['company_name'],'Synthetic \u2014 input')
+        self.assertEqual(restarted.brief('intake',receipt['snapshot']['id'])['draft']['objective'],objective)
+        self.assertEqual(receipt['snapshot']['draft']['company_revision'],1)
+        self.assertEqual(restarted.briefs('foreign'),[])
+        with self.assertRaises(NotFound):restarted.brief('foreign',receipt['snapshot']['id'])
+        with self.assertRaises(NotFound):restarted.save_brief('foreign','writer','forged-reference',draft)
+        with self.assertRaises(Conflict):restarted.save_brief('intake','writer','brief',replace(draft,objective='Changed'))
+        with self.database.connect() as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM intake_brief_revisions WHERE organization=?',('intake',)).fetchone()[0],1)
+
+    def test_remote_intake_competing_writes_and_failed_migration_are_atomic(self):
+        from unittest.mock import patch
+        from acquisition.campaigns import CampaignIntake
+        from acquisition.creative import CompanyDraft
+        from acquisition.adapters.sqlite.intake import SqliteCampaignIntake, INTAKE
+        app = CampaignIntake(SqliteCampaignIntake(self.database), lambda:NOW)
+        first = app.save_company('intake','writer','create',CompanyDraft())['snapshot']
+        gate = threading.Barrier(2)
+        def save(index):
+            independent = CampaignIntake(SqliteCampaignIntake(self.wire.database()),lambda:NOW)
+            gate.wait(timeout=5)
+            try:
+                return independent.save_company('intake','writer','edit-'+str(index),CompanyDraft(company_name=str(index)),
+                                                company_id=first['id'],expected_revision=1)
+            except Conflict:return 'conflict'
+        with ThreadPoolExecutor(2) as pool:results=list(pool.map(save,range(2)))
+        self.assertEqual(results.count('conflict'),1)
+        self.assertEqual(app.company('intake',first['id'])['revision'],2)
+        other = Wire(Path(self.temp.name)/'intake-migration.sqlite')
+        try:
+            db = other.database(True)
+            with db.transaction() as connection:
+                for table in ('intake_requests','intake_brief_revisions','intake_company_revisions'):connection.execute('DROP TABLE '+table)
+                connection.execute('PRAGMA user_version=23')
+            original = TursoDatabase._apply_migration
+            def fail(connection, script):
+                original(connection,script)
+                if script == INTAKE:raise OSError('after intake remote DDL')
+            with patch.object(TursoDatabase,'_apply_migration',side_effect=fail):
+                with self.assertRaises(OSError):db._initialize(False,lambda:NOW,False)
+            with db.connect() as connection:
+                self.assertEqual(connection.execute('PRAGMA user_version').fetchone()[0],23)
+                self.assertIsNone(connection.execute("SELECT 1 FROM sqlite_master WHERE name='intake_requests'").fetchone())
+            db._initialize(False,lambda:NOW,False)
+            with db.connect() as connection:self.assertEqual(connection.execute('PRAGMA user_version').fetchone()[0],24)
+        finally:other.close()
 
     def test_unpadded_remote_blobs_preserve_exact_bytes(self):
         self.assertEqual(decode({'type':'blob','base64':'ZXhhY3Q'}),b'exact')
@@ -272,7 +348,7 @@ class RemoteStorageTests(unittest.TestCase):
                 self.assertEqual(raw.execute("select name from sqlite_master where name not like 'sqlite_%'").fetchall(),[])
             other.database(True)
             with closing(sqlite3.connect(other.path)) as raw:
-                self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],23)
+                self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],24)
         finally:other.close()
 
     def test_concurrent_fresh_initializers_converge_without_partial_schema(self):
@@ -281,7 +357,7 @@ class RemoteStorageTests(unittest.TestCase):
             with ThreadPoolExecutor(max_workers=2) as pool:
                 list(pool.map(lambda _:other.database(True),range(2)))
             with closing(sqlite3.connect(other.path)) as raw:
-                self.assertEqual(raw.execute('select version from acquisition_schema').fetchall(),[(23,)])
+                self.assertEqual(raw.execute('select version from acquisition_schema').fetchall(),[(24,)])
                 self.assertEqual(raw.execute('select count(*) from application_store_identity').fetchone()[0],1)
                 self.assertEqual(raw.execute('pragma foreign_key_check').fetchall(),[])
         finally:other.close()
@@ -306,6 +382,8 @@ class RemoteStorageTests(unittest.TestCase):
         from scripts.remote_storage_conformance import register_probe
         with self.database.transaction() as db:
             original = db.execute("SELECT sql FROM sqlite_master WHERE name='execution_admissions_no_update'").fetchone()[0]
+            for table in ('intake_requests', 'intake_brief_revisions', 'intake_company_revisions'):
+                db.execute('DROP TABLE '+table)
             db.execute('DROP TABLE acquisition_schema')
             db.execute('CREATE TABLE hosting_probe_schema_version(singleton INTEGER PRIMARY KEY,version INTEGER)')
             db.execute('INSERT INTO hosting_probe_schema_version VALUES(1,23)')

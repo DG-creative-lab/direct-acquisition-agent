@@ -76,11 +76,17 @@ paths. No uncertainty grants inference, approval or delivery authority.
 
 ## Schema and import contract
 
+The additive [intake schema 24](intake.md) uses the same atomic migration and
+application transaction contract. Explicit read-only remote opening now requires
+schema 24; migrate through bootstrap before opening it. Historical schema-23
+diagnostic registration still compares its exact old shape before adoption and
+the normal migration. Existing product and historical rows are retained.
+
 Remote `user_version` operations map to `acquisition_schema`, a singleton journal.
 The journal, every migration statement, legacy cutoff, and final version commit
 in the same transaction. Initialization takes the writer lock before reading the
 version. A failed migration rolls back DDL and journal together. Existing
-migration code and validators remain the authority; application schema is 23.
+migration code and validators remain the authority; application schema is 24.
 `initialize=False` opens only a registered current schema and performs no repair.
 
 A database with application tables but no journal is rejected. Ordinary startup

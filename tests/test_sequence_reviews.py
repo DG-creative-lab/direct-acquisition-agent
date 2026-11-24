@@ -608,7 +608,7 @@ print(json.dumps(app.engagements.advance('one',sys.argv[2])))'''
         with self.assertRaises(Conflict):legacy.reviews.preview('one',proposal['proposal_id'])
         Database(self.path);Database(self.path)
         with database.connect() as db:
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],23)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],24)
             for table,rows in baseline.items():self.assertEqual([tuple(r) for r in db.execute('SELECT * FROM '+table)],rows,table)
             self.assertEqual(db.execute('SELECT count(*) FROM sequence_review_decisions').fetchone()[0],0)
         historical=self.app().engagements.inspect('one',simulation)

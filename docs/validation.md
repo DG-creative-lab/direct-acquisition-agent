@@ -1,5 +1,83 @@
 # Validation and limits
 
+## Preserve source punctuation in intake, review follow-up, 24 November 2026
+
+Intake text validation accepts em dashes in user-supplied company/product drafts
+and campaign requirements. The restriction for newly generated editorial copy
+never applies to this source evidence. Size, control-character, surrounding
+whitespace, structural and URL checks remain in place. No stored history is
+rewritten and no schema or execution authority changes.
+
+The existing real-SQLite save/reopen regression now preserves exact punctuation
+in company/product names, description, claims, qualifications, CTA, objective,
+audience and constraints. A fresh interpreter reads both original draft types,
+and exact retries retain their original snapshots after a later company edit.
+Changing the punctuation on the same brief request key conflicts. The Hrana-wire
+intake test also preserves company and objective punctuation after a lost COMMIT
+reply and a fresh session. Restoring the old rejection in an isolated source copy
+makes the regression fail with the original validation error.
+
+All nine focused intake tests and all 18 Hrana-wire storage tests passed.
+`make test` passed **1,138 tests in 1,241.119 seconds** on source
+`f134d10a82ce47ec808187bbbec1720b201d21d6`. `make arch-check` passed with
+220 modules and zero temporary exceptions. Source remained clean and stable;
+all 29 earlier committed evaluation artifacts and the original dirty checkout
+were preserved. The [review evidence](evaluations/issue-60-intake-punctuation-review-2026-11-24.json)
+records the source fingerprint, targeted failure reproduction and full-run log
+hash. No managed remote probe or deployment was repeated for this source-text
+validation fix. Earlier boundary and remote evidence retain their original
+commit attribution.
+
+## Company and campaign intake persistence, issue 60, 24 November 2026
+
+The internal intake API saves company/product assertions and campaign requirements
+as organization-scoped immutable revisions. A brief pins an existing exact company
+revision. Actor attribution and exact request inputs accompany the original save
+receipt. `BEGIN IMMEDIATE` and the revision check choose one winner for competing
+edits; snapshot and receipt commit together. User input remains unverified and
+grants no fact-pack, planning, approval or execution authority.
+
+The finite verification model has nine persistence invariants, each linked to
+observable tests in the [dated evidence](evaluations/issue-60-intake-persistence-2026-11-24.json).
+Nine new local tests cover isolation, history, both draft types' stale edits,
+original replay, changed inputs, rollback, hard process exits before/after commit,
+input bounds, pagination and inspection-only saves. Two additional Hrana-wire
+cases cover intake composition, independent sessions, lost COMMIT acknowledgement
+and remote DDL rollback. The existing checkpoint round trip now preserves intake
+and rejects writes through the restored root. Four selected harmful mutations
+were detected: omitted revision comparison, changed-input replay, foreign company
+scope substitution and an early commit before receipt insertion. This is 4/4
+selected mutations, not exhaustive mutation or concurrency coverage.
+
+`make test` passed **1,138 tests in 1,472.370 seconds** on source
+`26ec0aea18a1b9980a67fbbcf631126ef5fa14ac`. `make arch-check` passed with
+220 modules and zero temporary exceptions. All five native boundary cases passed,
+with zero network attempts, stable source and unchanged historical evidence.
+The boundary source fingerprint is
+`3306bd9af291de80eb36db6333d78f9fc48cc6a3e89b20965c2856b0d4a3f69f`.
+An initial full run was stopped after two failures in a historical migration
+factory that applied the new DDL while deliberately omitting older migrations. Historical factories
+for schemas 4, 5, 11 and 22 now also omit intake DDL/validation. Their nine focused
+checks passed before the successful full rerun. Production code was unchanged
+by that fixture correction.
+
+Real conformance on the existing isolated Turso resource passed with two fresh
+processes competing for one revision, exact original-receipt recovery after a
+simulated lost COMMIT acknowledgement, changed-input rejection, cross-organization
+rejection and a pinned earlier company revision. One unique synthetic organization
+contains two company revisions, one brief revision and three request receipts,
+with zero campaign runs or model calls. The run binds a clean, stable source
+fingerprint. Local SQLite and the Hrana-wire fixture exercise migration rollback;
+no rollback fault was injected into the managed provider.
+
+Schema 24 is additive. Legacy rows, historical bytes and cutoff rules retain their
+existing contracts. The isolated remote probe is now migrated, so schema-23-only
+preview binaries need a rebuild before reuse. No deployment, public tester access,
+Gateplane integration, frontend, live model or outbound effect was activated.
+Retention/deletion and future capability assessment remain separate work. The
+original dirty checkout was preserved. See [the intake contract](intake.md) for
+internal API usage and the trusted scope boundary.
+
 ## Saved replies fence native dispatch, issue 68
 
 The SQLite regression saves a reply immediately after the worker reads its
