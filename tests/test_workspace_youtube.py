@@ -2,11 +2,15 @@
 import hashlib
 import http.client
 import json
+import os
+import subprocess
+import sys
 from urllib.parse import urlsplit
 from unittest.mock import patch
 import unittest
 
 from acquisition.bootstrap import build_workspace, build_youtube, build
+from acquisition.youtube import YouTubeError
 import test_workspace as workspace_tests
 
 
@@ -163,3 +167,39 @@ class WorkspaceYouTubeHttpTests(unittest.TestCase):
         self.assertEqual(status, 200, raw)
         self.assertEqual(json.loads(raw)['revision'], 2)
         self.assertEqual(len(json.loads(raw)['youtube_interactions']), 2)
+
+    def test_shared_reviewer_disable_and_reenable_cannot_renew_cached_youtube_approval(self):
+        view = self.start()
+        app = self.server.workspace.youtube.campaigns
+        command = {'request_id': 'approved', 'campaign_id': self.campaign, 'subject': view['review']['subject']}
+        status, raw, _ = self.request('/api/youtube/approve', command)
+        self.assertEqual(status, 200, raw)
+        approval = json.loads(raw)['approval']
+        self.assertEqual(approval['actor'], 'local-reviewer')
+        export = {'request_id': 'exported', 'campaign_id': self.campaign, 'subject': view['review']['subject'], 'approval_id': approval['id']}
+        self.assertEqual(self.request('/api/youtube/export', export)[0], 200)
+        roles = build(app.store.database.path).reviews.store
+        roles.register_actor('local-conversations', 'local-reviewer', ('reviewer',), False)
+        self.assertIsNone(app.read(self.campaign)['approval'])
+        self.assertEqual(self.request('/api/youtube/export', export)[0], 409)
+        current = app.read(self.campaign)
+        status, raw, _ = self.request('/api/youtube/approve', command | {'request_id': 'disabled', 'subject': current['review']['subject']})
+        self.assertEqual(status, 409, raw)
+        self.assertEqual(json.loads(raw)['code'], 'authority_unavailable')
+        # A new composition must retain administration, rather than reset a RAM grant.
+        reopened = build_youtube(app.store.database.path, origin=self.base).campaigns
+        self.assertIsNone(reopened.read(self.campaign)['approval'])
+        child = subprocess.run([sys.executable, '-c',
+            "import json,sys;from acquisition.bootstrap import build_youtube;app=build_youtube(sys.argv[1],origin=sys.argv[3],read_only=True);print(json.dumps(app.campaigns.read(sys.argv[2])['approval']))",
+            str(app.store.database.path), self.campaign, self.base],
+            env=dict(os.environ, PYTHONPATH='src'), capture_output=True, text=True, timeout=20)
+        self.assertEqual(child.returncode, 0, child.stderr)
+        self.assertIsNone(json.loads(child.stdout))
+        roles.register_actor('local-conversations', 'local-reviewer', ('reviewer',), True)
+        self.assertIsNone(reopened.read(self.campaign)['approval'])
+        with self.assertRaises(YouTubeError) as rejected:
+            reopened.command('export', export)
+        self.assertIn('changed', str(rejected.exception))
+        fresh = reopened.read(self.campaign)
+        reopened.command('approve', command | {'request_id': 'fresh', 'subject': fresh['review']['subject']})
+        self.assertIsNotNone(reopened.read(self.campaign)['approval'])

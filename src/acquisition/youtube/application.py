@@ -5,8 +5,9 @@ from .ports import YouTubeStore
 
 
 class YouTubeCampaigns:
-    def __init__(self, store: YouTubeStore, scope: YouTubeScope, actor: str):
+    def __init__(self, store: YouTubeStore, scope: YouTubeScope, actor: str, *, reviewer: str | None = None):
         self.store, self.scope, self.actor = store, scope, identity(actor)
+        self.reviewer = identity(reviewer) if reviewer is not None else self.actor
 
     def store_identity(self):
         return self.store.store_identity()
@@ -54,7 +55,7 @@ class YouTubeCampaigns:
             revision(command['expected_revision'])
             fields(command['draft'], {'title', 'goal', 'contexts', 'placements'})
             text(command['draft']['title'], 120), text(command['draft']['goal'], 500)
-        return self.store.command(self.scope, self.actor, operation, command)
+        return self.store.command(self.scope, self.reviewer if operation in {'approve', 'revoke'} else self.actor, operation, command)
 
 
 class YouTubeTools:

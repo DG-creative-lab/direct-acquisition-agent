@@ -38,6 +38,7 @@ FIXTURE = {
 
 
 class LocalYouTubeAuthority:
+    """Controllable authored-test grant; production reads shared platform actors."""
     def __init__(self, organization, actor='local-operator', profile_id=PROFILE):
         self.organization, self.actor, self.profile_id = organization, actor, profile_id
         self.enabled, self.generation = True, 1

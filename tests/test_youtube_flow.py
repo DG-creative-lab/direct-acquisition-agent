@@ -87,7 +87,7 @@ class YouTubeFlowTests(unittest.TestCase):
         for table in ('model_calls', 'drafts', 'review_decisions', 'simulated_agency_jobs'):
             self.assertEqual(self.count(table), 0, table)
         child = subprocess.run([sys.executable, '-c',
-            "import json,sys;from acquisition.bootstrap import build_youtube;app=build_youtube(sys.argv[1],lambda:1795543200.,organization='A',read_only=True);print(json.dumps(app.campaigns.read(sys.argv[2])['campaign']))",
+            "import json,sys;from acquisition.bootstrap import build_youtube;from acquisition.adapters.youtube_fixture import LocalYouTubeAuthority;app=build_youtube(sys.argv[1],lambda:1795543200.,organization='A',authority=LocalYouTubeAuthority('A'),read_only=True);print(json.dumps(app.campaigns.read(sys.argv[2])['campaign']))",
             str(self.db), self.campaign], env=dict(os.environ, PYTHONPATH='src'),
             capture_output=True, text=True, timeout=20)
         self.assertEqual(child.returncode, 0, child.stderr)

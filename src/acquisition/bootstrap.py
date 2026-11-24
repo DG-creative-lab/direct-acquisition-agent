@@ -417,17 +417,28 @@ def build_youtube(path, clock=time.time, *, organization='local-conversations', 
                   origin='http://127.0.0.1:8768', read_only=False, verified_admissions=False,
                   remote_storage=None, authority=None, assets=None):
     """Install one explicit zero-provider authored capability in a local live store."""
-    from acquisition.youtube import YouTubeScope, YouTubeCampaigns, CAPABILITY
-    from acquisition.adapters.youtube_fixture import FIXTURE, LocalYouTubeAuthority, BundledComparisonAssets
-    from acquisition.adapters.sqlite.youtube import SqliteYouTube, SqliteYouTubeTasks
+    from acquisition.youtube import YouTubeScope, YouTubeCampaigns, CAPABILITY, PROFILE
+    from acquisition.adapters.youtube_fixture import FIXTURE, BundledComparisonAssets
+    from acquisition.adapters.sqlite.youtube import SqliteYouTube, SqliteYouTubeTasks, SqliteYouTubeAuthority
     from acquisition.workflows.youtube_preparation import (compose_youtube_admission,
                                                          AuthoredYouTubeHandler, YouTubePreparation)
     database = build_database(path, clock=clock, remote_storage=remote_storage, read_only=read_only,
                               verified_admissions=verified_admissions)
-    authority = authority or LocalYouTubeAuthority(organization, actor)
+    reviewer = actor if authority is not None else 'local-reviewer'
+    if authority is None:
+        # Existing trusted local bootstrap policy, never an override of later
+        # role administration and never a write to an inspection/paused store.
+        from acquisition.adapters.sqlite.admission_guard import verified_required
+        with database.connect() as connection:
+            paused = verified_required(connection)
+        if not read_only and not paused:
+            roles = SqliteReviews(database, clock, None)
+            roles.initialize_actor(organization, actor, ('operator',))
+            roles.initialize_actor(organization, reviewer, ('reviewer',))
+        authority = SqliteYouTubeAuthority(database, organization, PROFILE, actor, reviewer)
     assets = assets or BundledComparisonAssets(Path(__file__).resolve().parents[2] / 'examples/youtube-media', origin)
     store = SqliteYouTube(database, authority, assets, FIXTURE, clock, compose_youtube_admission, read_only=read_only)
-    campaigns = YouTubeCampaigns(store, YouTubeScope(organization), actor)
+    campaigns = YouTubeCampaigns(store, YouTubeScope(organization), actor, reviewer=reviewer)
     tasks = SqliteYouTubeTasks(database, store, clock)
     handler = AuthoredYouTubeHandler(store, FIXTURE)
     worker = Worker(tasks, {CAPABILITY: handler.prepare}, clock,

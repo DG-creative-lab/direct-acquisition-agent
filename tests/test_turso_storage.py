@@ -102,11 +102,10 @@ class RemoteStorageTests(unittest.TestCase):
     def test_youtube_draft_approval_rollback_and_fresh_session_export(self):
         from unittest.mock import patch
         from acquisition.bootstrap import build_youtube
-        from acquisition.adapters.youtube_fixture import LocalYouTubeAuthority
-        authority = LocalYouTubeAuthority('youtube')
         with patch('acquisition.bootstrap.build_database', return_value=self.database):
             native = build(None, clock=lambda:NOW)
-            app = build_youtube(None, lambda:NOW, organization='youtube', authority=authority)
+            app = build_youtube(None, lambda:NOW, organization='youtube')
+        authority = app.campaigns.store.authority
         conversation = native.conversations.create('youtube','chat','YouTube')['id']
         app.message({'request_id':'message','conversation_id':conversation,'expected_revision':0,
                      'content':'Prepare YouTube placements for video editing','draft_permission':'placements'})

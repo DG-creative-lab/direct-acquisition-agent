@@ -10,7 +10,11 @@ bind publication. Stops, superseding messages and competing campaign edits block
 late drafts. Advice and ambiguous channel requests grant no draft permission.
 
 Approvals bind exact payload/media/context/origin and current local authority,
-with bounded expiry and explicit revocation. Export rechecks current state before
+with bounded expiry and explicit revocation. The installed local adapter consumes
+the existing operator/reviewer records and never resets disabled roles. Both
+role generations bind the subject; disabling and re-enabling a reviewer cannot
+renew an old approval, including after a fresh interpreter opens the store.
+Export rechecks current state before
 replaying a receipt. Receipt recovery cannot restore stale authority. Human
 approval/download are absent from the typed agent tool surface. The guarded HTTP
 path and browser pending commands bind the original store; a reply lost after

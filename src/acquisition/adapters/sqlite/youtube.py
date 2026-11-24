@@ -81,6 +81,34 @@ def validate_youtube_schema(db):
         db.execute('SELECT ' + names + ' FROM ' + table + ' LIMIT 0')
 
 
+class SqliteYouTubeAuthority:
+    """Resolve the existing platform actors, without a second role registry."""
+    def __init__(self, database, organization, profile, operator, reviewer):
+        self.database, self.organization, self.profile = database, organization, profile
+        self.operator, self.reviewer = operator, reviewer
+
+    def require(self, scope, actor, operation):
+        from .actors import require_actor
+        from acquisition.reviews import ActorUnavailable
+        if scope.organization != self.organization or scope.profile_id != self.profile:
+            raise PermissionError('YouTube scope is unavailable to this operator')
+        allowed = {'read': {self.operator, self.reviewer}, 'draft': {self.operator},
+                   'approve': {self.reviewer}, 'revoke': {self.reviewer}, 'export': {self.operator}}
+        if actor not in allowed.get(operation, set()):
+            raise PermissionError('YouTube operation is unavailable to this actor')
+        with self.database.connect() as db:
+            try:
+                require_actor(db, scope.organization, actor, 'operator' if actor == self.operator else 'reviewer')
+            except ActorUnavailable as error:
+                raise YouTubeError('authority_unavailable', str(error)) from error
+            rows = [dict(row) for row in db.execute(
+                'SELECT id,roles,enabled,generation FROM review_actors WHERE organization=? AND id IN (?,?) ORDER BY id',
+                (scope.organization, self.operator, self.reviewer))]
+            # Both current role generations bind every subject, irrespective of
+            # which trusted local actor is inspecting or approving it.
+            return int(digest(rows), 16)
+
+
 class SqliteYouTube:
     def __init__(self, database, authority, assets, fixture, clock, compose, *, read_only=False):
         self.database, self.authority, self.assets = database, authority, assets
@@ -184,11 +212,13 @@ class SqliteYouTube:
 
     def interactions(self, scope, actor, conversation_id):
         with self.database.connect() as db:
-            self._guard(db, scope, actor, 'read')
             scoped_conversation(db, scope.organization, conversation_id)
+            rows = list(db.execute('SELECT * FROM youtube_interactions WHERE organization=? AND profile=? AND conversation=? ORDER BY revision',
+                                   (scope.organization, scope.profile_id, conversation_id)))
+            if rows:
+                self._guard(db, scope, actor, 'read')
             values = []
-            for row in db.execute('SELECT * FROM youtube_interactions WHERE organization=? AND profile=? AND conversation=? ORDER BY revision',
-                                  (scope.organization, scope.profile_id, conversation_id)):
+            for row in rows:
                 value = json.loads(row['payload'])
                 result = db.execute('SELECT payload FROM youtube_results WHERE organization=? AND profile=? AND operation=?',
                                     (scope.organization, scope.profile_id, row['operation'])).fetchone()
