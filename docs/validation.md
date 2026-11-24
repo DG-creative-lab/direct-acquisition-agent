@@ -4026,3 +4026,60 @@ zero network attempts, stable source and unchanged historical artifacts. No
 frontend files changed, so the interface gate was not repeated. The original
 dirty checkout and earlier evaluation bytes are preserved. See the
 [review evidence](evaluations/issue-60-intake-planning-admission-review-2026-11-24.json).
+
+
+## 24 November 2026: reviewed preparation context
+
+Source `c671be2b1036c307cc6988c2a5b5b7ffa387a01f` adds exact saved-input review
+under #131. Campaigns owns an immutable schema-26 preparation context; bootstrap
+wires its narrow store for SQLite and Turso. The workspace lets an operator select
+description, claims with their original qualifications and references, and CTA,
+retain exact campaign requirements, record questions and confirm a one-to-thirty
+day input-review window. Selected assertions remain `user_supplied_unverified`.
+No context record grants fact verification, campaign approval or generation
+authority. References are not fetched and human questions are not automatic
+semantic contradiction detection.
+
+One writer transaction rechecks the exact saved source, observed company head,
+preview and expected review revision and appends the original command with the
+immutable context. Original retries reconcile before stale-selection checks and
+never renew expiry. Competing confirmations converge on one original receipt;
+new commands against the same prior review conflict. Later company/brief edits,
+new reviews and expiry mark old contexts historical without changing bytes.
+Independent reconstruction from native source revisions rejects coordinated
+rehashing of substituted source and derived payload.
+
+The guarded loopback API keeps organization and actor server-resolved and uses
+the original store identity. Browser recovery persists the whole original
+command before dispatch, reconciles its receipt first, fences a different store,
+and blocks uncertain or corrupt-storage resubmission under a new key. Inspection
+restores retain history without write or definite-original-absence authority.
+Native process exits before and after commit both recover the original request.
+
+`make test` passed 1171 cases in 1362.598 seconds. `make interface-check`
+passed all 140 Chromium cases in 12.8 minutes, plus build and formatting. The
+optional validated `BROWSER_PORT=8897` override avoided another worktree's server;
+default/CI ports were preserved. Architecture passed with 228 modules and zero
+exceptions. All five recovery boundary cases passed with zero network attempts,
+stable source and all 34 historical artifacts unchanged. Three of three semantic
+mutations were caught: trusting a substituted source, ignoring the current
+company head and renewing a replayed expiry.
+
+The existing isolated managed Turso database passed schema-26 review persistence,
+two competing processes, foreign-scope refusal and lost-acknowledgement replay
+with original expiry retained. Its existing planning regression used one synthetic
+response; no paid call or campaign run was created. The context-only phase had
+zero execution effects. Manual browser and authoritative SQLite checks retained
+one claim, qualification and CTA for each of two different products with no
+substitution, zero runs, model calls or approval decisions. Desktop/mobile visuals
+and keyboard focus were inspected. The source remained byte-identical throughout
+the gates and the original dirty checkout's HEAD, status, file hashes and modes
+were preserved.
+
+Schema-25 processes must be upgraded before opening migrated schema-26 stores.
+Parallel YouTube migrations and shared integration points require reconciliation
+before merge; that worktree was not changed. No deployment, hosted identity,
+live-model quality or generation-from-context capability is claimed. The finite
+checks establish the exercised schedules, not exhaustive failure-space coverage.
+See [the implemented contract](reviewed-preparation-context.md) and
+[commit-bound evidence](evaluations/issue-131-reviewed-preparation-context-2026-11-24.json).
