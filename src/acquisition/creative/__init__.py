@@ -42,3 +42,5 @@ __all__ += ['synthetic_channel_policy']
 from .recipient_context import recipient_readiness_boundaries
 from .channel_content import channel_readiness_boundaries
 __all__ += ['recipient_readiness_boundaries','channel_readiness_boundaries']
+from .company_drafts import CompanyDraft, CompanyClaimDraft, draft_text
+__all__ += ['CompanyDraft', 'CompanyClaimDraft', 'draft_text']

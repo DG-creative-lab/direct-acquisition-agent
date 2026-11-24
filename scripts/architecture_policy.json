@@ -216,7 +216,11 @@
     "acquisition.adapters.turso.transport": "adapter",
     "acquisition.conversations.hosted_preparation": "application",
     "acquisition.adapters.http.serverless_preparation": "transport",
-    "acquisition.entrypoints.serverless_preparation": "entrypoint"
+    "acquisition.entrypoints.serverless_preparation": "entrypoint",
+    "acquisition.creative.company_drafts": "domain",
+    "acquisition.campaigns.intake": "domain",
+    "acquisition.campaigns.intake_application": "application",
+    "acquisition.adapters.sqlite.intake": "adapter"
   },
   "exceptions": []
 }

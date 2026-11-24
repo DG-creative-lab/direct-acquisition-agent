@@ -442,7 +442,7 @@ class ConversationMigrationAndCliTests(unittest.TestCase):
                 self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 5)
                 self.assertIsNone(db.execute("SELECT name FROM sqlite_master WHERE name='conversations'").fetchone())
             with Database(path).connect() as db:
-                self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 23)
+                self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 24)
                 self.assertEqual(db.execute("SELECT generation FROM review_actors").fetchone()[0], 9)
                 self.assertEqual([tuple(r) for r in db.execute("SELECT * FROM legacy_task_admissions")], cutoff)
 

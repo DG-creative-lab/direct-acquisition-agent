@@ -32,14 +32,19 @@ def schema_tokens(sql):
 
 
 def register_probe():
-    """Explicit one-time adoption, only after complete current-schema comparison.
+    """Explicit one-time adoption, only after complete schema-23 comparison.
 
     Preserve the probe journal, application data, identity and legacy cutoff.
     This is not a general import or restore interface.
     """
     with TemporaryDirectory() as root:
         local = Database(Path(root)/'expected.sqlite')
-        with local.connect() as db:
+        with local.transaction() as db:
+            # The diagnostic probe predates intake. Compare its exact old shape;
+            # production initialization then migrates the registered store to v24.
+            for table in ('intake_requests', 'intake_brief_revisions', 'intake_company_revisions'):
+                db.execute('DROP TABLE ' + table)
+            db.execute('PRAGMA user_version=23')
             expected = {r['name']:schema_tokens(r['sql']) for r in db.execute(
                 "SELECT name,sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%'")}
     connection = Connection(Http(storage()['url'],storage()['token']))
@@ -116,7 +121,7 @@ def run(key):
     except sqlite3.IntegrityError:pass
     else:raise AssertionError('Constraint did not reject transaction')
     with store.database.connect() as db:
-        assert db.execute('PRAGMA user_version').fetchone()[0]==23
+        assert db.execute('PRAGMA user_version').fetchone()[0]==24
         assert db.execute("SELECT 1 FROM sqlite_master WHERE name=?",(marker,)).fetchone() is None
         assert db.execute('SELECT count(*) FROM runs WHERE organization=?',(org,)).fetchone()[0]==2
         assert db.execute('SELECT count(*) FROM execution_admissions WHERE organization=?',(org,)).fetchone()[0]==2

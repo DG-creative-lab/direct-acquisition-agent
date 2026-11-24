@@ -451,7 +451,7 @@ class WorkflowAdmissionMigrationTests(unittest.TestCase):
         store=build_admissions(self.path,clock=lambda:self.now)
         self.assertEqual(store.admit(self.intent,self.now),self.receipt)
         with store.database.connect() as db:
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],23)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],24)
             self.assertEqual(db.execute('PRAGMA integrity_check').fetchone()[0],'ok')
             self.assertEqual(db.execute('PRAGMA foreign_key_check').fetchall(),[])
             with self.assertRaises(sqlite3.IntegrityError):db.execute('DELETE FROM admission_requests')

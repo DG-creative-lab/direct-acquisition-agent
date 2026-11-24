@@ -75,6 +75,12 @@ class WorkspaceCheckpointTests(TestCase):
         # finalized synthetic cohort. It also holds independently queued work.
         legacy_key = 'workspace_' + '1' * 24 + '/campaign.sqlite'
         learning = run_learning_demo(str(self.source / legacy_key), 'backup', 'history', self.parent / 'exports')
+        from acquisition.bootstrap import build_intake
+        from acquisition.creative import CompanyDraft
+        from acquisition.campaigns import CampaignBriefDraft
+        intake = build_intake(self.source / legacy_key)
+        company = intake.save_company('backup','writer','company',CompanyDraft(company_name='Unverified input'))['snapshot']
+        brief = intake.save_brief('backup','writer','brief',CampaignBriefDraft(company['id'],1))['snapshot']
         legacy = build(self.source / legacy_key, clock=lambda: self.now)
         queued = legacy.start('another-org', 'pending', size=20)
         contacts = build_contact_directory(self.source / legacy_key,'contact-scope','fielddesk',lambda:1794528000.)
@@ -180,6 +186,11 @@ class WorkspaceCheckpointTests(TestCase):
                               'status', '--run', queued, module='acquisition')
         self.assertEqual(status['run']['status'], 'queued')
         reopened = build(self.restore / legacy_key)
+        restored_intake = build_intake(self.restore / legacy_key)
+        self.assertEqual(restored_intake.company('backup',company['id']),company)
+        self.assertEqual(restored_intake.brief('backup',brief['id']),brief)
+        with self.assertRaises(Conflict):
+            restored_intake.save_company('backup','writer','company',CompanyDraft(company_name='Unverified input'))
         view = reopened.learning.store.view(learning['organization'], learning['cohort_id'])
         self.assertEqual(view['status'], 'finalized')
         self.assertEqual(view['recommendations'], learning['recommendations'])

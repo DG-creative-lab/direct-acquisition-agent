@@ -977,7 +977,7 @@ class SequenceJourneyTests(unittest.TestCase):
             self.assertIsNone(db.execute("SELECT name FROM sqlite_schema WHERE name='sequence_journeys'").fetchone())
         Database(path)
         with closing(sqlite3.connect(path)) as db:
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],23)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],24)
             self.assertEqual(db.execute('SELECT payload FROM audiences').fetchone()[0],'{"frozen":"Historical wording"}')
             self.assertEqual([tuple(r) for r in before],db.execute('SELECT * FROM legacy_task_admissions').fetchall())
 
