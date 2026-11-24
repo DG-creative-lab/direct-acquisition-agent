@@ -1,0 +1,109 @@
+"""Real HTTP intake: trusted identity, exact retries, conflicts and durable revisions."""
+
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import unittest
+
+from acquisition.bootstrap import build_intake
+from acquisition.creative import CompanyDraft
+import test_workspace as workspace_tests
+
+
+class WorkspaceIntakeHttpTests(unittest.TestCase):
+    setUp = workspace_tests.WorkspaceHttpTests.setUp
+    stop = workspace_tests.WorkspaceHttpTests.stop
+    request = workspace_tests.WorkspaceHttpTests.request
+
+    def save(self, kind, request_id, draft, identity=None, revision=0):
+        return self.request('/api/intake/'+kind, {'request_id':request_id, 'id':identity,
+                                                'expected_revision':revision, 'draft':draft})
+
+    def test_round_trip_exact_scope_revisions_replay_and_process_restart(self):
+        text = 'Source wording \u2014 preserved exactly'
+        status, body, _ = self.save('companies', 'company', {'company_name':'Example', 'description':text,
+            'claims':[{'statement':text,'qualification':'UK only','source_urls':['https://example.invalid/source']}]})
+        self.assertEqual(status,200,body)
+        company = json.loads(body)['snapshot']
+        self.assertEqual((company['organization'],company['actor']),('local-conversations','local-operator'))
+        brief = {'company_id':company['id'], 'company_revision':1, 'objective':text,
+                 'country':'France','channels':['video'],'currency':'EUR','budget_minor':12345}
+        status, body, _ = self.save('briefs','brief',brief)
+        self.assertEqual(status,200,body)
+        saved = json.loads(body)['snapshot']
+        self.assertEqual(self.save('companies','edit',{'company_name':'Edited'},company['id'],1)[0],200)
+        status, body, _ = self.save('briefs','brief',brief)
+        self.assertEqual(status,200,body)
+        self.assertTrue(json.loads(body)['replayed'])
+        self.assertEqual(json.loads(body)['snapshot'],saved)
+        for kind, snapshot in [('companies',company),('briefs',saved)]:
+            status, body, _ = self.request('/api/intake/'+kind+'/'+snapshot['id']+'?revision=1')
+            self.assertEqual(status,200,body)
+            self.assertEqual(json.loads(body),snapshot)
+        program = '''
+import json,sys
+from acquisition.bootstrap import build_intake
+app=build_intake(sys.argv[1],read_only=True)
+print(json.dumps([app.company('local-conversations',sys.argv[2],1),app.brief('local-conversations',sys.argv[3])]))
+'''
+        child = subprocess.run([sys.executable,'-c',program,str(self.root/'data'/'conversations.sqlite'),company['id'],saved['id']],
+                               env=dict(os.environ,PYTHONPATH='src'),capture_output=True,text=True,timeout=20)
+        self.assertEqual(child.returncode,0,child.stderr)
+        self.assertEqual(json.loads(child.stdout),[company,saved])
+        intake = build_intake(self.root/'data'/'conversations.sqlite')
+        with intake.store.database.connect() as db:
+            for table in ('runs','tasks','model_calls','drafts','review_decisions'):
+                self.assertEqual(db.execute('SELECT count(*) FROM '+table).fetchone()[0],0,table)
+
+    def test_authority_substitution_and_foreign_references_have_no_effect(self):
+        company_payload = {'request_id':'company','id':None,'expected_revision':0,'draft':{'company_name':'Example'}}
+        for bad in ({'Host':'attacker.invalid'}, {'X-Workspace-Token':''}, {'Origin':'https://attacker.invalid'}):
+            self.assertEqual(self.request('/api/intake/companies',company_payload,bad)[0],403)
+        for field in ('organization','actor'):
+            self.assertEqual(self.request('/api/intake/companies',company_payload | {field:'forged'})[0],400)
+            nested = company_payload | {'draft':{'company_name':'Example',field:'forged'}}
+            self.assertEqual(self.request('/api/intake/companies',nested)[0],400)
+            self.assertEqual(self.request('/api/intake/companies?'+field+'=foreign')[0],400)
+        app = build_intake(self.root/'data'/'conversations.sqlite')
+        foreign = app.save_company('foreign','writer','company',CompanyDraft(company_name='Private'))['snapshot']
+        self.assertEqual(self.request('/api/intake/companies/'+foreign['id'])[0],404)
+        self.assertEqual(self.save('companies','foreign-edit',{},foreign['id'],1)[0],404)
+        self.assertEqual(self.save('briefs','foreign-reference',{'company_id':foreign['id'],'company_revision':1})[0],404)
+        self.assertEqual(json.loads(self.request('/api/intake/companies')[1])['items'],[])
+
+    def test_stale_edits_and_bad_shapes_are_definitive_rejections(self):
+        status, body, _ = self.save('companies','company',{})
+        company = json.loads(body)['snapshot']
+        self.assertEqual(status,200)
+        self.assertEqual(self.save('companies','edit',{'company_name':'Winner'},company['id'],1)[0],200)
+        for kind, draft, identity, revision in (
+                ('companies',{'company_name':'Stale'},company['id'],1),
+                ('companies',{'claims':'not-an-array'},None,0),
+                ('companies',{'claims':[{'statement':'Claim','authority':'verified'}]},None,0),
+                ('companies',{'claims':[{}]},None,0),
+                ('briefs',{'company_id':company['id'],'company_revision':1,'contact_source':[]},None,0),
+                ('briefs',{'company_id':company['id'],'company_revision':1,'budget_minor':1.5},None,0)):
+            status, body, _ = self.save(kind,'rejected',draft,identity,revision)
+            self.assertIn(status,(400,409),body)
+            self.assertTrue(json.loads(body)['intake_not_saved'])
+        self.assertEqual(self.request('/api/intake/companies?limit=101')[0],400)
+        self.assertEqual(self.request('/api/intake/companies?limit=2&limit=1')[0],400)
+        self.assertEqual(self.request('/api/intake/companies/'+company['id']+'?revision=0')[0],400)
+        page = json.loads(self.request('/api/intake/companies?limit=1')[1])['items']
+        self.assertEqual(len(page),1)
+        self.assertEqual(page[0]['draft']['company_name'],'Winner')
+        self.assertEqual(json.loads(self.request('/api/intake/companies?after_id='+page[0]['id'])[1])['items'],[])
+
+    def test_intake_body_limit_is_local_and_domain_payload_remains_bounded(self):
+        # Selecting intake on a verified workspace keeps its existing admission policy.
+        self.server.workspace._requested_verified = True
+        large = {'description':'x'*8000, 'claims':[{'statement':'x'*3000} for _ in range(6)]}
+        status, body, _ = self.save('companies','large',large)
+        self.assertEqual(status,200,body)  # Bigger than the ordinary 16 KiB command limit.
+        from acquisition.bootstrap import verified_admission_mode
+        self.assertTrue(verified_admission_mode(self.root/'data'/'conversations.sqlite'))
+        too_large = {'description':'x'*8000, 'claims':[{'statement':'x'*3000} for _ in range(19)]}
+        self.assertEqual(self.save('companies','too-large',too_large)[0],400)
+        self.assertEqual(self.save('companies','transport-limit',{'description':'x'*72000})[0],400)

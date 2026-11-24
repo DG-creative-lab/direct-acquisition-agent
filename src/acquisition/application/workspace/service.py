@@ -12,6 +12,7 @@ from acquisition.conversations import ACTIVE_PREPARATION, AudienceSelectionRejec
 from acquisition.conversations import MessageRejectedConflict, MessageRejectedInvalid, MessageRejectedNotFound, postal_request, sequence_language
 from .ports import WorkspaceStorageUnavailable, WorkspaceApplications, WorkspaceModelSessions
 from .state import WorkspaceStateAccess
+from .intake import WorkspaceIntake
 from .views import WorkspaceViews, REVISION_BLOCKS, CHECKPOINT_BLOCKS, _partial_delivery
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.learning import finite, identifier
@@ -164,6 +165,10 @@ class Workspace(WorkspaceViews):
         config = model_config or (self.models.selected(2) if with_model else None)
         gateway = self._model_gateway(config) if with_model and not verified else None
         return self._applications.conversation(verified=verified, gateway=gateway, model_config=config)
+
+    @property
+    def intake(self):
+        return WorkspaceIntake(self._applications.intake(verified=self._verified_mode()))
 
     @property
     def sequence_journeys(self):

@@ -53,5 +53,10 @@
     "file": "sequence-journey.spec.mjs",
     "title": "a delayed sequence approval response cannot replace a new chat",
     "protects": "Late approval cannot overwrite a different selected conversation"
+  },
+  {
+    "file": "intake-workspace.spec.mjs",
+    "title": "intake saves exact company and pinned campaign brief on desktop",
+    "protects": "User input round trip, pinned source version and zero generation effects through compiled local UI"
   }
 ]

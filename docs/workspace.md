@@ -44,6 +44,14 @@ For frontend development, keep `make workspace` running and use `pnpm --dir fron
 
 ## Product and presentation
 
+The **Company & brief** navigation area saves user-supplied company/product drafts
+and campaign requirements in the local application store. Reopen/edit each saved
+record, explicitly select the company version behind a brief, and recover an
+uncertain save with its original command. These drafts remain unverified and
+are not yet connected to campaign interpretation or generation. See the
+[intake contract](intake.md) for routes, limits and recovery behavior. Hosted
+tester sign-in and access remain Gateplane integration work.
+
 Follow the [user guide](user-guide.md) for campaign creation, audience and copy inspection, exact-subject approval, simulated handoff and learning. The [product overview](product.md) separates demonstrated capabilities from future work.
 
 The interface follows the publication's Arial/Helvetica typography, warm paper and black navigation, with the shared static Op Art mark. Historical creative previews retain their original presentation. Fonts and vector assets are served locally; reduced-motion support applies to workspace transitions. See [branding](branding.md) for tokens and provenance.

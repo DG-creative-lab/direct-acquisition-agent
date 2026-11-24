@@ -87,6 +87,22 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             path = self.parsed_target.path
+            parts = path.strip('/').split('/')
+            if len(parts) in {3, 4} and parts[:2] == ['api', 'intake'] and parts[2] in {'companies', 'briefs'}:
+                try:
+                    query = parse_qs(self.parsed_target.query, keep_blank_values=True)
+                    allowed = {'after_id', 'limit'} if len(parts) == 3 else {'revision'}
+                    if set(query) - allowed or any(len(v) != 1 for v in query.values()):
+                        raise ValueError('Use exact intake query fields')
+                    intake = self.server.workspace.intake
+                    if len(parts) == 3:
+                        return self._send(200, intake.listing(parts[2], query.get('after_id', [''])[0],
+                                                            int(query.get('limit', ['50'])[0])))
+                    revision = int(query['revision'][0]) if 'revision' in query else None
+                    return self._send(200, intake.get(parts[2], parts[3], revision))
+                except ValueError as error:
+                    if isinstance(error, Conflict):raise
+                    return self._send(400, {'error': str(error)})
             if path == "/api/sessions":
                 return self._send(200, self.server.workspace.listing())
             if path == "/api/openrouter/models":
@@ -141,7 +157,8 @@ class Handler(BaseHTTPRequestHandler):
             monitoring_upload = (len(parts) == 4 and parts[:2] == ["api", "sessions"]
                                  and parts[3] == "monitoring-start")
             length = int(self.headers.get("Content-Length", "0"))
-            limit = 34 * 1024 * 1024 if monitoring_upload else 16384
+            intake_save = path in {'/api/intake/companies', '/api/intake/briefs'}
+            limit = 34 * 1024 * 1024 if monitoring_upload else 70 * 1024 if intake_save else 16384
             if not 0 < length <= limit or self.headers.get("Content-Type", "").split(";")[0] != "application/json":
                 return self._send(400, {"error": "Use a bounded JSON request"})
             data = json.loads(self.rfile.read(length))
@@ -158,6 +175,14 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, connection)
             if authorization is not None:
                 raise ValueError("Use an OpenRouter connection handle.")
+            if intake_save:
+                try:
+                    if handle is not None or tab is not None or self.parsed_target.query:
+                        raise ValueError('Use an intake save without model funding or query fields')
+                    return self._send(200, self.server.workspace.intake.save(parts[2], data))
+                except (NotFound, ValueError) as error:
+                    return self._send(404 if isinstance(error, NotFound) else 409 if isinstance(error, Conflict) else 400,
+                                      {'error': str(error), 'intake_not_saved': True})
             if path == "/api/openrouter/disconnect":
                 if not handle or not tab or data:
                     raise ValueError("Use the connected OpenRouter browser session.")
