@@ -165,8 +165,9 @@ class RemoteStorageTests(unittest.TestCase):
         settings = {'url':'https://example.turso.io', 'token':'test-only'}
         with patch('acquisition.adapters.turso.database.Http', return_value=self.database.send):
             app = build_intake(None, clock=lambda:NOW, remote_storage=settings)
-        company = app.save_company('intake','writer','company',CompanyDraft(company_name='Synthetic'))['snapshot']
-        draft = CampaignBriefDraft(company['id'],1,objective='Preserve exact input',budget_minor=9007199254740991//10000000)
+        company = app.save_company('intake','writer','company',CompanyDraft(company_name='Synthetic \u2014 input'))['snapshot']
+        objective = 'Preserve exact input \u2014 including punctuation'
+        draft = CampaignBriefDraft(company['id'],1,objective=objective,budget_minor=9007199254740991//10000000)
         original = app.store.database.send
         def lose_ack(payload):
             result = original(payload)
@@ -182,6 +183,8 @@ class RemoteStorageTests(unittest.TestCase):
         self.assertEqual(restarted.brief('intake',receipt['snapshot']['id']),receipt['snapshot'])
         restarted.save_company('intake','writer','edit',CompanyDraft(company_name='New'),company_id=company['id'],expected_revision=1)
         self.assertEqual(restarted.company('intake',company['id'],1),company)
+        self.assertEqual(restarted.company('intake',company['id'],1)['draft']['company_name'],'Synthetic \u2014 input')
+        self.assertEqual(restarted.brief('intake',receipt['snapshot']['id'])['draft']['objective'],objective)
         self.assertEqual(receipt['snapshot']['draft']['company_revision'],1)
         self.assertEqual(restarted.briefs('foreign'),[])
         with self.assertRaises(NotFound):restarted.brief('foreign',receipt['snapshot']['id'])

@@ -19,6 +19,8 @@ budget in that currency's minor units, candidate count, constraints and explicit
 synthetic or unspecified contact source. Missing values are allowed for drafts.
 Unsupported market/channel requests remain exact user requirements. Intake does
 not substitute defaults, assess campaign capability or imply execution support.
+Source punctuation, including em dashes, is retained exactly. Editorial rules
+for newly generated copy do not restrict user assertions or campaign requirements.
 
 `campaigns.CampaignIntake` coordinates these drafts through a narrow
 `CampaignIntakeStore`. Bootstrap alone selects `SqliteCampaignIntake` and the

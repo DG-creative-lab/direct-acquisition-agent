@@ -5,8 +5,9 @@ from urllib.parse import urlsplit
 
 
 def draft_text(value, maximum=4000):
+    """Preserve source punctuation; generated-copy editorial rules do not apply."""
     if (type(value) is not str or len(value) > maximum or value != value.strip()
-            or any(ord(c) < 32 and c != '\n' for c in value) or chr(0x2014) in value):
+            or any(ord(c) < 32 and c != '\n' for c in value)):
         raise ValueError('Use bounded plain draft text without surrounding whitespace')
 
 

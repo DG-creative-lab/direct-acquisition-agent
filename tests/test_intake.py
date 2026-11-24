@@ -2,6 +2,7 @@
 
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
+import json
 import os
 from pathlib import Path
 import sqlite3
@@ -42,8 +43,15 @@ class IntakeTests(unittest.TestCase):
                     for t in ('intake_company_revisions', 'intake_brief_revisions', 'intake_requests')}
 
     def test_reopen_history_pinned_brief_and_no_execution_effects(self):
-        first = self.company()['snapshot']
-        draft = self.brief(first, country='France', currency='EUR', channels=('video',), budget_minor=12345)
+        source = 'Fast, flexible funding \u2014 subject to eligibility.'
+        company = CompanyDraft(
+            company_name='Example \u2014 Company', product_name='Product \u2014 One',
+            description=source, official_cta='Learn more \u2014 apply',
+            claims=(CompanyClaimDraft(source, 'Eligibility \u2014 UK businesses only'),))
+        first = self.company(draft=company)['snapshot']
+        draft = replace(self.brief(first, country='France', currency='EUR', channels=('video',), budget_minor=12345),
+                        objective=source, audience='Small businesses \u2014 growing teams',
+                        constraints=('Keep qualifications \u2014 do not shorten',))
         saved = self.app.save_brief('one', 'writer', 'brief', draft)['snapshot']
         second = self.app.save_company('one', 'editor', 'edit', CompanyDraft(company_name='New wording'),
                                        company_id=first['id'], expected_revision=1)['snapshot']
@@ -51,6 +59,32 @@ class IntakeTests(unittest.TestCase):
         self.assertEqual(reopened.company('one', first['id']), second)
         self.assertEqual(reopened.company('one', first['id'], 1), first)
         self.assertEqual(reopened.brief('one', saved['id']), saved)
+        company_input = reopened.company('one', first['id'], 1)['draft']
+        self.assertEqual(company_input['company_name'], 'Example \u2014 Company')
+        self.assertEqual(company_input['product_name'], 'Product \u2014 One')
+        self.assertEqual(company_input['description'], source)
+        self.assertEqual(company_input['official_cta'], 'Learn more \u2014 apply')
+        self.assertEqual(company_input['claims'], [{'statement': source,
+                         'qualification': 'Eligibility \u2014 UK businesses only', 'source_urls': []}])
+        brief_input = reopened.brief('one', saved['id'])['draft']
+        self.assertEqual(brief_input['objective'], source)
+        self.assertEqual(brief_input['audience'], 'Small businesses \u2014 growing teams')
+        self.assertEqual(brief_input['constraints'], ['Keep qualifications \u2014 do not shorten'])
+        # A fresh interpreter must observe the same original source wording.
+        program = '''
+import json, sys
+from acquisition.bootstrap import build_intake
+app = build_intake(sys.argv[1], read_only=True)
+print(json.dumps([app.company('one', sys.argv[2], 1), app.brief('one', sys.argv[3])]))
+'''
+        result = subprocess.run([sys.executable, '-c', program, str(self.path), first['id'], saved['id']],
+                                capture_output=True, text=True, timeout=15)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout), [first, saved])
+        self.assertEqual(reopened.save_company('one', 'writer', 'company', company)['snapshot'], first)
+        self.assertEqual(reopened.save_brief('one', 'writer', 'brief', draft)['snapshot'], saved)
+        with self.assertRaises(Conflict):
+            reopened.save_brief('one', 'writer', 'brief', replace(draft, objective=source.replace('\u2014', '-')))
         self.assertEqual(saved['draft']['company_revision'], 1)
         self.assertEqual(saved['draft']['country'], 'France')
         self.assertEqual(saved['draft']['channels'], ['video'])
@@ -223,7 +257,8 @@ app.save_company('one','writer',os.environ['KEY'],CompanyDraft(company_name='Res
         with self.assertRaises(Conflict):self.company(inspection)
         for kwargs in ({'budget_minor': True}, {'budget_minor': -1}, {'company_revision': True}, {'channels': ['email']}, {'contact_source':'crm'}):
             with self.assertRaises(ValueError):CampaignBriefDraft(**({'company_id':'company', 'company_revision':1} | kwargs))
-        for kwargs in ({'website':'https://token@example.invalid'}, {'website':'javascript:alert(1)'}, {'claims':[]}, {'company_name':'x'*601}):
+        for kwargs in ({'website':'https://token@example.invalid'}, {'website':'javascript:alert(1)'}, {'claims':[]},
+                       {'company_name':'x'*601}, {'company_name':'Line\x00Break'}, {'company_name':' Example '}):
             with self.assertRaises(ValueError):CompanyDraft(**kwargs)
         for args in ({'expected_revision':True}, {'expected_revision':1}, {'company_id':'one','expected_revision':0}):
             with self.assertRaises(ValueError):self.app.save_company('one','writer','bad',CompanyDraft(),**args)
