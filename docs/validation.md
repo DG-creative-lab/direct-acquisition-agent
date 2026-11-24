@@ -1,5 +1,41 @@
 # Validation and limits
 
+## Intake recovery store binding, review correction, 24 November 2026
+
+The P2 review identified an ownership gap: an original save retained its inputs
+but not its database identity. Restarting the same browser origin against another
+root could create a draft there and clear recovery without reconciling the
+original store. Pending commands now retain the existing immutable application
+store ID. A guarded, non-cached identity read precedes every dispatch; the HTTP
+writer independently checks the binding against the intake instance it uses.
+A mismatch retains the original command and cannot act as a definite rejection
+or receipt for its owner. Successful receipts and definite rejections also bind
+the original store before the browser clears recovery. No migration was needed.
+
+The real SQLite HTTP regression checks distinct store identities, missing/foreign
+bindings, zero wrong-store writes and a same-key receipt in the other store.
+The browser regression commits in A, loses its reply, restarts the server on B
+at the same origin and proves zero POSTs and unchanged recovery. A stale identity
+response then exercises the server fence and retains the pending command without
+writing B. Returning to A confirms the original receipt with unchanged durable
+rows. Older unbound recovery data stays retained and blocks new saves; ownership
+is never guessed from the currently configured root. One deliberate server-fence
+bypass in a disposable source copy was detected by its wrong-store 200 response.
+
+Verification on `487b9f87f3be32b96e3436c614925b3df721fc2f`: `make test`
+passed all 1,143 tests in 1283.784 seconds. `make interface-check` passed its
+production build, formatting and all 129 Chromium cases with zero skipped,
+unexpected or flaky tests. Focused intake checks passed 14 backend tests and
+11 browser cases. Architecture passed with 221 modules and zero exceptions.
+All five native recovery boundary cases passed with zero network attempts,
+stable source and unchanged historical bytes. All 31 earlier evaluation artifacts
+and the original dirty checkout were preserved.
+
+The [store-binding review evidence](evaluations/issue-60-intake-store-review-2026-11-24.json)
+records six selected invariants, source identity, logs and finite test limits.
+Store binding does not provide hosted authentication or tenant authorization.
+No deployment, managed remote probe, paid inference or outbound effect occurred.
+
 ## Local company and brief workspace, issue 60, 24 November 2026
 
 The guarded loopback API and React **Company & brief** forms expose the existing
