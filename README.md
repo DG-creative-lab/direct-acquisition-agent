@@ -70,6 +70,11 @@ The workspace's **Knowledge** view shows advisory campaign playbooks, the baseli
 
 ## Documentation
 
+The proposed [YouTube migration plan](docs/youtube-migration-plan.md) coordinates the
+[shared marketing workspace design](docs/multichannel-workspace-design.md) and
+[remaining hosted preparation](docs/hosted-platform-preparation.md). These are
+planning documents; the migration and hosted product release are not yet delivered.
+
 | Reader need | Guide |
 | --- | --- |
 | Understand the product and demonstrated scope | [Product overview](docs/product.md) |
