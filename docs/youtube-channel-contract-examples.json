@@ -884,6 +884,117 @@
           "basis": "current postal-only budget resolver must not precede channel routing"
         }
       ]
+    },
+    {
+      "id": "YT26",
+      "operation": "review_correction_journey",
+      "given": [
+        "current_approved_package",
+        "no_applicable_correction",
+        "authored_balanced_delivery_and_comparison_test_evidence",
+        "current_review_and_draft_authority",
+        "instruction_test_permission",
+        "offline_instruction_adapter"
+      ],
+      "input": {
+        "steps": [
+          {
+            "operation": "review_performance",
+            "request_id": "review_initial",
+            "save_as": "uncorrected_review",
+            "expected_correction": null
+          },
+          {
+            "operation": "prepare_instruction_test",
+            "review": "uncorrected_review",
+            "expected_reason_code": "correction_required"
+          },
+          {
+            "operation": "record_correction",
+            "review": "uncorrected_review",
+            "kind": "keep_takes",
+            "save_as": "first_correction"
+          },
+          {
+            "operation": "prepare_instruction_test",
+            "review": "uncorrected_review",
+            "expected_reason_code": "correction_stale"
+          },
+          {
+            "operation": "review_performance",
+            "request_id": "review_corrected",
+            "save_as": "corrected_review",
+            "expected_correction": "first_correction"
+          },
+          {
+            "operation": "prepare_instruction_test",
+            "review": "corrected_review",
+            "expected_status": "completed"
+          },
+          {
+            "operation": "review_performance",
+            "request_id": "review_initial",
+            "expected_original_result": "uncorrected_review"
+          }
+        ]
+      },
+      "expected": {
+        "initial_review_without_correction_succeeds": true,
+        "new_performance_reviews": 2,
+        "new_corrections": 1,
+        "original_review_correction_remains_absent": true,
+        "corrected_review_binds": "first_correction",
+        "new_revisions": 1,
+        "draft_is_unapproved": true,
+        "new_approvals": 0,
+        "observed_counts_unchanged": true,
+        "provider_calls_delta": 0
+      },
+      "evidence": [
+        {
+          "repository": "DG-creative-lab/youtube-ad-agent",
+          "path": "tests/test_campaign_performance.py",
+          "test_name": "test_saved_correction_changes_the_next_comparison_test_and_preserves_evidence"
+        }
+      ]
+    },
+    {
+      "id": "YT27",
+      "operation": "review_correction_currentness",
+      "given": [
+        "current_approved_package",
+        "review_A_binds_correction_A",
+        "current_review_and_draft_authority",
+        "instruction_test_permission"
+      ],
+      "input": {
+        "interleaving": [
+          "capture_new_review_evidence_while_correction_A_is_current",
+          "record_applicable_correction_B_against_review_A",
+          "save_new_review_with_unchanged_package_and_viewer_evidence",
+          "attempt_instruction_draft_using_old_review_A"
+        ]
+      },
+      "expected": {
+        "saved_new_review_correction": "correction_B",
+        "capture_time_correction_not_reused": true,
+        "old_review_correction": "correction_A",
+        "old_review_draft_reason_code": "correction_stale",
+        "new_revisions": 0,
+        "observed_counts_unchanged": true,
+        "provider_calls_delta": 0
+      },
+      "evidence": [
+        {
+          "repository": "DG-creative-lab/youtube-ad-agent",
+          "path": "campaign_agent/performance.py"
+        },
+        {
+          "repository": "DG-creative-lab/youtube-ad-agent",
+          "path": "tests/test_campaign_performance.py",
+          "test_name": "test_instruction_run_rejects_a_replaced_correction_and_an_unsupported_test"
+        }
+      ]
     }
   ]
 }
