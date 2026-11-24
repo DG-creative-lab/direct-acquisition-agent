@@ -310,3 +310,34 @@ class YouTubeFlowTests(unittest.TestCase):
         with sqlite3.connect(path) as db:
             self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 25)
             self.assertEqual(db.execute('SELECT * FROM conversation_messages').fetchall(), before)
+
+    def test_plural_channel_requests_clarify_without_admitting_youtube_work(self):
+        for index, channel in enumerate(('emails', 'e-mails', 'postcards', 'call scripts', 'human calls', 'phone calls')):
+            with self.subTest(channel=channel):
+                conversation = self.native.conversations.create('A', 'mixed-'+str(index), 'Mixed request')['id']
+                self.app.message({'request_id': 'mixed-'+str(index), 'conversation_id': conversation,
+                    'expected_revision': 0, 'content': 'Prepare YouTube and '+channel+' for this product',
+                    'draft_permission': 'placements'})
+                row = self.app.campaigns.interactions(conversation)[0]
+                self.assertEqual(row['status'], 'waiting')
+                self.assertEqual(row['reason_code'], 'channel_ambiguous')
+                self.assertIsNone(row['campaign_id'])
+                self.assertIsNone(row['run_id'])
+        for table in ('youtube_revisions', 'youtube_preparations', 'runs', 'tasks', 'model_calls'):
+            self.assertEqual(self.count(table), 0, table)
+
+    def test_queued_mixed_request_from_before_routing_fix_cannot_publish_on_resume(self):
+        command = {'request_id': 'legacy-mixed', 'conversation_id': self.conversation, 'expected_revision': 0,
+                   'content': 'Prepare YouTube and emails for this product', 'draft_permission': 'placements'}
+        # The previous router could admit this request. Keep its original frozen
+        # request and task, then resume through the current publication boundary.
+        with patch('acquisition.adapters.sqlite.youtube.route_youtube', return_value='youtube'):
+            self.app.campaigns.message(command)
+        operation = self.app.campaigns.interactions(self.conversation)[0]['operation_id']
+        self.app.resume(operation, self.conversation)
+        row = self.app.campaigns.interactions(self.conversation)[0]
+        self.assertEqual(row['status'], 'failed')
+        self.assertIsNone(row['campaign_id'])
+        self.assertEqual(self.count('youtube_revisions'), 0)
+        self.assertEqual(self.count('model_calls'), 0)
+        self.assertEqual(self.native.conversations.view('A', self.conversation)['revision'], 1)

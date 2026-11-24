@@ -173,3 +173,97 @@ test("a definitely rejected YouTube message unlocks the composer", async ({
     page.getByRole("region", { name: "YouTube campaign draft" }),
   ).toContainText("Revision 1");
 });
+
+for (const content of [
+  "Prepare a postcard campaign",
+  "Prepare postcards for UK contractors",
+]) {
+  test(`YouTube follow-up leaves the native route for: ${content}`, async ({
+    page,
+  }) => {
+    // Stop at saved postal admission. This regression must make no planning call.
+    await page.route("**/preparations", (route) =>
+      route.fulfill({
+        status: 409,
+        json: {
+          error: "Planning deliberately stopped by the offline routing test.",
+        },
+      }),
+    );
+    await page.goto("/");
+    await page
+      .getByLabel("Message Direct Acquisition", { exact: true })
+      .fill("Suggest YouTube contexts for video editors; advice only.");
+    await page
+      .getByRole("button", { name: "Send to agent", exact: true })
+      .click();
+    await expect(
+      page.getByText(/Suggested contexts: Video editing/),
+    ).toBeVisible();
+    await page
+      .getByLabel("Message Direct Acquisition", { exact: true })
+      .fill(content);
+    await expect(
+      page.getByLabel("Allow a YouTube placement draft for this request"),
+    ).toHaveCount(0);
+    const response = page.waitForResponse(
+      (response) =>
+        /\/api\/conversations\/[^/]+\/messages$/.test(response.url()) &&
+        response.request().method() === "POST",
+    );
+    await page
+      .getByRole("button", { name: "Send to agent", exact: true })
+      .click();
+    const saved = await response;
+    expect(saved.status()).toBe(200);
+    const view = await saved.json();
+    expect(view.revision).toBe(2);
+    expect(view.messages.at(-1).content).toBe(content);
+    expect(view.messages).toHaveLength(2);
+    await expect(
+      page.getByLabel("Message Direct Acquisition", { exact: true }),
+    ).toBeEmpty();
+  });
+}
+
+for (const channel of [
+  "emails",
+  "e-mails",
+  "postcards",
+  "call scripts",
+  "human calls",
+  "phone calls",
+]) {
+  test(`mixed YouTube and ${channel} clarifies without a draft`, async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /Prepare a YouTube brief/ }).click();
+    await page
+      .getByLabel("Message Direct Acquisition", { exact: true })
+      .fill(`Prepare YouTube and ${channel} for this product`);
+    const response = page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/youtube-messages") &&
+        response.request().method() === "POST",
+    );
+    await page
+      .getByRole("button", { name: "Send to agent", exact: true })
+      .click();
+    const saved = await response;
+    expect(saved.status()).toBe(200);
+    const interaction = (await saved.json()).youtube_interactions[0];
+    expect(interaction.reason_code).toBe("channel_ambiguous");
+    expect(interaction.campaign_id).toBeNull();
+    expect(interaction.run_id).toBeNull();
+    await expect(
+      page.getByText(
+        "Which channel should I prepare: YouTube or the other requested channel?",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("region", { name: "YouTube campaign draft" }),
+    ).toHaveCount(0);
+  });
+}

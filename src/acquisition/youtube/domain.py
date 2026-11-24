@@ -53,7 +53,7 @@ def route_youtube(content, *, bound=False):
     """A routing hint never grants write or model authority."""
     content = text(content, 2000)
     youtube = bool(re.search(r'\byou\s*tube\b', content, re.I))
-    other = bool(re.search(r'\b(?:email|e-mail|postal|direct.mail|postcard|call script)\b', content, re.I))
+    other = bool(re.search(r'\b(?:e-?mails?|postal|direct[- ]mail|postcards?|human calls?|call scripts?|phone calls?)\b', content, re.I))
     if youtube and other:
         return 'ambiguous'
     if other:

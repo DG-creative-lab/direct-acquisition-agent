@@ -471,7 +471,9 @@ class Workspace(WorkspaceViews):
         if self._is_youtube_request(conversation_id, expected_revision, content):
             return self.youtube_message(conversation_id, request_id, expected_revision, content)
         try:
-            postal_transition=postal_request(content) and any(row['inputs']['revision']==expected_revision for row in self._sequence_rows(conversation_id))
+            postal_transition=postal_request(content) and (
+                any(row['inputs']['revision']==expected_revision for row in self._sequence_rows(conversation_id))
+                or any(row['revision']==expected_revision for row in self.youtube.campaigns.interactions(conversation_id)))
             sequence=None if postal_transition else self._sequence_message(conversation_id,request_id,expected_revision,content,allow_generation=True)
         except (Conflict,ValueError,NotFound) as error:raise ActionNotSaved(str(error)) from error
         if postal_transition:return self.message_conversation(conversation_id,request_id,expected_revision,content)

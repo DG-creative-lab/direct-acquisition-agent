@@ -1,5 +1,19 @@
 # Validation and limits
 
+## YouTube routing review correction, 24 November 2026
+
+The browser and native router now recognize the same singular/plural email,
+e-mail, postcard, human-call, phone-call and call-script terms. A postcard
+follow-up to the current YouTube turn leaves the native route and uses postal
+message admission; generic follow-up callers receive the same transition.
+Mixed explicit channel requests remain a clarification even when placement
+permission is present, with zero draft, preparation task or model-call rows.
+
+Current routing is also rechecked at publication. An older queued operation
+admitted by the previous classifier cannot publish a YouTube-only draft after
+resume. Its original request and runtime history remain intact. This correction
+changes no schema, approval rule, provider adapter or historical artifact.
+
 ## Native YouTube preparation, issue 132, 24 November 2026
 
 The [authored local flow](youtube-preparation.md) adds a native channel module,

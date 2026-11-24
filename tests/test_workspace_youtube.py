@@ -213,3 +213,32 @@ class WorkspaceYouTubeHttpTests(unittest.TestCase):
         fresh = reopened.read(self.campaign)
         reopened.command('approve', command | {'request_id': 'fresh', 'subject': fresh['review']['subject']})
         self.assertIsNotNone(reopened.read(self.campaign)['approval'])
+
+    def test_plural_mixed_request_clarifies_and_postcard_followup_leaves_youtube(self):
+        for index, endpoint in enumerate(('messages', 'actions')):
+            with self.subTest(endpoint=endpoint):
+                conversation = self.server.workspace.create_conversation('plural-'+str(index), 'Mixed channels')['id']
+                status, raw, _ = self.request('/api/conversations/'+conversation+'/youtube-messages',
+                    {'request_id': 'mixed-'+str(index), 'expected_revision': 0, 'content': 'Prepare YouTube and emails for this product',
+                     'draft_permission': 'placements'})
+                self.assertEqual(status, 200, raw)
+                view = json.loads(raw)
+                self.assertEqual(view['youtube_interactions'][0]['reason_code'], 'channel_ambiguous')
+                content = 'Prepare a postcard campaign'
+                command = {'request_id': 'postcard-'+str(index), 'expected_revision': 1, 'content': content}
+                if endpoint == 'actions': command['allow_model_copy'] = False
+                status, raw, _ = self.request('/api/conversations/'+conversation+'/'+endpoint, command)
+                self.assertIn(status, (200, 202), raw)
+                view = json.loads(raw)
+                self.assertEqual(view['revision'], 2)
+                self.assertEqual(view['message_receipt']['revision'], 2)
+                self.assertEqual(view['messages'][-1]['content'], content)
+                status, raw, _ = self.request('/api/conversations/'+conversation)
+                self.assertEqual(status, 200, raw)
+                view = json.loads(raw)
+                self.assertEqual(len(view['youtube_interactions']), 1)
+                self.assertEqual(view['actions'], [])
+                self.assertEqual(view['plans'], [])
+        with self.server.workspace.youtube.campaigns.store.database.connect() as db:
+            for table in ('youtube_revisions', 'youtube_preparations', 'tasks', 'model_calls'):
+                self.assertEqual(db.execute('SELECT count(*) FROM '+table).fetchone()[0], 0, table)

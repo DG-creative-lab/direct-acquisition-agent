@@ -518,7 +518,9 @@ export default function ConversationWorkspace({
       (!!conversation?.youtube_interactions?.some(
         (row) => row.revision === conversation.revision,
       ) &&
-        !/\b(email|postal|direct.mail|call script)\b/i.test(message)));
+        !/\b(?:e-?mails?|postal|direct[- ]mail|postcards?|human calls?|call scripts?|phone calls?)\b/i.test(
+          message,
+        )));
   const send = async (resendLegacyFollowup = false) => {
     if ((!message.trim() && !pendingMessage) || busy) return;
     if (resendLegacyFollowup && !pendingMessage?.canResendLegacyFollowup)
@@ -570,8 +572,12 @@ export default function ConversationWorkspace({
         /\b(?:multichannel|multi.channel|e-?mails?|human calls?|call scripts?|phone calls?)\b/i.test(
           message,
         );
+      const youtubeContext =
+        current.youtube_interactions?.some(
+          (row) => row.revision === currentRevision,
+        ) ?? false;
       const postalTransition =
-        sequenceContext &&
+        (sequenceContext || youtubeContext) &&
         !sequenceWords &&
         /\b(?:postal|direct[- ]mail|postcards?)\b/i.test(message);
       const pending = pendingMessage ?? {

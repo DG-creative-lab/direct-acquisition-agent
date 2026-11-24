@@ -313,6 +313,8 @@ class SqliteYouTube:
         frozen = source['frozen']
         scope = YouTubeScope(claim.organization, row['profile'])
         self._guard(db, scope, frozen['actor'], 'draft', mutation=True)
+        if route_youtube(frozen['command']['content'], bound=True) != 'youtube':
+            raise YouTubeError('channel_ambiguous', 'Confirm a single YouTube request before preparing a draft')
         require_active(db, scope.organization, row['conversation'], row['revision'])
         if (source['admission']['tasks'][0]['inputs'] != claim.inputs
                 or frozen['context_fingerprint'] != digest(self.fixture)
