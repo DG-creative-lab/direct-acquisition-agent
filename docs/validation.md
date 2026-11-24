@@ -14,6 +14,16 @@ admitted by the previous classifier cannot publish a YouTube-only draft after
 resume. Its original request and runtime history remain intact. This correction
 changes no schema, approval rule, provider adapter or historical artifact.
 
+Both failures reproduced before the fix. After correction, 26 focused tests
+passed, including all eight real loopback HTTP cases. All 1,168 discovered
+backend tests passed exactly once across four supported shards. The production
+build, formatting and all 141 browser cases passed with zero skipped,
+unexpected or flaky results. Five recovery boundary scenarios passed on
+`00c944f8a1f07732059c0394e2d56fd7b40d823a` with stable source, zero
+network attempts, 228 classified modules, zero architecture exceptions and all
+33 historical evaluation artifacts unchanged. The [routing review evidence](evaluations/issue-132-routing-review-2026-11-24.json)
+records source identity, regression outcomes and finite verification limits.
+
 ## Native YouTube preparation, issue 132, 24 November 2026
 
 The [authored local flow](youtube-preparation.md) adds a native channel module,
