@@ -135,8 +135,8 @@ def validate_stores(connections):
                 raise Conflict('Unsupported workspace journal schema')
             metadata[key] = {'role': 'workspace-journal', 'identity': journal_id, 'schema': version}
             continue
-        if version not in {14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24}:
-            raise Conflict('Checkpoint application stores require schema 14 through 24')
+        if version not in {14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25}:
+            raise Conflict('Checkpoint application stores require schema 14 through 25')
         if version >= 15:
             try:
                 db.execute('SELECT organization,id,revision,request_id,fingerprint,payload FROM writing_preference_versions LIMIT 0')
@@ -188,6 +188,12 @@ def validate_stores(connections):
                 validate_intake_schema(db)
             except sqlite3.DatabaseError as error:
                 raise Conflict('Intake history is unavailable') from error
+        if version >= 25:
+            from .intake_planning import validate_intake_planning_schema
+            try:
+                validate_intake_planning_schema(db)
+            except sqlite3.DatabaseError as error:
+                raise Conflict('Intake planning history is unavailable') from error
         ids = db.execute('SELECT singleton,id FROM application_store_identity').fetchall()
         if (len(ids) != 1 or ids[0][0] != 1 or not isinstance(ids[0][1], str)
                 or not re.fullmatch(r'store_[0-9a-f]{32}', ids[0][1])):

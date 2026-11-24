@@ -227,11 +227,13 @@ def planning_intent(organization, request_id, source, context, history, *, fixtu
     """Build from independently loaded source facts, never model-owned identity."""
     planning_permission(fixture,allow_model,config)
     if source['organization']!=organization:raise Conflict('Planning source belongs to another organization')
-    allowed={'knowledge','knowledge_id','model_config','previous_results','fixture','messages','confirmed_action_exchanges','requested_scope','budget_policy'}
+    allowed={'knowledge','knowledge_id','model_config','previous_results','fixture','messages','confirmed_action_exchanges','requested_scope','budget_policy','intake_source'}
     if type(context) is not dict or set(context)-allowed:raise ValueError('Unsupported planning context fields')
     if context.get('model_config')!=(config.payload() if config else None):
         raise Conflict('Planning context and permitted model settings differ')
-    if context.get('previous_results')!=([] if fixture else history):
+    if context.get('intake_source') != source.get('intake_source'):
+        raise Conflict('Planning intake source differs from its authoritative selection')
+    if context.get('previous_results')!=([] if fixture or source.get('intake_source') else history):
         raise Conflict('Planning history differs from authoritative results')
     if 'messages' in context and context['messages']!=source['messages']:
         raise Conflict('Planning messages differ from the current source')

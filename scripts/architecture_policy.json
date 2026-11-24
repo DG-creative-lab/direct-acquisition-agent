@@ -221,7 +221,11 @@
     "acquisition.campaigns.intake": "domain",
     "acquisition.campaigns.intake_application": "application",
     "acquisition.adapters.sqlite.intake": "adapter",
-    "acquisition.application.workspace.intake": "application"
+    "acquisition.application.workspace.intake": "application",
+    "acquisition.conversations.intake_planning": "domain",
+    "acquisition.conversations.intake_planning_application": "application",
+    "acquisition.adapters.sqlite.intake_planning": "adapter",
+    "acquisition.workflows.intake_interpretation": "workflow"
   },
   "exceptions": []
 }

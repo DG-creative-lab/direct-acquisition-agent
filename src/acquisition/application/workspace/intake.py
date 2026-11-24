@@ -2,6 +2,7 @@
 
 from acquisition.campaigns import CampaignIntake, CampaignBriefDraft
 from acquisition.creative import CompanyDraft, CompanyClaimDraft
+from acquisition.conversations import intake_readiness
 
 
 def fields(value, allowed):
@@ -22,6 +23,13 @@ class WorkspaceIntake:
 
     def store_identity(self):
         return self.intake.store_identity()
+
+    def readiness(self, identity, revision):
+        brief = self.intake.brief('local-conversations', identity, revision)
+        company = self.intake.company('local-conversations', brief['draft']['company_id'], brief['draft']['company_revision'])
+        return {'brief_id': identity, 'brief_revision': brief['revision'],
+                'company_id': company['id'], 'company_revision': company['revision'],
+                **intake_readiness({'company': company, 'brief': brief})}
 
     def listing(self, kind, after_id='', limit=50):
         listing = {'companies': self.intake.companies, 'briefs': self.intake.briefs}[kind]

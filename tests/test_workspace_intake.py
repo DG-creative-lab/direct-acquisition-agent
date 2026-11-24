@@ -159,3 +159,68 @@ print(json.dumps([app.company('local-conversations',sys.argv[2],1),app.brief('lo
         self.assertTrue(json.loads(body)['replayed'])
         self.assertEqual(json.loads(body)['snapshot'], original_receipt['snapshot'])
         self.assertEqual(len(json.loads(self.request('/api/intake/companies')[1])['items']), 1)
+
+    def planning_workspace(self):
+        from acquisition.bootstrap import build_workspace
+        from test_intake_planning import IntakeModel
+        model = IntakeModel()
+        workspace = build_workspace(self.root/'data', gateway_factory=lambda:model)
+        self.server.workspace = self.server._http.workspace = workspace
+        return model
+
+    def planning_brief(self):
+        status, body, _ = self.save('companies','company',{'company_name':'Aster','description':'Unverified consultancy claims'})
+        self.assertEqual(status,200,body)
+        company = json.loads(body)['snapshot']
+        status, body, _ = self.save('briefs','brief',{'company_id':company['id'],'company_revision':1,
+                'objective':'Explore retail consulting','audience':'UK retail businesses','country':'UK','currency':'GBP',
+                'budget_minor':12345,'channels':['email']})
+        self.assertEqual(status,200,body)
+        return company,json.loads(body)['snapshot']
+
+    def test_planning_http_preserves_source_scope_replay_and_read_only_progress(self):
+        model = self.planning_workspace()
+        company, brief = self.planning_brief()
+        store = json.loads(self.request('/api/intake/store')[1])['store_id']
+        command = {'request_id':'interpret','brief_id':brief['id'],'brief_revision':1,'allow_model':True}
+        status, body, _ = self.request('/api/intake/plans',command,{'X-Intake-Store':store})
+        self.assertEqual(status,200,body)
+        original = json.loads(body)
+        self.assertEqual(original['plan']['status'],'succeeded',original)
+        self.assertEqual(original['source']['company'],company)
+        self.assertEqual(original['source']['brief'],brief)
+        self.assertEqual(len(model.requests),1)
+        for path in ('/api/intake/plans/interpret','/api/intake/plans?brief_id='+brief['id'],
+                     '/api/intake/briefs/'+brief['id']+'/readiness?revision=1'):
+            self.assertEqual(self.request(path)[0],200)
+        self.assertEqual(len(model.requests),1)
+        status, body, _ = self.request('/api/intake/plans',command,{'X-Intake-Store':store})
+        self.assertEqual(status,200,body)
+        self.assertEqual(json.loads(body)['plan']['result'],original['plan']['result'])
+        self.assertEqual(len(model.requests),1)
+        with build_intake(self.root/'data'/'conversations.sqlite').store.database.connect() as db:
+            for table in ('drafts','review_decisions','simulated_agency_jobs'):
+                self.assertEqual(db.execute('SELECT count(*) FROM '+table).fetchone()[0],0)
+
+    def test_planning_guards_and_unsupported_intake_create_no_model_effect(self):
+        model = self.planning_workspace()
+        _, brief = self.planning_brief()
+        store = json.loads(self.request('/api/intake/store')[1])['store_id']
+        command = {'request_id':'interpret','brief_id':brief['id'],'brief_revision':1,'allow_model':True}
+        for bad in ({'Host':'attacker.invalid'},{'X-Workspace-Token':''},{'Origin':'https://attacker.invalid'}):
+            self.assertEqual(self.request('/api/intake/plans',command,{'X-Intake-Store':store,**bad})[0],403)
+        self.assertEqual(self.request('/api/intake/plans',command,{'X-Intake-Store':'other'})[0],409)
+        self.assertEqual(self.request('/api/intake/plans',command|{'organization':'foreign'},{'X-Intake-Store':store})[0],400)
+        self.assertEqual(self.request('/api/intake/plans',command|{'allow_model':False},{'X-Intake-Store':store})[0],400)
+        self.assertEqual(model.requests,[])
+        self.assertEqual(json.loads(self.request('/api/intake/plans?brief_id='+brief['id'])[1])['items'],[])
+        unsupported = brief['draft'] | {'country':'France','currency':'EUR','channels':['video']}
+        self.assertEqual(self.save('briefs','changed',unsupported,brief['id'],1)[0],200)
+        status, body, _ = self.request('/api/intake/plans',command,{'X-Intake-Store':store})
+        self.assertEqual(status,409,body)
+        self.assertTrue(json.loads(body)['intake_plan_not_admitted'])
+        status, body, _ = self.request('/api/intake/plans',command|{'request_id':'unsupported','brief_revision':2},{'X-Intake-Store':store})
+        self.assertEqual(status,200,body)
+        self.assertEqual(json.loads(body)['plan']['result']['outcome'],'unsupported')
+        self.assertEqual(json.loads(body)['plan']['result']['requirements']['channels'],['video'])
+        self.assertEqual(model.requests,[])

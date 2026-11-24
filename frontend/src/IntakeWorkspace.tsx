@@ -26,6 +26,7 @@ import type {
   PendingIntake,
 } from "./intake-api";
 import "./intake.css";
+import IntakePlanning from "./IntakePlanning";
 
 const emptyCompany = (): CompanyInput => ({
   company_name: "",
@@ -168,7 +169,9 @@ export default function IntakeWorkspace({ active }: { active: boolean }) {
     [moreBriefs, setMoreBriefs] = useState(false);
   const [listAttempt, setListAttempt] = useState(0);
   const errorRef = useRef<HTMLDivElement>(null);
-  const locked = busy || !!pending || !!storageError || !loaded;
+  const [planningLocked, setPlanningLocked] = useState(false);
+  const locked =
+    busy || !!pending || !!storageError || !loaded || planningLocked;
   const companyDirty =
     JSON.stringify(company) !==
     JSON.stringify(companyBase?.draft ?? emptyCompany());
@@ -407,7 +410,8 @@ export default function IntakeWorkspace({ active }: { active: boolean }) {
         </div>
         <p className="intake-boundary">
           User-supplied drafts. Facts are unverified and campaign readiness has
-          not been assessed. These drafts are not connected to generation yet.
+          not been assessed. Saved briefs can be interpreted as planning
+          proposals. Campaign copy generation remains separate.
         </p>
         {storageError && (
           <div role="alert" className="message error">
@@ -974,6 +978,22 @@ export default function IntakeWorkspace({ active }: { active: boolean }) {
             </button>
           </form>
         </section>
+        <IntakePlanning
+          brief={briefBase}
+          storeId={storeId}
+          active={active}
+          disabled={
+            busy ||
+            !!pending ||
+            !!storageError ||
+            !loaded ||
+            companyDirty ||
+            briefDirty
+          }
+          onLock={setPlanningLocked}
+          onError={setError}
+          onNotice={setNotice}
+        />
       </section>
     </FieldFeedback.Provider>
   );

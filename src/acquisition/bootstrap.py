@@ -41,8 +41,11 @@ from acquisition.adapters.sqlite.learning import SqliteLearning
 from acquisition.adapters.sqlite.report_monitoring import SqliteReportMonitoring
 from acquisition.workflows.learning import AcceptedCohortSource
 from acquisition.adapters.sqlite.conversations import SqliteConversations
+from acquisition.adapters.sqlite.intake_planning import SqliteIntakePlanning
+from acquisition.conversations import IntakePlanning
 from acquisition.conversations import ConversationService, CAPABILITY as PLANNER_CAPABILITY, FIXTURE_CAPABILITY
 from acquisition.workflows.conversation import ConversationPlanner, planner_tool_contracts
+from acquisition.workflows.intake_interpretation import intake_planner_tool_contracts
 from acquisition.adapters.sqlite.preparations import SqlitePreparations
 from acquisition.conversations import PreparationCoordinator, ConversationAudiences, ConversationActions, ACTION_CAPABILITY, COPY_ACTION_CAPABILITY, TYPED_ACTION_CAPABILITY, ACTION_ALIASES, TYPED_ACTION_ALIASES
 from acquisition.adapters.sqlite.conversation_actions import SqliteConversationActions
@@ -257,12 +260,15 @@ def agent_catalogue():
 
 
 def planning_assets(organization, knowledge):
-    catalogue = agent_catalogue()
+    intake = knowledge.get('version') == 'intake-planning/v1'
+    catalogue = (json.loads((Path(__file__).resolve().parents[2]/'config/intake-planning-skills-v1.json').read_text())
+                 if intake else agent_catalogue())
+    tools = intake_planner_tool_contracts() if intake else planner_tool_contracts()
     payloads = {"planning": {k:v for k,v in knowledge.items() if k != "playbooks"}, "playbooks": knowledge["playbooks"]}
     sources = [source_manifest(organization, key, "authored_guidance", value, value["version"],
                               "project-authored planning guidance", {"basis": "frozen_at_admission"})
                for key,value in payloads.items()]
-    return freeze_assets(organization, catalogue, planner_tool_contracts(), ["prepare-campaign/v1"], sources)
+    return freeze_assets(organization, catalogue, tools, ["interpret-intake/v1"] if intake else ["prepare-campaign/v1"], sources)
 
 
 def copy_assets(organization, context, *, revision=False):
@@ -515,7 +521,8 @@ def build(path: str | Path, clock: Callable[[], float] = time.time,
                        ConversationExecution(SqliteExecution(database), clock),admissions,model_config,
                        generate, _campaign_assets, lambda *a, **k: copy_assets(*a, **k),
                        lambda draft, directory, contexts: export_draft(draft, Path(directory), contexts),
-                       write_learning, write_review)
+                       write_learning, write_review,
+                       IntakePlanning(SqliteIntakePlanning(database), conversations, clock))
 
 
 def _campaign_assets():

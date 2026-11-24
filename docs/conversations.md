@@ -240,3 +240,16 @@ Both new and previously planned briefs wait for confirmation of an exact catalog
 ## Revision-bound multichannel journeys
 
 The [#68 journey](conversational-sequences.md) adds conversations-owned typed intent and durable continuation through narrow ports. Atomic message/admission, original native command bindings, bounded offline consent, source revisions, cancellation and exact approval confirmation remain in the application store. Read-only conversational questions have immutable interaction receipts without changing the material revision. The coordinator composes public capabilities through its workflow host, and owns no campaign, review or outbound policy.
+
+## Saved-intake interpretation
+
+The Company & brief workspace uses the existing planner, admission and inference
+journal for exact saved input revisions. Conversations owns its immutable source
+selection and separate `intake-plan/v1` result. The source includes no default
+iwoca facts. Requirements remain exact and company assertions remain unverified.
+The tool proposes an approach, questions or an unsupported explanation.
+
+These managed conversations are excluded from ordinary chat listings. Ordinary
+message, planning and preparation routes reject them. They cannot be consumed by
+native campaign preparation. Verified planning execution keeps its existing pause;
+this feature adds no grant or execution bypass. See [intake planning](intake-planning.md).
