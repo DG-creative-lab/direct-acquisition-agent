@@ -130,9 +130,13 @@ class SqliteIntakePlanning:
                 raise ValueError('This brief has used its six planning requests')
             if conversation is not None and (not previous or conversation[0] != len(previous)):
                 raise Conflict('Managed intake conversation differs from its source history')
+            # Legacy planning freezes its row before the separate runtime commit.
+            # Keep the original conversation revision until that run exists.
             if previous and db.execute('SELECT 1 FROM intake_planning_sources s LEFT JOIN conversation_plans p '
                     'ON p.organization=s.organization AND p.conversation_id=s.conversation_id AND p.revision=s.revision '
-                    'WHERE s.organization=? AND s.conversation_id=? AND p.request_id IS NULL LIMIT 1',
+                    'AND p.request_id=s.request_id LEFT JOIN runs r ON r.organization=p.organization '
+                    "AND r.request_id=json_extract(p.payload,'$.run_request_id') "
+                    'WHERE s.organization=? AND s.conversation_id=? AND r.id IS NULL LIMIT 1',
                     (organization, conversation_id)).fetchone():
                 raise Conflict('Resume the original staged intake request before selecting another brief version')
             revision = len(previous) + 1

@@ -259,6 +259,18 @@ class RemoteStorageTests(unittest.TestCase):
         model = IntakeModel()
         with patch('acquisition.bootstrap.build_database',return_value=self.database):
             app = build(None,clock=lambda:NOW,gateway=model,model_config=ModelConfig('test/model',max_calls=2,force_tool_choice=True))
+        with patch.object(app.tasks,'create',side_effect=OSError('after planning row before runtime commit')):
+            with self.assertRaises(OSError):app.intake_planning.request('intake','writer','plan',brief['id'],1)
+        later = CampaignBriefDraft(company['id'],1,objective='A later brief',audience='Independent retailers',
+                    country='UK',currency='GBP',budget_minor=12345,channels=('email',))
+        intake.save_brief('intake','writer','edit',later,brief_id=brief['id'],expected_revision=1)
+        with self.assertRaisesRegex(Conflict,'original staged'):
+            app.intake_planning.request('intake','writer','later-plan',brief['id'],2)
+        self.assertEqual(model.requests,[])
+        with self.database.connect() as db:
+            self.assertEqual(db.execute('SELECT revision FROM conversations WHERE organization=?',('intake',)).fetchone()[0],1)
+            self.assertEqual(db.execute('SELECT count(*) FROM intake_planning_sources').fetchone()[0],1)
+            self.assertEqual(db.execute('SELECT count(*) FROM runs').fetchone()[0],0)
         run = app.intake_planning.request('intake','writer','plan',brief['id'],1)
         app.worker.drain('intake',run_id=run)
         view = app.intake_planning.view('intake','plan')

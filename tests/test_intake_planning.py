@@ -129,6 +129,12 @@ class IntakePlanningTests(unittest.TestCase):
         with app.tasks.database.connect() as db:
             self.assertEqual(db.execute('SELECT count(*) FROM admission_requests').fetchone()[0],1)
             self.assertEqual(db.execute('SELECT count(*) FROM intake_planning_sources').fetchone()[0],1)
+        later = CampaignBriefDraft(company['id'],1,objective='Explore a later brief',audience='Retailers',
+                    country='UK',currency='GBP',budget_minor=12345,channels=('email',))
+        intake.save_brief('one','writer','edit',later,brief_id=brief['id'],expected_revision=1)
+        self.assertNotEqual(app.intake_planning.request('one','writer','later-plan',brief['id'],2),run)
+        self.assertEqual(app.intake_planning.request('one','writer','plan',brief['id'],1),run)
+        self.assertEqual(self.model.requests,[])  # A queued native run suffices; verified execution stays paused.
 
     def saved_draft(self):
         values = self.brief['draft']
@@ -290,11 +296,11 @@ class IntakePlanningTests(unittest.TestCase):
             self.assertEqual(db.execute('SELECT count(*) FROM runs').fetchone()[0],0)
         self.assertEqual(self.model.requests,[])
 
-    def test_process_exit_after_reservation_or_receipt_preserves_one_original_call(self):
+    def test_process_exit_after_plan_reservation_or_receipt_preserves_original_request(self):
         import os
         import subprocess
         import sys
-        for point in ('reservation','receipt'):
+        for point in ('plan','reservation','receipt'):
             with self.subTest(point=point):
                 path = Path(self.temp.name)/(point+'.sqlite')
                 intake = build_intake(path,clock=lambda:1000.)
@@ -312,23 +318,50 @@ class Model:
   return reply('submit_intake_plan',{'outcome':'proposal','summary':'Completed receipt preserved.',
    'approach':['Use the supplied audience and qualifications.'],'questions':[],'limitations':['User claims remain unverified.']})
 app=build(sys.argv[1],clock=lambda:1000.,gateway=Model(),model_config=ModelConfig('test/model',max_calls=2,force_tool_choice=True))
+if sys.argv[3]=='plan':app.tasks.create=lambda *args:os._exit(75)
 run=app.intake_planning.request('one','writer','original',sys.argv[2],1)
 if sys.argv[3]=='receipt':app.tasks.settle=lambda *args:os._exit(74)
 app.worker.drain('one',run_id=run)
 '''
                 child = subprocess.run([sys.executable,'-c',program,str(path),brief['id'],point],
                                        env=dict(os.environ,PYTHONPATH='src:tests'),capture_output=True,text=True,timeout=20)
-                self.assertEqual(child.returncode,73 if point=='reservation' else 74,child.stderr)
+                self.assertEqual(child.returncode,{'plan':75,'reservation':73,'receipt':74}[point],child.stderr)
                 model = IntakeModel()
                 app = build(path,clock=lambda:10000.,gateway=model,model_config=self.config)
                 original = app.intake_planning.view('one','original')
+                if point=='plan':
+                    self.assertIsNone(original['plan']['run_id'])
+                    from acquisition.runtime import TaskSpec
+                    with app.tasks.database.connect() as db:
+                        frozen = json.loads(db.execute('SELECT payload FROM conversation_plans').fetchone()[0])
+                    app.tasks.create('foreign',frozen['run_request_id'],[TaskSpec('unrelated',{})],10000.)
+                    later = CampaignBriefDraft(company['id'],1,objective='Later saved brief',audience='UK retailers',
+                        country='UK',currency='GBP',channels=('email',),budget_minor=12345)
+                    intake.save_brief('one','writer','later-brief',later,brief_id=brief['id'],expected_revision=1)
+                    with self.assertRaisesRegex(Conflict,'original staged'):
+                        app.intake_planning.request('one','writer','later-plan',brief['id'],2)
+                    with app.tasks.database.connect() as db:
+                        self.assertEqual(db.execute('SELECT revision FROM conversations WHERE organization=?',('one',)).fetchone()[0],1)
+                        self.assertEqual(db.execute('SELECT count(*) FROM intake_planning_sources').fetchone()[0],1)
+                        self.assertEqual(db.execute('SELECT count(*) FROM conversation_plans').fetchone()[0],1)
+                        self.assertEqual(db.execute('SELECT count(*) FROM runs WHERE organization=?',('one',)).fetchone()[0],0)
+                    self.assertEqual(model.requests,[])
                 run = app.intake_planning.request('one','writer','original',brief['id'],1)
-                self.assertEqual(run,original['plan']['run_id'])
+                if point!='plan':self.assertEqual(run,original['plan']['run_id'])
                 app.worker.drain('one',run_id=run)
                 recovered = app.intake_planning.view('one','original')
-                self.assertEqual(model.requests,[])
+                self.assertEqual(recovered['source'],original['source'])
+                self.assertEqual(len(model.requests),1 if point=='plan' else 0)
                 self.assertEqual(len(app.calls.inspect('one',run)),1)
-                if point=='receipt':
+                if point=='plan':
+                    self.assertEqual(recovered['plan']['status'],'succeeded')
+                    self.assertEqual(recovered['plan']['result']['requirements'],brief['draft'])
+                    self.assertEqual(app.intake_planning.request('one','writer','original',brief['id'],1),run)
+                    # Once the original runtime run exists, later selections remain available.
+                    self.assertNotEqual(app.intake_planning.request('one','writer','later-plan',brief['id'],2),run)
+                    self.assertEqual(app.intake_planning.request('one','writer','original',brief['id'],1),run)
+                    self.assertEqual(len(model.requests),1)
+                elif point=='receipt':
                     self.assertEqual(recovered['plan']['result']['summary'],'Completed receipt preserved.')
                 else:
                     self.assertIsNone(recovered['plan']['result'])

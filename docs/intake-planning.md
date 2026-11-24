@@ -21,7 +21,11 @@ remain the bounds. A new key cannot repeat a selection already staged for that
 brief version. Exact retry resumes its original source even after later edits.
 New selections require the current brief and never silently change its pinned
 company version. Provider configuration and source size are checked before the
-selection commits. The existing verified planning admission independently loads
+selection commits. A later selection waits until every earlier source has its
+corresponding runtime run, not just a saved planning row. The check and revision
+advance share one write transaction. A queued run is sufficient; execution need
+not finish or be unpaused. Original-request recovery bypasses this new-selection
+gate and keeps its frozen source. The existing verified planning admission independently loads
 and rechecks this source before assigning execution ownership.
 
 A dedicated intake interpretation tool shares the existing planner/inference

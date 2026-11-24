@@ -105,13 +105,36 @@ def run(settings):
     # native admission path. Existing verified execution pauses stay in force.
     planned_company = app.save_company(organization,'writer','planning-company',CompanyDraft(
         company_name='Synthetic consultancy',description='Synthetic unverified source'))['snapshot']
-    planned_brief = app.save_brief(organization,'writer','planning-brief',CampaignBriefDraft(
+    planned_draft = CampaignBriefDraft(
         planned_company['id'],1,objective='Explore a synthetic campaign',audience='UK retailers',
-        country='UK',currency='GBP',channels=('email',),budget_minor=12345))['snapshot']
+        country='UK',currency='GBP',channels=('email',),budget_minor=12345)
+    planned_brief = app.save_brief(organization,'writer','planning-brief',planned_draft)['snapshot']
     gateway = SyntheticPlanner()
     config = ModelConfig('synthetic/intake:free',max_calls=2,force_tool_choice=True,
                          max_prompt_usd_per_million=0,max_completion_usd_per_million=0)
     planner = build(None,remote_storage=settings,gateway=gateway,model_config=config,clock=lambda:123.)
+    incomplete_runtime_blocked = None
+    if not planner.admissions.required():
+        original_create = planner.tasks.create
+        def interrupt_runtime(*args):
+            raise OSError('synthetic process loss before runtime admission')
+        planner.tasks.create = interrupt_runtime
+        try:
+            try:planner.intake_planning.request(organization,'writer','plan',planned_brief['id'],1)
+            except OSError:pass
+            else:raise AssertionError('The runtime admission fault did not occur')
+        finally:planner.tasks.create = original_create
+        assert planner.intake_planning.view(organization,'plan')['plan']['run_id'] is None
+        app.save_brief(organization,'writer','later-brief',replace(planned_draft,objective='Later synthetic brief'),
+                       brief_id=planned_brief['id'],expected_revision=1)
+        try:planner.intake_planning.request(organization,'writer','later-plan',planned_brief['id'],2)
+        except Conflict:incomplete_runtime_blocked = True
+        else:raise AssertionError('Later selection bypassed incomplete runtime admission')
+        with planner.tasks.database.connect() as db:
+            assert db.execute('SELECT revision FROM conversations WHERE organization=?',(organization,)).fetchone()[0] == 1
+            assert db.execute('SELECT count(*) FROM intake_planning_sources WHERE organization=?',(organization,)).fetchone()[0] == 1
+            assert db.execute('SELECT count(*) FROM runs WHERE organization=?',(organization,)).fetchone()[0] == 0
+        assert gateway.calls == 0
     run_id = planner.intake_planning.request(organization,'writer','plan',planned_brief['id'],1)
     planner.worker.drain(organization,run_id=run_id)
     view = planner.intake_planning.view(organization,'plan')
@@ -127,6 +150,7 @@ def run(settings):
     reopened_gateway = SyntheticPlanner()
     reopened = build(None,remote_storage=settings,gateway=reopened_gateway,model_config=config,clock=lambda:124.)
     assert reopened.intake_planning.request(organization,'writer','plan',planned_brief['id'],1) == run_id
+    reopened.worker.drain(organization,run_id=run_id)
     assert reopened.intake_planning.view(organization,'plan')['source'] == view['source']
     try:reopened.intake_planning.request(organization,'writer','replacement-plan',planned_brief['id'],1)
     except Conflict:pass
@@ -136,12 +160,14 @@ def run(settings):
         assert db.execute('SELECT count(*) FROM intake_planning_sources WHERE organization=?',(organization,)).fetchone()[0] == 1
         for table in ('drafts','review_decisions'):
             assert db.execute('SELECT count(*) FROM '+table+' WHERE organization=?',(organization,)).fetchone()[0] == 0
-    return {'organization':organization,'company_revisions':3,'brief_revisions':2,'receipts':5,
+    return {'organization':organization,'company_revisions':3,
+            'brief_revisions':3 if incomplete_runtime_blocked else 2,'receipts':6 if incomplete_runtime_blocked else 5,
             'competing_processes':2,'stale_edit_rejected':True,'lost_commit_ack_replayed':True,
             'foreign_scope_rejected':True,'changed_input_rejected':True,'company_revision_pinned':True,
             'synthetic_model_calls':gateway.calls,'paid_model_calls':0,'campaign_runs':0,'schema':25,
             'planning_status':view['plan']['status'],'original_plan_replayed':True,
-            'replacement_plan_rejected':True,'planning_sources':1}
+            'replacement_plan_rejected':True,'planning_sources':1,
+            'incomplete_runtime_admission_blocked':incomplete_runtime_blocked}
 
 
 def main():
