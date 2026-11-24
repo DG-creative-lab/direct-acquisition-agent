@@ -128,7 +128,7 @@ class RemoteStorageTests(unittest.TestCase):
         with closing(sqlite3.connect(self.path)) as raw:
             self.assertEqual(raw.execute('select count(*) from runs').fetchone()[0],1)
             self.assertEqual(raw.execute('select count(*) from execution_admissions').fetchone()[0],1)
-            self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],25)
+            self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],26)
 
     def test_lost_commit_ack_reconciles_original_verified_receipt(self):
         store, intent = self.intent()
@@ -151,7 +151,7 @@ class RemoteStorageTests(unittest.TestCase):
                 db.execute('INSERT INTO rollback_marker VALUES(1)')
                 db.execute('INSERT INTO rollback_marker VALUES(1)')
         with closing(sqlite3.connect(self.path)) as raw:
-            self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],25)
+            self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],26)
             self.assertIsNone(raw.execute("select 1 from sqlite_master where name='rollback_marker'").fetchone())
 
     def test_intake_bootstrap_pinning_foreign_scope_and_lost_ack_replay(self):
@@ -215,7 +215,7 @@ class RemoteStorageTests(unittest.TestCase):
         try:
             db = other.database(True)
             with db.transaction() as connection:
-                for table in ('intake_planning_sources','intake_requests','intake_brief_revisions','intake_company_revisions'):connection.execute('DROP TABLE '+table)
+                for table in ('preparation_contexts','intake_planning_sources','intake_requests','intake_brief_revisions','intake_company_revisions'):connection.execute('DROP TABLE '+table)
                 connection.execute('PRAGMA user_version=23')
             original = TursoDatabase._apply_migration
             def fail(connection, script):
@@ -227,9 +227,11 @@ class RemoteStorageTests(unittest.TestCase):
                 self.assertEqual(connection.execute('PRAGMA user_version').fetchone()[0],23)
                 self.assertIsNone(connection.execute("SELECT 1 FROM sqlite_master WHERE name='intake_requests'").fetchone())
             db._initialize(False,lambda:NOW,False)
-            with db.connect() as connection:self.assertEqual(connection.execute('PRAGMA user_version').fetchone()[0],25)
+            with db.connect() as connection:self.assertEqual(connection.execute('PRAGMA user_version').fetchone()[0],26)
             from acquisition.adapters.sqlite.intake_planning import INTAKE_PLANNING
+            from acquisition.adapters.sqlite.preparation_context import PREPARATION_CONTEXTS
             with db.transaction() as connection:
+                connection.execute('DROP TABLE preparation_contexts')
                 connection.execute('DROP TABLE intake_planning_sources')
                 connection.execute('PRAGMA user_version=24')
             def fail_planning(connection, script):
@@ -241,7 +243,21 @@ class RemoteStorageTests(unittest.TestCase):
                 self.assertEqual(connection.execute('PRAGMA user_version').fetchone()[0],24)
                 self.assertIsNone(connection.execute("SELECT 1 FROM sqlite_schema WHERE name='intake_planning_sources'").fetchone())
             db._initialize(False,lambda:NOW,False)
-            with db.connect() as connection:self.assertEqual(connection.execute('PRAGMA user_version').fetchone()[0],25)
+            with db.connect() as connection:self.assertEqual(connection.execute('PRAGMA user_version').fetchone()[0],26)
+            from acquisition.adapters.sqlite.preparation_context import PREPARATION_CONTEXTS
+            with db.transaction() as connection:
+                connection.execute('DROP TABLE preparation_contexts')
+                connection.execute('PRAGMA user_version=25')
+            def fail_context(connection, script):
+                original(connection,script)
+                if script == PREPARATION_CONTEXTS:raise OSError('after reviewed preparation DDL')
+            with patch.object(TursoDatabase,'_apply_migration',side_effect=fail_context),self.assertRaises(OSError):
+                db._initialize(False,lambda:NOW,False)
+            with db.connect() as connection:
+                self.assertEqual(connection.execute('PRAGMA user_version').fetchone()[0],25)
+                self.assertIsNone(connection.execute("SELECT 1 FROM sqlite_schema WHERE name='preparation_contexts'").fetchone())
+            db._initialize(False,lambda:NOW,False)
+            with db.connect() as connection:self.assertEqual(connection.execute('PRAGMA user_version').fetchone()[0],26)
         finally:other.close()
 
     def test_saved_intake_planning_uses_native_harness_over_hrana_wire(self):
@@ -280,7 +296,41 @@ class RemoteStorageTests(unittest.TestCase):
         self.assertEqual(app.intake_planning.request('intake','writer','plan',brief['id'],1),run)
         app.worker.drain('intake',run_id=run)
         self.assertEqual(len(model.requests),1)
+        from acquisition.campaigns import PreparationReview, ReviewedPreparation
+        from acquisition.adapters.sqlite.preparation_context import SqlitePreparationContexts
+        contexts=ReviewedPreparation(SqlitePreparationContexts(self.database),lambda:NOW)
+        preview=contexts.preview('intake',brief['id'],2)
+        review=PreparationReview(brief['id'],2,preview['id'],0,(),True,False,7,
+                                 'Reviewed exact source inputs.',confirmed=True)
+        original_send=self.database.send
+        def lost_context_ack(payload):
+            result=original_send(payload)
+            if any(step.get('stmt',{}).get('sql')=='COMMIT' for request in payload['requests'] for step in request.get('batch',{}).get('steps',[])):
+                raise RemoteUnavailable('lost reviewed-context commit reply')
+            return result
+        self.database.send=lost_context_ack
+        try:
+            with self.assertRaises(CommitUncertain):contexts.confirm('intake','writer','context',review)
+        finally:self.database.send=original_send
+        reopened=ReviewedPreparation(SqlitePreparationContexts(self.wire.database()),lambda:NOW+1)
+        receipt=reopened.confirm('intake','writer','context',review)
+        self.assertTrue(receipt['replayed']);self.assertEqual(receipt['context']['reviewed_at'],NOW)
+        self.assertEqual(receipt['context']['requirements']['objective'],'A later brief')
+        self.assertEqual(receipt['context']['generation'],'unavailable')
+        preview=reopened.preview('intake',brief['id'],2)
+        from dataclasses import replace
+        current=replace(review,preview_id=preview['id'],expected_context_revision=1)
+        barrier=threading.Barrier(2)
+        def compete(index):
+            service=ReviewedPreparation(SqlitePreparationContexts(self.wire.database()),lambda:NOW+1)
+            barrier.wait(timeout=5)
+            try:return service.confirm('intake','writer','context-'+str(index),current)
+            except Conflict:return 'conflict'
+        with ThreadPoolExecutor(2) as pool:results=list(pool.map(compete,range(2)))
+        self.assertEqual(results.count('conflict'),1)
+        self.assertEqual(len(model.requests),1)
         with self.database.connect() as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM preparation_contexts').fetchone()[0],2)
             self.assertEqual(db.execute('SELECT count(*) FROM intake_planning_sources').fetchone()[0],1)
             self.assertEqual(db.execute('SELECT count(*) FROM review_decisions').fetchone()[0],0)
 
@@ -402,7 +452,7 @@ class RemoteStorageTests(unittest.TestCase):
                 self.assertEqual(raw.execute("select name from sqlite_master where name not like 'sqlite_%'").fetchall(),[])
             other.database(True)
             with closing(sqlite3.connect(other.path)) as raw:
-                self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],25)
+                self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],26)
         finally:other.close()
 
     def test_concurrent_fresh_initializers_converge_without_partial_schema(self):
@@ -411,7 +461,7 @@ class RemoteStorageTests(unittest.TestCase):
             with ThreadPoolExecutor(max_workers=2) as pool:
                 list(pool.map(lambda _:other.database(True),range(2)))
             with closing(sqlite3.connect(other.path)) as raw:
-                self.assertEqual(raw.execute('select version from acquisition_schema').fetchall(),[(25,)])
+                self.assertEqual(raw.execute('select version from acquisition_schema').fetchall(),[(26,)])
                 self.assertEqual(raw.execute('select count(*) from application_store_identity').fetchone()[0],1)
                 self.assertEqual(raw.execute('pragma foreign_key_check').fetchall(),[])
         finally:other.close()
@@ -436,7 +486,7 @@ class RemoteStorageTests(unittest.TestCase):
         from scripts.remote_storage_conformance import register_probe
         with self.database.transaction() as db:
             original = db.execute("SELECT sql FROM sqlite_master WHERE name='execution_admissions_no_update'").fetchone()[0]
-            for table in ('intake_planning_sources', 'intake_requests', 'intake_brief_revisions', 'intake_company_revisions'):
+            for table in ('preparation_contexts', 'intake_planning_sources', 'intake_requests', 'intake_brief_revisions', 'intake_company_revisions'):
                 db.execute('DROP TABLE '+table)
             db.execute('DROP TABLE acquisition_schema')
             db.execute('CREATE TABLE hosting_probe_schema_version(singleton INTEGER PRIMARY KEY,version INTEGER)')

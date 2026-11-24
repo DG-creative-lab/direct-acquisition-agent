@@ -14,7 +14,7 @@ from acquisition.adapters.turso.transport import RemoteUnavailable, endpoint
 from acquisition.bootstrap import build, build_intake
 from acquisition.adapters.openrouter import normalize
 from acquisition.reasoning import ModelConfig
-from acquisition.campaigns import CampaignBriefDraft, CampaignIntake
+from acquisition.campaigns import CampaignBriefDraft, CampaignIntake, PreparationReview
 from acquisition.contracts import Conflict, NotFound
 from acquisition.creative import CompanyDraft
 from scripts.evaluation_evidence import source_state
@@ -48,6 +48,13 @@ def independent_save(settings, organization, company_id, index, barrier):
                                 company_id=company_id,expected_revision=1)
     except Conflict:
         return 'conflict'
+
+
+def independent_review(settings, organization, review, index, barrier):
+    app = build_intake(None,remote_storage=settings,clock=lambda:124.)
+    barrier.wait(timeout=30)
+    try:return app.preparation.confirm(organization,'writer','context-competing-'+str(index),review)
+    except Conflict:return 'conflict'
 
 
 def run(settings):
@@ -91,7 +98,7 @@ def run(settings):
         except NotFound:pass
         else:raise AssertionError('Foreign organization accepted')
     with app.store.database.connect() as db:
-        assert db.execute('PRAGMA user_version').fetchone()[0] == 25
+        assert db.execute('PRAGMA user_version').fetchone()[0] == 26
         for table in ('runs','tasks','model_calls','drafts','review_decisions'):
             if table == 'tasks':
                 count = db.execute('SELECT count(*) FROM tasks JOIN runs ON runs.id=tasks.run_id WHERE organization=?',(organization,)).fetchone()[0]
@@ -109,6 +116,39 @@ def run(settings):
         planned_company['id'],1,objective='Explore a synthetic campaign',audience='UK retailers',
         country='UK',currency='GBP',channels=('email',),budget_minor=12345)
     planned_brief = app.save_brief(organization,'writer','planning-brief',planned_draft)['snapshot']
+    preview = app.preparation.preview(organization,planned_brief['id'],1)
+    input_review = PreparationReview(planned_brief['id'],1,preview['id'],0,(),True,False,7,
+                                    'Synthetic source selection only; claims remain unverified.',confirmed=True)
+    app.store.database.send = lose_ack
+    try:
+        try:app.preparation.confirm(organization,'writer','context-original',input_review)
+        except CommitUncertain:pass
+        else:raise AssertionError('Lost context acknowledgement was not surfaced')
+    finally:app.store.database.send = original
+    restored_intake = build_intake(None,remote_storage=settings,clock=lambda:124.)
+    context_receipt = restored_intake.preparation.confirm(organization,'writer','context-original',input_review)
+    assert context_receipt['replayed']
+    assert context_receipt['context']['reviewed_at'] == 123.
+    assert context_receipt['context']['review_expires_at'] == 123. + 7*86400
+    assert context_receipt['context']['source']['company'] == planned_company
+    assert context_receipt['context']['requirements'] == planned_brief['draft']
+    assert context_receipt['context']['verification'] == 'user_supplied_unverified'
+    assert context_receipt['context']['generation'] == 'unavailable'
+    next_preview = restored_intake.preparation.preview(organization,planned_brief['id'],1)
+    next_review = replace(input_review,preview_id=next_preview['id'],expected_context_revision=1)
+    with Manager() as manager, ProcessPoolExecutor(max_workers=2) as pool:
+        barrier = manager.Barrier(2)
+        futures = [pool.submit(independent_review,settings,organization,next_review,i,barrier) for i in range(2)]
+        competing_reviews = [future.result(timeout=90) for future in futures]
+    assert competing_reviews.count('conflict') == 1
+    assert restored_intake.preparation.request(organization,'context-original')['context'] == context_receipt['context']
+    try:restored_intake.preparation.request('foreign', 'context-original')
+    except NotFound:pass
+    else:raise AssertionError('Foreign scope read a preparation context')
+    with app.store.database.connect() as db:
+        assert db.execute('SELECT count(*) FROM preparation_contexts WHERE organization=?',(organization,)).fetchone()[0] == 2
+        for table in ('runs','model_calls','drafts','review_decisions'):
+            assert db.execute('SELECT count(*) FROM '+table+' WHERE organization=?',(organization,)).fetchone()[0] == 0
     gateway = SyntheticPlanner()
     config = ModelConfig('synthetic/intake:free',max_calls=2,force_tool_choice=True,
                          max_prompt_usd_per_million=0,max_completion_usd_per_million=0)
@@ -164,9 +204,11 @@ def run(settings):
             'brief_revisions':3 if incomplete_runtime_blocked else 2,'receipts':6 if incomplete_runtime_blocked else 5,
             'competing_processes':2,'stale_edit_rejected':True,'lost_commit_ack_replayed':True,
             'foreign_scope_rejected':True,'changed_input_rejected':True,'company_revision_pinned':True,
-            'synthetic_model_calls':gateway.calls,'paid_model_calls':0,'campaign_runs':0,'schema':25,
+            'synthetic_model_calls':gateway.calls,'paid_model_calls':0,'campaign_runs':0,'schema':26,
             'planning_status':view['plan']['status'],'original_plan_replayed':True,
             'replacement_plan_rejected':True,'planning_sources':1,
+            'reviewed_contexts':2,'context_lost_ack_replayed':True,'context_competing_processes':2,
+            'context_original_expiry_preserved':True,'context_foreign_scope_rejected':True,
             'incomplete_runtime_admission_blocked':incomplete_runtime_blocked}
 
 

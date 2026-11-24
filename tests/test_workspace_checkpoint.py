@@ -77,7 +77,7 @@ class WorkspaceCheckpointTests(TestCase):
         learning = run_learning_demo(str(self.source / legacy_key), 'backup', 'history', self.parent / 'exports')
         from acquisition.bootstrap import build_intake
         from acquisition.creative import CompanyDraft
-        from acquisition.campaigns import CampaignBriefDraft
+        from acquisition.campaigns import CampaignBriefDraft, PreparationReview
         intake = build_intake(self.source / legacy_key)
         company = intake.save_company('backup','writer','company',CompanyDraft(company_name='Unverified input'))['snapshot']
         brief = intake.save_brief('backup','writer','brief',CampaignBriefDraft(company['id'],1))['snapshot']
@@ -87,6 +87,10 @@ class WorkspaceCheckpointTests(TestCase):
                        model_config=ModelConfig('test/model',max_calls=2,force_tool_choice=True))
         legacy.intake_planning.request('backup','writer','intake-plan',brief['id'],1)
         planning_source = legacy.intake_planning.view('backup','intake-plan')['source']
+        preview = intake.preparation.preview('backup',brief['id'],1)
+        input_review = PreparationReview(brief['id'],1,preview['id'],0,(),False,False,7,
+                                        'Retain the exact partial source for review.',confirmed=True)
+        preparation_context = intake.preparation.confirm('backup','writer','preparation-context',input_review)['context']
         queued = legacy.start('another-org', 'pending', size=20)
         contacts = build_contact_directory(self.source / legacy_key,'contact-scope','fielddesk',lambda:1794528000.)
         contact_assessment = contacts.prepare('contact-scope','contact-request','fielddesk-crm-a',1,'email')
@@ -194,6 +198,10 @@ class WorkspaceCheckpointTests(TestCase):
         restored_intake = build_intake(self.restore / legacy_key)
         self.assertEqual(restored_intake.company('backup',company['id']),company)
         self.assertEqual(restored_intake.brief('backup',brief['id']),brief)
+        self.assertEqual(restored_intake.preparation.request('backup','preparation-context')['context'],preparation_context)
+        self.assertFalse(restored_intake.preparation.not_committed('backup','missing-review'))
+        with self.assertRaises(Conflict):
+            restored_intake.preparation.confirm('backup','writer','preparation-context',input_review)
         self.assertEqual(reopened.intake_planning.view('backup','intake-plan')['source'],planning_source)
         restored_model = IntakeModel()
         restored_planner = build(self.restore / legacy_key,gateway=restored_model,

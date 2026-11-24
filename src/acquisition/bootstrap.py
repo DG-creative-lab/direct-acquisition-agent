@@ -416,7 +416,10 @@ def build_intake(path, clock=time.time, *, remote_storage=None, read_only=False,
     from acquisition.adapters.sqlite.intake import SqliteCampaignIntake
     database = build_database(path, clock=clock, remote_storage=remote_storage, read_only=read_only,
                               verified_admissions=verified_admissions)
-    return CampaignIntake(SqliteCampaignIntake(database, read_only=read_only), clock)
+    from acquisition.campaigns import ReviewedPreparation
+    from acquisition.adapters.sqlite.preparation_context import SqlitePreparationContexts
+    return CampaignIntake(SqliteCampaignIntake(database, read_only=read_only), clock,
+        ReviewedPreparation(SqlitePreparationContexts(database, read_only=read_only), clock))
 
 
 def build_admissions(path, clock=time.time, *, _database=None, verified_admissions=False, remote_storage=None):

@@ -1,6 +1,7 @@
 """Intake interpretation contracts. A plan cannot authorize campaign preparation."""
 
 from acquisition.contracts import canonical, digest
+from acquisition.campaigns import preparation_readiness as intake_readiness
 from .domain import text
 
 
@@ -17,32 +18,6 @@ INTAKE_KNOWLEDGE = {
         'A proposal cannot create a campaign, select contacts, approve, export or send anything.',
     ],
 }
-
-
-def intake_readiness(source):
-    company, brief = source['company']['draft'], source['brief']['draft']
-    missing = []
-    for key, label in (('objective', 'campaign objective'), ('audience', 'audience requirements'),
-                       ('country', 'country or market'), ('currency', 'currency')):
-        if not brief[key]:
-            missing.append('Add the ' + label + ' to the saved brief.')
-    if not company['company_name'] or not (company['description'] or company['product_name']):
-        missing.append('Save a company name and a product name or business description.')
-    if brief['budget_minor'] is None or brief['budget_minor'] <= 0:
-        missing.append('Save a positive budget in the selected currency minor units.')
-    if not brief['channels']:
-        missing.append('Select at least one requested channel in the saved brief.')
-    unsupported = []
-    if brief['country'] and brief['country'].casefold() not in {'uk', 'gb', 'united kingdom'}:
-        unsupported.append('The installed campaign capabilities do not support the requested market. The request was preserved.')
-    if brief['currency'] and brief['currency'].upper() != 'GBP':
-        unsupported.append('The installed campaign capabilities do not support the requested currency. The request was preserved.')
-    channels = {'email', 'direct_mail', 'direct mail', 'postal', 'human_call', 'human call', 'call'}
-    if any(channel.casefold() not in channels for channel in brief['channels']):
-        unsupported.append('An explicitly requested channel is outside the installed capability catalogue. It was not replaced.')
-    return {'missing': missing, 'unsupported': unsupported,
-            'execution_blockers': ['Company claims are unverified; a reviewed product evidence pack is required before campaign copy generation.',
-                                   'This result is planning only. Campaign preparation and approval are separate.']}
 
 
 def validate_intake_result(candidate, source, *, deterministic=False):
