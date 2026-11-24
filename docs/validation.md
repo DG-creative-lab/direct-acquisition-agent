@@ -3998,3 +3998,31 @@ authentication or verified-format execution is claimed. See
 [intake planning](intake-planning.md) and the
 [dated evidence](evaluations/issue-60-intake-planning-2026-11-24.json) for exact
 commands, source hashes, finite acceptance coverage and limits.
+
+## Saved-intake runtime admission review, 24 November 2026
+
+Source `91a4e58e823927510c7aba86f0c779b969b9367c` fixes a recoverability gap: a native
+`conversation_plans` row can exist before its runtime run. A later saved-brief
+selection previously advanced the managed conversation during this gap and
+stranded the original request. The selection transaction now checks the exact
+organization, native request, revision and frozen runtime request key against
+the runtime run before advancing. Original retries bypass the new-selection
+gate. Queued verified runs remain sufficient and retain their execution pause.
+
+The extended real-process regression failed before the fix and passes afterward.
+It verifies three of three modeled process-loss positions (after planning-row
+commit, call reservation and receipt), rejection despite a foreign run sharing
+the key, zero new-selection effects, exact original recovery and later progress
+once runtime admission exists. Existing staged-source and six-request checks
+remain in place. The real Hrana-wire path and isolated managed Turso probe also
+block later selection in the gap and recover the original source. Managed
+conformance used one synthetic response, zero paid calls and no campaign or
+approval effects. Two of two mutations were caught: accepting the planning row
+alone and accepting another organization's run.
+
+`make test` passed 1160 cases in 1223.117 seconds. Architecture
+passes with 225 modules and zero exceptions. All five boundary cases pass with
+zero network attempts, stable source and unchanged historical artifacts. No
+frontend files changed, so the interface gate was not repeated. The original
+dirty checkout and earlier evaluation bytes are preserved. See the
+[review evidence](evaluations/issue-60-intake-planning-admission-review-2026-11-24.json).
