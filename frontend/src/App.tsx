@@ -40,12 +40,19 @@ import ReviewPanel from "./ReviewPanel";
 import LearningView from "./LearningView";
 import ConversationWorkspace from "./ConversationWorkspace";
 import KnowledgeView from "./KnowledgeView";
+import IntakeWorkspace from "./IntakeWorkspace";
 import { OpenRouterSettings } from "./OpenRouterSettings";
 import { openRouterSession, saveOpenRouterSession } from "./openrouter-session";
 import type { OpenRouterSession } from "./openrouter-session";
 
 type Page =
-  "assistant" | "campaign" | "evidence" | "learning" | "activity" | "knowledge";
+  | "assistant"
+  | "campaign"
+  | "evidence"
+  | "learning"
+  | "activity"
+  | "knowledge"
+  | "intake";
 type Tab = "audience" | "copy";
 
 export default function App() {
@@ -240,7 +247,9 @@ export default function App() {
           : view && !view.candidate_valid
             ? "Needs refresh"
             : "Awaiting review";
+  const campaignPage = !["assistant", "knowledge", "intake"].includes(page);
   const nav: { id: Page; label: string; icon: LucideIcon }[] = [
+    { id: "intake", label: "Company & brief", icon: FileText },
     { id: "campaign", label: "Campaign", icon: Layers3 },
     { id: "knowledge", label: "Knowledge", icon: BookOpen },
     { id: "evidence", label: "Product evidence", icon: ShieldCheck },
@@ -348,7 +357,7 @@ export default function App() {
           <p>
             Local identities. Simulated delivery.
             <br />
-            No production data.
+            Draft inputs stay local.
           </p>
           <button
             className="profile reviewer-settings"
@@ -436,7 +445,10 @@ export default function App() {
             />
           </div>
           {page === "knowledge" && <KnowledgeView />}
-          {page !== "assistant" && page !== "knowledge" && (
+          <div hidden={page !== "intake"}>
+            <IntakeWorkspace active={page === "intake"} />
+          </div>
+          {campaignPage && (
             <>
               <div className="page-heading">
                 <div>

@@ -1,9 +1,11 @@
 # Company and campaign intake persistence
 
-This internal Python slice lets a future tester workspace save and reopen its
-own company/product information and campaign requirements. It grants no hosted
-access, fact verification, generation, campaign approval or delivery authority.
-Gateplane integration and the intake HTTP/React interface remain separate work.
+The Python intake API and local workspace let an operator save and reopen
+company/product information and campaign requirements. The local **Company &
+brief** area supplies forms over the guarded loopback API. Gateplane-backed
+tester access and connecting these drafts to interpretation/generation remain
+separate work. Saving supplies no fact verification, campaign approval or delivery
+authority.
 
 ## Ownership and composition
 
@@ -52,7 +54,79 @@ local fallback for a future hosted access decision. This API is not a public
 access boundary. Gateplane must authenticate/authorize hosted requests before
 the corresponding transport can call it. A local caller has the same trust as
 the current operator application. User URLs are stored as references and never
-fetched by intake. Future rendering must treat text and URLs as untrusted data.
+fetched by intake. The workspace renders source text as data, including text that
+looks like markup, and never inserts it as HTML.
+
+## Local workspace forms and API
+
+Start the supported local workspace, then open **Company & brief** in its
+navigation. Enter company/product details, optionally add claims with their
+qualifications and references, and choose **Save company draft**. Partial drafts
+are supported. Next choose that saved company and an exact version in the
+campaign brief, record the requirements, and choose **Save campaign brief**.
+The company-version preview displays the pinned description. Editing the company
+later leaves the earlier brief unchanged.
+
+Saved company and brief selectors reopen records for editing. Version numbers
+identify the source of an edit. A conflicting save retains the operator's text;
+**Replace edits with latest company/brief** explicitly reloads the current saved
+version. Save or discard edits before switching to another record. Lists load
+50 records at a time with **Load more** controls.
+
+Unsaved form fields remain in memory while switching workspace areas. Save before
+reloading or closing the page. A native warning is attached only while there are
+unsaved changes; it is an aid, not a durability guarantee. In particular,
+[browser beforeunload events are not reliable on mobile](https://developer.mozilla.org/en-US/docs/Web/API/Window/beforeunload_event).
+
+Before a save is dispatched, tab session storage retains its original request ID,
+complete body, the edit's base snapshot and the server-derived application store
+identity. This is the database's existing immutable identity, not its path or the
+browser address. While its outcome is uncertain, both
+forms are fenced and **Retry original save** repeats that exact command. Reloading
+restores the pending edit target and base revision. Separate unsaved edits in the
+other form remain in memory and retain their own leave-page warning. Known rejection allows editing
+again; network errors, server failures and unreadable replies retain the original
+command. Storage failure blocks dispatch. The client checks the domain's total ASCII-JSON
+size before retaining a command, including Unicode escape expansion. Oversized
+drafts remain editable and are never dispatched. An original receipt is labelled as an
+original save confirmation and shows its exact historical version. Before every
+dispatch, the client reads the current store identity. A different store blocks
+the POST and retains the complete recovery record. The save request also carries
+that identity so the server rejects a root switch after the client check. A
+store mismatch never counts as reconciliation of the original save. Restore the
+original workspace root at the same address, reload and retry its original save.
+Older recovery records without a store identity remain blocked and retained;
+the client does not guess their owner or create a replacement request. Tab recovery
+data is removed only after a confirmed response or explicit server rejection.
+Closing the tab can discard tab recovery data, so use the saved records and retain
+an uncertain tab until its original save is confirmed.
+
+| Route | Behavior |
+| --- | --- |
+| `GET /api/intake/store` | Guarded, non-cached identity of the configured intake database |
+| `GET /api/intake/companies` or `/briefs` | Latest snapshots with optional `after_id` and integer `limit` from 1 to 100 |
+| `GET /api/intake/companies/{id}` or `/briefs/{id}` | Latest snapshot, or an exact optional positive `revision` |
+| `POST /api/intake/companies` or `/briefs` | Require `X-Intake-Store` matching the current database and exact JSON keys `request_id`, `id`, `expected_revision`, `draft`; use null identity and revision zero to create |
+
+The application maps these routes to `local-conversations` and `local-operator`
+in the root's `conversations.sqlite`. Organization, actor, schema, approval and
+other extra fields are rejected as input. Partial draft objects use the declared
+domain defaults; collection fields are JSON arrays and claims have explicit
+statement, qualification and reference fields. The supported local server retains
+its root lock, token/Host/Origin checks and content-security policy. It is not a
+hosted identity or membership boundary and must not be exposed publicly.
+
+Intake saves have a 70 KiB HTTP body limit; the domain still caps a serialized
+draft at 64,000 bytes. Other workspace body limits are unchanged. Invalid input
+returns 400, missing scoped records return 404 and changed inputs/stale revisions
+return 409. These definite rejections carry `intake_not_saved: true`. The client
+clears a pending command only when a definite rejection or verified receipt also
+binds its original store. A missing/different store binding returns 409 without
+that marker. An uncertain failure never carries it. Model funding headers are rejected on intake
+saves. No request fetches source URLs, invokes inference or starts a campaign.
+Bootstrap preserves the workspace's selected verified-admission policy when
+opening intake. Existing store and historical inspection rules retain their
+authority.
 
 ## Revision and recovery contract
 

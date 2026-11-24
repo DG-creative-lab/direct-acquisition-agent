@@ -401,14 +401,15 @@ def build_database(path, *, clock=time.time, verified_admissions=False, remote_s
                          verified_admissions=verified_admissions, initialize=not read_only, deadline=remote_storage.get('deadline'))
 
 
-def build_intake(path, clock=time.time, *, remote_storage=None, read_only=False):
+def build_intake(path, clock=time.time, *, remote_storage=None, read_only=False, verified_admissions=False):
     """Internal intake API; the caller supplies trusted organization and actor scope.
 
     No hosted access or inferred campaign capability is activated here.
     """
     from acquisition.campaigns import CampaignIntake
     from acquisition.adapters.sqlite.intake import SqliteCampaignIntake
-    database = build_database(path, clock=clock, remote_storage=remote_storage, read_only=read_only)
+    database = build_database(path, clock=clock, remote_storage=remote_storage, read_only=read_only,
+                              verified_admissions=verified_admissions)
     return CampaignIntake(SqliteCampaignIntake(database, read_only=read_only), clock)
 
 
@@ -561,6 +562,9 @@ class ScopedWorkspaceApplications:
         path = self.root / 'conversations.sqlite'
         if select: build_admissions(path, self.real_clock, verified_admissions=True)
         return path.exists() and verified_admission_mode(path)
+
+    def intake(self, *, verified):
+        return build_intake(self.root / 'conversations.sqlite', self.real_clock, verified_admissions=verified)
 
     def campaign(self, organization, database_scope, clock, *, verified, legacy, gateway, model_config):
         if database_scope not in {'campaign', 'conversations'}:

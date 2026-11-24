@@ -1,0 +1,158 @@
+.intake-page {
+  max-inline-size: 54rem;
+  margin-inline: auto;
+  padding: 2rem;
+}
+.intake-page .page-heading {
+  padding: 0;
+}
+.intake-boundary {
+  padding-block: 1rem;
+  border-block: 1px solid var(--brand-rule);
+  color: var(--brand-muted);
+  line-height: 1.6;
+}
+.intake-section {
+  margin-block: 2rem 3rem;
+}
+.intake-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 1rem;
+  border-block-end: 1px solid var(--brand-rule);
+}
+.intake-section-heading h2 {
+  margin-block: 0.4rem;
+}
+.intake-section-heading > span,
+.intake-help {
+  color: var(--brand-muted);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+.intake-page fieldset {
+  min-inline-size: 0;
+  margin: 0;
+  padding: 1.25rem 0;
+  border: 0;
+}
+.intake-page legend {
+  padding: 0.25rem 0;
+  font-weight: 700;
+}
+.intake-page label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 700;
+  margin-block-end: 0.4rem;
+}
+.intake-field {
+  margin-block-end: 1.25rem;
+}
+.intake-help {
+  margin-block: 0 0.5rem;
+}
+.intake-page :is(input, textarea, select) {
+  box-sizing: border-box;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  min-block-size: 48px;
+  padding: 0.75rem;
+  border: 1px solid #767676;
+  background: var(--brand-panel);
+  color: var(--brand-ink);
+  font: inherit;
+  font-size: max(1rem, 16px);
+  border-radius: 0.25rem;
+}
+.intake-page textarea {
+  resize: vertical;
+}
+.intake-page :is(input, textarea):user-invalid[aria-invalid="true"] {
+  border-color: var(--status-error-ink);
+}
+.intake-field-error {
+  color: var(--status-error-ink);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+.intake-page :is(button, input, textarea, select):focus-visible {
+  outline: 2px solid var(--brand-ink);
+  outline-offset: 3px;
+}
+.intake-page button {
+  min-block-size: 48px;
+}
+.intake-page fieldset:disabled {
+  opacity: 0.7;
+}
+.intake-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block-start: 0.75rem;
+}
+.intake-actions button,
+.intake-page fieldset button,
+.intake-records > button {
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--brand-rule);
+  border-radius: 0.25rem;
+  background: var(--brand-panel);
+  color: var(--brand-ink);
+}
+.intake-records {
+  padding-block: 1.25rem;
+}
+.intake-page .intake-claim {
+  border-inline-start: 2px solid var(--brand-rule);
+  padding: 0.75rem 1rem;
+  margin-block: 0.75rem;
+}
+.intake-recovery,
+.intake-pin {
+  background: var(--brand-surface);
+  padding: 1rem;
+  border: 1px solid var(--brand-rule);
+  margin-block: 1rem;
+  overflow-wrap: anywhere;
+}
+.intake-pin p {
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+.intake-radio {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-block-size: 48px;
+}
+.intake-radio input {
+  inline-size: 1.25rem;
+  min-block-size: 1.25rem;
+}
+.intake-radio label {
+  min-block-size: 48px;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  margin: 0;
+  padding-block: 0.75rem;
+}
+.intake-status {
+  min-block-size: 1.5rem;
+}
+@media (max-width: 600px) {
+  .intake-page {
+    padding: 1rem;
+  }
+  .intake-section-heading {
+    align-items: start;
+    flex-direction: column;
+  }
+  .intake-actions {
+    flex-direction: column;
+  }
+}

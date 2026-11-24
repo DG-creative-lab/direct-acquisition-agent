@@ -220,7 +220,8 @@
     "acquisition.creative.company_drafts": "domain",
     "acquisition.campaigns.intake": "domain",
     "acquisition.campaigns.intake_application": "application",
-    "acquisition.adapters.sqlite.intake": "adapter"
+    "acquisition.adapters.sqlite.intake": "adapter",
+    "acquisition.application.workspace.intake": "application"
   },
   "exceptions": []
 }

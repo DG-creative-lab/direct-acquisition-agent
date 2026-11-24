@@ -1,0 +1,231 @@
+{
+  "schema": "intake-store-review/v1",
+  "recorded_on": "2026-11-24",
+  "base_commit": "c1313b1e7c90364b57ee698e5146aaafe10ff614",
+  "evaluated_commit": "487b9f87f3be32b96e3436c614925b3df721fc2f",
+  "finding": "P2: pending intake commands could be replayed into another database at the same origin",
+  "passed": true,
+  "source": {
+    "clean": true,
+    "stable": true,
+    "fingerprint": "3148ad6c166b7a6a92285479714f7b231892df2bea81474af8d76589f234c927",
+    "prefixes": [
+      "src",
+      "tests",
+      "config",
+      "scripts",
+      "frontend/src",
+      "frontend/tests",
+      "frontend/browser-smoke.json",
+      "frontend/package.json",
+      "frontend/pnpm-lock.yaml",
+      "frontend/playwright.config.ts",
+      "frontend/index.html",
+      "AGENTS.md",
+      "docs/intake.md",
+      "docs/workspace.md",
+      "docs/branding.md",
+      "docs/architecture.md",
+      "Makefile",
+      ".github"
+    ],
+    "algorithm": "scripts.evaluation_evidence.source_state"
+  },
+  "domain_model": {
+    "confidence": "confirmed",
+    "authority": "Existing immutable application_store_identity, not browser origin or database file path",
+    "command": "Original request ID, kind, complete inputs, edit base and original store ID",
+    "effect": "Append an intake revision and original receipt",
+    "oracle": "Independent real SQLite revision/request rows in A and B",
+    "timeline": "Commit in A, lose acknowledgement, restart on B at same origin, retry, then restore A"
+  },
+  "implementation": {
+    "identity": "Guarded non-cached GET /api/intake/store through a narrow public intake port",
+    "client": "Freeze original store ID before dispatch; compare fresh server identity before every attempt",
+    "server": "Require X-Intake-Store to match the intake instance used for the write; mismatch is not original reconciliation",
+    "receipt": "Confirm original store and request ID before clearing recovery; definite rejections also bind the original store",
+    "legacy": "Unbound pending commands remain in storage and block new saves; no inferred owner",
+    "schema_migration": false
+  },
+  "acceptance": [
+    {
+      "invariant": "Persistent server-derived identity is stable for A and distinct for B",
+      "evidence": [
+        "test_original_store_binding_blocks_other_root_and_preserves_replay",
+        "intake original recovery refuses another store at the same origin and resumes on its original store"
+      ]
+    },
+    {
+      "invariant": "A mismatched preflight sends zero POSTs and leaves B empty and original recovery intact",
+      "evidence": [
+        "intake original recovery refuses another store at the same origin and resumes on its original store"
+      ]
+    },
+    {
+      "invariant": "A stale preflight cannot bypass the server write check; pending recovery remains intact",
+      "evidence": [
+        "test_original_store_binding_blocks_other_root_and_preserves_replay",
+        "intake original recovery refuses another store at the same origin and resumes on its original store"
+      ]
+    },
+    {
+      "invariant": "A same-key receipt in B cannot reconcile a command owned by A",
+      "evidence": [
+        "test_original_store_binding_blocks_other_root_and_preserves_replay"
+      ]
+    },
+    {
+      "invariant": "Legacy recovery without an owner is retained without new dispatch",
+      "evidence": [
+        "intake original recovery refuses another store at the same origin and resumes on its original store"
+      ]
+    },
+    {
+      "invariant": "Returning to A returns the original receipt with unchanged durable rows",
+      "evidence": [
+        "test_original_store_binding_blocks_other_root_and_preserves_replay",
+        "intake original recovery refuses another store at the same origin and resumes on its original store"
+      ]
+    }
+  ],
+  "verification": {
+    "backend": {
+      "command": "make test",
+      "tests": 1143,
+      "duration_seconds": 1283.784,
+      "exit_code": 0,
+      "passed": true
+    },
+    "interface": {
+      "command": "make interface-check",
+      "build": "passed",
+      "formatting": "passed",
+      "stats": {
+        "startTime": "2026-11-24T10:34:29.588Z",
+        "duration": 711289.642,
+        "expected": 129,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "passed": true
+    },
+    "focused": {
+      "backend_tests": 14,
+      "browser_cases": 11,
+      "passed": true,
+      "new_http_cases": 1,
+      "new_browser_cases": 1
+    },
+    "architecture": {
+      "command": "make arch-check",
+      "passed": true,
+      "classified_modules": 221,
+      "errors": [],
+      "temporary_exceptions": 0
+    },
+    "boundary": {
+      "command": "make boundary-check",
+      "passed": true,
+      "cases": [
+        {
+          "id": "compatibility-model-journey",
+          "network_attempts": 0
+        },
+        {
+          "id": "verified-commit-rebuild-replay",
+          "network_attempts": 0
+        },
+        {
+          "id": "uncertain-restart",
+          "network_attempts": 0
+        },
+        {
+          "id": "profile-replay",
+          "network_attempts": 0
+        },
+        {
+          "id": "engagement-replay",
+          "network_attempts": 0
+        }
+      ],
+      "source_stable": true,
+      "historical_bytes_unchanged": true
+    },
+    "mutations": {
+      "source_commit": "487b9f87f3be32b96e3436c614925b3df721fc2f",
+      "mutations": [
+        {
+          "name": "bypass server store binding",
+          "detected": true,
+          "exit_code": 1,
+          "test": "test_workspace_intake.WorkspaceIntakeHttpTests.test_original_store_binding_blocks_other_root_and_preserves_replay",
+          "observable_failure": "Wrong-store original request returned 200 rather than 409",
+          "log": "/private/tmp/iwoca-intake-store-review-mutant.log"
+        }
+      ],
+      "detected": 1,
+      "total": 1
+    }
+  },
+  "red_regressions": {
+    "production_source": "c1313b1e7c90364b57ee698e5146aaafe10ff614",
+    "http": "New identity endpoint returned 404 before the fix",
+    "browser": "Original code failed to show the required cross-store refusal after restart; regression failed before the fix"
+  },
+  "preservation": {
+    "original_checkout_unchanged": true,
+    "historical_artifacts_unchanged": 31,
+    "historical_sha256": {
+      "docs/evaluations/ci-critical-path-2026-11-16.json": "e808fd8e7f260c27f5a5565a4eafdfefbab6d43e1bf8b84bf5889c17a69a7ed9",
+      "docs/evaluations/ci-mvp-lean-2026-11-23.json": "3ed3bda1dbefb391cffd0f1f016e6310ffd98d123e969538120280e2811cc6c3",
+      "docs/evaluations/ci-optimization-validation-2026-11-22.json": "d017185cb3dac093f5694ceb73a4e73b503775313f820411c430b48cb86a8253",
+      "docs/evaluations/ci-partition-baseline-2026-11-22.json": "814b98c5554b0a17b4873d58497d7ea776f85990ec7e2122f2a719d3a08cee73",
+      "docs/evaluations/ci-pause-reload-fix-2026-11-23.json": "4db23c47d177d8ea3f9e815235bebdd4167ff5e538350a1b2ffdb29102647dab",
+      "docs/evaluations/conversation-ci-performance-2026-11-16.json": "5f1c13088b05b5eb5f984fb219233b05ed61bbf9414ce1d217fba2fd3041f9fd",
+      "docs/evaluations/issue-23-offline-journey-results.json": "5c5193f3a541ab8ee562e30fa0d870bcf2a1fb5d7e08e6d92a183e35a55a09e3",
+      "docs/evaluations/issue-23-offline-journey.md": "2f8d5e47383dc79ddee4e8833952181038b532149451b527354c1c817d297c78",
+      "docs/evaluations/issue-25-budget-clarification-results.json": "f5814b11706cdb0c25a741b5c4d43e93fc877378e385ff18946e316d4397df29",
+      "docs/evaluations/issue-25-budget-clarification.md": "7dcdaea99f23b4d5cb829d689e96dd4f870f90fe36252608574d22464f0f2356",
+      "docs/evaluations/issue-25-offline-results-v2.json": "63ca6e0da1f779ef7c50b70ba71bc2c0c53d3ceb19378a4165e9cafbd34034b2",
+      "docs/evaluations/issue-25-offline-results.json": "fb812008635a74330ad4b22572505fd30dfc4e622c51737971e03da59084847b",
+      "docs/evaluations/issue-25-offline.md": "cbbfb5d322efbaf1372bd95777aa14d3509dea35d6c8d20792a563c31beb26b8",
+      "docs/evaluations/issue-25-requested-scope-results.json": "693faac62a1a41410110d908bbad6df88624061a0c070fd7bff35148be0fdfbe",
+      "docs/evaluations/issue-25-requested-scope.md": "3a19c3635e0e4e22482957e1cb1e3e7e1786b4b339916e30ae5298ecf95a07c1",
+      "docs/evaluations/issue-60-hosting-feasibility.json": "b06020cba9c9421b67b4bc6c359803e434bb2d0d556cfd23387b30f45750125f",
+      "docs/evaluations/issue-60-hosting-main-validation-2026-11-21.json": "0670f87deeabe091d6a5afa0edb3ff2f12b0ec1b3182145f797eb613458ad4a5",
+      "docs/evaluations/issue-60-hosting-packaging-review-2026-11-21.json": "ac3045f367d9804eb9b9e879f7448c53e5edc4c58de8a8e253835e1dfbe45bb6",
+      "docs/evaluations/issue-60-intake-persistence-2026-11-24.json": "2e20b4fa678664725a26e0ba0a576ae20bec3e11f16517c0c310595bdf102584",
+      "docs/evaluations/issue-60-intake-punctuation-review-2026-11-24.json": "652dd54f6f729207559a6c15566d192d9324956d87bbf28c8cb27ab0bf5a2adc",
+      "docs/evaluations/issue-60-intake-workspace-2026-11-24.json": "9e923c0aca2ec2542bf53639505bc38daf77c4dfbd0c76a775fdf57383270aa7",
+      "docs/evaluations/issue-60-remote-binding-review-2026-11-23.json": "6ee901b65f1827b8d6997d8e17cc25e76ae87997403936897696855a4676b7b3",
+      "docs/evaluations/issue-60-remote-response-reliability-2026-11-23.json": "76c4001c68bddce46dfe9df1c261f6759910303c33e2fce5aff4604ec2cdf8c2",
+      "docs/evaluations/issue-60-remote-storage-2026-11-21.json": "4729946c552feff30820d6a9d12c866a70c3a9ac942e50e4f4801156503763ef",
+      "docs/evaluations/issue-60-serverless-preparation-2026-11-22.json": "a65f03d61c58471aa6a3d15b23fc60b8c94111ee91cfbc5b1869a0958990b108",
+      "docs/evaluations/issue-60-serverless-stage-binding-2026-11-22.json": "e0dd829e5c0b28dbc5f324a306050644749b37c76794411b0b38556cdb273641",
+      "docs/evaluations/issue-93-boundary-evidence.md": "d428a8fd3a5d8874a6668c19e2eba105245576a96743c590bc51529b3e10ec51",
+      "docs/evaluations/issue-93-boundary-results.json": "30dd736c9a83ea864f4e702ed54f9ceb9d615a235058b703835b8a299b995584",
+      "docs/evaluations/issue-93-hostname-guard-evidence.md": "2d7fdef6cfe441860ed0f3ec5f5994b83ca32fc974a8c4ea5dd4ce362f573158",
+      "docs/evaluations/issue-93-hostname-guard-results.json": "c4cf38db6664cd92c76d325a3216170ba9fbb1336300ff15633f3a6c9e6ff214",
+      "docs/evaluations/sequence-review-material-reuse-2026-11-15.json": "60a313973a3bf6fb1356bc3ea131edbd42c8d2a9fde8a223f4dd87bc9f1fc6e7"
+    }
+  },
+  "limits": [
+    "Local operator intake only. Store identity binding is not hosted authentication or tenant authorization.",
+    "No managed Turso probe, deployment, paid model call or outbound effect was performed.",
+    "Two temporary native SQLite roots and deterministic restarts/stale-response interception were exercised, not arbitrary filesystem replacement or exhaustive concurrency.",
+    "One server-binding bypass mutation was detected; no exhaustive mutation score is claimed.",
+    "Unbound legacy recovery requires inspection of the original store; the client cannot safely infer its owner."
+  ],
+  "artifact_sha256": {
+    "/private/tmp/iwoca-intake-store-review-full-test.log": "0ec64893435b4857be68dbf5fe3d7c823e1178eef17e068c239a16f8f8c7868c",
+    "/private/tmp/iwoca-intake-store-review-interface.log": "34eaa975ba16728dc722c703efd12ffdb8d9400f059193120c561c22584e5d9f",
+    ".local/browser-reports/shard-1.json": "16b0ab5ad4991dcc2c82fe2070e0b9b97390477e09bae63a5185090967098d07",
+    "/private/tmp/iwoca-intake-store-review-focused.log": "16b15d718adc2ae4c4bb62be100103b5a7703d449e8f0a4c21ac23e62119ae80",
+    "/private/tmp/iwoca-intake-store-review-browser-focused.log": "02e465c0ef51bcd380c4605d5ee756762f7e5c57942bf360c324c7108d0ad950",
+    "/private/tmp/iwoca-intake-store-review-arch.log": "98e06d1434a55d84963926b71fff569ef0650510f1bdf4e0eadbba8481328db5",
+    "/private/tmp/iwoca-intake-store-review-boundary/results.json": "df01d6db7bb84974c68681a12a34b77d80703c75aa2e240fac5bfde60e9aaa76",
+    "/private/tmp/iwoca-intake-store-review-mutant.log": "bcff809670686c1f08081b3e4e7164be8b5024b8819e956fdeed3115083a98d8",
+    "/private/tmp/iwoca-intake-store-review-red-browser.log": "a8d890a562905b28de61ee847ce0e8af6bb4bd89b8db3ba1050d9b96f253c5bd"
+  }
+}

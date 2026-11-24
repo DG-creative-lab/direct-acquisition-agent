@@ -1,5 +1,86 @@
 # Validation and limits
 
+## Intake recovery store binding, review correction, 24 November 2026
+
+The P2 review identified an ownership gap: an original save retained its inputs
+but not its database identity. Restarting the same browser origin against another
+root could create a draft there and clear recovery without reconciling the
+original store. Pending commands now retain the existing immutable application
+store ID. A guarded, non-cached identity read precedes every dispatch; the HTTP
+writer independently checks the binding against the intake instance it uses.
+A mismatch retains the original command and cannot act as a definite rejection
+or receipt for its owner. Successful receipts and definite rejections also bind
+the original store before the browser clears recovery. No migration was needed.
+
+The real SQLite HTTP regression checks distinct store identities, missing/foreign
+bindings, zero wrong-store writes and a same-key receipt in the other store.
+The browser regression commits in A, loses its reply, restarts the server on B
+at the same origin and proves zero POSTs and unchanged recovery. A stale identity
+response then exercises the server fence and retains the pending command without
+writing B. Returning to A confirms the original receipt with unchanged durable
+rows. Older unbound recovery data stays retained and blocks new saves; ownership
+is never guessed from the currently configured root. One deliberate server-fence
+bypass in a disposable source copy was detected by its wrong-store 200 response.
+
+Verification on `487b9f87f3be32b96e3436c614925b3df721fc2f`: `make test`
+passed all 1,143 tests in 1283.784 seconds. `make interface-check` passed its
+production build, formatting and all 129 Chromium cases with zero skipped,
+unexpected or flaky tests. Focused intake checks passed 14 backend tests and
+11 browser cases. Architecture passed with 221 modules and zero exceptions.
+All five native recovery boundary cases passed with zero network attempts,
+stable source and unchanged historical bytes. All 31 earlier evaluation artifacts
+and the original dirty checkout were preserved.
+
+The [store-binding review evidence](evaluations/issue-60-intake-store-review-2026-11-24.json)
+records six selected invariants, source identity, logs and finite test limits.
+Store binding does not provide hosted authentication or tenant authorization.
+No deployment, managed remote probe, paid inference or outbound effect occurred.
+
+## Local company and brief workspace, issue 60, 24 November 2026
+
+The guarded loopback API and React **Company & brief** forms expose the existing
+intake persistence contract. Company/product assertions and incomplete campaign
+requirements retain exact wording. Briefs pin an immutable company revision;
+subsequent company edits do not rebind them. Server composition resolves the
+local organization and actor, rejects substituted authority fields and retains
+the selected verified-admission policy. Saving and reading create no campaign,
+model-call or approval rows. Hosted tester access and generation integration
+remain separate.
+
+Four real HTTP/SQLite tests cover source round trips, process restart, scoped
+reads/writes, forged requests, stale edits, exact replay, transport/domain bounds
+and zero execution effects. Ten browser cases cover desktop/mobile save and
+reopen, competing tabs, a committed save whose reply is lost, exact original
+retry after reload, uncertain edits retaining their original target/revision,
+unavailable/corrupt recovery storage, pagination and stale preview responses.
+Oversized drafts, including Unicode JSON expansion, are rejected before a
+pending command is retained or dispatched. Independent unsaved edits retain
+their leave-page warning while another form has a recoverable save. Unsaved
+fields remain in memory until saved; browser warnings are best effort.
+
+Three selected HTTP mutations were detected: a bypassed request guard, a wrong
+writer organization and an ordinary body cap incorrectly applied to intake.
+These are finite targeted checks, not exhaustive concurrency or mutation
+coverage. Manual Playwright keyboard navigation confirmed visible focus and
+label order. Automated browser evidence is Chromium with desktop/mobile
+viewports, not a real-device or screen-reader conformance audit.
+
+Final source `94f28d04637d322d38885ce2ad5509ac5b32eb77` passed `make test`:
+1,142 tests in 1233.726 seconds. The focused backend suite passed 21 tests.
+`make interface-check` passed the production build, formatting and all 128 browser
+tests with no skipped, flaky or unexpected results. `make arch-check` passed
+with 221 classified modules and zero exceptions. All five `make boundary-check`
+cases passed with zero network attempts, stable source and unchanged historical
+bytes. The evaluated source fingerprint remained stable throughout these gates.
+
+The [dated verification record](evaluations/issue-60-intake-workspace-2026-11-24.json)
+maps 14 selected acceptance invariants to observable checks and records source
+identity, log/report hashes and limitations. All 30 prior evaluation artifacts
+and the original dirty checkout were preserved. No managed Turso re-probe,
+deployment, live inference or outbound effect was performed. The forms remain a
+local operator surface; they do not activate Gateplane or establish hosted
+tenant access. See [the intake contract](intake.md).
+
 ## Preserve source punctuation in intake, review follow-up, 24 November 2026
 
 Intake text validation accepts em dashes in user-supplied company/product drafts
