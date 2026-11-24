@@ -1,5 +1,33 @@
 # Validation and limits
 
+## Preserve source punctuation in intake, review follow-up, 24 November 2026
+
+Intake text validation accepts em dashes in user-supplied company/product drafts
+and campaign requirements. The restriction for newly generated editorial copy
+never applies to this source evidence. Size, control-character, surrounding
+whitespace, structural and URL checks remain in place. No stored history is
+rewritten and no schema or execution authority changes.
+
+The existing real-SQLite save/reopen regression now preserves exact punctuation
+in company/product names, description, claims, qualifications, CTA, objective,
+audience and constraints. A fresh interpreter reads both original draft types,
+and exact retries retain their original snapshots after a later company edit.
+Changing the punctuation on the same brief request key conflicts. The Hrana-wire
+intake test also preserves company and objective punctuation after a lost COMMIT
+reply and a fresh session. Restoring the old rejection in an isolated source copy
+makes the regression fail with the original validation error.
+
+All nine focused intake tests and all 18 Hrana-wire storage tests passed.
+`make test` passed **1,138 tests in 1,241.119 seconds** on source
+`f134d10a82ce47ec808187bbbec1720b201d21d6`. `make arch-check` passed with
+220 modules and zero temporary exceptions. Source remained clean and stable;
+all 29 earlier committed evaluation artifacts and the original dirty checkout
+were preserved. The [review evidence](evaluations/issue-60-intake-punctuation-review-2026-11-24.json)
+records the source fingerprint, targeted failure reproduction and full-run log
+hash. No managed remote probe or deployment was repeated for this source-text
+validation fix. Earlier boundary and remote evidence retain their original
+commit attribution.
+
 ## Company and campaign intake persistence, issue 60, 24 November 2026
 
 The internal intake API saves company/product assertions and campaign requirements

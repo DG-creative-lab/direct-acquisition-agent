@@ -1,0 +1,72 @@
+{
+  "schema": "intake-punctuation-review/v1",
+  "recorded_on": "2026-11-24",
+  "base_commit": "ca3c03b28b79c8283a363cb35e83eea5faaed39a",
+  "evaluated_commit": "f134d10a82ce47ec808187bbbec1720b201d21d6",
+  "passed": true,
+  "finding": "Preserve punctuation in user-supplied drafts",
+  "change": "Remove the editorial em-dash rejection only from intake source-text validation. Keep size, whitespace, control-character, structural and URL checks.",
+  "reproduction": {
+    "mutation": "restore_source_punctuation_rejection",
+    "detected": true,
+    "exit_code": 1,
+    "source_commit": "f134d10a82ce47ec808187bbbec1720b201d21d6",
+    "source_sha256": "af1fcab3402d463d3350b3e7944d79278272328d8a13330f59eeec6351819a83",
+    "log": "/private/tmp/iwoca-intake-punctuation-red.log"
+  },
+  "regression": {
+    "test": "test_intake.IntakeTests.test_reopen_history_pinned_brief_and_no_execution_effects",
+    "fields": [
+      "company_name",
+      "product_name",
+      "description",
+      "official_cta",
+      "claims.statement",
+      "claims.qualification",
+      "objective",
+      "audience",
+      "constraints"
+    ],
+    "fresh_process_reopen": true,
+    "original_replay_preserves_punctuation": true,
+    "changed_punctuation_on_same_key_rejected": true,
+    "source_authority_unchanged": true
+  },
+  "focused": {
+    "intake_tests": 9,
+    "hrana_wire_tests": 18,
+    "passed": true,
+    "wire_log": "/private/tmp/iwoca-intake-punctuation-wire.log",
+    "wire_scope": "Real SQLite over the local Hrana HTTP test transport, including punctuation after lost-ack replay and a fresh session."
+  },
+  "full_backend": {
+    "command": "make test",
+    "tests": 1138,
+    "seconds": 1241.119,
+    "passed": true,
+    "log": "/private/tmp/iwoca-intake-punctuation-full-test.log",
+    "log_sha256": "e85bc018a954b5bf1442fa6b09ad0a8d8ea28e1163897d262db879cd358558d4"
+  },
+  "architecture": {
+    "command": "make arch-check",
+    "passed": true,
+    "modules": 220,
+    "temporary_exceptions": 0
+  },
+  "source": {
+    "stable": true,
+    "dirty": false,
+    "files_sha256": "caf2990b524154e15c8654e5b9e8e1998c43b5a0121034da6832ae53a4b1b20a"
+  },
+  "historical_artifacts": {
+    "unchanged": true,
+    "count": 29,
+    "basis": "Artifacts committed before the review fix"
+  },
+  "original_checkout_preserved": true,
+  "limits": [
+    "No schema, workflow, hosted transport, frontend, generated-copy policy or execution-authority changes.",
+    "No managed Turso re-probe, deployment, live inference or outbound effect was performed for this validation fix.",
+    "The native boundary corpus was not repeated for this source-text-only change; the earlier intake evidence retains its original source attribution."
+  ]
+}
