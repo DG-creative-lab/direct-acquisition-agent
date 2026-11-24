@@ -79,7 +79,9 @@ unsaved changes; it is an aid, not a durability guarantee. In particular,
 [browser beforeunload events are not reliable on mobile](https://developer.mozilla.org/en-US/docs/Web/API/Window/beforeunload_event).
 
 Before a save is dispatched, tab session storage retains its original request ID,
-complete body and the edit's base snapshot. While its outcome is uncertain, both
+complete body, the edit's base snapshot and the server-derived application store
+identity. This is the database's existing immutable identity, not its path or the
+browser address. While its outcome is uncertain, both
 forms are fenced and **Retry original save** repeats that exact command. Reloading
 restores the pending edit target and base revision. Separate unsaved edits in the
 other form remain in memory and retain their own leave-page warning. Known rejection allows editing
@@ -87,16 +89,24 @@ again; network errors, server failures and unreadable replies retain the origina
 command. Storage failure blocks dispatch. The client checks the domain's total ASCII-JSON
 size before retaining a command, including Unicode escape expansion. Oversized
 drafts remain editable and are never dispatched. An original receipt is labelled as an
-original save confirmation and shows its exact historical version. Tab recovery
+original save confirmation and shows its exact historical version. Before every
+dispatch, the client reads the current store identity. A different store blocks
+the POST and retains the complete recovery record. The save request also carries
+that identity so the server rejects a root switch after the client check. A
+store mismatch never counts as reconciliation of the original save. Restore the
+original workspace root at the same address, reload and retry its original save.
+Older recovery records without a store identity remain blocked and retained;
+the client does not guess their owner or create a replacement request. Tab recovery
 data is removed only after a confirmed response or explicit server rejection.
 Closing the tab can discard tab recovery data, so use the saved records and retain
 an uncertain tab until its original save is confirmed.
 
 | Route | Behavior |
 | --- | --- |
+| `GET /api/intake/store` | Guarded, non-cached identity of the configured intake database |
 | `GET /api/intake/companies` or `/briefs` | Latest snapshots with optional `after_id` and integer `limit` from 1 to 100 |
 | `GET /api/intake/companies/{id}` or `/briefs/{id}` | Latest snapshot, or an exact optional positive `revision` |
-| `POST /api/intake/companies` or `/briefs` | Exact JSON keys `request_id`, `id`, `expected_revision`, `draft`; use null identity and revision zero to create |
+| `POST /api/intake/companies` or `/briefs` | Require `X-Intake-Store` matching the current database and exact JSON keys `request_id`, `id`, `expected_revision`, `draft`; use null identity and revision zero to create |
 
 The application maps these routes to `local-conversations` and `local-operator`
 in the root's `conversations.sqlite`. Organization, actor, schema, approval and
@@ -109,8 +119,10 @@ hosted identity or membership boundary and must not be exposed publicly.
 Intake saves have a 70 KiB HTTP body limit; the domain still caps a serialized
 draft at 64,000 bytes. Other workspace body limits are unchanged. Invalid input
 returns 400, missing scoped records return 404 and changed inputs/stale revisions
-return 409. These definite rejections carry `intake_not_saved: true`. An uncertain
-failure never carries that marker. Model funding headers are rejected on intake
+return 409. These definite rejections carry `intake_not_saved: true`. The client
+clears a pending command only when a definite rejection or verified receipt also
+binds its original store. A missing/different store binding returns 409 without
+that marker. An uncertain failure never carries it. Model funding headers are rejected on intake
 saves. No request fetches source URLs, invokes inference or starts a campaign.
 Bootstrap preserves the workspace's selected verified-admission policy when
 opening intake. Existing store and historical inspection rules retain their

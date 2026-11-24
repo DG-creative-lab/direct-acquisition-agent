@@ -88,6 +88,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             path = self.parsed_target.path
             parts = path.strip('/').split('/')
+            if path == '/api/intake/store' and not self.parsed_target.query:
+                return self._send(200, {'store_id': self.server.workspace.intake.store_identity()})
             if len(parts) in {3, 4} and parts[:2] == ['api', 'intake'] and parts[2] in {'companies', 'briefs'}:
                 try:
                     query = parse_qs(self.parsed_target.query, keep_blank_values=True)
@@ -184,13 +186,20 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(400, {'error': 'Intake saves do not use model funding', 'intake_not_saved': True})
                 raise ValueError("Use an OpenRouter connection handle.")
             if intake_save:
+                intake = self.server.workspace.intake
+                store_id = intake.store_identity()
+                if self.headers.get('X-Intake-Store') != store_id:
+                    # This request may already have committed in its original store.
+                    # Never classify a different store's refusal as original reconciliation.
+                    return self._send(409, {'error': 'Restore the original workspace store and retry. '
+                                          'The original save has been kept.', 'intake_store_mismatch': True})
                 try:
                     if handle is not None or tab is not None or self.parsed_target.query:
                         raise ValueError('Use an intake save without model funding or query fields')
-                    return self._send(200, self.server.workspace.intake.save(parts[2], data))
+                    return self._send(200, intake.save(parts[2], data) | {'store_id': store_id})
                 except (NotFound, ValueError) as error:
                     return self._send(404 if isinstance(error, NotFound) else 409 if isinstance(error, Conflict) else 400,
-                                      {'error': str(error), 'intake_not_saved': True})
+                                      {'error': str(error), 'intake_not_saved': True, 'store_id': store_id})
             if path == "/api/openrouter/disconnect":
                 if not handle or not tab or data:
                     raise ValueError("Use the connected OpenRouter browser session.")

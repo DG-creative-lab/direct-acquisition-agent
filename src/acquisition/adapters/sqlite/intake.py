@@ -49,6 +49,13 @@ class SqliteCampaignIntake:
     def __init__(self, database, *, read_only=False):
         self.database, self.read_only = database, read_only
 
+    def identity(self):
+        with self.database.connect() as db:
+            row = db.execute('SELECT id FROM application_store_identity WHERE singleton=1').fetchone()
+            if row is None:
+                raise Conflict('Application store identity is unavailable')
+            return row[0]
+
     def save(self, organization, request_id, inputs, now):
         if self.read_only:
             raise Conflict('Intake was opened for inspection only')

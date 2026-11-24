@@ -20,6 +20,9 @@ class WorkspaceIntake:
     def __init__(self, intake: CampaignIntake):
         self.intake = intake
 
+    def store_identity(self):
+        return self.intake.store_identity()
+
     def listing(self, kind, after_id='', limit=50):
         listing = {'companies': self.intake.companies, 'briefs': self.intake.briefs}[kind]
         return {'items': listing('local-conversations', after_id=after_id, limit=limit),

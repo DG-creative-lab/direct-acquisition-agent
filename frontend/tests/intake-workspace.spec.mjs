@@ -16,22 +16,28 @@ import sys
 w=build_workspace(sys.argv[1])
 for i in range(int(sys.argv[2])):
  w.intake.save('companies',{'request_id':'seed-'+str(i),'id':None,'expected_revision':0,'draft':{'company_name':'Saved company '+str(i)}})
-s=WorkspaceServer(0,w,Path('frontend/dist'))
+s=WorkspaceServer(int(sys.argv[3]),w,Path('frontend/dist'))
 print('http://127.0.0.1:'+str(s.server_port),flush=True)
 s.serve_forever()
 `;
-  const child = spawn("python3", ["-c", script, root, String(seed)], {
-    cwd: project,
-    env: {
-      ...process.env,
-      PYTHONPATH: "src",
-      OPENROUTER_API_KEY: "offline-tests-must-not-use-live-credentials",
-    },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  const exited = new Promise((resolve) => child.once("exit", resolve));
-  try {
-    const url = await new Promise((resolve, reject) => {
+  const roots = [root];
+  let child, exited;
+  async function start(directory, port = 0, seedCount = 0) {
+    child = spawn(
+      "python3",
+      ["-c", script, directory, String(seedCount), String(port)],
+      {
+        cwd: project,
+        env: {
+          ...process.env,
+          PYTHONPATH: "src",
+          OPENROUTER_API_KEY: "offline-tests-must-not-use-live-credentials",
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    exited = new Promise((resolve) => child.once("exit", resolve));
+    return await new Promise((resolve, reject) => {
       let output = "",
         errors = "";
       const timer = setTimeout(
@@ -58,11 +64,25 @@ s.serve_forever()
         reject(new Error(errors));
       });
     });
-    await run(url, root);
+  }
+  try {
+    const url = await start(root, 0, seed);
+    const restart = async (directory) => {
+      child.kill("SIGTERM");
+      await exited;
+      if (!directory) {
+        directory = await mkdtemp(join(tmpdir(), "acquisition-intake-other-"));
+        roots.push(directory);
+      }
+      expect(await start(directory, Number(new URL(url).port))).toBe(url);
+      return directory;
+    };
+    await run(url, root, restart);
   } finally {
-    child.kill("SIGTERM");
+    child?.kill("SIGTERM");
     await exited;
-    await rm(root, { recursive: true, force: true });
+    for (const directory of roots)
+      await rm(directory, { recursive: true, force: true });
   }
 }
 
@@ -476,6 +496,7 @@ test("intake storage failure and corrupt recovery data block new saves", async (
       sessionStorage.setItem(
         "workspace-intake-save:v1",
         JSON.stringify({
+          store_id: "store_corrupt_test",
           kind: "companies",
           payload: {
             id: null,
@@ -692,5 +713,129 @@ test("intake validates after interaction and ignores a stale company-version pre
     await expect(page.getByLabel("Company name", { exact: true })).toHaveValue(
       "Latest company",
     );
+  });
+});
+
+test("intake original recovery refuses another store at the same origin and resumes on its original store", async ({
+  page,
+}) => {
+  await isolated(async (url, root, restart) => {
+    await enter(page, url);
+    await page.getByLabel("Company name", { exact: true }).fill("Belongs to A");
+    await page.route("**/api/intake/companies", async (route) => {
+      if (route.request().method() !== "POST") return route.continue();
+      const response = await route.fetch();
+      expect(response.ok()).toBe(true);
+      await route.fulfill({
+        status: 500,
+        json: { error: "Lost original acknowledgement" },
+      });
+    });
+    await page
+      .getByRole("button", { name: "Save company draft", exact: true })
+      .click();
+    await expect(
+      page.getByRole("button", { name: "Retry original save" }),
+    ).toBeEnabled();
+    const stored = await page.evaluate(() =>
+      sessionStorage.getItem("workspace-intake-save:v1"),
+    );
+    // Older recovery data has no provable owner. Never guess the current store.
+    const legacy = JSON.parse(stored);
+    delete legacy.store_id;
+    await page.evaluate(
+      (value) => sessionStorage.setItem("workspace-intake-save:v1", value),
+      JSON.stringify(legacy),
+    );
+    await page.reload();
+    await page
+      .getByRole("button", { name: "Company & brief", exact: true })
+      .click();
+    await expect(page.getByRole("alert")).toContainText(
+      "original save could not be restored",
+    );
+    await expect(
+      page.getByRole("button", { name: "Save company draft", exact: true }),
+    ).toBeDisabled();
+    expect(
+      await page.evaluate(() =>
+        sessionStorage.getItem("workspace-intake-save:v1"),
+      ),
+    ).toBe(JSON.stringify(legacy));
+    await page.evaluate(
+      (value) => sessionStorage.setItem("workspace-intake-save:v1", value),
+      stored,
+    );
+    const before = rows(root);
+    expect(before.intake_company_revisions).toHaveLength(1);
+    await page.unroute("**/api/intake/companies");
+    const otherRoot = await restart();
+    await page.reload();
+    await page
+      .getByRole("button", { name: "Company & brief", exact: true })
+      .click();
+    let posts = 0;
+    const count = (request) => {
+      if (
+        request.method() === "POST" &&
+        request.url().endsWith("/api/intake/companies")
+      )
+        posts++;
+    };
+    page.on("request", count);
+    await page.getByRole("button", { name: "Retry original save" }).click();
+    await expect(page.getByRole("alert")).toContainText(
+      "original workspace store",
+    );
+    expect(posts).toBe(0);
+    expect(rows(otherRoot).intake_company_revisions).toEqual([]);
+    expect(rows(otherRoot).intake_requests).toEqual([]);
+    expect(rows(root)).toEqual(before);
+    expect(
+      await page.evaluate(() =>
+        sessionStorage.getItem("workspace-intake-save:v1"),
+      ),
+    ).toBe(stored);
+    await expect(
+      page.getByRole("button", { name: "Save company draft", exact: true }),
+    ).toBeDisabled();
+    // A stale preflight (or a switch after it) still cannot write to B.
+    await page.route("**/api/intake/store", (route) =>
+      route.fulfill({ json: { store_id: JSON.parse(stored).store_id } }),
+    );
+    await page.getByRole("button", { name: "Retry original save" }).click();
+    await expect.poll(() => posts).toBe(1);
+    await expect(page.getByRole("alert")).toContainText(
+      "original workspace store",
+    );
+    await expect(
+      page.getByRole("button", { name: "Retry original save" }),
+    ).toBeEnabled();
+    expect(rows(otherRoot).intake_requests).toEqual([]);
+    expect(rows(otherRoot).intake_company_revisions).toEqual([]);
+    expect(
+      await page.evaluate(() =>
+        sessionStorage.getItem("workspace-intake-save:v1"),
+      ),
+    ).toBe(stored);
+    await page.unroute("**/api/intake/store");
+    await restart(root);
+    await page.reload();
+    await page
+      .getByRole("button", { name: "Company & brief", exact: true })
+      .click();
+    await page.getByRole("button", { name: "Retry original save" }).click();
+    await expect(
+      page
+        .getByRole("status")
+        .filter({ hasText: "Company original save confirmed: version 1." }),
+    ).toBeVisible();
+    expect(rows(root)).toEqual(before);
+    expect(
+      await page.evaluate(() =>
+        sessionStorage.getItem("workspace-intake-save:v1"),
+      ),
+    ).toBeNull();
+    page.off("request", count);
   });
 });

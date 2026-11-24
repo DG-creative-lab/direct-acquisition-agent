@@ -11,6 +11,7 @@ import {
   dispatchIntake,
   intakePage,
   intakeRecord,
+  intakeStore,
   IntakeRejected,
   pendingIntake,
   queueIntake,
@@ -157,6 +158,7 @@ export default function IntakeWorkspace({ active }: { active: boolean }) {
   const [pinError, setPinError] = useState("");
   const [pinTouched, setPinTouched] = useState(false);
   const [pending, setPending] = useState<PendingIntake | null>(null);
+  const [storeId, setStoreId] = useState("");
   const [storageError, setStorageError] = useState("");
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -207,12 +209,14 @@ export default function IntakeWorkspace({ active }: { active: boolean }) {
     if (!active) return;
     const controller = new AbortController();
     Promise.all([
+      intakeStore(controller.signal),
       intakePage<CompanyInput>("companies", "", controller.signal),
       intakePage<BriefInput>("briefs", "", controller.signal),
     ])
-      .then(([c, b]) => {
+      .then(([identity, c, b]) => {
         if (controller.signal.aborted) return;
         setCompanies(c.items);
+        setStoreId(identity);
         setBriefs(b.items);
         setMoreCompanies(c.items.length === 50);
         setMoreBriefs(b.items.length === 50);
@@ -326,7 +330,7 @@ export default function IntakeWorkspace({ active }: { active: boolean }) {
             },
     };
     try {
-      const saved = queueIntake(kind, payload, base);
+      const saved = queueIntake(kind, payload, base, storeId);
       setPending(saved);
       await send(saved);
     } catch (failure) {

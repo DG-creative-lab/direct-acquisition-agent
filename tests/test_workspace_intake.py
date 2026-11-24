@@ -15,7 +15,12 @@ import test_workspace as workspace_tests
 class WorkspaceIntakeHttpTests(unittest.TestCase):
     setUp = workspace_tests.WorkspaceHttpTests.setUp
     stop = workspace_tests.WorkspaceHttpTests.stop
-    request = workspace_tests.WorkspaceHttpTests.request
+    def request(self, path, payload=None, headers=None):
+        headers = dict(headers or {})
+        if payload is not None and path.split('?')[0] in {'/api/intake/companies', '/api/intake/briefs'}:
+            _, body, _ = workspace_tests.WorkspaceHttpTests.request(self, '/api/intake/store')
+            headers.setdefault('X-Intake-Store', json.loads(body).get('store_id', 'missing'))
+        return workspace_tests.WorkspaceHttpTests.request(self, path, payload, headers)
 
     def save(self, kind, request_id, draft, identity=None, revision=0):
         return self.request('/api/intake/'+kind, {'request_id':request_id, 'id':identity,
@@ -117,3 +122,40 @@ print(json.dumps([app.company('local-conversations',sys.argv[2],1),app.brief('lo
         status, body, _ = self.save('companies','transport-limit',{'description':'x'*72000})
         self.assertEqual(status,400)
         self.assertTrue(json.loads(body)['intake_not_saved'])
+
+    def test_original_store_binding_blocks_other_root_and_preserves_replay(self):
+        from acquisition.bootstrap import build_workspace
+        status, body, headers = self.request('/api/intake/store')
+        self.assertEqual(status, 200, body)
+        self.assertEqual(headers['Cache-Control'], 'no-store')
+        original_id = json.loads(body)['store_id']
+        payload = {'request_id':'original', 'id':None, 'expected_revision':0,
+                   'draft':{'company_name':'Original store only'}}
+        status, body, _ = self.request('/api/intake/companies', payload)
+        self.assertEqual(status, 200, body)
+        original_receipt = json.loads(body)
+        original_workspace = self.server.workspace
+        other_root = self.root / 'other'
+        self.server.workspace = self.server._http.workspace = build_workspace(other_root)
+        other_id = json.loads(self.request('/api/intake/store')[1])['store_id']
+        self.assertNotEqual(other_id, original_id)
+        for binding in (original_id, ''):
+            status, body, _ = self.request('/api/intake/companies', payload, {'X-Intake-Store':binding})
+            self.assertEqual(status, 409, body)
+            self.assertNotIn('intake_not_saved', json.loads(body))
+        self.assertEqual(json.loads(self.request('/api/intake/companies')[1])['items'], [])
+        other = build_intake(other_root / 'conversations.sqlite')
+        with other.store.database.connect() as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM intake_requests').fetchone()[0], 0)
+        # Even a same-key receipt in B cannot reconcile A's command.
+        self.assertEqual(self.request('/api/intake/companies', payload)[0], 200)
+        status, body, _ = self.request('/api/intake/companies', payload, {'X-Intake-Store':original_id})
+        self.assertEqual(status, 409, body)
+        self.assertNotIn('intake_not_saved', json.loads(body))
+        self.server.workspace = self.server._http.workspace = original_workspace
+        self.assertEqual(json.loads(self.request('/api/intake/store')[1])['store_id'], original_id)
+        status, body, _ = self.request('/api/intake/companies', payload, {'X-Intake-Store':original_id})
+        self.assertEqual(status, 200, body)
+        self.assertTrue(json.loads(body)['replayed'])
+        self.assertEqual(json.loads(body)['snapshot'], original_receipt['snapshot'])
+        self.assertEqual(len(json.loads(self.request('/api/intake/companies')[1])['items']), 1)

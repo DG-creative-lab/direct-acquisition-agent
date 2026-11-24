@@ -13,6 +13,10 @@ class CampaignIntake:
     def __init__(self, store: CampaignIntakeStore, clock):
         self.store, self.clock = store, clock
 
+    def store_identity(self):
+        """Persistent database identity for binding local recovery to its owner."""
+        return self.store.identity()
+
     def save_company(self, organization, actor, request_id, draft: CompanyDraft, *, company_id=None, expected_revision=0):
         if type(draft) is not CompanyDraft:
             raise ValueError('Supply a user-supplied company draft')

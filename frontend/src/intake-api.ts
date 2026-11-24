@@ -40,6 +40,7 @@ export type IntakePayload = {
   draft: CompanyInput | BriefInput;
 };
 export type PendingIntake = {
+  store_id: string;
   kind: IntakeKind;
   payload: IntakePayload & { request_id: string };
   base: IntakeSnapshot<CompanyInput | BriefInput> | null;
@@ -115,6 +116,8 @@ export function pendingIntake(): PendingIntake | null {
   }
   if (
     !value ||
+    typeof value.store_id !== "string" ||
+    !value.store_id ||
     !["companies", "briefs"].includes(value.kind) ||
     !value.payload ||
     typeof value.payload.request_id !== "string" ||
@@ -140,7 +143,9 @@ export function queueIntake(
   kind: IntakeKind,
   payload: IntakePayload,
   base: IntakeSnapshot<CompanyInput | BriefInput> | null,
+  storeId: string,
 ): PendingIntake {
+  if (!storeId) throw new Error("Load the workspace store before saving.");
   if (pendingIntake())
     throw new Error("Confirm the original save before starting another.");
   // Match the domain's ASCII JSON bound without rewriting any source wording.
@@ -155,6 +160,7 @@ export function queueIntake(
       "This draft is too large to save. Shorten the text or remove some references, then try again.",
     );
   const pending = {
+    store_id: storeId,
     kind,
     payload: { ...payload, request_id: crypto.randomUUID() },
     base,
@@ -174,11 +180,16 @@ export async function dispatchIntake(
     throw new Error(
       "The original save changed in browser storage. Reload to recover it.",
     );
+  if ((await intakeStore()) !== pending.store_id)
+    throw new Error(
+      "Restore the original workspace store and retry. The original save has been kept.",
+    );
   const response = await fetch(`/api/intake/${pending.kind}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "X-Workspace-Token": token(),
+      "X-Intake-Store": pending.store_id,
     },
     body: JSON.stringify(pending.payload),
   });
@@ -186,6 +197,7 @@ export async function dispatchIntake(
   if (!response.ok) {
     if (
       result.intake_not_saved === true &&
+      result.store_id === pending.store_id &&
       [400, 404, 409].includes(response.status)
     ) {
       sessionStorage.removeItem(pendingKey);
@@ -201,6 +213,7 @@ export async function dispatchIntake(
   }
   if (
     !result.snapshot ||
+    result.store_id !== pending.store_id ||
     result.snapshot.request_id !== pending.payload.request_id
   )
     throw new Error(
@@ -208,6 +221,15 @@ export async function dispatchIntake(
     );
   sessionStorage.removeItem(pendingKey);
   return result as IntakeReceipt;
+}
+
+export async function intakeStore(signal?: AbortSignal): Promise<string> {
+  const result = await read<{ store_id: string }>("/api/intake/store", signal);
+  if (typeof result.store_id !== "string" || !result.store_id)
+    throw new Error(
+      "The workspace store could not be identified. Reload before saving.",
+    );
+  return result.store_id;
 }
 
 export async function intakePage<T>(
