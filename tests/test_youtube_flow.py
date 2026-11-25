@@ -1,0 +1,530 @@
+"""Native command invariants with real SQLite, leases and fresh-process reads."""
+from concurrent.futures import ThreadPoolExecutor
+from copy import deepcopy
+import hashlib
+import json
+import os
+from pathlib import Path
+import shutil
+import sqlite3
+import subprocess
+import sys
+from tempfile import TemporaryDirectory
+import unittest
+from unittest.mock import patch
+
+from acquisition.bootstrap import build, build_youtube, build_admissions
+from acquisition.contracts import Conflict, NotFound
+from acquisition.adapters.youtube_fixture import FIXTURE, LocalYouTubeAuthority, BundledComparisonAssets
+from acquisition.youtube import YouTubeError, YouTubeTools
+from acquisition.workflows.youtube_preparation import AuthoredYouTubeHandler
+
+
+class YouTubeFlowTests(unittest.TestCase):
+    def test_bundled_comparisons_match_pinned_source_text_bytes_and_new_identities(self):
+        root = Path('examples/youtube-media')
+        provenance = json.loads((root / 'provenance.json').read_text())
+        self.assertEqual(provenance['source_commit'], '2d4e60d4027217edada6c93153d02cc0aa17cc75')
+        source = json.loads((root / 'source-media-manifest.json').read_text())
+        originals = {e['creative_ref']: e for e in source['examples']}
+        for context, creative, comparison in (
+                ('video-editing', 'editing-voiceover', 'editing-comparison'),
+                ('audiobook', 'audiobook-reading', 'audiobook-comparison')):
+            installed = FIXTURE['contexts'][context]
+            original = originals[creative + '-v1']
+            self.assertEqual(installed['creative_version'], creative + '-v2')
+            self.assertEqual(installed['comparison_version'], comparison + '-v2')
+            for field in ('passage', 'instruction', 'takes', 'preview'):
+                self.assertEqual(installed[field], original[field], field)
+        for name, expected in source['files'].items():
+            self.assertEqual(hashlib.sha256((root / name).read_bytes()).hexdigest(), expected, name)
+        checksums = json.loads(Path('examples/youtube-ad-samples/checksums.json').read_text())
+        for name, expected in checksums.items():
+            data = Path(name).read_bytes()
+            self.assertEqual(hashlib.sha256(data).hexdigest(), expected['sha256'], name)
+            self.assertEqual(len(data), expected['bytes'], name)
+
+    def test_media_refresh_keeps_old_history_but_denies_its_approval_and_export_replay(self):
+        legacy = deepcopy(FIXTURE)
+        legacy['disclosure'] = 'Authored examples and synthetic voices. No real product performance claims.'
+        edit, book = legacy['contexts']['video-editing'], legacy['contexts']['audiobook']
+        edit.update(creative_version='editing-voiceover-v1', comparison_version='editing-comparison-v1',
+                    instruction='Watch the same clip twice. Which read fits the moment the light comes on?',
+                    passage='One small light can change how you see the whole room.')
+        book.update(creative_version='audiobook-reading-v1', comparison_version='audiobook-comparison-v1',
+                    passage='Mara stopped at the door. On the other side, someone was humming the song she had forgotten.')
+        for name in {entry['preview'] for entry in legacy['contexts'].values()} | {
+                take[2] for entry in legacy['contexts'].values() for take in entry['takes']}:
+            (self.media / name).write_bytes(('authored legacy recording: ' + name).encode())
+        with patch('acquisition.adapters.youtube_fixture.FIXTURE', legacy):
+            self.assets.fixture = legacy
+            self.app = self.open()
+            previous = self.prepare()
+            approval, command = self.approve(previous)
+            exported, replay = self.export(previous, approval)
+        tables = ('youtube_revisions', 'youtube_requests', 'youtube_preparations',
+                  'youtube_interactions', 'youtube_results', 'youtube_approvals', 'youtube_revocations')
+        def history():
+            with self.app.campaigns.store.database.connect() as db:
+                return {table: [tuple(row) for row in db.execute('SELECT * FROM ' + table)] for table in tables}
+        before = history()
+        for source in Path('examples/youtube-media').glob('*'):
+            if source.suffix in {'.mp3', '.mp4'}:
+                shutil.copyfile(source, self.media / source.name)
+        self.assets.fixture = FIXTURE
+        reopened = self.open()
+        for operation, inputs in (('approve', command), ('export', replay)):
+            with self.assertRaises(YouTubeError) as denied:
+                reopened.campaigns.command(operation, inputs)
+            self.assertEqual(denied.exception.code, 'context_changed')
+        self.assertEqual(history(), before)
+        self.assertEqual(json.loads(exported['result']['content'])['payload'], previous['review']['payload'])
+        self.app = reopened
+        self.conversation = self.native.conversations.create('A', 'fresh-chat', 'Refreshed samples')['id']
+        current = self.prepare(request='fresh-message')
+        self.assertIsNone(current['approval'])
+        self.assertEqual({g['creative_version'] for g in current['review']['payload']['package']['groups']},
+                         {'editing-voiceover-v2', 'audiobook-reading-v2'})
+        self.assertEqual(self.count('model_calls'), 0)
+
+    def setUp(self):
+        self.temp = self.enterContext(TemporaryDirectory())
+        self.root = Path(self.temp)
+        self.db = self.root / 'application.sqlite'
+        self.now = [1795543200.]
+        self.clock = lambda: self.now[0]
+        self.authority = LocalYouTubeAuthority('A')
+        self.media = self.root / 'media'
+        shutil.copytree(Path('examples/youtube-media'), self.media)
+        self.assets = BundledComparisonAssets(self.media, 'http://127.0.0.1:8768')
+        self.app = self.open()
+        self.native = build(self.db, clock=self.clock)
+        self.conversation = self.native.conversations.create('A', 'chat', 'YouTube brief')['id']
+
+    def open(self, **kwargs):
+        return build_youtube(self.db, self.clock, organization='A', authority=self.authority, assets=self.assets, **kwargs)
+
+    def prepare(self, request='message', content='Prepare YouTube placements for video editors and audiobook narrators.', permission='placements'):
+        self.message = {'request_id': request, 'conversation_id': self.conversation, 'expected_revision': 0,
+                        'content': content, 'draft_permission': permission}
+        self.receipt = self.app.message(self.message)
+        row = self.app.campaigns.interactions(self.conversation)[-1]
+        self.campaign = row['campaign_id']
+        return self.app.campaigns.read(self.campaign) if self.campaign else row
+
+    def approve(self, view, request='approve'):
+        command = {'request_id': request, 'campaign_id': self.campaign, 'subject': view['review']['subject']}
+        result = self.app.campaigns.command('approve', command)
+        return result['result']['approval_id'], command
+
+    def export(self, view, approval, request='export'):
+        command = {'request_id': request, 'campaign_id': self.campaign,
+                   'subject': view['review']['subject'], 'approval_id': approval}
+        return self.app.campaigns.command('export', command), command
+
+    def count(self, table):
+        with self.app.campaigns.store.database.connect() as db:
+            return db.execute('SELECT count(*) FROM ' + table).fetchone()[0]
+
+    def test_prepare_review_edit_approve_exact_export_and_restart(self):
+        view = self.prepare()
+        self.assertEqual(view['campaign']['revision'], 1)
+        self.assertIsNone(view['approval'])
+        self.assertEqual(len(view['campaign']['draft']['placements']), 4)
+        self.assertEqual(view['review']['blockers'], [])
+        with self.assertRaisesRegex(YouTubeError, 'Approve this exact'):
+            self.export(view, 'unknown')
+        draft = view['campaign']['draft'] | {'title': 'Reviewed YouTube experiment'}
+        save = {'request_id': 'edit', 'campaign_id': self.campaign, 'expected_revision': 1, 'draft': draft}
+        self.app.campaigns.command('save', save)
+        view = self.app.campaigns.read(self.campaign)
+        self.assertEqual(view['campaign']['revision'], 2)
+        approval, _ = self.approve(view)
+        exported, command = self.export(view, approval)
+        blob = exported['result']['content']
+        artifact = json.loads(blob)
+        self.assertEqual(artifact['schema'], 'youtube-manual-export/v1')
+        self.assertEqual(artifact['payload'], view['review']['payload'])
+        self.assertEqual(artifact['review_receipt']['subject'], view['review']['subject'])
+        self.assertEqual(artifact['payload']['package']['revision'], 2)
+        self.assertEqual(artifact['payload']['package']['groups'][0]['placements'][0]['label'], 'Fictional placement')
+        reopened = self.open()
+        self.assertEqual(reopened.campaigns.command('export', command)['result']['content'], blob)
+        self.assertEqual(self.count('youtube_revisions'), 2)
+        self.assertEqual(self.count('youtube_approvals'), 1)
+        for table in ('model_calls', 'drafts', 'review_decisions', 'simulated_agency_jobs'):
+            self.assertEqual(self.count(table), 0, table)
+        child = subprocess.run([sys.executable, '-c',
+            "import json,sys;from acquisition.bootstrap import build_youtube;from acquisition.adapters.youtube_fixture import LocalYouTubeAuthority;app=build_youtube(sys.argv[1],lambda:1795543200.,organization='A',authority=LocalYouTubeAuthority('A'),read_only=True);print(json.dumps(app.campaigns.read(sys.argv[2])['campaign']))",
+            str(self.db), self.campaign], env=dict(os.environ, PYTHONPATH='src'),
+            capture_output=True, text=True, timeout=20)
+        self.assertEqual(child.returncode, 0, child.stderr)
+        self.assertEqual(json.loads(child.stdout), view['campaign'])
+
+    def test_permission_routing_and_tools_make_no_unapproved_writes(self):
+        row = self.prepare(permission='none')
+        self.assertEqual(row['status'], 'completed')
+        self.assertIsNone(row['campaign_id'])
+        self.assertEqual(self.count('youtube_revisions'), 0)
+        self.assertEqual(self.count('runs'), 0)
+        with self.assertRaises(YouTubeError):
+            YouTubeTools(self.app.campaigns).save_placement_draft({})
+        other = self.native.conversations.create('A', 'ambiguous', 'Ambiguous')['id']
+        self.app.message(self.message | {'request_id': 'ambiguous', 'conversation_id': other,
+            'content': 'Prepare YouTube and email campaigns', 'draft_permission': 'placements'})
+        self.assertIn('Which channel', self.app.campaigns.interactions(other)[0]['response'])
+        self.assertEqual(self.count('runs'), 0)
+
+    def test_exact_replay_and_new_key_cannot_double_publish_same_revision(self):
+        view = self.prepare()
+        self.assertTrue(self.app.message(self.message)['replayed'])
+        self.assertEqual(self.count('youtube_revisions'), 1)
+        with self.assertRaises(Conflict):
+            self.app.message(self.message | {'content': 'Prepare YouTube audiobook placements'})
+        with self.assertRaises(Conflict):
+            self.app.message(self.message | {'request_id': 'different-key'})
+        approval, command = self.approve(view)
+        self.assertEqual(self.app.campaigns.command('approve', command)['result']['approval_id'], approval)
+        self.assertEqual(self.count('youtube_approvals'), 1)
+
+    def test_stale_subject_media_delivery_revocation_and_expiry_block_export_replay(self):
+        view = self.prepare()
+        approval, _ = self.approve(view)
+        _, export = self.export(view, approval)
+        original = self.assets.origin
+        self.assets.origin = 'http://127.0.0.1:9999'
+        with self.assertRaisesRegex(YouTubeError, 'changed'):
+            self.app.campaigns.command('export', export)
+        self.assets.origin = original
+        self.media.joinpath('editing-a.mp4').write_bytes(b'changed')
+        with self.assertRaisesRegex(YouTubeError, 'changed'):
+            self.app.campaigns.command('export', export)
+        shutil.copyfile(Path('examples/youtube-media/editing-a.mp4'), self.media / 'editing-a.mp4')
+        self.app.campaigns.command('revoke', {'request_id': 'revoke', 'campaign_id': self.campaign, 'approval_id': approval})
+        with self.assertRaisesRegex(YouTubeError, 'revoked'):
+            self.app.campaigns.command('export', export)
+        self.assertIsNone(self.app.campaigns.read(self.campaign)['approval'])
+        new, _ = self.approve(view, 'approve-again')
+        self.now[0] += 86401
+        with self.assertRaisesRegex(YouTubeError, 'expired'):
+            self.export(view, new, 'expired-export')
+
+    def test_foreign_campaign_and_approval_are_not_accepted(self):
+        view = self.prepare()
+        native = build(self.db, clock=self.clock)
+        conversation = native.conversations.create('B', 'chat', 'Foreign')['id']
+        other = build_youtube(self.db, self.clock, organization='B')
+        other.message(self.message | {'conversation_id': conversation})
+        row = other.campaigns.interactions(conversation)[0]
+        foreign = other.campaigns.read(row['campaign_id'])
+        receipt = other.campaigns.command('approve', {'request_id': 'approve', 'campaign_id': row['campaign_id'],
+                                                    'subject': foreign['review']['subject']})
+        with self.assertRaises(NotFound):
+            self.app.campaigns.read(row['campaign_id'])
+        with self.assertRaises(YouTubeError):
+            self.export(view, receipt['result']['approval_id'])
+        self.assertEqual(self.count('youtube_requests'), 3)  # Two messages and the foreign approval only.
+
+    def test_approval_write_rolls_back_and_identical_retry_saves_once(self):
+        view = self.prepare()
+        real = self.authority.require
+        calls = []
+        def fail_at_commit(scope, actor, operation):
+            if operation == 'approve':
+                calls.append(operation)
+                if len(calls) == 2:
+                    raise OSError('Injected failure before commit')
+            return real(scope, actor, operation)
+        with patch.object(self.authority, 'require', side_effect=fail_at_commit):
+            with self.assertRaisesRegex(OSError, 'Injected'):
+                self.approve(view)
+        self.assertEqual(self.count('youtube_approvals'), 0)
+        self.assertIsNone(self.open().campaigns.read(self.campaign)['approval'])
+        self.approve(view)
+        self.assertEqual(self.count('youtube_approvals'), 1)
+
+    def test_concurrent_edits_and_noop_save_preserve_revision_and_approval_identity(self):
+        view = self.prepare()
+        self.approve(view)
+        base = {'campaign_id': self.campaign, 'expected_revision': 1, 'draft': view['campaign']['draft']}
+        noop = self.app.campaigns.command('save', base | {'request_id': 'noop'})
+        self.assertEqual(noop['result']['revision'], 1)
+        def save(name):
+            try:
+                return self.app.campaigns.command('save', base | {'request_id': name,
+                    'draft': base['draft'] | {'title': name}})
+            except Conflict:
+                return 'conflict'
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(save, ['first', 'second']))
+        self.assertEqual(results.count('conflict'), 1)
+        self.assertEqual(self.count('youtube_revisions'), 2)
+        self.assertIsNone(self.app.campaigns.read(self.campaign)['approval'])
+        with self.assertRaises(YouTubeError):
+            self.approve(view, 'stale-approval')
+
+    def test_forged_catalogue_and_incomplete_package_cannot_be_approved(self):
+        view = self.prepare()
+        draft = view['campaign']['draft']
+        base = {'request_id': 'edit', 'campaign_id': self.campaign, 'expected_revision': 1}
+        wrong = dict(draft['placements'][0], title='Invented provenance')
+        with self.assertRaises(YouTubeError):
+            self.app.campaigns.command('save', base | {'draft': draft | {'placements': [wrong]}})
+        self.app.campaigns.command('save', base | {'draft': draft | {'placements': []}})
+        latest = self.app.campaigns.read(self.campaign)
+        self.assertEqual(len(latest['review']['blockers']), 2)
+        with self.assertRaisesRegex(YouTubeError, 'Add placements'):
+            self.approve(latest)
+        self.assertEqual(self.count('youtube_approvals'), 0)
+
+    def test_cancelled_superseded_or_expired_task_cannot_publish(self):
+        command = {'request_id': 'pending', 'conversation_id': self.conversation, 'expected_revision': 0,
+                   'content': 'Prepare YouTube placements', 'draft_permission': 'placements'}
+        receipt = self.app.campaigns.message(command)
+        claim = self.app.tasks.claim('A', self.clock(), 60, run_id=receipt['result']['run_id'])
+        handler = AuthoredYouTubeHandler(self.app.campaigns.store, self.app.campaigns.store.fixture)
+        output = handler.prepare(claim)
+        self.native.conversations.message('A', self.conversation, 'new-message', 1, 'Stop the previous request')
+        with self.assertRaises(YouTubeError):
+            self.app.tasks.settle(claim, output, self.clock())
+        self.assertEqual(self.count('youtube_revisions'), 0)
+        self.assertEqual(self.count('youtube_results'), 0)
+        self.now[0] += 61
+        from acquisition.runtime import LeaseLost
+        with self.assertRaises(LeaseLost):
+            self.app.tasks.settle(claim, output, self.clock())
+        self.assertEqual(self.count('youtube_revisions'), 0)
+
+    def test_verified_pause_read_only_and_revoked_authority_preserve_fences(self):
+        view = self.prepare()
+        with self.assertRaises(YouTubeError):
+            self.open(read_only=True).campaigns.command('save', {'request_id': 'read-only', 'campaign_id': self.campaign,
+                'expected_revision': 1, 'draft': view['campaign']['draft']})
+        self.authority.enabled = False
+        with self.assertRaises(PermissionError):
+            self.app.campaigns.read(self.campaign)
+        self.authority.enabled = True
+        build_admissions(self.db, self.clock, verified_admissions=True)
+        with self.assertRaises(YouTubeError):
+            self.app.message(self.message | {'request_id': 'paused', 'expected_revision': 1})
+        self.assertEqual(self.count('youtube_revisions'), 1)
+        self.assertEqual(self.native.conversations.store.snapshot('A', self.conversation)['revision'], 1)
+
+    def test_plain_workspace_worker_cannot_steal_youtube_preparation(self):
+        command = {'request_id': 'pending', 'conversation_id': self.conversation, 'expected_revision': 0,
+                   'content': 'Prepare YouTube placements', 'draft_permission': 'placements'}
+        receipt = self.app.campaigns.message(command)
+        self.assertEqual(self.native.worker.drain('A'), 0)
+        self.app.worker.drain('A', run_id=receipt['result']['run_id'])
+        self.assertEqual(self.count('youtube_revisions'), 1)
+
+    def test_expired_local_claim_resumes_original_operation_and_stop_blocks_publication(self):
+        command = {'request_id':'pending','conversation_id':self.conversation,'expected_revision':0,
+                   'content':'Prepare YouTube placements','draft_permission':'placements'}
+        receipt = self.app.campaigns.message(command)
+        operation = self.app.campaigns.interactions(self.conversation)[0]['operation_id']
+        self.app.tasks.claim('A',self.clock(),60,run_id=receipt['result']['run_id'])
+        self.now[0] += 61
+        self.app.resume(operation,self.conversation)
+        self.app.resume(operation,self.conversation)
+        self.assertEqual(self.count('youtube_revisions'),1)
+        self.assertEqual(self.count('runs'),1)
+        self.assertEqual(self.native.conversations.store.snapshot('A',self.conversation)['revision'],1)
+        other = self.native.conversations.create('A','stop-chat','Stop test')['id']
+        receipt = self.app.campaigns.message(command | {'request_id':'stop-pending','conversation_id':other})
+        claim = self.app.tasks.claim('A',self.clock(),60,run_id=receipt['result']['run_id'])
+        handler = AuthoredYouTubeHandler(self.app.campaigns.store,self.app.campaigns.store.fixture)
+        result = handler.prepare(claim)
+        self.native.execution.stop('A',other,'stop',1)
+        with self.assertRaisesRegex(Conflict,'stopped'):
+            self.app.tasks.settle(claim,result,self.clock())
+        self.assertEqual(self.count('youtube_revisions'),1)
+
+    def test_native_history_rejects_replace_and_export_receipt_failure_rolls_back(self):
+        view = self.prepare()
+        approval, _ = self.approve(view)
+        with self.app.campaigns.store.database.transaction() as db:
+            db.execute("CREATE TRIGGER fail_export BEFORE INSERT ON youtube_requests WHEN NEW.operation='export' BEGIN SELECT RAISE(ABORT,'fail export'); END")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.export(view, approval)
+        with self.app.campaigns.store.database.transaction() as db:
+            db.execute('DROP TRIGGER fail_export')
+        exported, command = self.export(view, approval)
+        self.assertEqual(self.open().campaigns.command('export', command)['result'], exported['result'])
+        with self.assertRaises(sqlite3.IntegrityError):
+            with self.app.campaigns.store.database.transaction() as db:
+                db.execute('INSERT OR REPLACE INTO youtube_approvals SELECT * FROM youtube_approvals LIMIT 1')
+
+    def test_schema24_upgrade_rolls_back_and_preserves_existing_history(self):
+        from acquisition.adapters.sqlite.database import Database
+        from acquisition.adapters.sqlite.youtube import YOUTUBE
+        # Reconstruct a genuine schema-24 store by omitting the additive migration.
+        path = self.root / 'schema24.sqlite'
+        with patch('acquisition.adapters.sqlite.preparation_context.PREPARATION_CONTEXTS', ''), patch('acquisition.adapters.sqlite.preparation_context.validate_preparation_context_schema'), patch('acquisition.adapters.sqlite.youtube.YOUTUBE', ''), patch('acquisition.adapters.sqlite.youtube.validate_youtube_schema'), patch('acquisition.adapters.sqlite.intake_planning.INTAKE_PLANNING', ''), patch('acquisition.adapters.sqlite.intake_planning.validate_intake_planning_schema'):
+            old = build(path, clock=self.clock)
+            chat = old.conversations.create('A', 'old-chat', 'Preserved conversation')['id']
+            old.conversations.message('A', chat, 'old-message', 0, 'Preserved original brief')
+        with sqlite3.connect(path) as db:
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 24)
+            before = db.execute('SELECT * FROM conversation_messages').fetchall()
+        with patch('acquisition.adapters.sqlite.youtube.YOUTUBE', YOUTUBE.replace('PRAGMA user_version=26;', 'SELECT * FROM missing_migration_table;')):
+            with self.assertRaises(sqlite3.OperationalError):
+                Database(path)
+        with sqlite3.connect(path) as db:
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 24)
+            self.assertEqual(db.execute("SELECT name FROM sqlite_schema WHERE name LIKE 'youtube_%'").fetchall(), [])
+            self.assertEqual(db.execute('SELECT * FROM conversation_messages').fetchall(), before)
+        Database(path)
+        with sqlite3.connect(path) as db:
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 27)
+            self.assertEqual(db.execute('SELECT * FROM conversation_messages').fetchall(), before)
+
+    def test_plural_channel_requests_clarify_without_admitting_youtube_work(self):
+        for index, channel in enumerate(('emails', 'e-mails', 'postcards', 'call scripts', 'human calls', 'phone calls')):
+            with self.subTest(channel=channel):
+                conversation = self.native.conversations.create('A', 'mixed-'+str(index), 'Mixed request')['id']
+                self.app.message({'request_id': 'mixed-'+str(index), 'conversation_id': conversation,
+                    'expected_revision': 0, 'content': 'Prepare YouTube and '+channel+' for this product',
+                    'draft_permission': 'placements'})
+                row = self.app.campaigns.interactions(conversation)[0]
+                self.assertEqual(row['status'], 'waiting')
+                self.assertEqual(row['reason_code'], 'channel_ambiguous')
+                self.assertIsNone(row['campaign_id'])
+                self.assertIsNone(row['run_id'])
+        for table in ('youtube_revisions', 'youtube_preparations', 'runs', 'tasks', 'model_calls'):
+            self.assertEqual(self.count(table), 0, table)
+
+    def test_queued_mixed_request_from_before_routing_fix_cannot_publish_on_resume(self):
+        command = {'request_id': 'legacy-mixed', 'conversation_id': self.conversation, 'expected_revision': 0,
+                   'content': 'Prepare YouTube and emails for this product', 'draft_permission': 'placements'}
+        # The previous router could admit this request. Keep its original frozen
+        # request and task, then resume through the current publication boundary.
+        with patch('acquisition.adapters.sqlite.youtube.route_youtube', return_value='youtube'):
+            self.app.campaigns.message(command)
+        operation = self.app.campaigns.interactions(self.conversation)[0]['operation_id']
+        self.app.resume(operation, self.conversation)
+        row = self.app.campaigns.interactions(self.conversation)[0]
+        self.assertEqual(row['status'], 'failed')
+        self.assertIsNone(row['campaign_id'])
+        self.assertEqual(self.count('youtube_revisions'), 0)
+        self.assertEqual(self.count('model_calls'), 0)
+        self.assertEqual(self.native.conversations.view('A', self.conversation)['revision'], 1)
+
+    def test_unpublished_youtube_schema25_upgrade_is_atomic_and_preserves_approved_export(self):
+        from acquisition.adapters.sqlite.database import Database
+        from acquisition.adapters.sqlite.youtube import YOUTUBE
+        view = self.prepare()
+        approval, _ = self.approve(view)
+        original, command = self.export(view, approval)
+        with self.app.campaigns.store.database.transaction() as db:
+            db.execute('DROP TABLE preparation_contexts')
+            db.execute('DROP TABLE intake_planning_sources')
+            db.execute('PRAGMA user_version=25')
+            identity = db.execute('SELECT id FROM application_store_identity').fetchone()[0]
+            history = [tuple(row) for row in db.execute('SELECT * FROM youtube_requests ORDER BY request')]
+        # Old preview data stays inspectable without upgrading it on a read.
+        self.assertEqual(self.open(read_only=True).campaigns.read(self.campaign)['campaign'], view['campaign'])
+        apply = Database._apply_migration
+        def interrupted(db, script):
+            apply(db, script)
+            if script == YOUTUBE:raise OSError('after schema26 DDL')
+        with patch.object(Database, '_apply_migration', side_effect=interrupted), self.assertRaises(OSError):
+            self.open()
+        with sqlite3.connect(self.db) as db:
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 25)
+            self.assertIsNone(db.execute("SELECT 1 FROM sqlite_schema WHERE name='intake_planning_sources'").fetchone())
+            self.assertEqual(db.execute('SELECT * FROM youtube_requests ORDER BY request').fetchall(), history)
+        current = self.open()
+        self.assertEqual(current.campaigns.command('export', command)['result'], original['result'])
+        with current.campaigns.store.database.connect() as db:
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 27)
+            self.assertEqual(db.execute('SELECT id FROM application_store_identity').fetchone()[0], identity)
+            self.assertEqual(db.execute('PRAGMA foreign_key_check').fetchall(), [])
+
+    def test_main_schema25_intake_plan_survives_channel_upgrade_and_new_youtube_work(self):
+        from acquisition.bootstrap import build_intake
+        from acquisition.campaigns import CampaignBriefDraft
+        from acquisition.creative import CompanyDraft
+        from acquisition.reasoning import ModelConfig
+        from acquisition.adapters.sqlite.database import Database
+        from acquisition.adapters.sqlite.youtube import YOUTUBE
+        from test_intake_planning import IntakeModel
+        path = self.root / 'main25.sqlite'
+        gateway = IntakeModel()
+        config = ModelConfig('test/model', max_calls=2, force_tool_choice=True)
+        with patch('acquisition.adapters.sqlite.preparation_context.PREPARATION_CONTEXTS', ''), patch('acquisition.adapters.sqlite.preparation_context.validate_preparation_context_schema'), patch('acquisition.adapters.sqlite.youtube.YOUTUBE', ''), patch('acquisition.adapters.sqlite.youtube.validate_youtube_schema'):
+            native = build(path, self.clock, gateway=gateway, model_config=config)
+            intake = build_intake(path, self.clock)
+            company = intake.save_company('A', 'writer', 'company', CompanyDraft(company_name='Authored company', product_name='Authored product', description='Synthetic consultancy example'))['snapshot']
+            brief = intake.save_brief('A', 'writer', 'brief', CampaignBriefDraft(company['id'], 1, objective='Explore a campaign', audience='UK retailers', country='UK', currency='GBP', budget_minor=12345, channels=('email',)))['snapshot']
+            run = native.intake_planning.request('A', 'writer', 'plan', brief['id'], 1)
+            native.worker.drain('A', run_id=run)
+            saved = native.intake_planning.view('A', 'plan')
+            self.assertEqual(saved['plan']['status'], 'succeeded', saved)
+        with sqlite3.connect(path) as db:
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 25)
+            source = db.execute('SELECT * FROM intake_planning_sources').fetchall()
+        inspection = build_youtube(path, self.clock, organization='A', authority=self.authority, assets=self.assets, read_only=True)
+        self.assertEqual(inspection.campaigns.interactions(saved['source']['conversation_id']), [])
+        with self.assertRaises(NotFound):inspection.campaigns.read('not-installed')
+        with patch('acquisition.adapters.sqlite.youtube.YOUTUBE', YOUTUBE.replace('PRAGMA user_version=26;', 'SELECT * FROM missing_migration_table;')):
+            with self.assertRaises(sqlite3.OperationalError):Database(path)
+        with sqlite3.connect(path) as db:
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 25)
+            self.assertEqual(db.execute('SELECT * FROM intake_planning_sources').fetchall(), source)
+            self.assertEqual(db.execute("SELECT name FROM sqlite_schema WHERE name LIKE 'youtube_%'").fetchall(), [])
+        reopened = build(path, self.clock, gateway=gateway, model_config=config)
+        self.assertEqual(reopened.intake_planning.request('A', 'writer', 'plan', brief['id'], 1), run)
+        self.assertEqual(reopened.intake_planning.view('A', 'plan'), saved)
+        self.assertEqual(len(gateway.requests), 1)
+        chat = reopened.conversations.create('A', 'youtube-chat', 'Native YouTube')['id']
+        youtube = build_youtube(path, self.clock, organization='A', authority=self.authority, assets=self.assets)
+        youtube.message({'request_id': 'youtube', 'conversation_id': chat, 'expected_revision': 0,
+                         'content': 'Prepare YouTube placements', 'draft_permission': 'placements'})
+        self.assertIsNotNone(youtube.campaigns.interactions(chat)[0]['campaign_id'])
+        with youtube.campaigns.store.database.connect() as db:
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 27)
+            self.assertEqual([tuple(row) for row in db.execute('SELECT * FROM intake_planning_sources')], source)
+
+    def test_published_youtube_schema26_and_reviewed_intake_coexist_after_atomic_upgrade(self):
+        from acquisition.bootstrap import build_intake
+        from acquisition.campaigns import CampaignBriefDraft, PreparationReview
+        from acquisition.creative import CompanyDraft
+        from acquisition.adapters.sqlite.database import Database
+        from acquisition.adapters.sqlite.preparation_context import PREPARATION_CONTEXTS
+        view=self.prepare();approval,_=self.approve(view);exported,command=self.export(view,approval)
+        tables=('youtube_revisions','youtube_requests','youtube_preparations','youtube_interactions',
+                'youtube_results','youtube_approvals','youtube_revocations')
+        with self.app.campaigns.store.database.transaction() as db:
+            db.execute('DROP TABLE preparation_contexts');db.execute('PRAGMA user_version=26')
+            identity=db.execute('SELECT id FROM application_store_identity').fetchone()[0]
+            before={t:[tuple(r) for r in db.execute('SELECT * FROM '+t)] for t in tables}
+        apply=Database._apply_migration
+        def fail(db,script):
+            apply(db,script)
+            if script==PREPARATION_CONTEXTS:raise OSError('after preparation DDL')
+        with patch.object(Database,'_apply_migration',side_effect=fail),self.assertRaises(OSError):
+            build_intake(self.db,self.clock)
+        with sqlite3.connect(self.db) as db:
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],26)
+            self.assertIsNone(db.execute("SELECT name FROM sqlite_schema WHERE name='preparation_contexts'").fetchone())
+            self.assertEqual({t:db.execute('SELECT * FROM '+t).fetchall() for t in tables},before)
+        intake=build_intake(self.db,self.clock)
+        self.assertEqual(intake.store_identity(),identity)
+        company=intake.save_company('A','writer','company',CompanyDraft(company_name='Different supplied company',
+                       product_name='Supplied equipment',description='Unverified source wording.'))['snapshot']
+        brief=intake.save_brief('A','writer','brief',CampaignBriefDraft(company['id'],1,objective='Explore equipment clients',
+                   audience='UK retailers',country='UK',currency='GBP',budget_minor=12345,channels=('email',)))['snapshot']
+        p=intake.preparation.preview('A',brief['id'],1)
+        review=PreparationReview(brief['id'],1,p['id'],0,(),True,False,7,'Reviewed the supplied wording.',confirmed=True)
+        reviewed=intake.preparation.confirm('A','writer','review',review)
+        self.assertEqual(reviewed['context']['verification'],'user_supplied_unverified')
+        self.assertEqual(reviewed['context']['selected_inputs']['company_name'],'Different supplied company')
+        self.assertEqual(reviewed['context']['authority'],'none')
+        with intake.store.database.connect() as db:
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],27)
+            self.assertEqual({t:[tuple(r) for r in db.execute('SELECT * FROM '+t)] for t in tables},before)
+            self.assertEqual(db.execute('SELECT count(*) FROM model_calls').fetchone()[0],0)
+        reopened=self.open()
+        self.assertEqual(reopened.campaigns.command('export',command)['result'],exported['result'])
+        self.assertEqual(intake.preparation.request('A','review')['context'],reviewed['context'])

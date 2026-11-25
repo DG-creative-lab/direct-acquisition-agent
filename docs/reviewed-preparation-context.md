@@ -1,6 +1,7 @@
 # Reviewed preparation inputs
 
-Implemented slice under #131, based on merged main `ff9be5932d0d3e734b08d6a8203e04a68765f1b4`.
+Implemented slice under #131, initially based on `ff9be5932d0d3e734b08d6a8203e04a68765f1b4`
+and integrated with main `a1659ce` after the native YouTube merge.
 The isolated branch is `feature/131-reviewed-preparation-context`. This contract
 owns the platform's intake review record. It adds no channel implementation,
 hosted identity, provider call, campaign creation or approval.
@@ -92,22 +93,31 @@ before dispatch, preserving the displayed receipt across startup initialization.
 
 ## Storage and compatibility
 
-Schema 26 adds append-only `preparation_contexts` with scoped foreign keys to
+Schema 27 adds append-only `preparation_contexts` after published YouTube schema
+26, with scoped foreign keys to
 company, observed company-head and brief revisions. The review and command are
 one row in one transaction. Canonical records are bounded to 512,000 bytes. Failed migration/write rolls back the version and
 entire record. SQLite and the existing Turso adapter use the same port and DDL.
 Historical schema-23 probe registration still compares its exact old schema.
 Older migration fixtures exclude later DDL rather than manufacturing old versions
-by leaving new tables behind. Legacy migration inspection/apply accept schema 26
+by leaving new tables behind. Legacy migration inspection/apply accept schema 27
 without changing seals or cutoffs. Checkpoint inspection includes the new table;
 restored roots retain read-only records and cannot replay a write.
 
-Upgrade all processes using a store before migrating it. Older schema-25 binaries
-cannot open a schema-26 store. This branch allocates schema 26 against merged
-#137; parallel YouTube work based on pre-#137 schema 24 must integrate the merged
-intake/planning and review migrations rather than independently reuse version 25
-or 26. No edits are made to that other worktree. Shared bootstrap, schema and
-workspace integration must be reviewed before merging parallel runtime work.
+Upgrade all processes using a store before migrating it. Schema-26 binaries
+cannot open a schema-27 store. Published YouTube schema 26 and its original
+migration stay unchanged. The earlier unpublished preparation-only schema-26
+preview is recognized by its exact context table/trigger definitions and absence
+of YouTube objects. It gains YouTube tables and version 27 in one transaction,
+without rewriting context payloads, receipts, source identities or expiry.
+Partial or modified preview shapes fail closed. Historical read-only preview
+inspection does not migrate. The unpublished YouTube schema-25 compatibility
+path remains available; both migrations roll back together on failure.
+
+The native authored YouTube flow and reviewed intake coexist in the same store,
+but an intake review grants no YouTube preparation or approval permission.
+Arbitrary company inputs are not substituted into the installed authored
+examples. No edits are made to the separate YouTube worktree.
 
 ## Acceptance and evidence boundary
 

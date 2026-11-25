@@ -434,7 +434,7 @@ class Database:
                 require_live_root(self.path)
             with self.connect() as connection:
                 version = connection.execute('PRAGMA user_version').fetchone()[0]
-                if version not in {14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26}:
+                if version not in {14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27}:
                     raise ValueError('Unsupported application schema for checkpoint inspection')
                 self._validate_workspace_schema(connection)
                 if version >= 17:
@@ -455,11 +455,20 @@ class Database:
                     from .intake import validate_intake_schema
                     validate_intake_schema(connection)
                 if version >= 25:
+                    from .youtube import legacy_youtube_preview, validate_youtube_schema
                     from .intake_planning import validate_intake_planning_schema
-                    validate_intake_planning_schema(connection)
-                if version >= 26:
-                    from .preparation_context import validate_preparation_context_schema
-                    validate_preparation_context_schema(connection)
+                    if version == 25 and legacy_youtube_preview(connection):
+                        pass  # Historical read-only inspection does not migrate.
+                    else:
+                        validate_intake_planning_schema(connection)
+                    if version >= 26:
+                        from .preparation_context import legacy_preparation_preview, validate_preparation_context_schema
+                        if version == 26 and legacy_preparation_preview(connection):
+                            validate_preparation_context_schema(connection)
+                        else:
+                            validate_youtube_schema(connection)
+                        if version >= 27:
+                            validate_preparation_context_schema(connection)
             return
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._initialize(verified_admissions, clock, fixture_execution)
@@ -471,7 +480,7 @@ class Database:
             version = connection.execute("PRAGMA user_version").fetchone()[0]
             if fixture_execution and (version != 0 or connection.execute('SELECT 1 FROM sqlite_schema LIMIT 1').fetchone()):
                 raise Conflict('Fixture execution requires a fresh application store')
-            if not 0 <= version <= 26:
+            if not 0 <= version <= 27:
                 raise ValueError(f"Unsupported database schema {version}")
             if (verified_admissions and version < 10
                     and connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='runs'").fetchone()
@@ -567,11 +576,16 @@ class Database:
                 self._apply_migration(connection, INTAKE)
             validate_intake_schema(connection)
             from .intake_planning import INTAKE_PLANNING, validate_intake_planning_schema
-            if version < 25:
+            from .youtube import YOUTUBE, validate_youtube_schema, legacy_youtube_preview
+            if version < 25 or (version == 25 and legacy_youtube_preview(connection)):
                 self._apply_migration(connection, INTAKE_PLANNING)
             validate_intake_planning_schema(connection)
             from .preparation_context import PREPARATION_CONTEXTS, validate_preparation_context_schema
-            if version < 26:
+            from .preparation_context import legacy_preparation_preview
+            if version < 26 or (version == 26 and legacy_preparation_preview(connection)):
+                self._apply_migration(connection, YOUTUBE)
+            validate_youtube_schema(connection)
+            if version < 27:
                 self._apply_migration(connection, PREPARATION_CONTEXTS)
             validate_preparation_context_schema(connection)
             if verified_admissions:
@@ -643,7 +657,7 @@ class Database:
         database=cls.__new__(cls);database.path=Path(path)
         if not database.path.is_file():raise ValueError('Authoritative application store is unavailable')
         with database.connect() as db:
-            if db.execute('PRAGMA user_version').fetchone()[0] not in {14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26}:
+            if db.execute('PRAGMA user_version').fetchone()[0] not in {14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27}:
                 raise ValueError('Migrate the authoritative application store before workspace access')
         return database
 

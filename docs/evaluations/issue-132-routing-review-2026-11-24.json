@@ -1,0 +1,164 @@
+{
+  "schema": "youtube-routing-review-evidence/v1",
+  "recorded_at": "2026-11-24T20:10:43.359350+00:00",
+  "repository": "DG-creative-lab/direct-acquisition-agent",
+  "branch": "feature/132-youtube-draft-review-export",
+  "base_commit": "e81bb7312d4a3b6ed50fb61c254d8e3456e910b2",
+  "code_commit": "00c944f8a1f07732059c0394e2d56fd7b40d823a",
+  "findings_fixed": [
+    {
+      "priority": "P2",
+      "finding": "Postcard follow-ups stay on the YouTube endpoint",
+      "fix": "Aligned client channel aliases and treated a current YouTube turn as a valid source for postal transition. Direct and generic follow-up commands both admit the postal message."
+    },
+    {
+      "priority": "P2",
+      "finding": "Plural channel names allow a mixed request to create a YouTube-only draft",
+      "fix": "Recognize singular/plural email, e-mail, postcard, human-call, phone-call and call-script terms before draft admission. Mixed requests save a channel_ambiguous clarification with no preparation run or draft."
+    }
+  ],
+  "resume_safety": "Current routing is checked again inside native publication. An older queued mixed request cannot publish after resume; its original message and task history are retained.",
+  "reproduction": {
+    "base": "e81bb73",
+    "native": "Six plural mixed requests created six YouTube revisions before the fix.",
+    "browser": "Both postcard follow-ups retained the native placement permission form before the fix.",
+    "native_log_sha256": "040a4186013b3706b66dc2e2709af2d3fc3b142b760585c0344e254d6cde4072",
+    "browser_log_sha256": "efda8c6e734ba3471d23721977bd2f52ff0a935bdfb780d8569118195672b31a"
+  },
+  "focused": {
+    "tests": 26,
+    "passed": true,
+    "coverage": "Native commands, all eight loopback HTTP cases, existing sequence channel-switch tests.",
+    "log_sha256": "a87343c747f9c32b47ce18505d4c760873a3f203180ae818fc0ccc8266129811"
+  },
+  "backend": {
+    "command": "make test-shard SHARD=N BACKEND_SHARDS=4",
+    "total": 1168,
+    "shards": [
+      {
+        "shard": 1,
+        "tests": 291,
+        "seconds": 509.885,
+        "passed": true,
+        "log": "/private/tmp/iwoca-132-review-routing-backend-1.log",
+        "log_sha256": "644f41d44fd372056c05b48a2e105cc7d6df7d587104208dec8aef5a0d952065"
+      },
+      {
+        "shard": 2,
+        "tests": 400,
+        "seconds": 497.296,
+        "passed": true,
+        "log": "/private/tmp/iwoca-132-review-routing-backend-2.log",
+        "log_sha256": "b1644fd5d6c583a14f0efd9a51fce1b24522749cde09be4bf2f99005126bd14d"
+      },
+      {
+        "shard": 3,
+        "tests": 256,
+        "seconds": 421.545,
+        "passed": true,
+        "log": "/private/tmp/iwoca-132-review-routing-backend-3.log",
+        "log_sha256": "0a897d4a819751ec346151a2d68b387fc700c5fda7e494a32e219b0909a5497d"
+      },
+      {
+        "shard": 4,
+        "tests": 221,
+        "seconds": 378.443,
+        "passed": true,
+        "log": "/private/tmp/iwoca-132-review-routing-backend-4.log",
+        "log_sha256": "3711b6eb844b20ab186fe574a97904c8712cd106d44e8c41bc906e7ea06c9d6a"
+      }
+    ],
+    "inventory": {
+      "discovered": 1168,
+      "executed": 1168,
+      "unique": 1168,
+      "missing": [],
+      "unexpected": []
+    }
+  },
+  "browser": {
+    "total": 141,
+    "passed": true,
+    "partitions": [
+      {
+        "partition": 1,
+        "stats": {
+          "startTime": "2026-11-24T20:02:01.837Z",
+          "duration": 328458.158,
+          "expected": 38,
+          "skipped": 0,
+          "unexpected": 0,
+          "flaky": 0
+        },
+        "report": ".local/browser-reports/shard-1.json",
+        "report_sha256": "03392fa38255cad3980ed4d531c6ab3217c4c2f1e1179ec00b0feea5eb2c1348"
+      },
+      {
+        "partition": 2,
+        "stats": {
+          "startTime": "2026-11-24T20:02:15.125Z",
+          "duration": 393199.766,
+          "expected": 103,
+          "skipped": 0,
+          "unexpected": 0,
+          "flaky": 0
+        },
+        "report": ".local/browser-reports/shard-2.json",
+        "report_sha256": "510e9a9b329f0613c1def53a53604ce173235709531cfe2c4d97f20d27841946"
+      }
+    ],
+    "build_and_format": "make interface-check BROWSER_SHARD=1 BROWSER_SHARDS=2",
+    "second_partition": "BROWSER_SHARD=2 BROWSER_SHARDS=2 pnpm --dir frontend test, started only after assets were built",
+    "coverage": "Real save/reload/approval/export plus singular/plural postcard endpoint admission and six mixed-channel clarification cases. Mixed requests verify both API reason/run/draft fields and rendered clarification.",
+    "conditions": "No concurrent backend suite. The new mixed-request checks wait for admission response before checking rendered state; no wrong-routing result is accepted."
+  },
+  "boundary": {
+    "passed": true,
+    "report": ".local/boundary-evidence/issue-132-routing-review/results.json",
+    "report_sha256": "6f4fe0d46e74e4962369e861397f8a47aedacb2e9f18dfb07adc04d404ea30e7",
+    "stable_source": true,
+    "source_files_sha256": "2f0a36c01aaccf92d24484c12e5301bfa94842e7d566a54a0ef4a6278020d28d",
+    "architecture": {
+      "classified_modules": 228,
+      "errors": [],
+      "temporary_exceptions": 0
+    },
+    "historical_artifacts_unchanged": 33,
+    "cases": [
+      {
+        "id": "compatibility-model-journey",
+        "exit_code": 0,
+        "network_attempts": 0
+      },
+      {
+        "id": "verified-commit-rebuild-replay",
+        "exit_code": 0,
+        "network_attempts": 0
+      },
+      {
+        "id": "uncertain-restart",
+        "exit_code": 0,
+        "network_attempts": 0
+      },
+      {
+        "id": "profile-replay",
+        "exit_code": 0,
+        "network_attempts": 0
+      },
+      {
+        "id": "engagement-replay",
+        "exit_code": 0,
+        "network_attempts": 0
+      }
+    ]
+  },
+  "review": {
+    "scope": "Self-review of e81bb73...00c944f across composer, generic/direct message admission, native publication, retry and original receipt recovery.",
+    "remaining_actionable_findings_in_changed_surface": []
+  },
+  "limits": [
+    "Offline control verification with real local loopback HTTP and Chromium.",
+    "No live provider calls, hosted deployment or hosted Turso probe.",
+    "Existing immutable receipts and saved artifacts are retained. This fix adds no schema or history migration."
+  ]
+}

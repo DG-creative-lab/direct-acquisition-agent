@@ -674,7 +674,7 @@ class ChannelMigrationTests(unittest.TestCase):
                 self.assertEqual(db.execute('SELECT payload FROM recipient_contexts').fetchone()[0],saved)
             Database(path)
             with database.connect() as db:
-                self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],26)
+                self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],27)
                 self.assertEqual(db.execute('SELECT payload FROM recipient_contexts').fetchone()[0],saved)
                 self.assertEqual(tuple(db.execute('SELECT * FROM legacy_task_admissions').fetchone()),('one','old','old-hash'))
 

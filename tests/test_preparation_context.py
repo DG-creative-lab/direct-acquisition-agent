@@ -194,17 +194,17 @@ os._exit(72)
                        (canonical({'actor':'writer','review':asdict(review)}),canonical(forged)))
         with self.assertRaises(Conflict):self.app.preparation.request('one','review')
 
-    def test_schema25_rollback_and_inspection_preserve_sources_and_store_identity(self):
+    def test_schema26_rollback_and_inspection_preserve_sources_and_store_identity(self):
         identity=self.app.store_identity()
         with self.app.store.database.transaction() as db:
-            db.execute('DROP TABLE preparation_contexts');db.execute('PRAGMA user_version=25')
+            db.execute('DROP TABLE preparation_contexts');db.execute('PRAGMA user_version=26')
         apply=Database._apply_migration
         def fault(db,script):
             apply(db,script)
             if script==PREPARATION_CONTEXTS:raise OSError('after preparation DDL')
         with patch.object(Database,'_apply_migration',side_effect=fault),self.assertRaises(OSError):build_intake(self.path)
         with Database.existing(self.path).connect() as db:
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],25)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],26)
             self.assertIsNone(db.execute("SELECT 1 FROM sqlite_schema WHERE name='preparation_contexts'").fetchone())
         self.app=build_intake(self.path,clock=lambda:1000.)
         self.assertEqual(self.app.store_identity(),identity);self.assertEqual(self.app.company('one',self.company['id']),self.company)
@@ -212,3 +212,55 @@ os._exit(72)
         self.assertEqual(opened.preparation.request('one','review')['context'],receipt['context'])
         self.assertFalse(opened.preparation.not_committed('one','missing'))
         with self.assertRaises(Conflict):opened.preparation.confirm('one','writer','new',self.review())
+
+    def test_unpublished_preparation_schema26_preserves_original_receipt_through_atomic_upgrade(self):
+        from acquisition.adapters.sqlite.youtube import YOUTUBE
+        from acquisition.adapters.sqlite.preparation_context import legacy_preparation_preview
+        review=self.review();original=self.confirm(review=review)['context'];identity=self.app.store_identity()
+        with self.app.store.database.transaction() as db:
+            for table in ('youtube_revocations','youtube_approvals','youtube_results','youtube_interactions',
+                          'youtube_preparations','youtube_requests','youtube_revisions'):
+                db.execute('DROP TABLE '+table)
+            db.execute('PRAGMA user_version=26')
+            payload=db.execute('SELECT payload FROM preparation_contexts').fetchone()[0]
+            self.assertTrue(legacy_preparation_preview(db))
+        inspection=build_intake(self.path,clock=lambda:1001.,read_only=True)
+        self.assertEqual(inspection.preparation.request('one','review')['context'],original)
+        apply=Database._apply_migration
+        for stop in (YOUTUBE,PREPARATION_CONTEXTS):
+            def fail(db,script):
+                apply(db,script)
+                if script==stop:raise OSError('after integrated migration DDL')
+            with self.subTest(stop=stop),patch.object(Database,'_apply_migration',side_effect=fail),self.assertRaises(OSError):
+                build_intake(self.path)
+            with sqlite3.connect(self.path) as db:
+                self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],26)
+                self.assertEqual(db.execute('SELECT payload FROM preparation_contexts').fetchone()[0],payload)
+                self.assertEqual(db.execute("SELECT name FROM sqlite_schema WHERE name LIKE 'youtube_%'").fetchall(),[])
+        reopened=build_intake(self.path,clock=lambda:1002.)
+        self.assertEqual(reopened.store_identity(),identity)
+        replay=reopened.preparation.confirm('one','writer','review',review)
+        self.assertTrue(replay['replayed']);self.assertEqual(replay['context'],original)
+        with reopened.store.database.connect() as db:
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],27)
+            self.assertEqual(db.execute('SELECT payload FROM preparation_contexts').fetchone()[0],payload)
+            self.assertEqual(db.execute('SELECT count(*) FROM youtube_revisions').fetchone()[0],0)
+            self.assertEqual(db.execute('SELECT count(*) FROM model_calls').fetchone()[0],0)
+
+    def test_partial_or_modified_schema26_preview_is_rejected_without_migration(self):
+        from acquisition.adapters.sqlite.preparation_context import legacy_preparation_preview
+        self.confirm()
+        for corruption in ('DROP TRIGGER preparation_context_no_update','CREATE TABLE youtube_partial(value TEXT)'):
+            path=Path(self.temp.name)/('altered-'+str(len(corruption))+'.sqlite')
+            with sqlite3.connect(self.path) as original,sqlite3.connect(path) as db:
+                original.backup(db)
+                for table in ('youtube_revocations','youtube_approvals','youtube_results','youtube_interactions',
+                              'youtube_preparations','youtube_requests','youtube_revisions'):
+                    db.execute('DROP TABLE '+table)
+                db.execute('PRAGMA user_version=26');db.execute(corruption)
+                before=db.execute('SELECT name,sql FROM sqlite_schema ORDER BY name').fetchall()
+                self.assertFalse(legacy_preparation_preview(db))
+            with self.subTest(corruption=corruption),self.assertRaises(sqlite3.DatabaseError):build_intake(path)
+            with sqlite3.connect(path) as db:
+                self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],26)
+                self.assertEqual(db.execute('SELECT name,sql FROM sqlite_schema ORDER BY name').fetchall(),before)

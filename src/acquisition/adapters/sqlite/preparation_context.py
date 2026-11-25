@@ -1,6 +1,8 @@
 """Immutable reviewed selections, committed with their exact original command."""
 
 import json
+import sqlite3
+from contextlib import closing
 from dataclasses import asdict
 
 from acquisition.campaigns import PreparationReview, preparation_preview, reviewed_preparation
@@ -26,13 +28,27 @@ CREATE TRIGGER IF NOT EXISTS preparation_context_no_replace BEFORE INSERT ON pre
  WHEN EXISTS(SELECT 1 FROM preparation_contexts WHERE organization=NEW.organization
  AND (request_id=NEW.request_id OR (brief_id=NEW.brief_id AND revision=NEW.revision)))
  BEGIN SELECT RAISE(ABORT,'Preparation context history is immutable'); END;
-PRAGMA user_version=26;
+PRAGMA user_version=27;
 '''
 
 
 def validate_preparation_context_schema(db):
     db.execute('SELECT organization,brief_id,revision,request_id,brief_revision,company_id,company_revision,'
                'company_head_revision,inputs,payload FROM preparation_contexts LIMIT 0')
+
+
+def legacy_preparation_preview(db):
+    """Recognize only the intact unpublished preparation-only schema-26 preview."""
+    if db.execute("SELECT 1 FROM sqlite_schema WHERE name LIKE 'youtube_%' LIMIT 1").fetchone():
+        return False
+    query = ("SELECT name,sql FROM sqlite_schema WHERE name='preparation_contexts' "
+             "OR (type='trigger' AND tbl_name='preparation_contexts') ORDER BY name")
+    actual = [(r[0], ' '.join(r[1].split())) for r in db.execute(query)]
+    if not actual:return False
+    with closing(sqlite3.connect(':memory:')) as expected:
+        expected.executescript(PREPARATION_CONTEXTS)
+        schema = [(r[0], ' '.join(r[1].split())) for r in expected.execute(query)]
+    return actual == schema
 
 
 def latest(db, table, organization, identifier):

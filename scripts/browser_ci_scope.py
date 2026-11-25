@@ -30,6 +30,7 @@ BROWSER_FILES = frozenset({
     'tests/test_conversation_actions.py', 'tests/test_conversational_copy_revision.py',
     'tests/test_copy_revisions.py', 'tests/test_model_copy.py',
     'tests/prepared_workspace_fixture.py',
+    'tests/browser_workspace.py',
 })
 FAST_PREFIXES = (
     'docs/', 'tests/', 'scripts/', '.github/',

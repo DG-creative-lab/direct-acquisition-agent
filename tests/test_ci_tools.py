@@ -85,6 +85,7 @@ class CIToolTests(unittest.TestCase):
             'tests/test_conversation_actions.py', 'tests/test_conversational_copy_revision.py',
             'tests/test_copy_revisions.py', 'tests/test_model_copy.py',
             'tests/prepared_workspace_fixture.py',
+            'tests/browser_workspace.py',
         )
         for path in browser_changes + (
             'frontend/src/App.tsx', 'frontend/src/brand/tokens.css', 'frontend/public/logo.svg',

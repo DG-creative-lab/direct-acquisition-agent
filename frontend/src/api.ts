@@ -397,6 +397,7 @@ export function captureModelFunding(): ModelFunding {
 }
 
 type PendingCommand = ModelFunding & {
+  youtubeStoreId?: string;
   requestId: string;
   legacyFollowup?: true;
 };
@@ -512,6 +513,8 @@ export async function command<T = State>(
   const key = pendingKey(path, payload);
   const saved = sessionStorage.getItem(key);
   const usesModel = modelCommand(path, payload);
+  const usesYouTube =
+    path.startsWith("/api/youtube/") || path.endsWith("/youtube-messages");
   const current = usesModel ? openRouterSession() : null;
   const followup = /^(\/api\/conversations\/[^/]+)\/actions$/.exec(path);
   const savedCommand = saved?.startsWith("{")
@@ -551,6 +554,13 @@ export async function command<T = State>(
       requestId: legacyRequestId ?? crypto.randomUUID(),
       browser: usesModel ? (funding ?? captureModelFunding()).browser : null,
       ...(legacyRequestId ? { legacyFollowup: true } : {}),
+      ...(usesYouTube
+        ? {
+            youtubeStoreId: (
+              await read<{ store_id: string }>("/api/youtube/store")
+            ).store_id,
+          }
+        : {}),
     };
     // Persist before dispatch. Storage failure leaves the action undispatched.
     sessionStorage.setItem(key, JSON.stringify(pending));
@@ -562,6 +572,13 @@ export async function command<T = State>(
     pending = { requestId: saved, browser: null };
   }
   let headers: Record<string, string> = {};
+  if (usesYouTube) {
+    if (!pending.youtubeStoreId)
+      throw new Error(
+        "The original YouTube workspace identity is unavailable.",
+      );
+    headers["X-YouTube-Store"] = pending.youtubeStoreId;
+  }
   if (pending.browser) {
     if (!current || current.binding !== pending.browser.binding)
       throw new Error(
@@ -618,7 +635,7 @@ export async function command<T = State>(
     !response.ok &&
     [400, 404, 409].includes(response.status) &&
     result.message_not_saved === true &&
-    /^\/api\/conversations\/[^/]+\/(messages|sequence-messages|artifact-comments|writing-preferences)$/.test(
+    /^\/api\/conversations\/[^/]+\/(messages|sequence-messages|youtube-messages|artifact-comments|writing-preferences)$/.test(
       path,
     )
   ) {

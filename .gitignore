@@ -117,6 +117,10 @@ dist/
 !/docs/evaluations/issue-60-intake-workspace-2026-11-24.json
 !/docs/evaluations/issue-60-intake-store-review-2026-11-24.json
 
+!/docs/youtube-preparation.md
+!/docs/evaluations/issue-132-youtube-flow-2026-11-24.json
+
+!/docs/evaluations/issue-132-routing-review-2026-11-24.json
 !/docs/intake-planning.md
 !/docs/evaluations/issue-60-intake-planning-2026-11-24.json
 !/docs/evaluations/issue-60-intake-planning-admission-review-2026-11-24.json
@@ -124,3 +128,4 @@ dist/
 !/docs/reviewed-preparation-context.md
 !/docs/evaluations/issue-131-reviewed-preparation-context-2026-11-24.json
 !/docs/evaluations/issue-131-preparation-history-review-2026-11-25.json
+!/docs/evaluations/issue-131-main-integration-2026-11-25.json

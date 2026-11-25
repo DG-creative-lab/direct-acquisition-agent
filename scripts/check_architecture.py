@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 POLICY = Path('scripts/architecture_policy.json')
 MODULES = {'runtime', 'audiences', 'campaigns', 'creative', 'learning', 'reasoning',
-           'reviews', 'conversations', 'engagements'}
+           'reviews', 'conversations', 'engagements', 'youtube'}
 DEPENDENCIES = {
     'campaigns': {'audiences', 'creative'}, 'creative': {'reasoning', 'audiences'},
     'reviews': {'audiences', 'campaigns', 'creative', 'runtime'},

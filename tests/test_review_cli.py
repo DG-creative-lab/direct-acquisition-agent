@@ -20,10 +20,14 @@ class ReviewCliTests(unittest.TestCase):
             env = dict(os.environ, PYTHONPATH=str(Path(__file__).resolve().parents[1] / "src"))
             # A process-local injected clock keeps the CLI test independent of
             # the host date without adding a backdating option to the product.
-            wrapper = "import time; time.time=lambda:1792972800.; from acquisition.entrypoints.cli import main; main()"
+            wrapper = ("from acquisition import __main__ as c; import acquisition.bootstrap as b; "
+                       "from unittest.mock import patch; original=b.build; "
+                       "with_clock=lambda *a,**kw:original(*a,clock=lambda:1792972800,**kw); "
+                       "patcher=patch.object(b,'build',with_clock); patcher.start(); c.main()")
             def cli(*args):
                 result = subprocess.run([sys.executable, "-c", wrapper, "--db", str(path), *args],
-                    env=env, text=True, capture_output=True, check=True)
+                    env=env, text=True, capture_output=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
                 return json.loads(result.stdout)
             first = cli("demo-review", "--out", str(root / "report"))
             second = cli("demo-review", "--out", str(root / "report"))
@@ -86,7 +90,7 @@ class ReviewCliTests(unittest.TestCase):
                 db.close()
             migrated = Database(path)
             with migrated.connect() as db:
-                self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 26)
+                self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 27)
                 self.assertEqual([tuple(r) for r in db.execute("SELECT * FROM legacy_task_admissions")], old)
                 self.assertEqual(db.execute("SELECT status FROM runs WHERE id='later'").fetchone()[0], "queued")
 
