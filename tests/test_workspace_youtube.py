@@ -61,6 +61,9 @@ class WorkspaceYouTubeHttpTests(unittest.TestCase):
             self.assertTrue(response_headers['Content-Type'].startswith(expected_type))
             if expected_type == 'text/html':
                 self.assertIn(b'No playback or choice events are collected', body)
+                self.assertIn(b'AI-generated voice and imagery', body)
+                self.assertIn(b'The room hadn&#x27;t changed.', body)
+        self.assertEqual(group['creative_version'], 'editing-voiceover-v2')
         self.assertEqual(self.request('/api/youtube/campaigns/' + self.campaign, headers={'X-Workspace-Token': ''})[0], 403)
         self.assertEqual(self.request('/youtube/media/unknown?sha256=' + '0'*64)[0], 409)
 

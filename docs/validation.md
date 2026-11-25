@@ -1,5 +1,28 @@
 # Validation and limits
 
+## YouTube media refresh, 25 November 2026
+
+The bundled comparisons now use the exact rendered files from merged YouTube
+source `2d4e60d4027217edada6c93153d02cc0aa17cc75`. Fixture passages and the
+editing instruction match its generation manifest. Destination creative and
+comparison identities advance to v2; source identities remain recorded in the
+provenance map. Four standalone ad candidates are retained as sample artifacts,
+without adding ad selection or inference to the application.
+
+The focused native suite passes 20 tests and the guarded HTTP suite passes eight.
+The new upgrade regression preserves all original channel rows, rejects v1
+approval/export replay after installing v2 context, and prepares a fresh
+unapproved v2 package without model calls. A separate consistency check verifies
+the source passages, instructions, take definitions and all 15 copied asset hashes
+and sizes. Browser coverage now checks both comparison pages, their displayed
+transcripts, AI disclosure, v2 identities and media metadata after exact export.
+
+Architecture passes with 232 classified modules and zero exceptions. Production
+build, frontend formatting and the 147-case browser catalogue check pass. The
+complete backend/interface and attributable recovery results are recorded on
+the refreshed PR head. No schema, review authority, provider client, credential,
+source history or live campaign execution is imported by this asset update.
+
 ## CI fixture clocks, 25 November 2026
 
 The authored product evidence ends its review window on 24 November. The next

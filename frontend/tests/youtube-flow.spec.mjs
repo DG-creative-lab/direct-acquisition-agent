@@ -46,23 +46,38 @@ test("YouTube draft, exact review and manual JSON export survive reload", async 
   expect(exported.payload.package.revision).toBe(2);
   expect(exported.payload.package.title).toBe("YouTube comparison experiment");
   expect(exported.payload.package.groups).toHaveLength(2);
+  expect(
+    exported.payload.package.groups
+      .map((group) => group.creative_version)
+      .sort(),
+  ).toEqual(["audiobook-reading-v2", "editing-voiceover-v2"]);
   expect(exported.payload.package.groups[0].placements[0].label).toBe(
     "Fictional placement",
   );
   const preview = await page.context().newPage();
-  await preview.goto(exported.payload.package.groups[0].viewer_path);
-  await expect(
-    preview.getByText(
-      "Preview only. No playback or choice events are collected.",
-    ),
-  ).toBeVisible();
-  await expect(preview.locator("video,audio")).toHaveCount(2);
-  expect(
-    await preview
-      .locator("video,audio")
-      .first()
-      .evaluate((element) => element.error),
-  ).toBeNull();
+  for (const group of exported.payload.package.groups) {
+    await preview.goto(group.viewer_path);
+    await expect(
+      preview.getByText(
+        "Preview only. No playback or choice events are collected.",
+      ),
+    ).toBeVisible();
+    await expect(
+      preview.getByText("Authored preview with AI-generated voice and imagery"),
+    ).toBeVisible();
+    await expect(
+      preview.getByText("Transcript: " + group.content.passage, {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(preview.locator("video,audio")).toHaveCount(2);
+    for (const player of await preview.locator("video,audio").all()) {
+      await expect
+        .poll(() => player.evaluate((element) => element.readyState))
+        .toBeGreaterThanOrEqual(1);
+      expect(await player.evaluate((element) => element.error)).toBeNull();
+    }
+  }
   await preview.close();
   await page.reload();
   await expect(artifact).toContainText("Revision 2 · Approved");

@@ -1,5 +1,7 @@
 """Native command invariants with real SQLite, leases and fresh-process reads."""
 from concurrent.futures import ThreadPoolExecutor
+from copy import deepcopy
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -13,12 +15,78 @@ from unittest.mock import patch
 
 from acquisition.bootstrap import build, build_youtube, build_admissions
 from acquisition.contracts import Conflict, NotFound
-from acquisition.adapters.youtube_fixture import LocalYouTubeAuthority, BundledComparisonAssets
+from acquisition.adapters.youtube_fixture import FIXTURE, LocalYouTubeAuthority, BundledComparisonAssets
 from acquisition.youtube import YouTubeError, YouTubeTools
 from acquisition.workflows.youtube_preparation import AuthoredYouTubeHandler
 
 
 class YouTubeFlowTests(unittest.TestCase):
+    def test_bundled_comparisons_match_pinned_source_text_bytes_and_new_identities(self):
+        root = Path('examples/youtube-media')
+        provenance = json.loads((root / 'provenance.json').read_text())
+        self.assertEqual(provenance['source_commit'], '2d4e60d4027217edada6c93153d02cc0aa17cc75')
+        source = json.loads((root / 'source-media-manifest.json').read_text())
+        originals = {e['creative_ref']: e for e in source['examples']}
+        for context, creative, comparison in (
+                ('video-editing', 'editing-voiceover', 'editing-comparison'),
+                ('audiobook', 'audiobook-reading', 'audiobook-comparison')):
+            installed = FIXTURE['contexts'][context]
+            original = originals[creative + '-v1']
+            self.assertEqual(installed['creative_version'], creative + '-v2')
+            self.assertEqual(installed['comparison_version'], comparison + '-v2')
+            for field in ('passage', 'instruction', 'takes', 'preview'):
+                self.assertEqual(installed[field], original[field], field)
+        for name, expected in source['files'].items():
+            self.assertEqual(hashlib.sha256((root / name).read_bytes()).hexdigest(), expected, name)
+        checksums = json.loads(Path('examples/youtube-ad-samples/checksums.json').read_text())
+        for name, expected in checksums.items():
+            data = Path(name).read_bytes()
+            self.assertEqual(hashlib.sha256(data).hexdigest(), expected['sha256'], name)
+            self.assertEqual(len(data), expected['bytes'], name)
+
+    def test_media_refresh_keeps_old_history_but_denies_its_approval_and_export_replay(self):
+        legacy = deepcopy(FIXTURE)
+        legacy['disclosure'] = 'Authored examples and synthetic voices. No real product performance claims.'
+        edit, book = legacy['contexts']['video-editing'], legacy['contexts']['audiobook']
+        edit.update(creative_version='editing-voiceover-v1', comparison_version='editing-comparison-v1',
+                    instruction='Watch the same clip twice. Which read fits the moment the light comes on?',
+                    passage='One small light can change how you see the whole room.')
+        book.update(creative_version='audiobook-reading-v1', comparison_version='audiobook-comparison-v1',
+                    passage='Mara stopped at the door. On the other side, someone was humming the song she had forgotten.')
+        for name in {entry['preview'] for entry in legacy['contexts'].values()} | {
+                take[2] for entry in legacy['contexts'].values() for take in entry['takes']}:
+            (self.media / name).write_bytes(('authored legacy recording: ' + name).encode())
+        with patch('acquisition.adapters.youtube_fixture.FIXTURE', legacy):
+            self.assets.fixture = legacy
+            self.app = self.open()
+            previous = self.prepare()
+            approval, command = self.approve(previous)
+            exported, replay = self.export(previous, approval)
+        tables = ('youtube_revisions', 'youtube_requests', 'youtube_preparations',
+                  'youtube_interactions', 'youtube_results', 'youtube_approvals', 'youtube_revocations')
+        def history():
+            with self.app.campaigns.store.database.connect() as db:
+                return {table: [tuple(row) for row in db.execute('SELECT * FROM ' + table)] for table in tables}
+        before = history()
+        for source in Path('examples/youtube-media').glob('*'):
+            if source.suffix in {'.mp3', '.mp4'}:
+                shutil.copyfile(source, self.media / source.name)
+        self.assets.fixture = FIXTURE
+        reopened = self.open()
+        for operation, inputs in (('approve', command), ('export', replay)):
+            with self.assertRaises(YouTubeError) as denied:
+                reopened.campaigns.command(operation, inputs)
+            self.assertEqual(denied.exception.code, 'context_changed')
+        self.assertEqual(history(), before)
+        self.assertEqual(json.loads(exported['result']['content'])['payload'], previous['review']['payload'])
+        self.app = reopened
+        self.conversation = self.native.conversations.create('A', 'fresh-chat', 'Refreshed samples')['id']
+        current = self.prepare(request='fresh-message')
+        self.assertIsNone(current['approval'])
+        self.assertEqual({g['creative_version'] for g in current['review']['payload']['package']['groups']},
+                         {'editing-voiceover-v2', 'audiobook-reading-v2'})
+        self.assertEqual(self.count('model_calls'), 0)
+
     def setUp(self):
         self.temp = self.enterContext(TemporaryDirectory())
         self.root = Path(self.temp)

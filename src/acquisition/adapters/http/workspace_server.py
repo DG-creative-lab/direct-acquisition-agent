@@ -117,7 +117,7 @@ class Handler(BaseHTTPRequestHandler):
                 page = ('<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
                         '<title>' + escape(content['title']) + '</title><style>body{font:18px/1.6 system-ui;max-width:760px;margin:3rem auto;padding:1rem}'
                         'video,audio{width:100%;border-radius:12px}section{margin-block:2rem}</style>'
-                        '<main><p>Authored synthetic voice preview</p><h1>' + escape(content['title']) + '</h1><p>'
+                        '<main><p>Authored preview with AI-generated voice and imagery</p><h1>' + escape(content['title']) + '</h1><p>'
                         + escape(content['instruction']) + '</p><p>Transcript: ' + escape(content['passage']) + '</p>'
                         + players + '<p>Preview only. No playback or choice events are collected.</p></main></html>')
                 return self._send(200, page.encode(), 'text/html; charset=utf-8')
