@@ -55,6 +55,12 @@ Define which requests complete within a bounded invocation and which require dur
 
 Exports and viewer assets need exact content identity, appropriate visibility, content types, usable links and revocation behavior. A download must correspond to the displayed authorized subject. Avoid persisting private assets under public static paths.
 
+The [shared creative asset design](creative-asset-storage-design.md) specifies
+SQL catalogue metadata plus replaceable file storage, with private Vercel Blob
+as the first proposed remote adapter. #70 retains scope/connection authority;
+#130 composes delivery. Local viewer/learning work can proceed before cloud
+provisioning. Neither path makes public publication implicit.
+
 ### Remote operations and release evidence
 
 Reuse native remote storage. Verify schema opening, concurrent requests, failed writes, uncertain commits, optimistic conflicts, cold-start reads and recovery for the new workflow. Local ancestry/checkpoint/restore semantics must not be assumed to transfer to remote storage.

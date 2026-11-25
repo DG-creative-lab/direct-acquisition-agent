@@ -10,6 +10,15 @@ Issue #129 now specifies the [YouTube channel contract v1](youtube-channel-contr
 
 ## Evidence baseline
 
+Update, 25 November 2026: PR #138 is merged at
+`a1659ce661d5a92ac7d5ae91c7ad779e9bf7e47b`. #132 now supplies native local
+draft/review/manual export and refreshed samples. #133 is the next YouTube
+feature slice: actual viewer measurement and reviewed learning reuse.
+The [shared creative asset design](creative-asset-storage-design.md) records
+local catalogue/port foundations and the separate hosted Blob workstream.
+It preserves #70/#130 identity/composition ownership and #134 cutover gates.
+The table below remains the original planning baseline.
+
 | Repository | Inspected baseline | Use |
 | --- | --- | --- |
 | Direct Acquisition Agent | `796a4cc3f533e0cbae3b7760e89221d9fe1b1b86`, accepted main after PR #127 | Destination contracts and implemented preparation |

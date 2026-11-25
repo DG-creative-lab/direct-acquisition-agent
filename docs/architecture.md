@@ -35,6 +35,11 @@ The [local checkpoint adapter](workspace-checkpoints.md) uses the same root lock
 
 ## Module ownership
 
+The proposed [shared creative asset storage design](creative-asset-storage-design.md)
+keeps YouTube channel rules native and places reusable asset identity/catalogue
+under `creative`, with injected local/Blob file adapters. This is a future
+contract, not an installed asset library or hosted delivery claim.
+
 The [intake persistence slice](intake.md) keeps user-supplied company draft values
 in `creative` and campaign requirements plus intake coordination in `campaigns`.
 Its organization-scoped immutable revisions grant no grounding or execution

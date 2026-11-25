@@ -42,6 +42,12 @@ The following are semantic roles to map onto existing public APIs, not a mandate
 
 Resolve organization scope now. Product/brand subdivisions should reuse existing profile/intake identity until an explicit project-sharing requirement is implemented. Do not assume the source invite model supplies brand ownership or team roles.
 
+The proposed [creative asset storage design](creative-asset-storage-design.md)
+adds shared versioned asset references under `creative`, SQL search metadata
+and replaceable file adapters. #140 supplies the local foundation and #141 the
+private hosted Blob path. This does not require a new empty navigation module
+or make public asset publication implicit.
+
 ## Knowledge and learning are different user jobs
 
 Knowledge answers: “What should the agent know about this product, and what did it use?” Reuse Company & brief for editable source material, existing product fact packs for reviewed claims, and guidance snapshots for context attribution. A source URL is not automatically retrieved, permitted or current. If a new ingest capability is added, bound acquisition, provenance, permitted use, retention and freshness before passing content to the agent as data.
