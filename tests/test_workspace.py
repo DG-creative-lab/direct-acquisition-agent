@@ -307,7 +307,8 @@ class WorkspaceHttpTests(unittest.TestCase):
         assets = self.root / "assets"
         assets.mkdir()
         (assets / "index.html").write_text('<meta name="workspace-token" content="__WORKSPACE_TOKEN__">')
-        self.server = WorkspaceServer(0, Workspace(self.root / "data"), assets)
+        self.now = 1793404800.
+        self.server = WorkspaceServer(0, Workspace(self.root / "data", real_clock=lambda:self.now), assets)
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
         self.addCleanup(self.stop)
@@ -341,7 +342,7 @@ class WorkspaceHttpTests(unittest.TestCase):
 
     def test_uploaded_reports_use_guarded_bounded_routes_and_exact_cohort(self):
         workspace = self.server.workspace
-        workspace.real_clock = lambda: 1792972800.
+        self.now = 1792972800.
         state = workspace.create("upload", "fixture")
         sid = state["session"]["id"]
         approved = workspace.action(sid, "approve", {"request_id": "approve",
@@ -414,7 +415,7 @@ class WorkspaceHttpTests(unittest.TestCase):
     def test_shutdown_holds_root_lock_until_browser_inference_commits(self):
         entered, release, closed = threading.Event(), threading.Event(), threading.Event()
         workspace = self.server.workspace
-        workspace.real_clock = lambda: 1793404800.
+        self.now = 1793404800.
         gateway = CombinedModel()
         complete = gateway.complete
 
@@ -461,7 +462,7 @@ class WorkspaceHttpTests(unittest.TestCase):
                 reopened.server_close()
 
     def test_audience_discovery_is_guarded_read_only_and_exactly_selected(self):
-        self.server.workspace.real_clock=lambda:1793404800.
+        self.now = 1793404800.
         route='/api/audience-catalogue?campaign_key=contractor-project-costs'
         self.assertEqual(self.request(route,headers={"X-Workspace-Token":""})[0],403)
         self.assertEqual(self.request(route,headers={"Host":"attacker.invalid"})[0],403)
