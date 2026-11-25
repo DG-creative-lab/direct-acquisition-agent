@@ -139,3 +139,12 @@ Native SQLite, process, HTTP, browser and managed-remote evidence establish the
 finite exercised behaviors. They do not establish factual truth, live-model
 quality, hosted authentication or campaign-generation capability. Dated executed
 results belong in the validation ledger and a commit-bound evaluation artifact.
+
+## Subsequent explicit grounding
+
+[Preparation eligibility and source grounding](preparation-eligibility.md) now
+provides a separate operator source-attestation transition and bounded offline
+profile fixture preparation. This input-review record remains unchanged and
+unverified. Its presence alone cannot prepare a draft, grant approval or activate
+live generation. The subsequent capability rechecks current source/review state
+at publication and preserves original-request historical recovery.

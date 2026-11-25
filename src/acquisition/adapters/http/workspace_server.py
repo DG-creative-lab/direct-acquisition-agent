@@ -123,6 +123,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, page.encode(), 'text/html; charset=utf-8')
             if path == '/api/intake/store' and not self.parsed_target.query:
                 return self._send(200, {'store_id': self.server.workspace.intake.store_identity()})
+            if path == '/api/intake/eligibility':
+                query = parse_qs(self.parsed_target.query, keep_blank_values=True)
+                if set(query) != {'context_request_id'} or len(query['context_request_id']) != 1:
+                    return self._send(400, {'error': 'Select one exact reviewed context request'})
+                return self._send(200, self.server.workspace.intake.preparation_eligibility(query['context_request_id'][0]))
+            if len(parts) == 5 and parts[:4] == ['api','intake','preparations','requests'] and not self.parsed_target.query:
+                return self._send(200, self.server.workspace.intake.grounded_request(parts[4]))
             if path == '/api/intake/contexts/preview':
                 query = parse_qs(self.parsed_target.query, keep_blank_values=True)
                 if set(query) != {'brief_id','revision'} or any(len(value) != 1 for value in query.values()):
@@ -222,6 +229,7 @@ class Handler(BaseHTTPRequestHandler):
             length = int(self.headers.get("Content-Length", "0"))
             intake_save = path in {'/api/intake/companies', '/api/intake/briefs'}
             context_save = path == '/api/intake/contexts'
+            grounded_save = path == '/api/intake/preparations'
             limit = 34 * 1024 * 1024 if monitoring_upload else 70 * 1024 if intake_save or context_save else 16384
             if not 0 < length <= limit or self.headers.get("Content-Type", "").split(";")[0] != "application/json":
                 return self._send(400, {"error": "Use a bounded JSON request"} |
@@ -236,7 +244,7 @@ class Handler(BaseHTTPRequestHandler):
                         result[key] = value
                     return result
                 youtube_request = path.startswith('/api/youtube/') or path.endswith('/youtube-messages')
-                data = json.loads(raw, object_pairs_hook=unique_pairs) if youtube_request else json.loads(raw)
+                data = json.loads(raw, object_pairs_hook=unique_pairs) if youtube_request or grounded_save else json.loads(raw)
                 if not isinstance(data, dict):
                     raise ValueError("Use a JSON object")
             except ValueError:
@@ -276,6 +284,22 @@ class Handler(BaseHTTPRequestHandler):
                 if intake_save:
                     return self._send(400, {'error': 'Intake saves do not use model funding', 'intake_not_saved': True})
                 raise ValueError("Use an OpenRouter connection handle.")
+            if grounded_save:
+                intake = self.server.workspace.intake
+                if (self.parsed_target.query or handle is not None or tab is not None
+                        or any(len(self.headers.get_all(name, [])) != 1 for name in
+                               ('Host', 'Origin', 'X-Workspace-Token', 'X-Intake-Store'))):
+                    raise ValueError('Use an exact offline preparation command without model funding')
+                if self.headers.get('X-Intake-Store') != intake.store_identity():
+                    return self._send(409, {'error': 'Restore the original store before reconciling this preparation.',
+                                           'code': 'store_mismatch'})
+                try:
+                    return self._send(200, intake.prepare_grounded(data))
+                except (ValueError, TypeError, NotFound) as error:
+                    try: definite = intake.grounded_not_committed(data.get('request_id'))
+                    except ValueError: definite = False
+                    return self._send(409, {'error': str(error), 'preparation_not_saved': definite,
+                                           'store_id': intake.store_identity()})
             if context_save:
                 intake = self.server.workspace.intake
                 store_id = intake.store_identity()

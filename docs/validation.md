@@ -4316,3 +4316,22 @@ configuration is no longer present. Earlier provider evidence retains its source
 attribution. No live model, paid activation, deployment or new cloud resource was
 used. The [integration record](evaluations/issue-131-main-integration-2026-11-25.json)
 retains exact source attribution, partial local results and CI follow-up scope.
+
+## Reviewed intake preparation eligibility and grounding (#131)
+
+The [implemented preparation contract](preparation-eligibility.md) separates input
+selection, explicit operator source attestation and offline fixture preparation.
+The draft binds exact source revisions, selected wording, qualifications, CTA,
+requirements and no-model settings. It cannot grant campaign approval or activate
+profile model execution. Current sources and review expiry are checked inside the
+publication transaction. Existing native artifact tables atomically retain the
+original request and exact-context binding, with no new schema migration.
+
+`tests/test_intake_preparation.py` exercises literal product-specific output and
+unselected-text exclusion, authority/scope substitution, current-source and expiry
+fences, original-request conflicts, complete rollback, lost acknowledgements,
+process reopening, two-writer convergence, verified-store pauses and Hrana wire
+recovery. The workspace intake browser suite adds required evidence confirmation,
+consent reset, mobile/desktop rendering, saved-draft reopening, original-store
+recovery and corrupt-storage refusal. Execution results and limitations are
+recorded in the dated commit-bound evaluation for this slice.

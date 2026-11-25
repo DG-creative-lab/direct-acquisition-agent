@@ -17,6 +17,11 @@ class ProfileCopyService:
     def prepare(self, organization, product_profile_id, segment, plan_id, today):
         profile = self.products.product_profile(organization, product_profile_id)
         material = self.products.product_material(organization, product_profile_id)
+        return self.prepare_material(organization, profile, material, segment, plan_id, today)
+
+    @staticmethod
+    def prepare_material(organization, profile, material, segment, plan_id, today):
+        """The same v4 contract for an explicitly reviewed, request-frozen pack."""
         validate_fact_pack(material['pack'], today, profile=profile)
         context = {'schema': 'creative-context/v4', 'product_profile': json.loads(canonical(asdict(profile))),
             'product_profile_id': profile.id, 'product_facts': material['pack'], 'segment': segment,
