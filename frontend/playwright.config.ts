@@ -53,7 +53,7 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   webServer: {
-    command: `python3 -m acquisition.workspace_server --port ${port} --root .local/browser-tests/shard-${shard}-${randomUUID()}`,
+    command: `python3 tests/browser_workspace.py --port ${port} --root .local/browser-tests/shard-${shard}-${randomUUID()}`,
     cwd: root,
     env: {
       PYTHONPATH: "src",

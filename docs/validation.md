@@ -1,5 +1,26 @@
 # Validation and limits
 
+## CI fixture clocks, 25 November 2026
+
+The authored product evidence ends its review window on 24 November. The next
+day's full PR run exposed three Python failures and four browser failures:
+unfrozen subprocess/browser clocks, an obsolete patch on the forwarding CLI
+module, and an HTTP test that replaced the facade clock after application
+dependencies had captured it.
+
+The CLI tests now patch construction in bootstrap inside each subprocess. The
+no-credentials admission test also rejects any attempt to load a gateway. HTTP
+tests inject a shared mutable clock before constructing the workspace. The
+browser test server injects a clock inside the authored source window through
+the normal startup path. No production backdating flag, evidence date change
+or freshness exception is introduced.
+
+The 24 focused CLI/HTTP tests, 23 grounding/catalogue tests and four previously
+failing browser cases pass locally. Formatting and the 232-module architecture
+check pass. The existing grounding test still rejects 25 November evidence,
+and catalogue regressions still reject stale/future sources. Full PR CI
+verifies the combined suite separately; these checks make no live model calls.
+
 ## Integration with merged intake planning, 25 November 2026
 
 Main PR #137 and the reviewed YouTube branch both used migration 25. The
