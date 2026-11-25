@@ -20,7 +20,7 @@ class ReviewCliTests(unittest.TestCase):
             env = dict(os.environ, PYTHONPATH=str(Path(__file__).resolve().parents[1] / "src"))
             # A process-local injected clock keeps the CLI test independent of
             # the host date without adding a backdating option to the product.
-            wrapper = "from acquisition import __main__ as c; from acquisition.bootstrap import build; c.build=lambda path,**kw:build(path,clock=lambda:1792972800,**kw); c.main()"
+            wrapper = "import time; time.time=lambda:1792972800.; from acquisition.entrypoints.cli import main; main()"
             def cli(*args):
                 result = subprocess.run([sys.executable, "-c", wrapper, "--db", str(path), *args],
                     env=env, text=True, capture_output=True, check=True)
