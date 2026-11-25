@@ -27,6 +27,8 @@ The [channel content guide](docs/channel-content.md) adds frozen personalized em
 
 The [sequence simulation guide](docs/sequence-simulation.md) combines frozen audience assignments and recipient content into bounded email/call strategies. It preserves controls, costs, capacity and exact step identities while simulating submissions, delivery, replies, objections and human task completion. [Exact sequence review](docs/sequence-review.md) now binds one bounded approval to the full materialized sequence and checks current authority before simulated effects. Real outreach remains separate.
 
+The [local YouTube preparation flow](docs/youtube-preparation.md) adds authored placement drafts, exact human review and manual JSON export in chat. Its fictional catalogue and bundled synthetic comparison media make no model calls and collect no viewer events.
+
 ## Try it locally
 
 Requires Python 3.14 or later, Node 22.12+ and pnpm 10.33+ on macOS or Linux.

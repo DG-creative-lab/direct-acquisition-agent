@@ -1,0 +1,19 @@
+{
+  "schema": "youtube-media-source/v1",
+  "source_repository": "DG-creative-lab/youtube-ad-agent",
+  "source_commit": "2d4e60d4027217edada6c93153d02cc0aa17cc75",
+  "source_pr": "https://github.com/DG-creative-lab/youtube-ad-agent/pull/137",
+  "source_manifest": "examples/youtube-media/source-media-manifest.json",
+  "checksums": "examples/youtube-ad-samples/checksums.json",
+  "destination_versions": {
+    "video-editing": {
+      "creative_version": "editing-voiceover-v2",
+      "comparison_version": "editing-comparison-v2"
+    },
+    "audiobook": {
+      "creative_version": "audiobook-reading-v2",
+      "comparison_version": "audiobook-comparison-v2"
+    }
+  },
+  "note": "Comparison filenames are retained. Destination creative/comparison identities are v2; source definitions retain their original v1 identifiers. No source history, approvals or credentials are imported."
+}

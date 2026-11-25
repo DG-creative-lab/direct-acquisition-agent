@@ -42,6 +42,7 @@ import WritingPreferences, {
   type SavedCopyComment,
   type WritingPreference,
 } from "./WritingPreferences";
+import ConversationYouTube from "./ConversationYouTube";
 
 type Brief = {
   id: string;
@@ -149,6 +150,15 @@ const activePreparation = (status: string) =>
   ["admitting", "planning", "selecting_audience", "preparing"].includes(status);
 
 type Conversation = {
+  youtube_interactions?: {
+    revision: number;
+    operation_id: string;
+    status: string;
+    response: string;
+    campaign_id: string | null;
+    campaign_revision?: number;
+    activity: string[];
+  }[];
   sequence_journeys?: SequenceJourney[];
   sequence_interactions?: {
     id: string;
@@ -189,6 +199,8 @@ type Conversation = {
 };
 type ConversationSummary = { id: string; title: string; revision: number };
 type PendingMessage = {
+  youtube?: boolean;
+  draft_permission?: "none" | "placements";
   sequence?: boolean;
   budget_reply_to?: string;
   artifact?: ArtifactComment;
@@ -253,6 +265,7 @@ export default function ConversationWorkspace({
     () => savedPendingMessage()?.content ?? "",
   );
   const [allowModelCopy, setAllowModelCopy] = useState(false);
+  const [allowYouTubeDraft, setAllowYouTubeDraft] = useState(false);
   const [preparationIntents, setPreparationIntents] = useState(
     savedPreparationIntents,
   );
@@ -378,6 +391,10 @@ export default function ConversationWorkspace({
   // Poll saved checkpoint recovery even if its blocker clears after an old
   // progress read. Other missing mappings need matching ready progress.
   const preparing =
+    (conversation?.youtube_interactions?.some((row) =>
+      ["queued", "running"].includes(row.status),
+    ) ??
+      false) ||
     (conversation?.sequence_journeys?.some(
       (j) =>
         j.current &&
@@ -495,6 +512,15 @@ export default function ConversationWorkspace({
       await createDraft(id, revision, plan.result);
     }
   };
+  const youtubeIntent =
+    pendingMessage?.youtube ??
+    (/\byou\s*tube\b/i.test(message) ||
+      (!!conversation?.youtube_interactions?.some(
+        (row) => row.revision === conversation.revision,
+      ) &&
+        !/\b(?:e-?mails?|postal|direct[- ]mail|postcards?|human calls?|call scripts?|phone calls?)\b/i.test(
+          message,
+        )));
   const send = async (resendLegacyFollowup = false) => {
     if ((!message.trim() && !pendingMessage) || busy) return;
     if (resendLegacyFollowup && !pendingMessage?.canResendLegacyFollowup)
@@ -509,7 +535,9 @@ export default function ConversationWorkspace({
     setBusy("Saving your request");
     const funding =
       !pendingMessage || resendLegacyFollowup
-        ? captureModelFunding()
+        ? youtubeIntent
+          ? undefined
+          : captureModelFunding()
         : pendingMessage.funding;
     let current = conversation;
     try {
@@ -544,22 +572,32 @@ export default function ConversationWorkspace({
         /\b(?:multichannel|multi.channel|e-?mails?|human calls?|call scripts?|phone calls?)\b/i.test(
           message,
         );
+      const youtubeContext =
+        current.youtube_interactions?.some(
+          (row) => row.revision === currentRevision,
+        ) ?? false;
       const postalTransition =
-        sequenceContext &&
+        (sequenceContext || youtubeContext) &&
         !sequenceWords &&
         /\b(?:postal|direct[- ]mail|postcards?)\b/i.test(message);
       const pending = pendingMessage ?? {
+        youtube: youtubeIntent,
+        draft_permission: allowYouTubeDraft
+          ? ("placements" as const)
+          : ("none" as const),
         conversationId: current.id,
         expected_revision: current.revision,
         content: message.trim(),
         // Routing hint only. The server resolves installed scope and consent.
         sequence:
+          !youtubeIntent &&
           !commentTarget &&
           !postalTransition &&
           (sequenceContext || sequenceWords),
         allow_model_copy: allowModelCopy,
         funding,
         route:
+          !youtubeIntent &&
           current.revision > 0 &&
           !postalTransition &&
           (typedShortcut || (!current.execution?.stopped && !budgetQuestion)),
@@ -577,7 +615,20 @@ export default function ConversationWorkspace({
       let saved: Conversation;
       try {
         saved = await command<Conversation>(
-          `/api/conversations/${current.id}/${pending.artifact ? "artifact-comments" : pending.sequence ? "sequence-messages" : pending.budget_reply_to ? "budget-replies" : pending.route ? "actions" : "messages"}`,
+          "/api/conversations/" +
+            current.id +
+            "/" +
+            (pending.youtube
+              ? "youtube-messages"
+              : pending.artifact
+                ? "artifact-comments"
+                : pending.sequence
+                  ? "sequence-messages"
+                  : pending.budget_reply_to
+                    ? "budget-replies"
+                    : pending.route
+                      ? "actions"
+                      : "messages"),
           pending.artifact
             ? {
                 expected_revision: pending.expected_revision,
@@ -589,7 +640,12 @@ export default function ConversationWorkspace({
             : {
                 expected_revision: pending.expected_revision,
                 content: pending.content,
-                ...(pending.budget_reply_to && !pending.sequence
+                ...(pending.youtube
+                  ? { draft_permission: pending.draft_permission ?? "none" }
+                  : {}),
+                ...(pending.budget_reply_to &&
+                !pending.sequence &&
+                !pending.youtube
                   ? { plan_id: pending.budget_reply_to }
                   : {}),
                 ...(pending.route && !pending.sequence
@@ -617,6 +673,15 @@ export default function ConversationWorkspace({
         throw error;
       }
       if (
+        pending.youtube &&
+        (saved.id !== pending.conversationId ||
+          saved.message_receipt?.revision !== pending.expected_revision + 1)
+      )
+        throw new Error(
+          "The original YouTube message receipt could not be confirmed. Retry the saved request.",
+        );
+      if (
+        pending.youtube ||
         pending.artifact ||
         (pending.route && !pending.sequence) ||
         (pending.sequence && !saved.message_receipt)
@@ -625,6 +690,7 @@ export default function ConversationWorkspace({
         setPendingMessage(null);
         setMessage("");
         setAllowModelCopy(false);
+        setAllowYouTubeDraft(false);
         setCommentTarget(null);
         accept(saved);
         return;
@@ -1012,6 +1078,64 @@ export default function ConversationWorkspace({
                     <span>You</span>
                     <p>{item.content}</p>
                   </div>
+                  {conversation.youtube_interactions
+                    ?.filter((row) => row.revision === item.revision)
+                    .map((row) => (
+                      <div
+                        className="conversation-agent"
+                        key={row.operation_id}
+                      >
+                        <p>{row.response}</p>
+                        <details>
+                          <summary>YouTube activity · {row.status}</summary>
+                          <ul>
+                            {row.activity.map((action) => (
+                              <li key={action}>{action}</li>
+                            ))}
+                          </ul>
+                        </details>
+                        {["queued", "running"].includes(row.status) && (
+                          <button
+                            type="button"
+                            className="button secondary"
+                            disabled={!!busy || !!pendingMessage}
+                            onClick={async () => {
+                              const stamp = epoch.current;
+                              setBusy("Resuming original YouTube preparation");
+                              try {
+                                const next = await command<Conversation>(
+                                  "/api/youtube/resume",
+                                  {
+                                    operation_id: row.operation_id,
+                                    conversation_id: conversation.id,
+                                  },
+                                  null,
+                                );
+                                if (stamp === epoch.current) accept(next);
+                              } catch (e) {
+                                if (stamp === epoch.current)
+                                  setError((e as Error).message);
+                              } finally {
+                                if (stamp === epoch.current) setBusy("");
+                              }
+                            }}
+                          >
+                            Resume original YouTube preparation
+                          </button>
+                        )}
+                        {row.campaign_id &&
+                          conversation.youtube_interactions
+                            ?.filter(
+                              (entry) => entry.campaign_id === row.campaign_id,
+                            )
+                            .at(-1)?.operation_id === row.operation_id && (
+                            <ConversationYouTube
+                              campaignId={row.campaign_id}
+                              refreshKey={conversation.revision}
+                            />
+                          )}
+                      </div>
+                    ))}
                   {conversation.sequence_journeys
                     ?.filter((j) => j.revision === item.revision)
                     .map((j) => (
@@ -1360,6 +1484,9 @@ export default function ConversationWorkspace({
             )}
             {!pendingMessage &&
             conversation?.messages.length &&
+            !conversation.youtube_interactions?.some(
+              (row) => row.revision === conversation.revision,
+            ) &&
             !conversation.sequence_journeys?.some(
               (j) => j.revision === conversation.revision,
             ) &&
@@ -1439,7 +1566,7 @@ export default function ConversationWorkspace({
                 <Send size={18} />
               </button>
             </div>
-            {!commentTarget && (
+            {!commentTarget && !youtubeIntent && (
               <p className="sequence-compose-help">
                 For email and human call sequences, sending a request permits up
                 to 15 offline generation calls at $0, within the shared
@@ -1447,7 +1574,29 @@ export default function ConversationWorkspace({
                 budget. No model setup is needed. Approval is separate.
               </p>
             )}
-            {!commentTarget && (
+            {!commentTarget && youtubeIntent && (
+              <section
+                className="composer-settings"
+                aria-label="YouTube request permission"
+              >
+                <label className="conversation-consent">
+                  <input
+                    type="checkbox"
+                    checked={
+                      pendingMessage?.draft_permission === "placements" ||
+                      (!pendingMessage && allowYouTubeDraft)
+                    }
+                    disabled={!!busy || !!pendingMessage}
+                    onChange={(event) =>
+                      setAllowYouTubeDraft(event.target.checked)
+                    }
+                  />
+                  Allow a YouTube placement draft for this request
+                </label>
+                <span>Authored offline · $0 · Approval is separate</span>
+              </section>
+            )}
+            {!commentTarget && !youtubeIntent && (
               <section
                 className="composer-settings"
                 aria-label="Model settings for chat"
@@ -1483,17 +1632,37 @@ export default function ConversationWorkspace({
             <p>
               {commentTarget
                 ? "Your comment is saved against this exact variant. Request a revision separately to generate new copy."
-                : pendingMessage?.canResendLegacyFollowup
-                  ? "A resend uses the original request ID. The first resend uses the funding shown in the composer."
-                  : pendingMessage
-                    ? "The last message needs confirmation. Retry saving it before continuing."
-                    : loadingConversation
-                      ? "Loading your saved conversation."
-                      : "First requests allow up to 2 planning calls. Follow-ups may use 1 routing call. Brief changes need confirmation; copy revisions ask for separate permission for up to 5 calls. If allowed, campaign copy adds up to 10 calls. Approval is separate."}
+                : youtubeIntent
+                  ? "The YouTube capability uses fictional placements and bundled synthetic comparison media. Sending does not approve or deploy a campaign."
+                  : pendingMessage?.canResendLegacyFollowup
+                    ? "A resend uses the original request ID. The first resend uses the funding shown in the composer."
+                    : pendingMessage
+                      ? "The last message needs confirmation. Retry saving it before continuing."
+                      : loadingConversation
+                        ? "Loading your saved conversation."
+                        : "First requests allow up to 2 planning calls. Follow-ups may use 1 routing call. Brief changes need confirmation; copy revisions ask for separate permission for up to 5 calls. If allowed, campaign copy adds up to 10 calls. Approval is separate."}
             </p>
           </form>
           {!hasMessages && (
             <div className="conversation-starters">
+              <button
+                className="conversation-example"
+                disabled={!!busy || !!pendingMessage}
+                onClick={() => {
+                  setMessage(
+                    "Prepare a YouTube placement draft for video editors and audiobook narrators.",
+                  );
+                  setAllowYouTubeDraft(true);
+                  document.getElementById("agent-message")?.focus();
+                }}
+              >
+                <span>
+                  Prepare a YouTube brief <ArrowUpRight size={14} />
+                </span>
+                <small>
+                  Authored contexts · fictional placements · no model calls
+                </small>
+              </button>
               <button
                 className="conversation-example"
                 disabled={!!busy || !!pendingMessage}

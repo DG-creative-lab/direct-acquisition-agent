@@ -99,6 +99,49 @@ class RemoteStorageTests(unittest.TestCase):
         self.database = self.wire.database(True)
     def tearDown(self):self.wire.close();self.temp.cleanup()
 
+    def test_youtube_draft_approval_rollback_and_fresh_session_export(self):
+        from unittest.mock import patch
+        from acquisition.bootstrap import build_youtube
+        with patch('acquisition.bootstrap.build_database', return_value=self.database):
+            native = build(None, clock=lambda:NOW)
+            app = build_youtube(None, lambda:NOW, organization='youtube')
+        authority = app.campaigns.store.authority
+        conversation = native.conversations.create('youtube','chat','YouTube')['id']
+        app.message({'request_id':'message','conversation_id':conversation,'expected_revision':0,
+                     'content':'Prepare YouTube placements for video editing','draft_permission':'placements'})
+        campaign = app.campaigns.interactions(conversation)[0]['campaign_id']
+        view = app.campaigns.read(campaign)
+        command = {'request_id':'approve','campaign_id':campaign,'subject':view['review']['subject']}
+        real = authority.require
+        attempts = []
+        def fail_at_commit(scope, actor, operation):
+            if operation == 'approve':
+                attempts.append(operation)
+                if len(attempts) == 2:raise OSError('rollback approval')
+            return real(scope, actor, operation)
+        with patch.object(authority,'require',side_effect=fail_at_commit):
+            with self.assertRaises(OSError):app.campaigns.command('approve',command)
+        self.assertIsNone(app.campaigns.read(campaign)['approval'])
+        approved = app.campaigns.command('approve',command)['result']['approval_id']
+        export = {'request_id':'export','campaign_id':campaign,'subject':view['review']['subject'],'approval_id':approved}
+        payload = app.campaigns.command('export',export)['result']['content']
+        with patch('acquisition.bootstrap.build_database', return_value=self.wire.database()):
+            reopened = build_youtube(None,lambda:NOW,organization='youtube')
+        self.assertEqual(reopened.campaigns.read(campaign)['campaign'],view['campaign'])
+        self.assertEqual(reopened.campaigns.command('export',export)['result']['content'],payload)
+        with closing(sqlite3.connect(self.path)) as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM youtube_approvals').fetchone()[0],1)
+            self.assertEqual(db.execute('SELECT count(*) FROM model_calls').fetchone()[0],0)
+        # The earlier native preview used version 25 without intake planning.
+        with self.database.transaction() as db:
+            db.execute('DROP TABLE intake_planning_sources')
+            db.execute('PRAGMA user_version=25')
+        with patch('acquisition.bootstrap.build_database', return_value=self.wire.database(True)):
+            upgraded = build_youtube(None,lambda:NOW,organization='youtube')
+        self.assertEqual(upgraded.campaigns.command('export',export)['result']['content'],payload)
+        with upgraded.campaigns.store.database.connect() as db:
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],26)
+
     def intent(self):
         # Composition uses exactly the same domain services and public ports.
         from unittest.mock import patch
@@ -128,7 +171,7 @@ class RemoteStorageTests(unittest.TestCase):
         with closing(sqlite3.connect(self.path)) as raw:
             self.assertEqual(raw.execute('select count(*) from runs').fetchone()[0],1)
             self.assertEqual(raw.execute('select count(*) from execution_admissions').fetchone()[0],1)
-            self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],25)
+            self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],26)
 
     def test_lost_commit_ack_reconciles_original_verified_receipt(self):
         store, intent = self.intent()
@@ -151,7 +194,7 @@ class RemoteStorageTests(unittest.TestCase):
                 db.execute('INSERT INTO rollback_marker VALUES(1)')
                 db.execute('INSERT INTO rollback_marker VALUES(1)')
         with closing(sqlite3.connect(self.path)) as raw:
-            self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],25)
+            self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],26)
             self.assertIsNone(raw.execute("select 1 from sqlite_master where name='rollback_marker'").fetchone())
 
     def test_intake_bootstrap_pinning_foreign_scope_and_lost_ack_replay(self):
@@ -227,7 +270,7 @@ class RemoteStorageTests(unittest.TestCase):
                 self.assertEqual(connection.execute('PRAGMA user_version').fetchone()[0],23)
                 self.assertIsNone(connection.execute("SELECT 1 FROM sqlite_master WHERE name='intake_requests'").fetchone())
             db._initialize(False,lambda:NOW,False)
-            with db.connect() as connection:self.assertEqual(connection.execute('PRAGMA user_version').fetchone()[0],25)
+            with db.connect() as connection:self.assertEqual(connection.execute('PRAGMA user_version').fetchone()[0],26)
             from acquisition.adapters.sqlite.intake_planning import INTAKE_PLANNING
             with db.transaction() as connection:
                 connection.execute('DROP TABLE intake_planning_sources')
@@ -241,7 +284,7 @@ class RemoteStorageTests(unittest.TestCase):
                 self.assertEqual(connection.execute('PRAGMA user_version').fetchone()[0],24)
                 self.assertIsNone(connection.execute("SELECT 1 FROM sqlite_schema WHERE name='intake_planning_sources'").fetchone())
             db._initialize(False,lambda:NOW,False)
-            with db.connect() as connection:self.assertEqual(connection.execute('PRAGMA user_version').fetchone()[0],25)
+            with db.connect() as connection:self.assertEqual(connection.execute('PRAGMA user_version').fetchone()[0],26)
         finally:other.close()
 
     def test_saved_intake_planning_uses_native_harness_over_hrana_wire(self):
@@ -283,6 +326,18 @@ class RemoteStorageTests(unittest.TestCase):
         with self.database.connect() as db:
             self.assertEqual(db.execute('SELECT count(*) FROM intake_planning_sources').fetchone()[0],1)
             self.assertEqual(db.execute('SELECT count(*) FROM review_decisions').fetchone()[0],0)
+        # Main's schema 25 has intake planning but no native channel tables.
+        with self.database.transaction() as db:
+            for table in ('youtube_revocations','youtube_approvals','youtube_results','youtube_interactions',
+                          'youtube_preparations','youtube_requests','youtube_revisions'):
+                db.execute('DROP TABLE '+table)
+            db.execute('PRAGMA user_version=25')
+        with patch('acquisition.bootstrap.build_database',return_value=self.wire.database(True)):
+            upgraded = build(None,clock=lambda:NOW,gateway=model,model_config=ModelConfig('test/model',max_calls=2,force_tool_choice=True))
+        self.assertEqual(upgraded.intake_planning.request('intake','writer','plan',brief['id'],1),run)
+        self.assertEqual(upgraded.intake_planning.view('intake','plan'),view)
+        upgraded.worker.drain('intake',run_id=run)
+        self.assertEqual(len(model.requests),1)
 
     def test_unpadded_remote_blobs_preserve_exact_bytes(self):
         self.assertEqual(decode({'type':'blob','base64':'ZXhhY3Q'}),b'exact')
@@ -402,7 +457,7 @@ class RemoteStorageTests(unittest.TestCase):
                 self.assertEqual(raw.execute("select name from sqlite_master where name not like 'sqlite_%'").fetchall(),[])
             other.database(True)
             with closing(sqlite3.connect(other.path)) as raw:
-                self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],25)
+                self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],26)
         finally:other.close()
 
     def test_concurrent_fresh_initializers_converge_without_partial_schema(self):
@@ -411,7 +466,7 @@ class RemoteStorageTests(unittest.TestCase):
             with ThreadPoolExecutor(max_workers=2) as pool:
                 list(pool.map(lambda _:other.database(True),range(2)))
             with closing(sqlite3.connect(other.path)) as raw:
-                self.assertEqual(raw.execute('select version from acquisition_schema').fetchall(),[(25,)])
+                self.assertEqual(raw.execute('select version from acquisition_schema').fetchall(),[(26,)])
                 self.assertEqual(raw.execute('select count(*) from application_store_identity').fetchone()[0],1)
                 self.assertEqual(raw.execute('pragma foreign_key_check').fetchall(),[])
         finally:other.close()

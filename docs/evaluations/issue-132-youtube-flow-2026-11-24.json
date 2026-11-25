@@ -1,0 +1,186 @@
+{
+  "schema": "youtube-preparation-evidence/v1",
+  "issue": 132,
+  "recorded_at": "2026-11-24T19:17:42.389513+00:00",
+  "repository": "DG-creative-lab/direct-acquisition-agent",
+  "branch": "feature/132-youtube-draft-review-export",
+  "comparison_base": "098eb867c81abc8294b289d4a70023d6ddcd9f82",
+  "code_commit": "50792942ccfa9dc17372b3d01666bd5792a6d5bc",
+  "accepted_source": "8250e1f4f4ce2150d911a8231cc03bd31c2cab8b",
+  "mode": "OFFLINE_AUTHORED",
+  "backend": {
+    "total": 1165,
+    "shards": [
+      {
+        "shard": 1,
+        "tests": 242,
+        "seconds": 667.54,
+        "passed": true,
+        "log": "/private/tmp/iwoca-132-backend-release-1.log",
+        "log_sha256": "1d52fb428334cc9db8f2a25c1e450330f3fb26dc7115d856f06cb0fb9fe171c8",
+        "source_at_start": "ba9d3ab01fc9bc2c9900f41c5366d9110c44b2bd"
+      },
+      {
+        "shard": 2,
+        "tests": 443,
+        "seconds": 355.822,
+        "passed": true,
+        "log": "/private/tmp/iwoca-132-backend-readonly-2.log",
+        "log_sha256": "2e165ac556c22498d7980a51244138fc684e611aa20b684f60004e9a0e38fdd6",
+        "source_at_start": "50792942ccfa9dc17372b3d01666bd5792a6d5bc"
+      },
+      {
+        "shard": 3,
+        "tests": 265,
+        "seconds": 566.991,
+        "passed": true,
+        "log": "/private/tmp/iwoca-132-backend-release-3.log",
+        "log_sha256": "d3b2403c60aa3ec03131f0ac30f6de03df1020f304809e58e52ed3064c540101",
+        "source_at_start": "ba9d3ab01fc9bc2c9900f41c5366d9110c44b2bd"
+      },
+      {
+        "shard": 4,
+        "tests": 215,
+        "seconds": 531.295,
+        "passed": true,
+        "log": "/private/tmp/iwoca-132-backend-release-4.log",
+        "log_sha256": "0dda5eb084eca7205ee8d1aad25c0d5daa9022ebc2a41a48bbda9a8204c9042c",
+        "source_at_start": "ba9d3ab01fc9bc2c9900f41c5366d9110c44b2bd"
+      }
+    ],
+    "inventory": {
+      "discovered": 1165,
+      "executed": 1165,
+      "unique_executed": 1165,
+      "missing": [],
+      "unexpected": []
+    },
+    "command": "make test-shard SHARD=N BACKEND_SHARDS=4",
+    "attribution": "Initial full discovery began on ba9d3ab. Read-only construction was fixed during that run; the complete affected partition 2 was rerun on 5079294. The 65-test affected-module run also exercises the final native, HTTP, legacy and libSQL behavior. No test was removed or weakened.",
+    "focused_final": {
+      "tests": 65,
+      "passed": true,
+      "log": "/private/tmp/iwoca-132-readonly-final.log",
+      "log_sha256": "115e2d27d5cde69ce1063e93da8a8c47e7672a5f8e360dab5aa6f7cf28638ea4"
+    }
+  },
+  "browser": {
+    "total": 133,
+    "passed": true,
+    "partitions": [
+      {
+        "partition": 1,
+        "stats": {
+          "startTime": "2026-11-24T19:08:43.622Z",
+          "duration": 375401.729,
+          "expected": 38,
+          "skipped": 0,
+          "unexpected": 0,
+          "flaky": 0
+        },
+        "report": ".local/browser-reports/shard-1.json",
+        "report_sha256": "993ca17b1d3c3923449ea2135ce105b00de07238c8d6862dea5770d831d11d1c",
+        "log": "/private/tmp/iwoca-132-browser-isolated-1.log"
+      },
+      {
+        "partition": 2,
+        "stats": {
+          "startTime": "2026-11-24T19:08:58.546Z",
+          "duration": 436168.402,
+          "expected": 95,
+          "skipped": 0,
+          "unexpected": 0,
+          "flaky": 0
+        },
+        "report": ".local/browser-reports/shard-2.json",
+        "report_sha256": "0546220a40d40aaf75522d5438763609d4886343eb1637ff5815c773f3326b50",
+        "log": "/private/tmp/iwoca-132-browser-isolated-2.log"
+      }
+    ],
+    "command": "make interface-check BROWSER_SHARD=1 BROWSER_SHARDS=2, then BROWSER_SHARD=2 BROWSER_SHARDS=2 pnpm --dir frontend test after the build completes",
+    "conditions": "Final source, stable built assets, no concurrent backend suite. Earlier timeouts and the concurrent-build missing-asset failure remain in local logs; final assertions and deadlines were not relaxed."
+  },
+  "boundary": {
+    "passed": true,
+    "report": ".local/boundary-evidence/issue-132-readonly/results.json",
+    "report_sha256": "d48a9bb910956b369e505afbe5bb7ccb90a93172740f60ca3786babd513d177d",
+    "source_commit": "50792942ccfa9dc17372b3d01666bd5792a6d5bc",
+    "source_files_sha256": "a0b4c42c015f996787f77341b87d79b61f112f50cda067801c4dbb02708e1084",
+    "stable_source": true,
+    "historical_bytes_unchanged": true,
+    "historical_artifacts": 32,
+    "architecture": {
+      "classified_modules": 228,
+      "errors": [],
+      "temporary_exceptions": 0
+    },
+    "cases": [
+      {
+        "id": "compatibility-model-journey",
+        "exit_code": 0,
+        "network_attempts": 0
+      },
+      {
+        "id": "verified-commit-rebuild-replay",
+        "exit_code": 0,
+        "network_attempts": 0
+      },
+      {
+        "id": "uncertain-restart",
+        "exit_code": 0,
+        "network_attempts": 0
+      },
+      {
+        "id": "profile-replay",
+        "exit_code": 0,
+        "network_attempts": 0
+      },
+      {
+        "id": "engagement-replay",
+        "exit_code": 0,
+        "network_attempts": 0
+      }
+    ]
+  },
+  "manual_browser": {
+    "preview": "http://127.0.0.1:8788",
+    "widths": [
+      1440,
+      390
+    ],
+    "narrow_document_width": 390,
+    "export_source_commit": "ba9d3ab",
+    "fresh_server_reopen_commit": "50792942ccfa9dc17372b3d01666bd5792a6d5bc",
+    "export_schema": "youtube-manual-export/v1",
+    "export_bytes": 5822,
+    "export_sha256": "396ac6a8516eccea1096d0ceb7832a3e18e41b26a1fae18b0cb1fa70a25b8157",
+    "approval_actor": "local-reviewer",
+    "payload_hash_matches": true,
+    "reopened_revision": 1,
+    "reopened_approval": "Approved"
+  },
+  "review": {
+    "kind": "self-review with targeted failure injection; not an independent review",
+    "comparison": "098eb867...5079294",
+    "remaining_actionable_findings": [],
+    "invariants": [
+      "Server-resolved scope, original store identity and exact request inputs bind command replay.",
+      "Conversation append, frozen plan and preparation linkage commit together; native publication and runtime settlement are atomic.",
+      "Stale leases, newer messages, stops, changed context and competing draft edits cannot publish an old preparation.",
+      "Exact review binds payload, media, origin, profile and both current platform actor generations.",
+      "Approval expiry, revocation, role changes and media changes block cached export receipts.",
+      "UI and typed tools share native commands; typed tools expose neither human approval nor export.",
+      "Reads and construction create no local actor authority; explicit local submission alone initializes defaults and never resets administration.",
+      "Existing postal and sequence rejection/recovery semantics remain covered."
+    ]
+  },
+  "limits": [
+    "Control and workflow evidence, not live model capability or campaign performance.",
+    "Authored synthetic context, four fictional placements and five bundled synthetic media files only.",
+    "libSQL proof uses the local Hrana simulator, not a hosted Turso probe.",
+    "Local comparison previews work but collect no viewer observations; full viewer and learning parity follow in #133.",
+    "No live provider verification, deployment, ad purchase, source-history import or public cutover.",
+    "One trusted local workspace and supported worker topology; hosted identity/context and live inference remain platform work.",
+    "The full future contract example corpus is not claimed as executed by this slice."
+  ]
+}

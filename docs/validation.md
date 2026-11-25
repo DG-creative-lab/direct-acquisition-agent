@@ -1,5 +1,134 @@
 # Validation and limits
 
+## YouTube media refresh, 25 November 2026
+
+The bundled comparisons now use the exact rendered files from merged YouTube
+source `2d4e60d4027217edada6c93153d02cc0aa17cc75`. Fixture passages and the
+editing instruction match its generation manifest. Destination creative and
+comparison identities advance to v2; source identities remain recorded in the
+provenance map. Four standalone ad candidates are retained as sample artifacts,
+without adding ad selection or inference to the application.
+
+The focused native suite passes 20 tests and the guarded HTTP suite passes eight.
+The new upgrade regression preserves all original channel rows, rejects v1
+approval/export replay after installing v2 context, and prepares a fresh
+unapproved v2 package without model calls. A separate consistency check verifies
+the source passages, instructions, take definitions and all 15 copied asset hashes
+and sizes. Browser coverage now checks both comparison pages, their displayed
+transcripts, AI disclosure, v2 identities and media metadata after exact export.
+
+Architecture passes with 232 classified modules and zero exceptions. Production
+build, frontend formatting and the 147-case browser catalogue check pass. The
+complete backend/interface and attributable recovery results are recorded on
+the refreshed PR head. No schema, review authority, provider client, credential,
+source history or live campaign execution is imported by this asset update.
+
+## CI fixture clocks, 25 November 2026
+
+The authored product evidence ends its review window on 24 November. The next
+day's full PR run exposed three Python failures and four browser failures:
+unfrozen subprocess/browser clocks, an obsolete patch on the forwarding CLI
+module, and an HTTP test that replaced the facade clock after application
+dependencies had captured it.
+
+The CLI tests now patch construction in bootstrap inside each subprocess. The
+no-credentials admission test also rejects any attempt to load a gateway. HTTP
+tests inject a shared mutable clock before constructing the workspace. The
+browser test server injects a clock inside the authored source window through
+the normal startup path. No production backdating flag, evidence date change
+or freshness exception is introduced.
+
+The 24 focused CLI/HTTP tests, 23 grounding/catalogue tests, eight CI-tool tests
+and four previously failing browser cases pass locally. Changes to the new
+browser server helper require the full browser portfolio, including when a
+skip label exists. Formatting and the 232-module architecture
+check pass. The existing grounding test still rejects 25 November evidence,
+and catalogue regressions still reject stale/future sources. Full PR CI
+verifies the combined suite separately; these checks make no live model calls.
+
+## Integration with merged intake planning, 25 November 2026
+
+Main PR #137 and the reviewed YouTube branch both used migration 25. The
+integrated branch retains intake planning at 25 and installs native YouTube
+history at 26. It recognizes the earlier unpublished YouTube-only schema-25
+layout and upgrades it transactionally, while ordinary main schema-25 stores
+receive the native tables without replacing intake sources or planning receipts.
+Historical stores without the channel remain readable without creating channel
+history. Current schema-26 stores still fail closed when required history is
+missing.
+
+Targeted real SQLite and local libSQL-wire regressions cover both schema-25
+layouts, failed migration rollback, exact approved-export replay, store identity,
+frozen intake source/result preservation and zero repeated model calls. The
+original reviewed verification records remain immutable and describe their
+original commits; final merge CI supplies the combined-branch gate results.
+
+
+## YouTube routing review correction, 24 November 2026
+
+The browser and native router now recognize the same singular/plural email,
+e-mail, postcard, human-call, phone-call and call-script terms. A postcard
+follow-up to the current YouTube turn leaves the native route and uses postal
+message admission; generic follow-up callers receive the same transition.
+Mixed explicit channel requests remain a clarification even when placement
+permission is present, with zero draft, preparation task or model-call rows.
+
+Current routing is also rechecked at publication. An older queued operation
+admitted by the previous classifier cannot publish a YouTube-only draft after
+resume. Its original request and runtime history remain intact. This correction
+changes no schema, approval rule, provider adapter or historical artifact.
+
+Both failures reproduced before the fix. After correction, 26 focused tests
+passed, including all eight real loopback HTTP cases. All 1,168 discovered
+backend tests passed exactly once across four supported shards. The production
+build, formatting and all 141 browser cases passed with zero skipped,
+unexpected or flaky results. Five recovery boundary scenarios passed on
+`00c944f8a1f07732059c0394e2d56fd7b40d823a` with stable source, zero
+network attempts, 228 classified modules, zero architecture exceptions and all
+33 historical evaluation artifacts unchanged. The [routing review evidence](evaluations/issue-132-routing-review-2026-11-24.json)
+records source identity, regression outcomes and finite verification limits.
+
+## Native YouTube preparation, issue 132, 24 November 2026
+
+The [authored local flow](youtube-preparation.md) adds a native channel module,
+`youtube.prepare.v1`, exact human review and manual JSON export in existing chat.
+Schema 25 appends native history without changing postal or sequence identities.
+The frozen request, runtime plan, current conversation revision and active lease
+bind publication. Stops, superseding messages and competing campaign edits block
+late drafts. Advice and ambiguous channel requests grant no draft permission.
+
+Approvals bind exact payload/media/context/origin and current local authority,
+with bounded expiry and explicit revocation. The installed local adapter consumes
+the existing operator/reviewer records and never resets disabled roles. Both
+role generations bind the subject; disabling and re-enabling a reviewer cannot
+renew an old approval, including after a fresh interpreter opens the store.
+Export rechecks current state before
+replaying a receipt. Receipt recovery cannot restore stale authority. Human
+approval/download are absent from the typed agent tool surface. The guarded HTTP
+path and browser pending commands bind the original store; a reply lost after
+commit retries the original request. Definite admission rejection unlocks editing
+without treating post-commit uncertainty as failure to save.
+
+Real SQLite, fresh-process reads, migration rollback, lease expiry, concurrent
+edits, stop/resume, public media and scope substitution have executable targeted
+coverage. The existing libSQL transport also passes a local wire-simulator save,
+approval rollback and fresh-connection export. This is not hosted Turso evidence.
+Bundled previews are functional but collect no viewer events. No provider calls,
+source-history import, live ad effect, deployment or source cutover is included.
+The retained [evidence record](evaluations/issue-132-youtube-flow-2026-11-24.json)
+records the source attribution, failure corrections and finite limits. Backend
+coverage passed all 1,165 discovered cases across four supported shards, with
+zero missing or repeated test identities; the affected 443-case partition was
+rerun after the read-only fix. All 65 final affected-module tests also passed.
+The final production build, formatting and both browser partitions passed all
+133 cases, with zero skipped, unexpected or flaky results. The final five-case
+boundary gate on `50792942ccfa9dc17372b3d01666bd5792a6d5bc` passed with
+stable source, zero network attempts, 228 classified modules, zero architecture
+exceptions and all 32 earlier evaluation artifacts unchanged. Desktop and 390px
+manual inspection included a real native JSON download and fresh-server reopen.
+Earlier browser runs under concurrent backend/build load failed; the final full
+browser run used stable assets without backend load and unchanged assertions.
+
 ## Intake recovery store binding, review correction, 24 November 2026
 
 The P2 review identified an ownership gap: an original save retained its inputs

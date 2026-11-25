@@ -161,7 +161,12 @@ class AdmissionEntrypointTests(unittest.TestCase):
 
     def test_model_admission_without_credentials_does_not_load_a_provider(self):
         path=self.root/'no-key.sqlite';env=dict(os.environ,PYTHONPATH=str(Path('src').resolve()))
-        result=subprocess.run([sys.executable,'-m','acquisition','--db',str(path),'--verified-admissions',
+        wrapper=("from acquisition import __main__ as c; import acquisition.bootstrap as b; "
+                 "from unittest.mock import patch; original=b.build; "
+                 "with_clock=lambda *a,**kw:original(*a,clock=lambda:1792972800,**kw); "
+                 "patch.object(b,'build',with_clock).start(); "
+                 "patch.object(b,'workspace_gateway',side_effect=AssertionError('Provider loaded')).start(); c.main()")
+        result=subprocess.run([sys.executable,'-c',wrapper,'--db',str(path),'--verified-admissions',
             '--env-file',str(self.root/'missing.env'),'create-model','--request-id','model','--size','20'],
             env=env,capture_output=True,text=True,timeout=20)
         self.assertEqual(result.returncode,0,result.stderr)
