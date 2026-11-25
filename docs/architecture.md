@@ -35,6 +35,13 @@ The [local checkpoint adapter](workspace-checkpoints.md) uses the same root lock
 
 ## Module ownership
 
+The proposed [contextual targeting feasibility design](targeting-decisioning-feasibility.md)
+keeps channel decision/reward policy in `youtube`, model calls behind existing
+`reasoning` ports, shared creative references in `creative`, and provider
+capability/context/reporting mechanics in injected adapters. #143/#144 are
+implementation/evidence gates before the next #133 measurement slice. No
+universal decision engine or new runtime dependency is installed by this plan.
+
 The proposed [shared creative asset storage design](creative-asset-storage-design.md)
 keeps YouTube channel rules native and places reusable asset identity/catalogue
 under `creative`, with injected local/Blob file adapters. This is a future

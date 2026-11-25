@@ -4,6 +4,13 @@ Status: provisional product and architecture design, 24 November 2026. It guides
 
 The user should prepare and improve a campaign in one workspace: supply product context, ask the campaign agent for help, review a concrete artifact, then use actual observed results to decide the next change. Shared navigation and knowledge should reduce repeated work across channels. Channel-specific identities, approvals and evidence remain explicit.
 
+For YouTube, the intended decision is a suitable context–creative allocation
+under a brief, objective, budget and time span. Visitor preference is an optional
+research signal. The [targeting feasibility design](targeting-decisioning-feasibility.md)
+places #143 data/control/reward checks and #144 offline recommendation comparison
+before #133's next measurement slice; current authored preparation does not
+already deliver that predictive capability.
+
 This design extends the existing [organization profiles](organization-profiles.md), [Company & brief intake](intake.md), [conversations](conversations.md), [review](reviews.md), [learning](learning.md) and [channel expansion](channel-expansion-plan.md). The [migration plan](youtube-migration-plan.md) maps source capabilities; [hosting preparation](hosted-platform-preparation.md) separates infrastructure already delivered from release gaps.
 
 ## User-facing structure

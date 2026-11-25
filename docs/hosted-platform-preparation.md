@@ -4,6 +4,12 @@ Status: migration planning, 24 November 2026. This is a gap map against accepted
 
 The target is a bounded online product a permitted tester can actually use: save company and campaign context, talk to the agent, review an exact result, export it and return to saved work. YouTube adds a usable viewer and channel-specific evidence loop. See the [migration sequence](youtube-migration-plan.md) and [shared workspace design](multichannel-workspace-design.md).
 
+The [targeting feasibility gate](targeting-decisioning-feasibility.md) now
+precedes the next #133 channel build: #143 establishes actual control/data/reward
+and #144 compares offline contextual recommendations. #130 continues hosted
+composition, not an assumed per-impression ad-serving integration. A writable
+creative API is not proof of writable targeting or a compatible outcome report.
+
 ## Reuse the completed preparation
 
 | Existing capability | Evidence in this repository | Remaining distinction |

@@ -187,12 +187,13 @@ outcomes. Storage usage is an operational signal, not Bayesian evidence.
 | Order / track | Deliverable | Dependency and release boundary |
 | --- | --- | --- |
 | A: shared platform foundation [#140](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/140) | Minimal `creative` catalogue/version/file ports, local adapter and conformance; adapt YouTube manifests to exact asset references | Existing module/organization contracts; no hosted identity or new sharing assumed |
-| B: YouTube migration #133 | Functional viewer measurement and reviewed learning reuse against stable comparison/content versions | Merged #132; consume A at the agreed public boundary or retain current bundled adapter until integration; do not make local learning wait for cloud provisioning |
+| B: YouTube #143 -> #144 -> #133 | Targeting/data/reward feasibility, offline contextual allocation benchmark, then its measurement/reuse handoff | See [decisioning design](targeting-decisioning-feasibility.md); consume A or retain bundled exact assets until integration; cloud provisioning does not gate the offline baseline |
 | C: hosted asset adapter [#141](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/141) | Private Vercel Blob adapter, scoped delivery/upload recovery and fresh-function verification | A; #70 for hosted identity/connections, #130 composition; evidence under #134/#74 before hosted exposure |
 | D: later client storage | One separately scoped client-owned adapter and migration/connection conformance | Concrete client requirement and #70 connection contract; deferred, no speculative adapter now |
 
 The platform chat owns A/C and agrees public contracts with this YouTube track.
-This chat can next build #133 on the merged authored baseline. Before concurrent
+The next channel work is #143 and #144 before resuming #133, as detailed in
+[targeting feasibility](targeting-decisioning-feasibility.md). Before concurrent
 changes to bootstrap, migrations, workspace authority or HTTP composition, record
 one integration owner and agreed base. #131 intake/live context remains the other
 platform workstream; asset work does not replace it.
