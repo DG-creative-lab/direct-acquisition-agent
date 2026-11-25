@@ -30,6 +30,11 @@ const port = Number(process.env.BROWSER_PORT ?? 8769 + Number(shard));
 if (!Number.isInteger(port) || port < 1024 || port > 65535)
   throw new Error("BROWSER_PORT must be an integer from 1024 to 65535");
 const baseURL = `http://127.0.0.1:${port}`;
+// Keep the shared synthetic catalogues inside their recorded review window.
+// Monotonic elapsed time still advances leases, deadlines and worker polling.
+const fixtureServer =
+  "import time; started=time.monotonic(); time.time=lambda:1793491200.+time.monotonic()-started; " +
+  "from acquisition.entrypoints.workspace import main; main()";
 export default defineConfig({
   testDir: "./tests",
   testMatch:
@@ -55,7 +60,7 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   webServer: {
-    command: `python3 -m acquisition.workspace_server --port ${port} --root .local/browser-tests/shard-${shard}-${randomUUID()}`,
+    command: `python3 -c "${fixtureServer}" --port ${port} --root .local/browser-tests/shard-${shard}-${randomUUID()}`,
     cwd: root,
     env: {
       PYTHONPATH: "src",
