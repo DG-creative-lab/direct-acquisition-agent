@@ -237,7 +237,9 @@ class IntakePlanningTests(unittest.TestCase):
     def test_schema24_upgrade_rollback_preserves_intake_and_store_identity(self):
         from unittest.mock import patch
         from acquisition.adapters.sqlite.intake_planning import INTAKE_PLANNING
+        from acquisition.adapters.sqlite.preparation_context import PREPARATION_CONTEXTS
         with Database.existing(self.path).transaction() as db:
+            db.execute('DROP TABLE preparation_contexts')
             db.execute('DROP TABLE intake_planning_sources')
             db.execute('PRAGMA user_version=24')
             original_id = db.execute('SELECT id FROM application_store_identity').fetchone()[0]
@@ -253,7 +255,7 @@ class IntakePlanningTests(unittest.TestCase):
             self.assertEqual([tuple(row) for row in db.execute('SELECT * FROM intake_requests ORDER BY request_id')],before)
         Database(self.path)
         with Database.existing(self.path).connect() as db:
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],26)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],27)
             self.assertEqual(db.execute('SELECT id FROM application_store_identity').fetchone()[0],original_id)
             self.assertEqual([tuple(row) for row in db.execute('SELECT * FROM intake_requests ORDER BY request_id')],before)
             self.assertEqual(db.execute('PRAGMA foreign_key_check').fetchall(),[])

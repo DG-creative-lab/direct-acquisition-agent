@@ -26,7 +26,9 @@ const firstPartition = [
   "**/chat-review.spec.mjs",
   "**/sequence-journey.spec.mjs",
 ];
-const port = 8769 + Number(shard);
+const port = Number(process.env.BROWSER_PORT ?? 8769 + Number(shard));
+if (!Number.isInteger(port) || port < 1024 || port > 65535)
+  throw new Error("BROWSER_PORT must be an integer from 1024 to 65535");
 const baseURL = `http://127.0.0.1:${port}`;
 export default defineConfig({
   testDir: "./tests",

@@ -307,8 +307,8 @@ class WorkspaceHttpTests(unittest.TestCase):
         assets = self.root / "assets"
         assets.mkdir()
         (assets / "index.html").write_text('<meta name="workspace-token" content="__WORKSPACE_TOKEN__">')
-        self.now = 1792972800.
-        self.server = WorkspaceServer(0, Workspace(self.root / "data", real_clock=lambda: self.now), assets)
+        self.now = 1793404800.
+        self.server = WorkspaceServer(0, Workspace(self.root / "data", real_clock=lambda:self.now), assets)
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
         self.addCleanup(self.stop)
@@ -462,7 +462,7 @@ class WorkspaceHttpTests(unittest.TestCase):
                 reopened.server_close()
 
     def test_audience_discovery_is_guarded_read_only_and_exactly_selected(self):
-        self.now=1793404800.
+        self.now = 1793404800.
         route='/api/audience-catalogue?campaign_key=contractor-project-costs'
         self.assertEqual(self.request(route,headers={"X-Workspace-Token":""})[0],403)
         self.assertEqual(self.request(route,headers={"Host":"attacker.invalid"})[0],403)

@@ -123,6 +123,18 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, page.encode(), 'text/html; charset=utf-8')
             if path == '/api/intake/store' and not self.parsed_target.query:
                 return self._send(200, {'store_id': self.server.workspace.intake.store_identity()})
+            if path == '/api/intake/contexts/preview':
+                query = parse_qs(self.parsed_target.query, keep_blank_values=True)
+                if set(query) != {'brief_id','revision'} or any(len(value) != 1 for value in query.values()):
+                    return self._send(400, {'error':'Select one exact brief version for preparation review'})
+                return self._send(200, self.server.workspace.intake.preparation_preview(query['brief_id'][0],int(query['revision'][0])))
+            if path == '/api/intake/contexts':
+                query = parse_qs(self.parsed_target.query, keep_blank_values=True)
+                if set(query) != {'brief_id'} or len(query['brief_id']) != 1:
+                    return self._send(400, {'error':'Select one brief for preparation history'})
+                return self._send(200, self.server.workspace.intake.preparation_history(query['brief_id'][0]))
+            if len(parts) == 5 and parts[:4] == ['api','intake','contexts','requests'] and not self.parsed_target.query:
+                return self._send(200, self.server.workspace.intake.preparation_request(parts[4]))
             if path == '/api/intake/plans':
                 query = parse_qs(self.parsed_target.query, keep_blank_values=True)
                 if set(query) != {'brief_id'} or len(query['brief_id']) != 1:
@@ -209,7 +221,8 @@ class Handler(BaseHTTPRequestHandler):
                                  and parts[3] == "monitoring-start")
             length = int(self.headers.get("Content-Length", "0"))
             intake_save = path in {'/api/intake/companies', '/api/intake/briefs'}
-            limit = 34 * 1024 * 1024 if monitoring_upload else 70 * 1024 if intake_save else 16384
+            context_save = path == '/api/intake/contexts'
+            limit = 34 * 1024 * 1024 if monitoring_upload else 70 * 1024 if intake_save or context_save else 16384
             if not 0 < length <= limit or self.headers.get("Content-Type", "").split(";")[0] != "application/json":
                 return self._send(400, {"error": "Use a bounded JSON request"} |
                                   ({'intake_not_saved': True} if intake_save else {}))
@@ -263,6 +276,20 @@ class Handler(BaseHTTPRequestHandler):
                 if intake_save:
                     return self._send(400, {'error': 'Intake saves do not use model funding', 'intake_not_saved': True})
                 raise ValueError("Use an OpenRouter connection handle.")
+            if context_save:
+                intake = self.server.workspace.intake
+                store_id = intake.store_identity()
+                if self.headers.get('X-Intake-Store') != store_id:
+                    return self._send(409, {'error':'Restore the original workspace store before retrying its preparation review.'})
+                try:
+                    if handle is not None or tab is not None or self.parsed_target.query:
+                        raise ValueError('Preparation input review uses no model funding or query fields')
+                    return self._send(200, intake.confirm_preparation(data))
+                except (ValueError, TypeError, NotFound) as error:
+                    request_id = data.get('request_id')
+                    try:definite = intake.preparation_not_committed(request_id)
+                    except ValueError:definite = False
+                    return self._send(409, {'error':str(error), 'context_not_saved':definite, 'store_id':store_id})
             if intake_save:
                 intake = self.server.workspace.intake
                 store_id = intake.store_identity()

@@ -232,7 +232,10 @@
     "acquisition.conversations.intake_planning": "domain",
     "acquisition.conversations.intake_planning_application": "application",
     "acquisition.adapters.sqlite.intake_planning": "adapter",
-    "acquisition.workflows.intake_interpretation": "workflow"
+    "acquisition.workflows.intake_interpretation": "workflow",
+    "acquisition.campaigns.preparation_context": "domain",
+    "acquisition.campaigns.preparation_context_application": "application",
+    "acquisition.adapters.sqlite.preparation_context": "adapter"
   },
   "exceptions": []
 }

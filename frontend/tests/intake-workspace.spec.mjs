@@ -1302,3 +1302,517 @@ test("intake planning blocks dispatch when recovery storage is unavailable or co
     true,
   );
 });
+
+function preparationRows(root) {
+  return JSON.parse(
+    execFileSync(
+      "python3",
+      [
+        "-c",
+        `
+import json,sqlite3,sys
+with sqlite3.connect(sys.argv[1]+'/conversations.sqlite') as db:
+ print(json.dumps([json.loads(row[0]) for row in db.execute('SELECT payload FROM preparation_contexts ORDER BY revision')]))
+`,
+        root,
+      ],
+      { cwd: project, encoding: "utf8" },
+    ),
+  );
+}
+async function choosePreparation(
+  page,
+  note = "Checked the exact source wording.",
+) {
+  const area = page.getByRole("region", {
+    name: "Review preparation context",
+    exact: true,
+  });
+  await expect(
+    area.getByRole("button", {
+      name: "Save reviewed preparation context",
+      exact: true,
+    }),
+  ).toBeEnabled();
+  await area
+    .getByLabel("Include the saved company description", { exact: true })
+    .check();
+  await area
+    .getByLabel("Input review note (required)", { exact: true })
+    .fill(note);
+  await area
+    .getByLabel(
+      "I reviewed these exact selected inputs. This does not verify claims or approve a campaign.",
+      { exact: true },
+    )
+    .check();
+  return area;
+}
+for (const mobile of [false, true])
+  test(`preparation context preserves selected wording and review history on ${mobile ? "mobile" : "desktop"}`, async ({
+    page,
+  }, testInfo) => {
+    await isolated(async (url, root) => {
+      await page.setViewportSize(
+        mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 },
+      );
+      await enter(page, url);
+      await planningBrief(page, root);
+      const area = page.getByRole("region", {
+        name: "Review preparation context",
+        exact: true,
+      });
+      const save = area.getByRole("button", {
+        name: "Save reviewed preparation context",
+        exact: true,
+      });
+      await expect(save).toBeEnabled();
+      await save.click();
+      await expect(
+        area.getByLabel("Input review note (required)"),
+      ).toBeFocused();
+      expect(preparationRows(root)).toHaveLength(0);
+      await choosePreparation(page, "Reviewed user wording — preserved.");
+      await save.click();
+      await expect(
+        area.getByRole("heading", {
+          name: "Saved preparation input review",
+          exact: true,
+        }),
+      ).toBeVisible();
+      const record = preparationRows(root)[0];
+      expect(record.selection.review_note).toBe(
+        "Reviewed user wording — preserved.",
+      );
+      expect(record.selected_inputs.description).toBe(
+        "User assertion about consultancy services.",
+      );
+      expect(record.verification).toBe("user_supplied_unverified");
+      expect(rows(root).model_calls).toHaveLength(0);
+      expect(rows(root).review_decisions).toHaveLength(0);
+      await area
+        .getByText("Exact reviewed preparation inputs", { exact: true })
+        .click();
+      await expect(area).toContainText("Aster Consultancy");
+      await expect(area).toContainText("12345");
+      await area.screenshot({
+        path: testInfo.outputPath(
+          `preparation-context-${mobile ? "mobile" : "desktop"}.png`,
+        ),
+      });
+      const briefId = record.source.brief.id;
+      await page.reload();
+      await page
+        .getByRole("button", { name: "Company & brief", exact: true })
+        .click();
+      await page.getByLabel("Saved campaign briefs").selectOption(briefId);
+      await expect(
+        area.getByRole("heading", {
+          name: "Saved preparation input review",
+          exact: true,
+        }),
+      ).toBeVisible();
+      await page
+        .getByLabel("Campaign objective", { exact: true })
+        .fill("Changed objective.");
+      await expect(save).toBeDisabled();
+      await page
+        .getByRole("button", { name: "Save campaign brief", exact: true })
+        .click();
+      await expect(
+        page.getByRole("status").filter({ hasText: "Brief saved: version 2." }),
+      ).toBeVisible();
+      await expect(area).toContainText("Review required or historical");
+      await expect(
+        area.getByLabel(
+          "I reviewed these exact selected inputs. This does not verify claims or approve a campaign.",
+        ),
+      ).not.toBeChecked();
+      await choosePreparation(page, "Review the changed brief.");
+      await save.click();
+      await expect(area).toContainText("Context version 2");
+      expect(preparationRows(root)).toHaveLength(2);
+      expect(preparationRows(root)[0].requirements.objective).toBe(
+        "Find independent retail clients",
+      );
+      expect(preparationRows(root)[1].requirements.objective).toBe(
+        "Changed objective.",
+      );
+    });
+  });
+
+test("preparation review keeps the original receipt and expiry after a lost reply and store switches", async ({
+  page,
+}) => {
+  await isolated(async (url, root, restart) => {
+    await enter(page, url);
+    await planningBrief(page, root);
+    const area = await choosePreparation(page);
+    await page.route("**/api/intake/contexts", async (route) => {
+      if (route.request().method() !== "POST") return route.continue();
+      await route.fetch();
+      await route.abort("failed");
+    });
+    await area
+      .getByRole("button", {
+        name: "Save reviewed preparation context",
+        exact: true,
+      })
+      .click();
+    await expect(
+      area.getByRole("button", {
+        name: "Retry original preparation review",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect.poll(() => preparationRows(root).length).toBe(1);
+    await expect(
+      area.getByRole("button", {
+        name: "Retry original preparation review",
+        exact: true,
+      }),
+    ).toBeEnabled();
+    const original = preparationRows(root)[0];
+    const pending = await page.evaluate(() =>
+      sessionStorage.getItem("workspace-preparation-review:v1"),
+    );
+    expect(pending).not.toBeNull();
+    await expect(
+      page.getByRole("button", { name: "Save campaign brief", exact: true }),
+    ).toBeDisabled();
+    await page.unroute("**/api/intake/contexts");
+    await restart();
+    await page.reload();
+    await page
+      .getByRole("button", { name: "Company & brief", exact: true })
+      .click();
+    let posts = 0;
+    page.on("request", (r) => {
+      if (r.method() === "POST" && r.url().endsWith("/api/intake/contexts"))
+        posts++;
+    });
+    await area
+      .getByRole("button", {
+        name: "Retry original preparation review",
+        exact: true,
+      })
+      .click();
+    await expect(page.getByRole("alert")).toContainText(
+      "Restore the original workspace store",
+    );
+    expect(posts).toBe(0);
+    expect(preparationRows(root)).toEqual([original]);
+    expect(
+      await page.evaluate(() =>
+        sessionStorage.getItem("workspace-preparation-review:v1"),
+      ),
+    ).toBe(pending);
+    await restart(root);
+    const identityRequested = Promise.withResolvers();
+    const releaseIdentity = Promise.withResolvers();
+    await page.route("**/api/intake/store", async (route) => {
+      const response = await route.fetch();
+      identityRequested.resolve();
+      await releaseIdentity.promise;
+      await route.fulfill({ response });
+    });
+    await page.reload();
+    await page
+      .getByRole("button", { name: "Company & brief", exact: true })
+      .click();
+    await identityRequested.promise;
+    const retry = area.getByRole("button", {
+      name: "Retry original preparation review",
+      exact: true,
+    });
+    await expect(retry).toBeDisabled();
+    releaseIdentity.resolve();
+    await expect(retry).toBeEnabled();
+    await page.unroute("**/api/intake/store");
+    await area
+      .getByRole("button", {
+        name: "Retry original preparation review",
+        exact: true,
+      })
+      .click();
+    await expect(
+      area.getByRole("heading", {
+        name: "Saved preparation input review",
+        exact: true,
+      }),
+    ).toBeVisible();
+    expect(posts).toBe(0);
+    expect(preparationRows(root)).toEqual([original]);
+    expect(
+      await page.evaluate(() =>
+        sessionStorage.getItem("workspace-preparation-review:v1"),
+      ),
+    ).toBeNull();
+  });
+});
+
+test("reconciling an older preparation receipt preserves the newer current review", async ({
+  page,
+  context,
+}) => {
+  await isolated(async (url, root) => {
+    await enter(page, url);
+    await planningBrief(page, root);
+    const area = await choosePreparation(page, "The original input review.");
+    let posts = 0;
+    page.on("request", (request) => {
+      if (
+        request.method() === "POST" &&
+        request.url().endsWith("/api/intake/contexts")
+      )
+        posts++;
+    });
+    await page.route("**/api/intake/contexts", async (route) => {
+      if (route.request().method() !== "POST") return route.continue();
+      await route.fetch();
+      await route.abort("failed");
+    });
+    await area
+      .getByRole("button", {
+        name: "Save reviewed preparation context",
+        exact: true,
+      })
+      .click();
+    await expect.poll(() => preparationRows(root).length).toBe(1);
+    const retry = area.getByRole("button", {
+      name: "Retry original preparation review",
+      exact: true,
+    });
+    await expect(retry).toBeEnabled();
+    const original = preparationRows(root)[0];
+    await page.unroute("**/api/intake/contexts");
+
+    const peer = await context.newPage();
+    await enter(peer, url);
+    await peer
+      .getByLabel("Saved campaign briefs")
+      .selectOption(original.source.brief.id);
+    const other = await choosePreparation(
+      peer,
+      "The newer current input review.",
+    );
+    await other
+      .getByRole("button", {
+        name: "Save reviewed preparation context",
+        exact: true,
+      })
+      .click();
+    await expect(other).toContainText("Context version 2");
+    const saved = preparationRows(root);
+    expect(saved).toHaveLength(2);
+
+    // Navigation reloads authoritative history while the original receipt is pending.
+    await page.getByRole("button", { name: "Knowledge", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Company & brief", exact: true })
+      .click();
+    await expect(area).toContainText("The newer current input review.");
+    await expect(area).toContainText(
+      "Current when last checked. Context version 2",
+    );
+    await retry.click();
+    await expect(area).toContainText("The original input review.");
+    await expect(retry).toHaveCount(0);
+    const history = area.getByLabel("Preparation review history (latest 20)");
+    await history.selectOption(saved[1].request_id);
+    await expect(area).toContainText(
+      "Current when last checked. Context version 2",
+    );
+    await expect(history.locator("option")).toHaveText([
+      "Context version 2 / brief version 1",
+      "Context version 1 / brief version 1",
+    ]);
+    await history.selectOption(original.request_id);
+    await expect(area).toContainText(
+      "Review required or historical. Context version 1",
+    );
+    expect(preparationRows(root)).toEqual(saved);
+    expect(posts).toBe(1);
+    expect(rows(root).model_calls).toHaveLength(0);
+    expect(rows(root).review_decisions).toHaveLength(0);
+    await peer.close();
+  });
+});
+
+test("a delayed preparation history read cannot erase a confirmed receipt", async ({
+  page,
+}) => {
+  await isolated(async (url, root) => {
+    await enter(page, url);
+    await planningBrief(page, root);
+    const area = await choosePreparation(page);
+    const postRequested = Promise.withResolvers();
+    const releasePost = Promise.withResolvers();
+    const historyRequested = Promise.withResolvers();
+    const releaseHistory = Promise.withResolvers();
+    const historyFinished = Promise.withResolvers();
+    await page.route("**/api/intake/contexts", async (route) => {
+      if (route.request().method() !== "POST") return route.continue();
+      postRequested.resolve();
+      await releasePost.promise;
+      await route.continue();
+    });
+    await area
+      .getByRole("button", {
+        name: "Save reviewed preparation context",
+        exact: true,
+      })
+      .click();
+    await postRequested.promise;
+    await page.route("**/api/intake/contexts?brief_id=*", async (route) => {
+      const response = await route.fetch();
+      expect((await response.json()).items).toEqual([]);
+      historyRequested.resolve();
+      await releaseHistory.promise;
+      try {
+        await route.fulfill({ response });
+      } catch {
+        // Confirmation can deliberately cancel this obsolete read.
+      } finally {
+        historyFinished.resolve();
+      }
+    });
+    await page.getByRole("button", { name: "Knowledge", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Company & brief", exact: true })
+      .click();
+    await historyRequested.promise;
+    releasePost.resolve();
+    await expect(
+      area.getByRole("heading", {
+        name: "Saved preparation input review",
+        exact: true,
+      }),
+    ).toBeVisible();
+    const saved = preparationRows(root);
+    expect(saved).toHaveLength(1);
+    releaseHistory.resolve();
+    await historyFinished.promise;
+    await page.evaluate(
+      () =>
+        new Promise((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(resolve)),
+        ),
+    );
+    await expect(
+      area.getByRole("heading", {
+        name: "Saved preparation input review",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(area).toContainText(
+      "Current when last checked. Context version 1",
+    );
+    expect(preparationRows(root)).toEqual(saved);
+    expect(
+      await page.evaluate(() =>
+        sessionStorage.getItem("workspace-preparation-review:v1"),
+      ),
+    ).toBeNull();
+  });
+});
+
+test("stale preparation previews and competing reviews retain the winner without a second record", async ({
+  page,
+  context,
+}) => {
+  await isolated(async (url, root) => {
+    await enter(page, url);
+    await planningBrief(page, root);
+    const area = await choosePreparation(page);
+    const briefId = rows(root).intake_brief_revisions[0][1];
+    const peer = await context.newPage();
+    await enter(peer, url);
+    await peer.getByLabel("Saved campaign briefs").selectOption(briefId);
+    const other = await choosePreparation(peer, "A competing review.");
+    await other
+      .getByRole("button", {
+        name: "Save reviewed preparation context",
+        exact: true,
+      })
+      .click();
+    await expect(
+      other.getByRole("heading", {
+        name: "Saved preparation input review",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await area
+      .getByRole("button", {
+        name: "Save reviewed preparation context",
+        exact: true,
+      })
+      .click();
+    await expect(page.getByRole("alert")).toContainText("review changed");
+    expect(preparationRows(root)).toHaveLength(1);
+    expect(
+      await page.evaluate(() =>
+        sessionStorage.getItem("workspace-preparation-review:v1"),
+      ),
+    ).toBeNull();
+    await area
+      .getByRole("button", {
+        name: "Reload preparation sources and history",
+        exact: true,
+      })
+      .click();
+    await expect(area).toContainText("A competing review.");
+    await expect(
+      area.getByLabel(
+        "I reviewed these exact selected inputs. This does not verify claims or approve a campaign.",
+      ),
+    ).not.toBeChecked();
+    await peer.close();
+  });
+});
+
+test("preparation review storage failure and corrupt recovery prevent dispatch", async ({
+  page,
+}) => {
+  await isolated(async (url, root) => {
+    await enter(page, url);
+    await planningBrief(page, root);
+    const area = await choosePreparation(page);
+    await page.evaluate(() => {
+      const original = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (key, value) {
+        if (key === "workspace-preparation-review:v1")
+          throw new Error("Preparation storage unavailable");
+        return original.call(this, key, value);
+      };
+    });
+    await area
+      .getByRole("button", {
+        name: "Save reviewed preparation context",
+        exact: true,
+      })
+      .click();
+    await expect(page.getByRole("alert")).toContainText(
+      "Preparation storage unavailable",
+    );
+    expect(preparationRows(root)).toHaveLength(0);
+    await page.reload();
+    await page.evaluate(() =>
+      sessionStorage.setItem(
+        "workspace-preparation-review:v1",
+        '{"payload":{"request_id":"lost"}}',
+      ),
+    );
+    await page.reload();
+    await page
+      .getByRole("button", { name: "Company & brief", exact: true })
+      .click();
+    await expect(page.getByRole("alert")).toContainText(
+      "original preparation review could not be restored",
+    );
+    await expect(
+      page.getByRole("button", { name: "Save company draft", exact: true }),
+    ).toBeDisabled();
+    expect(preparationRows(root)).toHaveLength(0);
+  });
+});

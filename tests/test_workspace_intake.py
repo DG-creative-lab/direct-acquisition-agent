@@ -224,3 +224,55 @@ print(json.dumps([app.company('local-conversations',sys.argv[2],1),app.brief('lo
         self.assertEqual(json.loads(body)['plan']['result']['outcome'],'unsupported')
         self.assertEqual(json.loads(body)['plan']['result']['requirements']['channels'],['video'])
         self.assertEqual(model.requests,[])
+
+    def context_inputs(self):
+        _, brief = self.planning_brief()
+        status,body,_=self.request('/api/intake/contexts/preview?brief_id='+brief['id']+'&revision=1')
+        self.assertEqual(status,200,body);preview=json.loads(body)
+        return {'request_id':'input-review','brief_id':brief['id'],'brief_revision':1,'preview_id':preview['id'],
+                'expected_context_revision':0,'selected_claim_ids':[],'include_description':True,'include_cta':False,
+                'review_days':7,'review_note':'Reviewed original user assertions.','issues':['Evidence remains unverified.'],'confirmed':True},preview
+
+    def test_preparation_context_http_replays_exact_review_and_guards_authority(self):
+        payload,preview=self.context_inputs()
+        store=json.loads(self.request('/api/intake/store')[1])['store_id']
+        for bad in ({'Host':'attacker.invalid'},{'X-Workspace-Token':''},{'Origin':'https://attacker.invalid'}):
+            self.assertEqual(self.request('/api/intake/contexts',payload,{'X-Intake-Store':store,**bad})[0],403)
+        status,body,_=self.request('/api/intake/contexts',payload,{'X-Intake-Store':'other'})
+        self.assertEqual(status,409);self.assertNotIn('context_not_saved',json.loads(body))
+        for bad in ({'organization':'foreign'},{'actor':'another'},{'generation':'allowed'},{'confirmed':False}):
+            status,body,_=self.request('/api/intake/contexts',payload|bad,{'X-Intake-Store':store})
+            self.assertEqual(status,409,body);self.assertTrue(json.loads(body)['context_not_saved'])
+        status,body,_=self.request('/api/intake/contexts',payload,{'X-Intake-Store':store})
+        self.assertEqual(status,200,body);first=json.loads(body)
+        self.assertEqual(first['context']['source']['company'],preview['company'])
+        self.assertEqual(first['context']['source']['brief'],preview['brief'])
+        self.assertEqual(first['context']['reviewer'],'local-operator')
+        self.assertEqual(first['context']['generation'],'unavailable')
+        for path in ('/api/intake/contexts/requests/input-review','/api/intake/contexts?brief_id='+payload['brief_id']):
+            self.assertEqual(self.request(path)[0],200)
+        self.assertEqual(self.save('companies','edit-company',{'company_name':'New version'},preview['company']['id'],1)[0],200)
+        status,body,_=self.request('/api/intake/contexts',payload,{'X-Intake-Store':store})
+        replay=json.loads(body);self.assertEqual(status,200,body);self.assertTrue(replay['replayed'])
+        self.assertFalse(replay['current']);self.assertEqual(replay['context'],first['context'])
+        status,body,_=self.request('/api/intake/contexts',payload|{'review_note':'Changed request'}, {'X-Intake-Store':store})
+        self.assertEqual(status,409);self.assertFalse(json.loads(body)['context_not_saved'])
+        with build_intake(self.root/'data'/'conversations.sqlite').store.database.connect() as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM preparation_contexts').fetchone()[0],1)
+            self.assertEqual(db.execute('SELECT count(*) FROM model_calls').fetchone()[0],0)
+            self.assertEqual(db.execute('SELECT count(*) FROM review_decisions').fetchone()[0],0)
+
+    def test_preparation_context_stale_preview_rejects_without_effect_and_fresh_review_succeeds(self):
+        payload,preview=self.context_inputs()
+        store=json.loads(self.request('/api/intake/store')[1])['store_id']
+        draft=preview['brief']['draft']|{'country':'France','currency':'EUR','channels':['video']}
+        self.assertEqual(self.save('briefs','changed',draft,payload['brief_id'],1)[0],200)
+        status,body,_=self.request('/api/intake/contexts',payload,{'X-Intake-Store':store})
+        self.assertEqual(status,409,body);self.assertTrue(json.loads(body)['context_not_saved'])
+        status,body,_=self.request('/api/intake/contexts/preview?brief_id='+payload['brief_id']+'&revision=2')
+        self.assertEqual(status,200,body);fresh=json.loads(body)
+        status,body,_=self.request('/api/intake/contexts',payload|{'brief_revision':2,'preview_id':fresh['id']},{'X-Intake-Store':store})
+        self.assertEqual(status,200,body);saved=json.loads(body)['context']
+        self.assertEqual(saved['requirements']['country'],'France')
+        self.assertTrue(saved['requirements_readiness']['unsupported'])
+        self.assertEqual(saved['reviewer_questions'],['Evidence remains unverified.'])

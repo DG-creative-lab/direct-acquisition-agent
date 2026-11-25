@@ -10,8 +10,8 @@ from .ports import CampaignIntakeStore
 
 
 class CampaignIntake:
-    def __init__(self, store: CampaignIntakeStore, clock):
-        self.store, self.clock = store, clock
+    def __init__(self, store: CampaignIntakeStore, clock, preparation=None):
+        self.store, self.clock, self.preparation = store, clock, preparation
 
     def store_identity(self):
         """Persistent database identity for binding local recovery to its owner."""
