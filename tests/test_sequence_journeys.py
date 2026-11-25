@@ -22,6 +22,7 @@ from acquisition.adapters.sqlite.admission_guard import binding
 from acquisition.adapters.sqlite.database import Database
 from acquisition.adapters.sqlite.intake import INTAKE
 from acquisition.adapters.sqlite.youtube import YOUTUBE
+from acquisition.adapters.sqlite.intake_planning import INTAKE_PLANNING
 from acquisition.adapters.sqlite.sequence_journeys import SEQUENCE_JOURNEYS
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.conversations import journey_request, journey_commands
@@ -963,8 +964,8 @@ class SequenceJourneyTests(unittest.TestCase):
         # A real preceding schema, not a latest database relabeled as an old one.
         path=Path(self.temp.name)/'previous.sqlite';apply=Database._apply_migration
         def previous(db,script):
-            if script not in {SEQUENCE_JOURNEYS, INTAKE, YOUTUBE}:return apply(db,script)
-        with patch.object(Database,'_apply_migration',side_effect=previous),patch.object(Database,'_validate_sequence_journey_schema'), patch('acquisition.adapters.sqlite.intake.validate_intake_schema'), patch('acquisition.adapters.sqlite.youtube.validate_youtube_schema'):
+            if script not in {SEQUENCE_JOURNEYS, INTAKE, INTAKE_PLANNING, YOUTUBE}:return apply(db,script)
+        with patch.object(Database,'_apply_migration',side_effect=previous),patch.object(Database,'_validate_sequence_journey_schema'), patch('acquisition.adapters.sqlite.intake.validate_intake_schema'), patch('acquisition.adapters.sqlite.youtube.validate_youtube_schema'), patch('acquisition.adapters.sqlite.intake_planning.validate_intake_planning_schema'):
             old=Database(path)
         with old.transaction() as db:
             self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],22)
@@ -979,7 +980,7 @@ class SequenceJourneyTests(unittest.TestCase):
             self.assertIsNone(db.execute("SELECT name FROM sqlite_schema WHERE name='sequence_journeys'").fetchone())
         Database(path)
         with closing(sqlite3.connect(path)) as db:
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],25)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],26)
             self.assertEqual(db.execute('SELECT payload FROM audiences').fetchone()[0],'{"frozen":"Historical wording"}')
             self.assertEqual([tuple(r) for r in before],db.execute('SELECT * FROM legacy_task_admissions').fetchall())
 

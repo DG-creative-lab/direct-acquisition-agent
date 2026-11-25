@@ -8,7 +8,7 @@ import threading
 import time
 from datetime import datetime, timezone
 
-from acquisition.conversations import ACTIVE_PREPARATION, AudienceSelectionRejected, ActionNotSaved, pending_copy_clarification, EnvironmentIntent, FIXTURE_MESSAGE, TYPED_ACTION_ALIASES, action_alias
+from acquisition.conversations import IntakePlanningRejected, ACTIVE_PREPARATION, AudienceSelectionRejected, ActionNotSaved, pending_copy_clarification, EnvironmentIntent, FIXTURE_MESSAGE, TYPED_ACTION_ALIASES, action_alias
 from acquisition.conversations import MessageRejectedConflict, MessageRejectedInvalid, MessageRejectedNotFound, postal_request, sequence_language
 from .ports import WorkspaceStorageUnavailable, WorkspaceApplications, WorkspaceModelSessions
 from .state import WorkspaceStateAccess
@@ -171,6 +171,32 @@ class Workspace(WorkspaceViews):
     @property
     def intake(self):
         return WorkspaceIntake(self._applications.intake(verified=self._verified_mode()))
+
+    def intake_plans(self, brief_id):
+        return {'items': self._conversation_app().intake_planning.listing('local-conversations', brief_id)}
+
+    def intake_plan(self, request_id):
+        return self._conversation_app().intake_planning.view('local-conversations', request_id)
+
+    def request_intake_plan(self, request_id, brief_id, brief_revision, allow_model):
+        if allow_model is not True:
+            raise ValueError('Explicit permission for at most two planning calls is required')
+        identifier(request_id)
+        with self.lock:
+            native = self._conversation_app()
+            try:
+                old = native.intake_planning.store.request('local-conversations', request_id)
+            except NotFound:
+                old = None
+            if self.models.binding is None and not self.models.legacy_available():
+                if old:
+                    raise Conflict('Reconnect the original planning provider before resuming this request')
+                raise IntakePlanningRejected('Connect an OpenRouter model before requesting interpretation')
+            config = ModelConfig(**old['model_config']) if old else None
+            app = self._conversation_app(with_model=True, model_config=config)
+            run_id = app.intake_planning.request('local-conversations', 'local-operator', request_id, brief_id, brief_revision)
+            app.worker.drain('local-conversations', run_id=run_id)
+            return app.intake_planning.view('local-conversations', request_id)
 
     @property
     def youtube(self):

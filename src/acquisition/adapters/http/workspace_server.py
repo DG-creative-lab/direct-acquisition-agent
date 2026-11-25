@@ -13,6 +13,7 @@ from acquisition.conversations import ActionNotSaved, AudienceSelectionRejected,
 from acquisition.reasoning import ModelError
 from acquisition.youtube import YouTubeError
 from acquisition.application.workspace import MonitoringRejected, ModelSelectionRejected, ModelSessionExpired
+from acquisition.conversations import IntakePlanningRejected
 
 
 class WorkspaceHTTPServer(ThreadingHTTPServer):
@@ -122,6 +123,18 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, page.encode(), 'text/html; charset=utf-8')
             if path == '/api/intake/store' and not self.parsed_target.query:
                 return self._send(200, {'store_id': self.server.workspace.intake.store_identity()})
+            if path == '/api/intake/plans':
+                query = parse_qs(self.parsed_target.query, keep_blank_values=True)
+                if set(query) != {'brief_id'} or len(query['brief_id']) != 1:
+                    return self._send(400, {'error': 'Select one saved brief for planning history'})
+                return self._send(200, self.server.workspace.intake_plans(query['brief_id'][0]))
+            if len(parts) == 4 and parts[:3] == ['api', 'intake', 'plans'] and not self.parsed_target.query:
+                return self._send(200, self.server.workspace.intake_plan(parts[3]))
+            if len(parts) == 5 and parts[:3] == ['api', 'intake', 'briefs'] and parts[4] == 'readiness':
+                query = parse_qs(self.parsed_target.query, keep_blank_values=True)
+                if set(query) != {'revision'} or len(query['revision']) != 1:
+                    return self._send(400, {'error': 'Select the exact saved brief revision'})
+                return self._send(200, self.server.workspace.intake.readiness(parts[3], int(query['revision'][0])))
             if len(parts) in {3, 4} and parts[:2] == ['api', 'intake'] and parts[2] in {'companies', 'briefs'}:
                 try:
                     query = parse_qs(self.parsed_target.query, keep_blank_values=True)
@@ -273,6 +286,17 @@ class Handler(BaseHTTPRequestHandler):
             if handle is not None or tab is not None:
                 browser.enter_context(self.server.workspace.models.browser(
                     handle, tab, self.headers.get("X-OpenRouter-Model"), self.headers.get("X-OpenRouter-Tier")))
+            if path == '/api/intake/plans':
+                store_id = self.server.workspace.intake.store_identity()
+                if self.headers.get('X-Intake-Store') != store_id:
+                    return self._send(409, {'error': 'Restore the original workspace store before resuming its planning request.'})
+                if (self.parsed_target.query or set(data) != {'request_id', 'brief_id', 'brief_revision', 'allow_model'}
+                        or data['allow_model'] is not True):
+                    return self._send(400, {'error': 'Use an exact saved brief selection and explicit planning permission'})
+                try:
+                    return self._send(200, self.server.workspace.request_intake_plan(**data))
+                except IntakePlanningRejected as error:
+                    return self._send(409, {'error': str(error), 'intake_plan_not_admitted': True, 'store_id': store_id})
             if path == "/api/openrouter/advance":
                 if handle is None or data:
                     raise ValueError("Use the connected OpenRouter browser session.")

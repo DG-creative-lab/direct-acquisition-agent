@@ -1,0 +1,15 @@
+{
+  "version": "intake-planning-skills/v1",
+  "skills": [{
+    "id": "interpret-intake/v1", "version": "v1",
+    "purpose": "Interpret saved unverified company assertions and exact campaign requirements without execution authority.",
+    "applicable_intents": ["interpret_saved_intake"],
+    "required_source_kinds": ["authored_guidance"],
+    "guidance": ["Keep user assertions distinct from reviewed product evidence.", "Preserve selected source requirements and expose material uncertainty.", "Propose only; never create a campaign or infer approval."],
+    "tool_ids": ["submit_intake_plan/v1"],
+    "expected_outputs": ["proposal", "clarification", "unsupported"],
+    "validation_requirements": ["exact_result_schema", "frozen_intake_source", "server_bound_requirements"],
+    "stop_conditions": ["material_ambiguity", "unsupported_requirement", "unknown_provider_outcome", "two_call_limit"],
+    "authority": "none"
+  }]
+}

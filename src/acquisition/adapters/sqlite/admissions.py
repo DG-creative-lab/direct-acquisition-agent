@@ -38,8 +38,11 @@ def planning_source(db, organization, conversation_id):
         if receipt.get('exchange'):
             exchanges.append({'action_id':action['id'],'revision':receipt['message_receipt']['revision'],
                               'exchange':receipt['exchange'],'message_receipts':receipt['message_receipts']})
-    return {'organization':organization,'conversation_id':conversation_id,'revision':row['revision'],
-            'messages':messages(db,organization,conversation_id),'confirmed_action_exchanges':exchanges}
+    source = {'organization':organization,'conversation_id':conversation_id,'revision':row['revision'],
+              'messages':messages(db,organization,conversation_id),'confirmed_action_exchanges':exchanges}
+    from .intake_planning import planning_source as selected_intake
+    selected = selected_intake(db, organization, conversation_id, row['revision'])
+    return source | {'intake_source':selected} if selected is not None else source
 
 
 def planning_results(db, organization, conversation_id):

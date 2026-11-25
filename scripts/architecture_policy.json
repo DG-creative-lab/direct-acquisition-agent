@@ -228,7 +228,11 @@
     "acquisition.youtube": "public_api",
     "acquisition.youtube.application": "application",
     "acquisition.youtube.domain": "domain",
-    "acquisition.youtube.ports": "ports"
+    "acquisition.youtube.ports": "ports",
+    "acquisition.conversations.intake_planning": "domain",
+    "acquisition.conversations.intake_planning_application": "application",
+    "acquisition.adapters.sqlite.intake_planning": "adapter",
+    "acquisition.workflows.intake_interpretation": "workflow"
   },
   "exceptions": []
 }

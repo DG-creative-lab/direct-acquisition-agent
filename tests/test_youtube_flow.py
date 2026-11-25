@@ -292,14 +292,14 @@ class YouTubeFlowTests(unittest.TestCase):
         from acquisition.adapters.sqlite.youtube import YOUTUBE
         # Reconstruct a genuine schema-24 store by omitting the additive migration.
         path = self.root / 'schema24.sqlite'
-        with patch('acquisition.adapters.sqlite.youtube.YOUTUBE', ''), patch('acquisition.adapters.sqlite.youtube.validate_youtube_schema'):
+        with patch('acquisition.adapters.sqlite.youtube.YOUTUBE', ''), patch('acquisition.adapters.sqlite.youtube.validate_youtube_schema'), patch('acquisition.adapters.sqlite.intake_planning.INTAKE_PLANNING', ''), patch('acquisition.adapters.sqlite.intake_planning.validate_intake_planning_schema'):
             old = build(path, clock=self.clock)
             chat = old.conversations.create('A', 'old-chat', 'Preserved conversation')['id']
             old.conversations.message('A', chat, 'old-message', 0, 'Preserved original brief')
         with sqlite3.connect(path) as db:
             self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 24)
             before = db.execute('SELECT * FROM conversation_messages').fetchall()
-        with patch('acquisition.adapters.sqlite.youtube.YOUTUBE', YOUTUBE.replace('PRAGMA user_version=25;', 'SELECT * FROM missing_migration_table;')):
+        with patch('acquisition.adapters.sqlite.youtube.YOUTUBE', YOUTUBE.replace('PRAGMA user_version=26;', 'SELECT * FROM missing_migration_table;')):
             with self.assertRaises(sqlite3.OperationalError):
                 Database(path)
         with sqlite3.connect(path) as db:
@@ -308,7 +308,7 @@ class YouTubeFlowTests(unittest.TestCase):
             self.assertEqual(db.execute('SELECT * FROM conversation_messages').fetchall(), before)
         Database(path)
         with sqlite3.connect(path) as db:
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 25)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 26)
             self.assertEqual(db.execute('SELECT * FROM conversation_messages').fetchall(), before)
 
     def test_plural_channel_requests_clarify_without_admitting_youtube_work(self):
@@ -341,3 +341,78 @@ class YouTubeFlowTests(unittest.TestCase):
         self.assertEqual(self.count('youtube_revisions'), 0)
         self.assertEqual(self.count('model_calls'), 0)
         self.assertEqual(self.native.conversations.view('A', self.conversation)['revision'], 1)
+
+    def test_unpublished_youtube_schema25_upgrade_is_atomic_and_preserves_approved_export(self):
+        from acquisition.adapters.sqlite.database import Database
+        from acquisition.adapters.sqlite.youtube import YOUTUBE
+        view = self.prepare()
+        approval, _ = self.approve(view)
+        original, command = self.export(view, approval)
+        with self.app.campaigns.store.database.transaction() as db:
+            db.execute('DROP TABLE intake_planning_sources')
+            db.execute('PRAGMA user_version=25')
+            identity = db.execute('SELECT id FROM application_store_identity').fetchone()[0]
+            history = [tuple(row) for row in db.execute('SELECT * FROM youtube_requests ORDER BY request')]
+        # Old preview data stays inspectable without upgrading it on a read.
+        self.assertEqual(self.open(read_only=True).campaigns.read(self.campaign)['campaign'], view['campaign'])
+        apply = Database._apply_migration
+        def interrupted(db, script):
+            apply(db, script)
+            if script == YOUTUBE:raise OSError('after schema26 DDL')
+        with patch.object(Database, '_apply_migration', side_effect=interrupted), self.assertRaises(OSError):
+            self.open()
+        with sqlite3.connect(self.db) as db:
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 25)
+            self.assertIsNone(db.execute("SELECT 1 FROM sqlite_schema WHERE name='intake_planning_sources'").fetchone())
+            self.assertEqual(db.execute('SELECT * FROM youtube_requests ORDER BY request').fetchall(), history)
+        current = self.open()
+        self.assertEqual(current.campaigns.command('export', command)['result'], original['result'])
+        with current.campaigns.store.database.connect() as db:
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 26)
+            self.assertEqual(db.execute('SELECT id FROM application_store_identity').fetchone()[0], identity)
+            self.assertEqual(db.execute('PRAGMA foreign_key_check').fetchall(), [])
+
+    def test_main_schema25_intake_plan_survives_channel_upgrade_and_new_youtube_work(self):
+        from acquisition.bootstrap import build_intake
+        from acquisition.campaigns import CampaignBriefDraft
+        from acquisition.creative import CompanyDraft
+        from acquisition.reasoning import ModelConfig
+        from acquisition.adapters.sqlite.database import Database
+        from acquisition.adapters.sqlite.youtube import YOUTUBE
+        from test_intake_planning import IntakeModel
+        path = self.root / 'main25.sqlite'
+        gateway = IntakeModel()
+        config = ModelConfig('test/model', max_calls=2, force_tool_choice=True)
+        with patch('acquisition.adapters.sqlite.youtube.YOUTUBE', ''), patch('acquisition.adapters.sqlite.youtube.validate_youtube_schema'):
+            native = build(path, self.clock, gateway=gateway, model_config=config)
+            intake = build_intake(path, self.clock)
+            company = intake.save_company('A', 'writer', 'company', CompanyDraft(company_name='Authored company', product_name='Authored product', description='Synthetic consultancy example'))['snapshot']
+            brief = intake.save_brief('A', 'writer', 'brief', CampaignBriefDraft(company['id'], 1, objective='Explore a campaign', audience='UK retailers', country='UK', currency='GBP', budget_minor=12345, channels=('email',)))['snapshot']
+            run = native.intake_planning.request('A', 'writer', 'plan', brief['id'], 1)
+            native.worker.drain('A', run_id=run)
+            saved = native.intake_planning.view('A', 'plan')
+            self.assertEqual(saved['plan']['status'], 'succeeded', saved)
+        with sqlite3.connect(path) as db:
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 25)
+            source = db.execute('SELECT * FROM intake_planning_sources').fetchall()
+        inspection = build_youtube(path, self.clock, organization='A', authority=self.authority, assets=self.assets, read_only=True)
+        self.assertEqual(inspection.campaigns.interactions(saved['source']['conversation_id']), [])
+        with self.assertRaises(NotFound):inspection.campaigns.read('not-installed')
+        with patch('acquisition.adapters.sqlite.youtube.YOUTUBE', YOUTUBE.replace('PRAGMA user_version=26;', 'SELECT * FROM missing_migration_table;')):
+            with self.assertRaises(sqlite3.OperationalError):Database(path)
+        with sqlite3.connect(path) as db:
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 25)
+            self.assertEqual(db.execute('SELECT * FROM intake_planning_sources').fetchall(), source)
+            self.assertEqual(db.execute("SELECT name FROM sqlite_schema WHERE name LIKE 'youtube_%'").fetchall(), [])
+        reopened = build(path, self.clock, gateway=gateway, model_config=config)
+        self.assertEqual(reopened.intake_planning.request('A', 'writer', 'plan', brief['id'], 1), run)
+        self.assertEqual(reopened.intake_planning.view('A', 'plan'), saved)
+        self.assertEqual(len(gateway.requests), 1)
+        chat = reopened.conversations.create('A', 'youtube-chat', 'Native YouTube')['id']
+        youtube = build_youtube(path, self.clock, organization='A', authority=self.authority, assets=self.assets)
+        youtube.message({'request_id': 'youtube', 'conversation_id': chat, 'expected_revision': 0,
+                         'content': 'Prepare YouTube placements', 'draft_permission': 'placements'})
+        self.assertIsNotNone(youtube.campaigns.interactions(chat)[0]['campaign_id'])
+        with youtube.campaigns.store.database.connect() as db:
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 26)
+            self.assertEqual([tuple(row) for row in db.execute('SELECT * FROM intake_planning_sources')], source)

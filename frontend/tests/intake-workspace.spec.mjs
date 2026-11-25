@@ -6,14 +6,19 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const project = fileURLToPath(new URL("../..", import.meta.url));
-async function isolated(run, seed = 0) {
+async function isolated(run, seed = 0, planning = false) {
   const root = await mkdtemp(join(tmpdir(), "acquisition-intake-ui-"));
   const script = `
 from acquisition.bootstrap import build_workspace
 from acquisition.entrypoints.workspace import WorkspaceServer
 from pathlib import Path
 import sys
-w=build_workspace(sys.argv[1])
+if sys.argv[4] == 'true':
+ from test_intake_planning import IntakeModel
+ model=IntakeModel()
+ w=build_workspace(sys.argv[1],gateway_factory=lambda:model)
+else:
+ w=build_workspace(sys.argv[1])
 for i in range(int(sys.argv[2])):
  w.intake.save('companies',{'request_id':'seed-'+str(i),'id':None,'expected_revision':0,'draft':{'company_name':'Saved company '+str(i)}})
 s=WorkspaceServer(int(sys.argv[3]),w,Path('frontend/dist'))
@@ -25,12 +30,19 @@ s.serve_forever()
   async function start(directory, port = 0, seedCount = 0) {
     child = spawn(
       "python3",
-      ["-c", script, directory, String(seedCount), String(port)],
+      [
+        "-c",
+        script,
+        directory,
+        String(seedCount),
+        String(port),
+        String(planning),
+      ],
       {
         cwd: project,
         env: {
           ...process.env,
-          PYTHONPATH: "src",
+          PYTHONPATH: "src:tests",
           OPENROUTER_API_KEY: "offline-tests-must-not-use-live-credentials",
         },
         stdio: ["ignore", "pipe", "pipe"],
@@ -838,4 +850,455 @@ test("intake original recovery refuses another store at the same origin and resu
     ).toBeNull();
     page.off("request", count);
   });
+});
+
+async function planningBrief(page, root) {
+  await page
+    .getByLabel("Company and product description")
+    .fill("User assertion about consultancy services.");
+  await company(page, "Aster Consultancy");
+  const companyId = rows(root).intake_company_revisions[0][1];
+  await page.getByLabel("Company for this brief").selectOption(companyId);
+  await page
+    .getByLabel("Campaign objective", { exact: true })
+    .fill("Find independent retail clients");
+  await page
+    .getByLabel("Audience requirements")
+    .fill("Independent UK retailers");
+  await page.getByLabel("Requested country or market").fill("UK");
+  await page.getByLabel("Currency", { exact: true }).fill("GBP");
+  await page.getByLabel("Requested channels").fill("email");
+  await page.getByLabel("Budget in minor currency units").fill("12345");
+  await page
+    .getByRole("button", { name: "Save campaign brief", exact: true })
+    .click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Brief saved: version 1." }),
+  ).toBeVisible();
+}
+function planSources(root) {
+  return JSON.parse(
+    execFileSync(
+      "python3",
+      [
+        "-c",
+        `
+import json,sqlite3,sys
+db=sqlite3.connect(sys.argv[1]+'/conversations.sqlite')
+print(json.dumps([json.loads(row[0]) for row in db.execute('SELECT source FROM intake_planning_sources ORDER BY revision')]))
+`,
+        root,
+      ],
+      { cwd: project, encoding: "utf8" },
+    ),
+  );
+}
+for (const mobile of [false, true])
+  test(`intake interpretation binds the saved source and explicit consent on ${mobile ? "mobile" : "desktop"}`, async ({
+    page,
+  }, testInfo) => {
+    await isolated(
+      async (url, root) => {
+        await page.setViewportSize(
+          mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 },
+        );
+        await enter(page, url);
+        await planningBrief(page, root);
+        const button = page.getByRole("button", {
+          name: "Prepare a plan",
+          exact: true,
+        });
+        await button.click();
+        await expect(
+          page.getByLabel(
+            "Allow up to two planning model calls for this saved brief",
+          ),
+        ).toBeFocused();
+        expect(planSources(root)).toHaveLength(0);
+        expect(rows(root).model_calls).toHaveLength(0);
+        await page
+          .getByLabel(
+            "Allow up to two planning model calls for this saved brief",
+          )
+          .check();
+        await button.click();
+        await expect(
+          page.getByRole("heading", { name: "Proposed approach", exact: true }),
+        ).toBeVisible();
+        expect(planSources(root)).toHaveLength(1);
+        expect(rows(root).model_calls).toHaveLength(1);
+        await expect(button).toBeDisabled();
+        await page.getByText("Exact source used", { exact: true }).click();
+        const sourceDetails = page.getByRole("region", {
+          name: "Plan from this brief",
+          exact: true,
+        });
+        await expect(sourceDetails).toContainText("Aster Consultancy");
+        await expect(sourceDetails).toContainText("Independent UK retailers");
+        await expect(sourceDetails).toContainText("12345");
+        expect(rows(root).review_decisions).toHaveLength(0);
+        const briefId = planSources(root)[0].brief_id;
+        await page.reload();
+        await page
+          .getByRole("button", { name: "Company & brief", exact: true })
+          .click();
+        await page.getByLabel("Saved campaign briefs").selectOption(briefId);
+        await expect(
+          page.getByRole("heading", { name: "Proposed approach", exact: true }),
+        ).toBeVisible();
+        await page
+          .getByLabel("Campaign objective", { exact: true })
+          .fill("A revised retail objective");
+        await expect(button).toBeDisabled();
+        await page
+          .getByRole("button", { name: "Save campaign brief", exact: true })
+          .click();
+        await expect(
+          page.getByRole("heading", {
+            name: "Historical interpretation",
+            exact: true,
+          }),
+        ).toBeVisible();
+        expect(rows(root).model_calls).toHaveLength(1);
+        await page
+          .getByLabel(
+            "Allow up to two planning model calls for this saved brief",
+          )
+          .check();
+        await button.click();
+        await expect(
+          page.getByRole("heading", {
+            name: "Saved interpretation",
+            exact: true,
+          }),
+        ).toBeVisible();
+        expect(planSources(root)).toHaveLength(2);
+        expect(rows(root).model_calls).toHaveLength(2);
+        await page
+          .getByRole("region", { name: "Plan from this brief", exact: true })
+          .screenshot({
+            path: testInfo.outputPath(
+              `intake-planning-${mobile ? "mobile" : "desktop"}.png`,
+            ),
+          });
+      },
+      0,
+      true,
+    );
+  });
+
+test("intake interpretation recovers a lost reply across different-root and original-root restarts without another model call", async ({
+  page,
+}) => {
+  await isolated(
+    async (url, root, restart) => {
+      await enter(page, url);
+      await planningBrief(page, root);
+      await page
+        .getByLabel("Allow up to two planning model calls for this saved brief")
+        .check();
+      let posts = 0;
+      await page.route("**/api/intake/plans", async (route) => {
+        if (route.request().method() !== "POST") return route.continue();
+        posts++;
+        const response = await route.fetch();
+        expect(response.ok()).toBe(true);
+        await route.fulfill({
+          status: 500,
+          json: { error: "Lost interpretation response" },
+        });
+      });
+      await page
+        .getByRole("button", { name: "Prepare a plan", exact: true })
+        .click();
+      await expect(
+        page.getByRole("button", {
+          name: "Retry original planning request",
+          exact: true,
+        }),
+      ).toBeEnabled();
+      const raw = await page.evaluate(() =>
+        sessionStorage.getItem("workspace-intake-plan:v1"),
+      );
+      expect(planSources(root)).toHaveLength(1);
+      expect(rows(root).model_calls).toHaveLength(1);
+      await page.unroute("**/api/intake/plans");
+      const other = await restart();
+      await page.reload();
+      await page
+        .getByRole("button", { name: "Company & brief", exact: true })
+        .click();
+      await page
+        .getByRole("button", {
+          name: "Retry original planning request",
+          exact: true,
+        })
+        .click();
+      await expect(page.getByRole("alert")).toContainText(
+        "original workspace store",
+      );
+      expect(planSources(other)).toHaveLength(0);
+      expect(rows(other).model_calls).toHaveLength(0);
+      expect(
+        await page.evaluate(() =>
+          sessionStorage.getItem("workspace-intake-plan:v1"),
+        ),
+      ).toBe(raw);
+      await restart(root);
+      await page.reload();
+      await page
+        .getByRole("button", { name: "Company & brief", exact: true })
+        .click();
+      page.on("request", (request) => {
+        if (
+          request.method() === "POST" &&
+          request.url().endsWith("/api/intake/plans")
+        )
+          posts++;
+      });
+      await page
+        .getByRole("button", {
+          name: "Retry original planning request",
+          exact: true,
+        })
+        .click();
+      await expect(
+        page.getByRole("heading", { name: "Proposed approach", exact: true }),
+      ).toBeVisible();
+      expect(posts).toBe(1);
+      expect(rows(root).model_calls).toHaveLength(1);
+      expect(planSources(root)).toHaveLength(1);
+      expect(
+        await page.evaluate(() =>
+          sessionStorage.getItem("workspace-intake-plan:v1"),
+        ),
+      ).toBeNull();
+    },
+    0,
+    true,
+  );
+});
+
+test("intake interpretation preserves unsupported requirements and partial briefs without model calls", async ({
+  page,
+}) => {
+  await isolated(
+    async (url, root) => {
+      await enter(page, url);
+      await planningBrief(page, root);
+      await page.getByLabel("Requested country or market").fill("France");
+      await page.getByLabel("Currency", { exact: true }).fill("EUR");
+      await page.getByLabel("Requested channels").fill("video");
+      await page
+        .getByRole("button", { name: "Save campaign brief", exact: true })
+        .click();
+      await expect(
+        page.getByRole("heading", { name: "Before planning", exact: true }),
+      ).toBeVisible();
+      await page
+        .getByLabel("Allow up to two planning model calls for this saved brief")
+        .check();
+      await page
+        .getByRole("button", { name: "Prepare a plan", exact: true })
+        .click();
+      await expect(
+        page.getByRole("heading", {
+          name: "Unsupported requirements",
+          exact: true,
+        }),
+      ).toBeVisible();
+      expect(rows(root).model_calls).toHaveLength(0);
+      await page.getByText("Exact source used", { exact: true }).click();
+      await expect(
+        page.getByRole("region", { name: "Plan from this brief", exact: true }),
+      ).toContainText("France");
+      await expect(
+        page.getByRole("region", { name: "Plan from this brief", exact: true }),
+      ).toContainText("EUR");
+      await expect(
+        page.getByRole("region", { name: "Plan from this brief", exact: true }),
+      ).toContainText("video");
+      await page.getByLabel("Requested country or market").fill("UK");
+      await page.getByLabel("Currency", { exact: true }).fill("GBP");
+      await page.getByLabel("Requested channels").fill("email");
+      await page.getByLabel("Campaign objective", { exact: true }).fill("");
+      await page
+        .getByRole("button", { name: "Save campaign brief", exact: true })
+        .click();
+      await expect(
+        page.getByRole("status").filter({ hasText: "Brief saved: version 3." }),
+      ).toBeVisible();
+      await page
+        .getByLabel("Allow up to two planning model calls for this saved brief")
+        .check();
+      await page
+        .getByRole("button", { name: "Prepare a plan", exact: true })
+        .click();
+      await expect(
+        page.getByRole("heading", {
+          name: "Clarification needed",
+          exact: true,
+        }),
+      ).toBeVisible();
+      expect(rows(root).model_calls).toHaveLength(0);
+    },
+    0,
+    true,
+  );
+});
+
+test("intake planning waits for the selected revision history and competing tabs cannot repeat its model work", async ({
+  page,
+  context,
+}) => {
+  await isolated(
+    async (url, root) => {
+      await enter(page, url);
+      await planningBrief(page, root);
+      const briefId = JSON.parse(
+        execFileSync(
+          "python3",
+          [
+            "-c",
+            `
+import json,sqlite3,sys
+r=sqlite3.connect(sys.argv[1]+'/conversations.sqlite').execute('SELECT payload FROM intake_brief_revisions').fetchone()
+print(json.dumps(json.loads(r[0])['id']))
+`,
+            root,
+          ],
+          { cwd: project, encoding: "utf8" },
+        ),
+      );
+      const peer = await context.newPage();
+      await enter(peer, url);
+      let releaseHistory;
+      const historyGate = new Promise((resolve) => (releaseHistory = resolve));
+      let historyArrived;
+      const historyCaptured = new Promise(
+        (resolve) => (historyArrived = resolve),
+      );
+      await peer.route("**/api/intake/plans?brief_id=*", async (route) => {
+        const response = await route.fetch();
+        historyArrived();
+        await historyGate;
+        await route.fulfill({ response });
+      });
+      await peer.getByLabel("Saved campaign briefs").selectOption(briefId);
+      await historyCaptured;
+      await expect(
+        peer.getByRole("button", { name: "Prepare a plan", exact: true }),
+      ).toBeDisabled();
+      expect(planSources(root)).toHaveLength(0);
+      releaseHistory();
+      const startA = page.getByRole("button", {
+        name: "Prepare a plan",
+        exact: true,
+      });
+      const startB = peer.getByRole("button", {
+        name: "Prepare a plan",
+        exact: true,
+      });
+      await expect(startB).toBeEnabled();
+      await page
+        .getByLabel("Allow up to two planning model calls for this saved brief")
+        .check();
+      await peer
+        .getByLabel("Allow up to two planning model calls for this saved brief")
+        .check();
+      let release;
+      const gate = new Promise((resolve) => (release = resolve));
+      let captured;
+      const arrived = new Promise((resolve) => (captured = resolve));
+      await page.route("**/api/intake/plans", async (route) => {
+        if (route.request().method() !== "POST") return route.continue();
+        captured();
+        await gate;
+        await route.continue();
+      });
+      await startA.click();
+      await arrived;
+      await startB.click();
+      await expect(
+        peer.getByRole("heading", { name: "Proposed approach", exact: true }),
+      ).toBeVisible();
+      release();
+      await expect(page.getByRole("alert")).toContainText(
+        "already has a planning request",
+      );
+      expect(planSources(root)).toHaveLength(1);
+      expect(rows(root).model_calls).toHaveLength(1);
+      expect(
+        await page.evaluate(() =>
+          sessionStorage.getItem("workspace-intake-plan:v1"),
+        ),
+      ).toBeNull();
+      await page.unroute("**/api/intake/plans");
+      await page
+        .getByRole("button", { name: "Reload planning history", exact: true })
+        .click();
+      await expect(
+        page.getByRole("heading", { name: "Proposed approach", exact: true }),
+      ).toBeVisible();
+      await peer.close();
+    },
+    0,
+    true,
+  );
+});
+
+test("intake planning blocks dispatch when recovery storage is unavailable or corrupt", async ({
+  page,
+}) => {
+  await isolated(
+    async (url, root) => {
+      await enter(page, url);
+      await planningBrief(page, root);
+      await page.evaluate(() => {
+        const original = Storage.prototype.setItem;
+        Storage.prototype.setItem = function (key, value) {
+          if (key === "workspace-intake-plan:v1")
+            throw new Error("Planning recovery storage unavailable");
+          return original.call(this, key, value);
+        };
+      });
+      await page
+        .getByLabel("Allow up to two planning model calls for this saved brief")
+        .check();
+      await page
+        .getByRole("button", { name: "Prepare a plan", exact: true })
+        .click();
+      await expect(page.getByRole("alert")).toContainText(
+        "Planning recovery storage unavailable",
+      );
+      expect(planSources(root)).toHaveLength(0);
+      expect(rows(root).model_calls).toHaveLength(0);
+      await page.reload();
+      await page.evaluate(() =>
+        sessionStorage.setItem(
+          "workspace-intake-plan:v1",
+          '{"payload":{"request_id":"old"}}',
+        ),
+      );
+      await page.reload();
+      await page
+        .getByRole("button", { name: "Company & brief", exact: true })
+        .click();
+      await expect(page.getByRole("alert")).toContainText(
+        "original planning request could not be restored",
+      );
+      await expect(
+        page.getByRole("button", { name: "Save company draft", exact: true }),
+      ).toBeDisabled();
+      expect(planSources(root)).toHaveLength(0);
+      expect(rows(root).model_calls).toHaveLength(0);
+      expect(
+        await page.evaluate(() =>
+          sessionStorage.getItem("workspace-intake-plan:v1"),
+        ),
+      ).toBe('{"payload":{"request_id":"old"}}');
+    },
+    0,
+    true,
+  );
 });

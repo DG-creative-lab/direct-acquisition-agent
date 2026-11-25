@@ -64,7 +64,7 @@ CREATE TRIGGER IF NOT EXISTS {_table}_no_replace BEFORE INSERT ON {_table}
  WHEN EXISTS(SELECT 1 FROM {_table} WHERE {_condition})
  BEGIN SELECT RAISE(ABORT,'YouTube history is immutable'); END;
 """
-YOUTUBE += 'PRAGMA user_version=25;'
+YOUTUBE += 'PRAGMA user_version=26;'
 
 
 def validate_youtube_schema(db):
@@ -79,6 +79,15 @@ def validate_youtube_schema(db):
     }
     for table, names in columns.items():
         db.execute('SELECT ' + names + ' FROM ' + table + ' LIMIT 0')
+
+
+def legacy_youtube_preview(db):
+    """The reviewed, unpublished YouTube preview used schema 25 before #137."""
+    if (db.execute("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='youtube_revisions'").fetchone()
+            and not db.execute("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='intake_planning_sources'").fetchone()):
+        validate_youtube_schema(db)
+        return True
+    return False
 
 
 class SqliteYouTubeAuthority:
@@ -162,7 +171,17 @@ class SqliteYouTube:
                     canonical({'profile': scope.profile_id, 'command': command}), canonical(receipt)))
         return receipt | {'replayed': False}
 
+    @staticmethod
+    def _history_available(db):
+        if db.execute("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='youtube_interactions'").fetchone():
+            return True
+        if db.execute('PRAGMA user_version').fetchone()[0] < 26:
+            return False  # Pre-channel inspection must not create native history.
+        raise Conflict('Native YouTube history is unavailable')
+
     def _campaign(self, db, scope, campaign_id):
+        if not self._history_available(db):
+            raise NotFound('YouTube campaign unavailable in this workspace')
         row = db.execute('SELECT payload FROM youtube_revisions WHERE organization=? AND profile=? AND campaign=? ORDER BY revision DESC LIMIT 1',
                          (scope.organization, scope.profile_id, campaign_id)).fetchone()
         if row is None:
@@ -213,6 +232,8 @@ class SqliteYouTube:
     def interactions(self, scope, actor, conversation_id):
         with self.database.connect() as db:
             scoped_conversation(db, scope.organization, conversation_id)
+            if not self._history_available(db):
+                return []
             rows = list(db.execute('SELECT * FROM youtube_interactions WHERE organization=? AND profile=? AND conversation=? ORDER BY revision',
                                    (scope.organization, scope.profile_id, conversation_id)))
             if rows:

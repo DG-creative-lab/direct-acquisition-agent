@@ -132,6 +132,15 @@ class RemoteStorageTests(unittest.TestCase):
         with closing(sqlite3.connect(self.path)) as db:
             self.assertEqual(db.execute('SELECT count(*) FROM youtube_approvals').fetchone()[0],1)
             self.assertEqual(db.execute('SELECT count(*) FROM model_calls').fetchone()[0],0)
+        # The earlier native preview used version 25 without intake planning.
+        with self.database.transaction() as db:
+            db.execute('DROP TABLE intake_planning_sources')
+            db.execute('PRAGMA user_version=25')
+        with patch('acquisition.bootstrap.build_database', return_value=self.wire.database(True)):
+            upgraded = build_youtube(None,lambda:NOW,organization='youtube')
+        self.assertEqual(upgraded.campaigns.command('export',export)['result']['content'],payload)
+        with upgraded.campaigns.store.database.connect() as db:
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],26)
 
     def intent(self):
         # Composition uses exactly the same domain services and public ports.
@@ -162,7 +171,7 @@ class RemoteStorageTests(unittest.TestCase):
         with closing(sqlite3.connect(self.path)) as raw:
             self.assertEqual(raw.execute('select count(*) from runs').fetchone()[0],1)
             self.assertEqual(raw.execute('select count(*) from execution_admissions').fetchone()[0],1)
-            self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],25)
+            self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],26)
 
     def test_lost_commit_ack_reconciles_original_verified_receipt(self):
         store, intent = self.intent()
@@ -185,7 +194,7 @@ class RemoteStorageTests(unittest.TestCase):
                 db.execute('INSERT INTO rollback_marker VALUES(1)')
                 db.execute('INSERT INTO rollback_marker VALUES(1)')
         with closing(sqlite3.connect(self.path)) as raw:
-            self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],25)
+            self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],26)
             self.assertIsNone(raw.execute("select 1 from sqlite_master where name='rollback_marker'").fetchone())
 
     def test_intake_bootstrap_pinning_foreign_scope_and_lost_ack_replay(self):
@@ -249,7 +258,7 @@ class RemoteStorageTests(unittest.TestCase):
         try:
             db = other.database(True)
             with db.transaction() as connection:
-                for table in ('intake_requests','intake_brief_revisions','intake_company_revisions'):connection.execute('DROP TABLE '+table)
+                for table in ('intake_planning_sources','intake_requests','intake_brief_revisions','intake_company_revisions'):connection.execute('DROP TABLE '+table)
                 connection.execute('PRAGMA user_version=23')
             original = TursoDatabase._apply_migration
             def fail(connection, script):
@@ -261,8 +270,74 @@ class RemoteStorageTests(unittest.TestCase):
                 self.assertEqual(connection.execute('PRAGMA user_version').fetchone()[0],23)
                 self.assertIsNone(connection.execute("SELECT 1 FROM sqlite_master WHERE name='intake_requests'").fetchone())
             db._initialize(False,lambda:NOW,False)
-            with db.connect() as connection:self.assertEqual(connection.execute('PRAGMA user_version').fetchone()[0],25)
+            with db.connect() as connection:self.assertEqual(connection.execute('PRAGMA user_version').fetchone()[0],26)
+            from acquisition.adapters.sqlite.intake_planning import INTAKE_PLANNING
+            with db.transaction() as connection:
+                connection.execute('DROP TABLE intake_planning_sources')
+                connection.execute('PRAGMA user_version=24')
+            def fail_planning(connection, script):
+                original(connection, script)
+                if script == INTAKE_PLANNING:raise OSError('after planning source DDL')
+            with patch.object(TursoDatabase,'_apply_migration',side_effect=fail_planning), self.assertRaises(OSError):
+                db._initialize(False,lambda:NOW,False)
+            with db.connect() as connection:
+                self.assertEqual(connection.execute('PRAGMA user_version').fetchone()[0],24)
+                self.assertIsNone(connection.execute("SELECT 1 FROM sqlite_schema WHERE name='intake_planning_sources'").fetchone())
+            db._initialize(False,lambda:NOW,False)
+            with db.connect() as connection:self.assertEqual(connection.execute('PRAGMA user_version').fetchone()[0],26)
         finally:other.close()
+
+    def test_saved_intake_planning_uses_native_harness_over_hrana_wire(self):
+        from unittest.mock import patch
+        from acquisition.bootstrap import build
+        from acquisition.campaigns import CampaignIntake, CampaignBriefDraft
+        from acquisition.creative import CompanyDraft
+        from acquisition.reasoning import ModelConfig
+        from acquisition.adapters.sqlite.intake import SqliteCampaignIntake
+        from test_intake_planning import IntakeModel
+        intake = CampaignIntake(SqliteCampaignIntake(self.database), lambda:NOW)
+        company = intake.save_company('intake','writer','company',CompanyDraft(company_name='Aster',description='Unverified source'))['snapshot']
+        brief = intake.save_brief('intake','writer','brief',CampaignBriefDraft(company['id'],1,objective='Explore retail clients',
+                    audience='Independent retailers',country='UK',currency='GBP',budget_minor=12345,channels=('email',)))['snapshot']
+        model = IntakeModel()
+        with patch('acquisition.bootstrap.build_database',return_value=self.database):
+            app = build(None,clock=lambda:NOW,gateway=model,model_config=ModelConfig('test/model',max_calls=2,force_tool_choice=True))
+        with patch.object(app.tasks,'create',side_effect=OSError('after planning row before runtime commit')):
+            with self.assertRaises(OSError):app.intake_planning.request('intake','writer','plan',brief['id'],1)
+        later = CampaignBriefDraft(company['id'],1,objective='A later brief',audience='Independent retailers',
+                    country='UK',currency='GBP',budget_minor=12345,channels=('email',))
+        intake.save_brief('intake','writer','edit',later,brief_id=brief['id'],expected_revision=1)
+        with self.assertRaisesRegex(Conflict,'original staged'):
+            app.intake_planning.request('intake','writer','later-plan',brief['id'],2)
+        self.assertEqual(model.requests,[])
+        with self.database.connect() as db:
+            self.assertEqual(db.execute('SELECT revision FROM conversations WHERE organization=?',('intake',)).fetchone()[0],1)
+            self.assertEqual(db.execute('SELECT count(*) FROM intake_planning_sources').fetchone()[0],1)
+            self.assertEqual(db.execute('SELECT count(*) FROM runs').fetchone()[0],0)
+        run = app.intake_planning.request('intake','writer','plan',brief['id'],1)
+        app.worker.drain('intake',run_id=run)
+        view = app.intake_planning.view('intake','plan')
+        self.assertEqual(view['plan']['status'],'succeeded',view)
+        self.assertEqual(view['plan']['result']['requirements'],brief['draft'])
+        self.assertEqual(view['source']['company'],company)
+        self.assertEqual(app.intake_planning.request('intake','writer','plan',brief['id'],1),run)
+        app.worker.drain('intake',run_id=run)
+        self.assertEqual(len(model.requests),1)
+        with self.database.connect() as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM intake_planning_sources').fetchone()[0],1)
+            self.assertEqual(db.execute('SELECT count(*) FROM review_decisions').fetchone()[0],0)
+        # Main's schema 25 has intake planning but no native channel tables.
+        with self.database.transaction() as db:
+            for table in ('youtube_revocations','youtube_approvals','youtube_results','youtube_interactions',
+                          'youtube_preparations','youtube_requests','youtube_revisions'):
+                db.execute('DROP TABLE '+table)
+            db.execute('PRAGMA user_version=25')
+        with patch('acquisition.bootstrap.build_database',return_value=self.wire.database(True)):
+            upgraded = build(None,clock=lambda:NOW,gateway=model,model_config=ModelConfig('test/model',max_calls=2,force_tool_choice=True))
+        self.assertEqual(upgraded.intake_planning.request('intake','writer','plan',brief['id'],1),run)
+        self.assertEqual(upgraded.intake_planning.view('intake','plan'),view)
+        upgraded.worker.drain('intake',run_id=run)
+        self.assertEqual(len(model.requests),1)
 
     def test_unpadded_remote_blobs_preserve_exact_bytes(self):
         self.assertEqual(decode({'type':'blob','base64':'ZXhhY3Q'}),b'exact')
@@ -382,7 +457,7 @@ class RemoteStorageTests(unittest.TestCase):
                 self.assertEqual(raw.execute("select name from sqlite_master where name not like 'sqlite_%'").fetchall(),[])
             other.database(True)
             with closing(sqlite3.connect(other.path)) as raw:
-                self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],25)
+                self.assertEqual(raw.execute('select version from acquisition_schema').fetchone()[0],26)
         finally:other.close()
 
     def test_concurrent_fresh_initializers_converge_without_partial_schema(self):
@@ -391,7 +466,7 @@ class RemoteStorageTests(unittest.TestCase):
             with ThreadPoolExecutor(max_workers=2) as pool:
                 list(pool.map(lambda _:other.database(True),range(2)))
             with closing(sqlite3.connect(other.path)) as raw:
-                self.assertEqual(raw.execute('select version from acquisition_schema').fetchall(),[(25,)])
+                self.assertEqual(raw.execute('select version from acquisition_schema').fetchall(),[(26,)])
                 self.assertEqual(raw.execute('select count(*) from application_store_identity').fetchone()[0],1)
                 self.assertEqual(raw.execute('pragma foreign_key_check').fetchall(),[])
         finally:other.close()
@@ -416,7 +491,7 @@ class RemoteStorageTests(unittest.TestCase):
         from scripts.remote_storage_conformance import register_probe
         with self.database.transaction() as db:
             original = db.execute("SELECT sql FROM sqlite_master WHERE name='execution_admissions_no_update'").fetchone()[0]
-            for table in ('intake_requests', 'intake_brief_revisions', 'intake_company_revisions'):
+            for table in ('intake_planning_sources', 'intake_requests', 'intake_brief_revisions', 'intake_company_revisions'):
                 db.execute('DROP TABLE '+table)
             db.execute('DROP TABLE acquisition_schema')
             db.execute('CREATE TABLE hosting_probe_schema_version(singleton INTEGER PRIMARY KEY,version INTEGER)')

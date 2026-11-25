@@ -225,7 +225,7 @@ app.save_company('one','writer',os.environ['KEY'],CompanyDraft(company_name='Res
 
     def test_schema23_upgrade_rollback_retry_and_historical_rows_unchanged(self):
         with Database.existing(self.path).transaction() as db:
-            for table in ('intake_requests', 'intake_brief_revisions', 'intake_company_revisions'):
+            for table in ('intake_planning_sources', 'intake_requests', 'intake_brief_revisions', 'intake_company_revisions'):
                 db.execute('DROP TABLE '+table)
             db.execute('PRAGMA user_version=23')
             db.execute("INSERT INTO conversations VALUES('old','chat','request','Preserved',0,123)")
@@ -241,7 +241,7 @@ app.save_company('one','writer',os.environ['KEY'],CompanyDraft(company_name='Res
             self.assertIsNone(db.execute("SELECT 1 FROM sqlite_master WHERE name='intake_requests'").fetchone())
         build_intake(self.path)
         with Database.existing(self.path).connect() as db:
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 25)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 26)
             self.assertEqual([tuple(r) for r in db.execute('SELECT * FROM conversations')], [('old','chat','request','Preserved',0,123)])
             self.assertEqual([tuple(r) for r in db.execute('SELECT * FROM application_store_identity')], [tuple(r) for r in identity])
             self.assertEqual(db.execute('PRAGMA foreign_key_check').fetchall(), [])

@@ -3,9 +3,9 @@
 The Python intake API and local workspace let an operator save and reopen
 company/product information and campaign requirements. The local **Company &
 brief** area supplies forms over the guarded loopback API. Gateplane-backed
-tester access and connecting these drafts to interpretation/generation remain
-separate work. Saving supplies no fact verification, campaign approval or delivery
-authority.
+tester access and campaign generation remain separate work. An explicit planning
+action now interprets exact saved revisions through the bounded planner. Saving
+supplies no fact verification, campaign approval or delivery authority.
 
 ## Ownership and composition
 
@@ -26,8 +26,8 @@ for newly generated copy do not restrict user assertions or campaign requirement
 
 `campaigns.CampaignIntake` coordinates these drafts through a narrow
 `CampaignIntakeStore`. Bootstrap alone selects `SqliteCampaignIntake` and the
-local SQLite or remote Turso application database. Runtime, planning, inference,
-installed profiles and existing campaign workflows do not consume intake yet.
+local SQLite or remote Turso application database. Saved-intake planning consumes frozen revisions through conversations. Installed
+profiles and existing campaign execution workflows do not consume intake.
 
 ```python
 from acquisition.bootstrap import build_intake
@@ -190,3 +190,10 @@ tests competing fresh processes and an intentionally lost commit reply, and
 writes source-attributed evidence without disclosing credentials. It does not
 activate models, hosted tester access or a deployment. The dated evaluation and
 `docs/validation.md` record actual executed results and remaining limits.
+
+## Planning from a saved brief
+
+See [saved-intake planning](intake-planning.md) for the explicit planning action,
+proposal-only result, six-request bound, exact revision selection and original
+request recovery. Planning preserves unsupported requirements and user assertions.
+It cannot promote them into verified facts or create a campaign.

@@ -26,6 +26,11 @@ class SqliteConversations:
     def __init__(self, database: Database):
         self.database = database
 
+    def intake_source(self, organization, conversation_id, revision):
+        from .intake_planning import planning_source
+        with self.database.connect() as db:
+            return planning_source(db, organization, conversation_id, revision)
+
     def create(self, organization, request_id, title, now):
         identity(organization), identity(request_id), text(title, 120), finite_time(now)
         conversation_id = "conversation_" + digest({"organization": organization, "request_id": request_id})[:32]
@@ -40,7 +45,11 @@ class SqliteConversations:
     def listing(self, organization):
         identity(organization)
         with self.database.connect() as db:
-            return [dict(r) for r in db.execute("SELECT id,title,revision,created_at FROM conversations WHERE organization=? ORDER BY created_at DESC,id LIMIT 50", (organization,))]
+            exists = db.execute("SELECT 1 FROM sqlite_schema WHERE name='intake_planning_sources' AND type='table'").fetchone()
+            exclude = (' AND NOT EXISTS (SELECT 1 FROM intake_planning_sources s WHERE s.organization=c.organization '
+                       'AND s.conversation_id=c.id)') if exists else ''
+            return [dict(r) for r in db.execute('SELECT id,title,revision,created_at FROM conversations c '
+                    'WHERE organization=?' + exclude + ' ORDER BY created_at DESC,id LIMIT 50', (organization,))]
 
     def snapshot(self, organization, conversation_id):
         identity(organization), identity(conversation_id)
@@ -57,6 +66,10 @@ class SqliteConversations:
                     exchanges.append({'action_id':row['id'],'revision':receipt['message_receipt']['revision'],
                                       'exchange':receipt['exchange'],'message_receipts':receipt['message_receipts']})
             if exchanges:conversation['confirmed_action_exchanges']=exchanges
+            from .intake_planning import planning_source
+            selected = planning_source(db, organization, conversation_id, conversation['revision'])
+            if selected is not None:
+                conversation['intake_source'] = selected
             return conversation | {"messages": messages(db, organization, conversation_id),
                                    "admissions": [json.loads(r[0]) for r in db.execute("SELECT payload FROM conversation_plans WHERE organization=? AND conversation_id=? ORDER BY revision", (organization, conversation_id))]}
 
@@ -124,6 +137,10 @@ class SqliteConversations:
             frozen = {**context, "conversation_id": conversation_id, "request_id": request_id, "revision": expected_revision,
                       "messages": messages(db, organization, conversation_id),
                       "run_request_id": "conversation-plan:" + digest({"conversation": conversation_id, "request": request_id})}
+            from .intake_planning import planning_source
+            selected = planning_source(db, organization, conversation_id, expected_revision)
+            if selected != context.get('intake_source'):
+                raise Conflict('Planning context differs from its authoritative intake selection')
             scope = requested_scope(organization, conversation_id, expected_revision, frozen['messages'])
             if 'requested_scope' in context and context['requested_scope'] != scope:
                 raise Conflict('Requested scope changed before planning admission')
@@ -141,6 +158,9 @@ class SqliteConversations:
 def append_message(db, organization, conversation_id, request_id, expected_revision, content, now):
     identity(organization), identity(conversation_id), identity(request_id), revision_number(expected_revision), text(content), finite_time(now)
     conversation = scoped_conversation(db, organization, conversation_id)
+    from .intake_planning import managed
+    if managed(db, organization, conversation_id):
+        raise Conflict('Edit the saved brief and use its dedicated planning action')
     old = db.execute("SELECT * FROM conversation_messages WHERE organization=? AND conversation_id=? AND request_id=?", (organization, conversation_id, request_id)).fetchone()
     if old:
         if old["content"] != content or old["revision"] != expected_revision + 1:
