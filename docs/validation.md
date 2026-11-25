@@ -15,8 +15,10 @@ browser test server injects a clock inside the authored source window through
 the normal startup path. No production backdating flag, evidence date change
 or freshness exception is introduced.
 
-The 24 focused CLI/HTTP tests, 23 grounding/catalogue tests and four previously
-failing browser cases pass locally. Formatting and the 232-module architecture
+The 24 focused CLI/HTTP tests, 23 grounding/catalogue tests, eight CI-tool tests
+and four previously failing browser cases pass locally. Changes to the new
+browser server helper require the full browser portfolio, including when a
+skip label exists. Formatting and the 232-module architecture
 check pass. The existing grounding test still rejects 25 November evidence,
 and catalogue regressions still reject stale/future sources. Full PR CI
 verifies the combined suite separately; these checks make no live model calls.
