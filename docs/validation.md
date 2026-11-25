@@ -4277,3 +4277,42 @@ bind the final source.
 No live provider, schema migration, deployment or paid model activation
 was part of this correction. See the
 [commit-bound review evidence](evaluations/issue-131-preparation-history-review-2026-11-25.json).
+
+
+## 25 November 2026: PR 139 merge with native YouTube main
+
+Source `ff9ebba4e6db10a7320f0e46f63c6768aa9003b8` merges reviewed head `be29709` with main
+`a1659ce`. YouTube retains its published schema-26 migration; reviewed
+preparation appends schema 27. Both bootstrap services, HTTP surfaces, architecture
+roles, checkpoint validators and legacy migration bounds remain.
+
+Published intake schema 25, published YouTube schema 26 and the unpublished
+YouTube schema-25 preview retain their supported paths. The intact earlier
+preparation-only schema-26 preview is recognized by exact context table/trigger
+definitions and absence of YouTube objects. It upgrades atomically without
+rewriting payloads, source identities, original requests or expiry. Failures after
+either addition roll back both; missing guards and partial channel shapes fail
+closed. Historical read-only inspection does not migrate.
+
+All 228 focused integration cases passed in 89.425 seconds. These include native
+YouTube approval/export preservation across schema-27 review creation, exact
+preparation-preview recovery, both migration rollback positions, genuine older
+fixtures and real Hrana-wire lost-acknowledgement/concurrent-command behavior.
+Architecture passed with 235 modules and zero exceptions. All five native boundary
+cases passed with zero network attempts, stable source and
+38 historical artifacts unchanged. Frontend build and formatting passed.
+
+The fourth native partition completed all 246 cases and the first full browser
+partition completed all 38 cases. Other local partitions were interrupted after
+the user reported heat/fan activity; remaining complete coverage was moved to
+the existing GitHub CI workflow. Interrupted partitions are not counted as full
+passes. One existing uncertain-provider browser expectation timed out while its
+copy task was still in progress, then passed three independent repeats with
+unchanged assertions and timeouts. The precise timing cause remains unconfirmed.
+
+The original checkout's HEAD, status, protected paths, hashes and modes are
+unchanged. The managed Turso check was unavailable because its ignored operator
+configuration is no longer present. Earlier provider evidence retains its source
+attribution. No live model, paid activation, deployment or new cloud resource was
+used. The [integration record](evaluations/issue-131-main-integration-2026-11-25.json)
+retains exact source attribution, partial local results and CI follow-up scope.
