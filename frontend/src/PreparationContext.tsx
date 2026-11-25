@@ -40,9 +40,11 @@ export default function PreparationContext({
     [storageError, setStorageError] = useState("");
   const [busy, setBusy] = useState(false),
     [attempt, setAttempt] = useState(0);
-  const [preview, setPreview] = useState<PreparationPreview | null>(null),
-    [rows, setRows] = useState<Context[]>([]),
-    [view, setView] = useState<Context | null>(null);
+  const [preview, setPreview] = useState<PreparationPreview | null>(null);
+  const [{ rows, view }, setHistory] = useState<{
+    rows: Context[];
+    view: Context | null;
+  }>({ rows: [], view: null });
   const [loadedFor, setLoadedFor] = useState("");
   const [selection, setSelection] = useState({
     key: "",
@@ -60,6 +62,7 @@ export default function PreparationContext({
       ? selection
       : { key: preview?.id ?? "", claims: [], description: false, cta: false };
   const sourceRef = useRef("");
+  const historyRead = useRef<AbortController | null>(null);
   sourceRef.current = selectionKey;
   useEffect(() => {
     try {
@@ -75,10 +78,10 @@ export default function PreparationContext({
   useEffect(() => {
     setLoadedFor("");
     setPreview(null);
-    setRows([]);
-    setView(null);
+    setHistory({ rows: [], view: null });
     if (!active || !brief) return;
     const controller = new AbortController();
+    historyRead.current = controller;
     Promise.all([
       preparationPreview(brief, controller.signal),
       preparationHistory(brief.id, controller.signal),
@@ -86,8 +89,7 @@ export default function PreparationContext({
       .then(([p, h]) => {
         if (controller.signal.aborted) return;
         setPreview(p);
-        setRows(h.items);
-        setView(h.items[0] ?? null);
+        setHistory({ rows: h.items, view: h.items[0] ?? null });
         setLoadedFor(selectionKey);
       })
       .catch((error) => {
@@ -123,17 +125,34 @@ export default function PreparationContext({
         sourceRef.current === current &&
         (!brief || brief.id === command.payload.brief_id)
       ) {
-        setView(result);
-        setRows((items) => [
-          result,
-          ...items
-            .filter((item) => item.request_id !== result.request_id)
-            .map((item) => ({
-              ...item,
-              current: false,
-              review_required: ["A later input review exists."],
-            })),
-        ]);
+        historyRead.current?.abort();
+        setHistory(({ rows: items }) => {
+          const merged = [
+            result,
+            ...items.filter((item) => item.request_id !== result.request_id),
+          ].sort((a, b) => b.context.revision - a.context.revision);
+          const latest = merged[0].context.revision;
+          const updated = merged.map((item) =>
+            item.context.revision < latest
+              ? {
+                  ...item,
+                  current: false,
+                  review_required: Array.from(
+                    new Set([
+                      ...item.review_required,
+                      "A later input review exists.",
+                    ]),
+                  ),
+                }
+              : item,
+          );
+          return {
+            rows: updated,
+            view: updated.find(
+              (item) => item.request_id === result.request_id,
+            )!,
+          };
+        });
       }
       setLoadedFor("");
       onNotice(
@@ -192,7 +211,7 @@ export default function PreparationContext({
           <button
             type="button"
             className="button primary"
-            disabled={busy || !!storageError}
+            disabled={busy || !!storageError || !storeId}
             onClick={() => void send(pending)}
           >
             Retry original preparation review
@@ -408,9 +427,12 @@ export default function PreparationContext({
             disabled={busy || !!pending}
             value={view?.request_id ?? ""}
             onChange={(event) =>
-              setView(
-                rows.find((r) => r.request_id === event.target.value) ?? null,
-              )
+              setHistory((prior) => ({
+                ...prior,
+                view:
+                  prior.rows.find((r) => r.request_id === event.target.value) ??
+                  null,
+              }))
             }
           >
             {rows.map((row) => (

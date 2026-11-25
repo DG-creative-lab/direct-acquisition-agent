@@ -83,6 +83,13 @@ pending recovery as a definite original non-commit. Storage corruption/failure
 blocks dispatch. A known no-write rejection on the live original store permits
 editing again. Response loss retains the original review and validity window.
 
+Receipt reconciliation preserves newer reviews and their server-reported current
+status. History stays ordered by review revision; only a known later revision
+can mark an older record historical, and existing reasons are retained. A
+confirmed receipt cancels any older in-flight history read so that a late empty
+response cannot erase it. Recovery waits for the workspace store identity to load
+before dispatch, preserving the displayed receipt across startup initialization.
+
 ## Storage and compatibility
 
 Schema 26 adds append-only `preparation_contexts` with scoped foreign keys to
