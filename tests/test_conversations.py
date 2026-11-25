@@ -1,3 +1,4 @@
+from contextlib import ExitStack
 """Persistent intent, bounded planning, replay and authority separation."""
 
 import copy
@@ -23,6 +24,7 @@ from acquisition.adapters.sqlite.sequence_reviews import SEQUENCE_REVIEWS
 from acquisition.adapters.sqlite.intake import INTAKE
 from acquisition.adapters.sqlite.youtube import YOUTUBE
 from acquisition.adapters.sqlite.intake_planning import INTAKE_PLANNING
+from acquisition.adapters.sqlite.preparation_context import PREPARATION_CONTEXTS
 from acquisition.adapters.sqlite.sequence_journeys import SEQUENCE_JOURNEYS
 from acquisition.bootstrap import build
 from acquisition.contracts import Conflict, NotFound
@@ -422,9 +424,10 @@ class ConversationMigrationAndCliTests(unittest.TestCase):
             path = Path(temporary) / "old.sqlite"
             original = Database._apply_migration
             def skip(db, script):
-                if script not in {CONVERSATIONS, AUDIENCE_SELECTIONS, CONVERSATION_ACTIONS, EXECUTION, EXECUTION_RECOVERY, ATOMIC_ADMISSIONS, WORKFLOW_ADMISSIONS, ADMISSION_CUTOVER, WRITING_PREFERENCES, SIMULATED_DELIVERY, REPORT_MONITORING, CONTACT_DIRECTORY, RECIPIENT_CONTEXTS, CHANNEL_CONTENT, SEQUENCES, SEQUENCE_REVIEWS, SEQUENCE_JOURNEYS, INTAKE, INTAKE_PLANNING, YOUTUBE}:
+                if script not in {CONVERSATIONS, AUDIENCE_SELECTIONS, CONVERSATION_ACTIONS, EXECUTION, EXECUTION_RECOVERY, ATOMIC_ADMISSIONS, WORKFLOW_ADMISSIONS, ADMISSION_CUTOVER, WRITING_PREFERENCES, SIMULATED_DELIVERY, REPORT_MONITORING, CONTACT_DIRECTORY, RECIPIENT_CONTEXTS, CHANNEL_CONTENT, SEQUENCES, SEQUENCE_REVIEWS, SEQUENCE_JOURNEYS, INTAKE, INTAKE_PLANNING, YOUTUBE, PREPARATION_CONTEXTS}:
                     original(db, script)
-            with patch.object(Database, "_apply_migration", side_effect=skip), patch.object(Database, "_initialize_workspace_schema"), patch.object(Database, "_validate_writing_preference_schema"), patch.object(Database, "_validate_simulated_delivery_schema"), patch.object(Database, "_validate_report_monitoring_schema"), patch.object(Database, "_validate_contact_schema"), patch.object(Database, "_validate_recipient_context_schema"), patch.object(Database, "_validate_channel_schema"), patch.object(Database, "_validate_sequence_schema"), patch.object(Database, "_validate_sequence_review_schema"), patch.object(Database, "_validate_sequence_journey_schema"), patch.object(Database, "_validate_conversation_schema"), patch.object(Database, "_validate_audience_selection_schema"), patch.object(Database, "_validate_action_schema"), patch.object(Database, "_initialize_execution_schema"), patch.object(Database, "_initialize_execution_recovery_schema"), patch.object(Database, "_validate_admission_schema"), patch('acquisition.adapters.sqlite.intake.validate_intake_schema'), patch('acquisition.adapters.sqlite.youtube.validate_youtube_schema'), patch('acquisition.adapters.sqlite.intake_planning.validate_intake_planning_schema'):
+            with ExitStack() as stack:
+                for guard in (patch.object(Database, "_apply_migration", side_effect=skip), patch.object(Database, "_initialize_workspace_schema"), patch.object(Database, "_validate_writing_preference_schema"), patch.object(Database, "_validate_simulated_delivery_schema"), patch.object(Database, "_validate_report_monitoring_schema"), patch.object(Database, "_validate_contact_schema"), patch.object(Database, "_validate_recipient_context_schema"), patch.object(Database, "_validate_channel_schema"), patch.object(Database, "_validate_sequence_schema"), patch.object(Database, "_validate_sequence_review_schema"), patch.object(Database, "_validate_sequence_journey_schema"), patch.object(Database, "_validate_conversation_schema"), patch.object(Database, "_validate_audience_selection_schema"), patch.object(Database, "_validate_action_schema"), patch.object(Database, "_initialize_execution_schema"), patch.object(Database, "_initialize_execution_recovery_schema"), patch.object(Database, "_validate_admission_schema"), patch('acquisition.adapters.sqlite.intake.validate_intake_schema'), patch('acquisition.adapters.sqlite.intake_planning.validate_intake_planning_schema'), patch('acquisition.adapters.sqlite.preparation_context.validate_preparation_context_schema'), patch('acquisition.adapters.sqlite.youtube.validate_youtube_schema')):stack.enter_context(guard)
                 old = Database(path)
             with old.connect() as db:
                 self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 5)
@@ -445,7 +448,7 @@ class ConversationMigrationAndCliTests(unittest.TestCase):
                 self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 5)
                 self.assertIsNone(db.execute("SELECT name FROM sqlite_master WHERE name='conversations'").fetchone())
             with Database(path).connect() as db:
-                self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 26)
+                self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 27)
                 self.assertEqual(db.execute("SELECT generation FROM review_actors").fetchone()[0], 9)
                 self.assertEqual([tuple(r) for r in db.execute("SELECT * FROM legacy_task_admissions")], cutoff)
 
@@ -454,9 +457,10 @@ class ConversationMigrationAndCliTests(unittest.TestCase):
             path = Path(temporary) / "old.sqlite"
             original = Database._apply_migration
             def skip(db, script):
-                if script not in {CONVERSATIONS, AUDIENCE_SELECTIONS, CONVERSATION_ACTIONS, EXECUTION, EXECUTION_RECOVERY, ATOMIC_ADMISSIONS, WORKFLOW_ADMISSIONS, ADMISSION_CUTOVER, WRITING_PREFERENCES, SIMULATED_DELIVERY, REPORT_MONITORING, CONTACT_DIRECTORY, RECIPIENT_CONTEXTS, CHANNEL_CONTENT, SEQUENCES, SEQUENCE_REVIEWS, SEQUENCE_JOURNEYS, INTAKE, INTAKE_PLANNING, YOUTUBE}:
+                if script not in {CONVERSATIONS, AUDIENCE_SELECTIONS, CONVERSATION_ACTIONS, EXECUTION, EXECUTION_RECOVERY, ATOMIC_ADMISSIONS, WORKFLOW_ADMISSIONS, ADMISSION_CUTOVER, WRITING_PREFERENCES, SIMULATED_DELIVERY, REPORT_MONITORING, CONTACT_DIRECTORY, RECIPIENT_CONTEXTS, CHANNEL_CONTENT, SEQUENCES, SEQUENCE_REVIEWS, SEQUENCE_JOURNEYS, INTAKE, INTAKE_PLANNING, YOUTUBE, PREPARATION_CONTEXTS}:
                     original(db, script)
-            with patch.object(Database, "_apply_migration", side_effect=skip), patch.object(Database, "_initialize_workspace_schema"), patch.object(Database, "_validate_writing_preference_schema"), patch.object(Database, "_validate_simulated_delivery_schema"), patch.object(Database, "_validate_report_monitoring_schema"), patch.object(Database, "_validate_contact_schema"), patch.object(Database, "_validate_recipient_context_schema"), patch.object(Database, "_validate_channel_schema"), patch.object(Database, "_validate_sequence_schema"), patch.object(Database, "_validate_sequence_review_schema"), patch.object(Database, "_validate_sequence_journey_schema"), patch.object(Database, "_validate_conversation_schema"), patch.object(Database, "_validate_audience_selection_schema"), patch.object(Database, "_validate_action_schema"), patch.object(Database, "_initialize_execution_schema"), patch.object(Database, "_initialize_execution_recovery_schema"), patch.object(Database, "_validate_admission_schema"), patch('acquisition.adapters.sqlite.intake.validate_intake_schema'), patch('acquisition.adapters.sqlite.youtube.validate_youtube_schema'), patch('acquisition.adapters.sqlite.intake_planning.validate_intake_planning_schema'):
+            with ExitStack() as stack:
+                for guard in (patch.object(Database, "_apply_migration", side_effect=skip), patch.object(Database, "_initialize_workspace_schema"), patch.object(Database, "_validate_writing_preference_schema"), patch.object(Database, "_validate_simulated_delivery_schema"), patch.object(Database, "_validate_report_monitoring_schema"), patch.object(Database, "_validate_contact_schema"), patch.object(Database, "_validate_recipient_context_schema"), patch.object(Database, "_validate_channel_schema"), patch.object(Database, "_validate_sequence_schema"), patch.object(Database, "_validate_sequence_review_schema"), patch.object(Database, "_validate_sequence_journey_schema"), patch.object(Database, "_validate_conversation_schema"), patch.object(Database, "_validate_audience_selection_schema"), patch.object(Database, "_validate_action_schema"), patch.object(Database, "_initialize_execution_schema"), patch.object(Database, "_initialize_execution_recovery_schema"), patch.object(Database, "_validate_admission_schema"), patch('acquisition.adapters.sqlite.intake.validate_intake_schema'), patch('acquisition.adapters.sqlite.intake_planning.validate_intake_planning_schema'), patch('acquisition.adapters.sqlite.preparation_context.validate_preparation_context_schema'), patch('acquisition.adapters.sqlite.youtube.validate_youtube_schema')):stack.enter_context(guard)
                 old = Database(path)
             with old.connect() as db:
                 db.execute("CREATE TABLE conversations(broken TEXT)")

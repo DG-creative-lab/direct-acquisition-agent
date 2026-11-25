@@ -268,3 +268,17 @@ replaceable verified projection. Model-session expiry and original settings,
 uncertain outcomes, stale authority and legacy bytes retain dedicated regression
 oracles. `make boundary-check` preserves its evaluated source manifest and
 per-case evidence; the separate interface gate exercises HTTP/browser behavior.
+
+## Reviewed preparation context
+
+In Company & brief, save source edits before using **Review preparation context**.
+Select the description, claims and CTA wording to retain, record an input review
+note and unresolved questions, choose the finite review period and confirm the
+exact selection. Saving makes no model call. A source edit or changed review
+selection resets confirmation. The latest twenty reviews remain selectable;
+expired or superseded reviews are historical. An uncertain save retains its
+original request and store identity for explicit recovery.
+
+The review is a record of selected user assertions, not independently verified
+product facts or campaign approval. Campaign generation from these inputs is
+a separate slice. See [the preparation context contract](reviewed-preparation-context.md).

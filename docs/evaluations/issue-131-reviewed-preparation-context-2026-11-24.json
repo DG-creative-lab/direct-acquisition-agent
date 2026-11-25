@@ -1,0 +1,1620 @@
+{
+  "acceptance": [
+    {
+      "evidence": [
+        "test_exact_selected_inputs_reopen_original_replay_and_no_execution_authority",
+        "test_foreign_sources_claims_and_consistently_forged_preview_have_no_effect",
+        "manual two-product browser and authoritative SQLite inspection"
+      ],
+      "invariant": "Two products retain their own selected wording, claim qualifications, CTA and exact requirements without default company substitution."
+    },
+    {
+      "evidence": [
+        "test_questions_partial_input_unsupported_scope_and_unreferenced_claims_remain_visible",
+        "desktop/mobile context inspection"
+      ],
+      "invariant": "Unsupported, incomplete and unreferenced input plus human questions remain visible and unverified."
+    },
+    {
+      "evidence": [
+        "test_company_and_brief_changes_fence_preview_and_keep_old_context_historical",
+        "test_foreign_sources_claims_and_consistently_forged_preview_have_no_effect",
+        "HTTP stale-preview and competing-browser review cases",
+        "managed Turso competing processes and foreign-scope check"
+      ],
+      "invariant": "Stale/foreign source, claim, store or review selection cannot append a context."
+    },
+    {
+      "evidence": [
+        "test_expiry_and_explicit_rereview_never_renew_a_replayed_receipt",
+        "test_process_exit_before_and_after_commit_replays_original_context",
+        "browser lost-reply and same-origin store-switch recovery",
+        "managed remote lost-commit acknowledgement and preserved-expiry checks"
+      ],
+      "invariant": "Original exact retries reconcile one immutable receipt without renewed expiry; changed inputs under the same key conflict."
+    },
+    {
+      "evidence": [
+        "test_immutable_history_and_independent_source_reconstruction_reject_rehashed_corruption",
+        "source_self_certification mutation caught"
+      ],
+      "invariant": "Persisted records independently bind the original native source, not a self-certified rehashed payload."
+    },
+    {
+      "evidence": [
+        "test_schema25_rollback_and_inspection_preserve_sources_and_store_identity",
+        "Turso-wire schema-26 DDL rollback",
+        "workspace checkpoint roundtrip and inspection-only fence"
+      ],
+      "invariant": "Migration and review writes are atomic; read-only restored histories grant no write or generation authority."
+    },
+    {
+      "evidence": [
+        "native zero runs/tasks/model_calls/drafts/review_cases/review_decisions/simulated jobs",
+        "HTTP funding/authority rejection",
+        "browser zero-call assertions",
+        "manual SQLite zero runs/model_calls/review_decisions",
+        "managed context phase zero execution effects before existing synthetic planning regression"
+      ],
+      "invariant": "No context review starts paid work, creates a campaign or grants approval."
+    }
+  ],
+  "base_commit": "ff9be5932d0d3e734b08d6a8203e04a68765f1b4",
+  "branch": "feature/131-reviewed-preparation-context",
+  "compatibility": [
+    "Existing v1/v2/v3 product fact-pack validation, verified execution pauses and legacy cutoff rules remain intact.",
+    "Historical schema-23 registration fixtures exclude later DDL and retain exact original schema checks.",
+    "Schema-25 processes cannot open migrated schema-26 stores. Rebuild older managed probe binaries before reuse; no deployment was updated.",
+    "Parallel YouTube work based on pre-137 schema 24 must reconcile schema 25/26, bootstrap and workspace integration before merge. That worktree was not changed."
+  ],
+  "evaluated_at": "2026-11-24T20:36:04.985490+00:00",
+  "evaluated_source": {
+    "changes_to_head": [],
+    "files": {
+      ".github/workflows/ci.yml": {
+        "sha256": "6fb3c0c348a9fc7a9c96c44c7e9c99413663d0d94dd4489a1054ffec9130e0ac"
+      },
+      "AGENTS.md": {
+        "sha256": "3f966f44c822a5d55b1b6f2126f895b62e4754ab9427708a44f81cde4df28d6c"
+      },
+      "Makefile": {
+        "sha256": "843ee3b2da61fde93315c344d7ffbe897f8cd26c82a45c8a294cb50924a8959a"
+      },
+      "config/agent-skills-v1.json": {
+        "sha256": "1a8e6410ffa7683ed36d418c3c289cfcd8f8a1cb3e56c8b325a13f8e005c21be"
+      },
+      "config/audience-catalogue/catalogue.json": {
+        "sha256": "d946c366635c625b795ee3b7d353dc90ce3affe28373fd3c4f3275b5f2e34374"
+      },
+      "config/audience-catalogue/project-contractors-v1.json": {
+        "sha256": "e3fa8ad7ae0fd9d74398a6a3dd36901ab8c5fd05edf3421b88a729534bd0ee65"
+      },
+      "config/audience-catalogue/project-contractors-v2.json": {
+        "sha256": "e1bfb4f61db8f2262e26bb6111832de8c41f28a105de962a6ffa1405d52b5942"
+      },
+      "config/audience-catalogue/stock-inventory-v1.json": {
+        "sha256": "529184ca18947db031f1dbc93da7901492cc1819ea2ec1553ce1ee7936d6e07e"
+      },
+      "config/audience-catalogue/working-capital-v1.json": {
+        "sha256": "c00900f9415f3394d70f55ce94fe4cbe0d45e679d53bd43198682440b6adce54"
+      },
+      "config/campaign-playbooks-v1.json": {
+        "sha256": "9c14db81901b36efbd232d38b6543897a7c9229e5d7ec15dc44bd1b0bb618cf9"
+      },
+      "config/channel-skills-v1.json": {
+        "sha256": "01894854911d2a55bf3046898adc2ca85e18b35cadd4dd1efc99585f13bb6513"
+      },
+      "config/claim-screen-cases-v1.json": {
+        "sha256": "08cd85457d83cd1085062840eacaec90e2aafd33222487886858687eb0e13c1a"
+      },
+      "config/conversation-offline-evaluation-v1.json": {
+        "sha256": "630348cba3fd2a2d6738cb5601dc0ecd42bd3c0cf26e9a8279f1365328b3bc64"
+      },
+      "config/editorial-v1.json": {
+        "sha256": "2f0b017899ee16d6d83120a3dea5ffeb1323ce4f84a10c5a8b342d53b613265f"
+      },
+      "config/editorial-v2.json": {
+        "sha256": "faea9e9a370396348d0470ac4aa9f72dae7c236b839941e9648b060a7d1c9099"
+      },
+      "config/editorial-v3.json": {
+        "sha256": "e0cd5b048ad4e0678df86eaece1df4701f14e26e14f5b8c14c5d3a30254ea402"
+      },
+      "config/intake-planning-skills-v1.json": {
+        "sha256": "d368bcf2d5040ae720f95a34282d2390cd01825703ff22f7b671b08fd7514772"
+      },
+      "config/iwoca-product-facts-v1.json": {
+        "sha256": "cde84973a5b91f16ab9b88f0f676c3dfc4c3a6e749aeadbc1766d1c268a0626f"
+      },
+      "config/profiles/fielddesk-v1.json": {
+        "sha256": "d5ad129fe6324fc6769dc29315cc4251f09e1ff21e4b0326ecac19094bdba982"
+      },
+      "config/profiles/iwoca-v1.json": {
+        "sha256": "df870142e3bf320644e90d72c96adc4e0e10528852f511a22b47319af6ed900a"
+      },
+      "docs/architecture.md": {
+        "sha256": "b0dc3e3772fa024d025d48db90f0ff2d65cc914fdbf023810dd646fbf3a059f2"
+      },
+      "docs/branding.md": {
+        "sha256": "167c2804da2fcba57c969094e4f5129ce8040cf18446bceeae8b2a05f9b77e02"
+      },
+      "docs/intake.md": {
+        "sha256": "24dd1ddb7c476d4dbd626588309fa0ce628caff490cb50a0a26c8bcb0c538a6c"
+      },
+      "docs/legacy-migration.md": {
+        "sha256": "2f9ff7bcace50aaf6c99f63e6a6dcb3c0b250afec5335bc992ab6e9723c56d10"
+      },
+      "docs/reviewed-preparation-context.md": {
+        "sha256": "f6e98ae9acc960f6ff189ce86a54126e4c7762bcf8d6036ad15e8ce20c2192fd"
+      },
+      "docs/workspace.md": {
+        "sha256": "6f13ae2d37a56120eb85e94b6030e4411e15d18653d940017847fe7a254c9aa2"
+      },
+      "frontend/browser-smoke.json": {
+        "sha256": "7cb47a32054623ba20257507555c37f538712c2ae728b2e6fa945dc9b1627496"
+      },
+      "frontend/index.html": {
+        "sha256": "35bb928f0611d86f201952951e686ded3d6d85e09b89baccf63c37c22ba55364"
+      },
+      "frontend/package.json": {
+        "sha256": "7d514a81c5a506c03ecaa28b05b57db76bc16fabdc7dd2a01194e65c39a7c396"
+      },
+      "frontend/playwright.config.ts": {
+        "sha256": "228a2cebab863981f9fe032a66ed54cc4de6a9b7d431854afa56e3c33fbc0986"
+      },
+      "frontend/pnpm-lock.yaml": {
+        "sha256": "e8c5730a631042c645b51d715a5553b13533202943fd701ae4fdc61d9d483f35"
+      },
+      "frontend/src/App.tsx": {
+        "sha256": "11d9dcdc1cd6f2b65dddcbefd2063330e3e803490b14ba258d9ebd23c9dc52b0"
+      },
+      "frontend/src/CampaignViews.tsx": {
+        "sha256": "2e52edec4b941ec3c0e1a4f1dbbda766332ea5c9b3bc1670aaeed99fd4c01dbb"
+      },
+      "frontend/src/ConversationActions.tsx": {
+        "sha256": "f1fe3fd170c0993614d620afbf6821ead80f825d15dda3cbe15c6955022f447c"
+      },
+      "frontend/src/ConversationCampaignReview.tsx": {
+        "sha256": "d094c4b25d34a5a8fe0513db1e8af63547b4addd36123b85479a3d41c3f9cd57"
+      },
+      "frontend/src/ConversationCopyRevision.tsx": {
+        "sha256": "8c734f9529529d010e34ab50600bb13a07bbbf35ddf7991d343fb6dbb04f7255"
+      },
+      "frontend/src/ConversationExecution.tsx": {
+        "sha256": "486acc4f91fd366e51681df7c9a187041faadf23a793db69984021de7543aeab"
+      },
+      "frontend/src/ConversationFollowup.tsx": {
+        "sha256": "7de66495d2d00acf6ae3d57422233adaa79e8c874f578aec415438ff01641e96"
+      },
+      "frontend/src/ConversationHandoff.tsx": {
+        "sha256": "15f2d5f7b1a5e249648a4b6b3da342adeae4e322100ee065ccd7791889821545"
+      },
+      "frontend/src/ConversationLearning.tsx": {
+        "sha256": "728f20ef12ed1a235a800b0d7a0956f1f5a36a8146262a277d31b0a8bdbcbd51"
+      },
+      "frontend/src/ConversationSequence.tsx": {
+        "sha256": "ccf9f46b4eaaf6152c0d087985e3e523754b07218706effbac3bc51efa53a0d4"
+      },
+      "frontend/src/ConversationWorkspace.tsx": {
+        "sha256": "e077322c01d20430ab279d75a888e2d39c134ec60f6055f66248b2710cd5095f"
+      },
+      "frontend/src/IntakePlanning.tsx": {
+        "sha256": "7dea518c0cd304a49713cc6968272e2ce98efd3ab56a714955d09aae4d9d5859"
+      },
+      "frontend/src/IntakeWorkspace.tsx": {
+        "sha256": "8fb9051848876ba437539a6fddae330f35f0b473e75270193bc4635aee2decbb"
+      },
+      "frontend/src/KnowledgeView.tsx": {
+        "sha256": "fd215d83d6633871083720425f8cbc323d28a339da4f633cb81606713741bd12"
+      },
+      "frontend/src/LearningView.tsx": {
+        "sha256": "d5e1999726c1efc438a8d9e4d6e3353bfaad8a31f08aae7fc48462956a1ed153"
+      },
+      "frontend/src/MonitoringControls.tsx": {
+        "sha256": "350d2f77851c23f1644f4483fe5ee0c3a5566cab215adc740f1f3cfb34d0e515"
+      },
+      "frontend/src/OpenRouterSettings.tsx": {
+        "sha256": "4709de2c662cae4577a6cbe61293a30a7c9f8db8bbb6301ae1dd2694586c1f2b"
+      },
+      "frontend/src/PreparationContext.tsx": {
+        "sha256": "03fb94e74c5924af7e2aab1d176e06e0ddfa90b5f003adb3d1360c9c25e62896"
+      },
+      "frontend/src/ReviewPanel.tsx": {
+        "sha256": "2a381887f1b81eb0bb2d0f235e8dcb57e47b795fa7119781833985a4356fc99e"
+      },
+      "frontend/src/ValidationPanel.tsx": {
+        "sha256": "4f66f96a6fafaff09170195a68ee87da4183d4511294158d67a8bb1ad7cea64e"
+      },
+      "frontend/src/WritingPreferences.tsx": {
+        "sha256": "55a1d47b676b47e40b8bedc3f4c8b3479ce378e2f752589e7a049cd41fff5ae4"
+      },
+      "frontend/src/api.ts": {
+        "sha256": "4e287bbaecfae073d31251d8a610343e7c02c90fd1eb593ac5db835ec00fbb1a"
+      },
+      "frontend/src/brand/application.css": {
+        "sha256": "da60de823e11973dc93a45b19e945ef0ebeecbf165f0b7c6e7b783fdb690753b"
+      },
+      "frontend/src/brand/tokens.css": {
+        "sha256": "a430c06a29acdffd2e8cd55d0658b0a46b10b92d494fc262abbd0dce066973c8"
+      },
+      "frontend/src/conversation-review.css": {
+        "sha256": "f33451942b0000eca3d17ddb22c2609b0df461ed59b0a118187e012357013f25"
+      },
+      "frontend/src/conversation.css": {
+        "sha256": "9b05ac954916015dbf50be9ab0b45bffc9177c1ae60589ac6813de8818b5edb1"
+      },
+      "frontend/src/historical-preview.css": {
+        "sha256": "1f12418fd09f76033e8080440ad831a68056f3a3c332883267903bec923d1072"
+      },
+      "frontend/src/intake-api.ts": {
+        "sha256": "e30ef0acc1cd5368ab52b3ab33480c0952b0ca976a9c0e44bc3f7b7973cf2d12"
+      },
+      "frontend/src/intake-planning-api.ts": {
+        "sha256": "fa1d5f494bf7fe7eec63951cdb847261b00d1529a5d10cd2b9ebf3e55fd6bb09"
+      },
+      "frontend/src/intake.css": {
+        "sha256": "21c42ae4484e4033a195860f383fc50506d4942e253382e55215e666d556cf06"
+      },
+      "frontend/src/knowledge.css": {
+        "sha256": "359d27fde53f9fc49126b84ff842f3ce647eeba9bfe63cd6be39be47f1820659"
+      },
+      "frontend/src/main.tsx": {
+        "sha256": "7a5fbe53afdb047e3bec6a11212ba3d527f60f01051f5b7b2144f864ec6d5239"
+      },
+      "frontend/src/monitoring-session.ts": {
+        "sha256": "9dc689fca7e4f538ca4263d16bbcaa184d1019b7750de1e4b8e4e2da85419f40"
+      },
+      "frontend/src/openrouter-session.ts": {
+        "sha256": "99498d07de5bd6eac1d78eb9dc54fea1cd9ca25286f8f920257abee34f0a1805"
+      },
+      "frontend/src/openrouter.css": {
+        "sha256": "a88dddc06f04919c438e48ac1424374f02b37a4e877eacc30ef93f8267c0d903"
+      },
+      "frontend/src/preparation-context-api.ts": {
+        "sha256": "5ba519f9c4aba525b898fd91dfc8fc240725546c285a8d71f6abd3ccc0c4df0d"
+      },
+      "frontend/src/styles.css": {
+        "sha256": "6c9795302402cca640d013504cb0546a417690f0178f5d4c959fe26ea5b3a590"
+      },
+      "frontend/src/ui.tsx": {
+        "sha256": "beb0feb3ecab2e50b9ac33070de9123af718ac9bf9d2e6d05ced049cb9323238"
+      },
+      "frontend/src/validation.css": {
+        "sha256": "e596833c5bdd5f37c81312ebbd5c35cf01d431e02ecd526d6245da6cf6f555ad"
+      },
+      "frontend/tests/chat-review.spec.mjs": {
+        "sha256": "86d51c23106ea6422c3d067a29dcba65aae267d56ee2e6b57aea6c584704483f"
+      },
+      "frontend/tests/continuous-preparation.spec.mjs": {
+        "sha256": "9dc1d4dbe28df9dc8b9872148ead30c100d863cc18ad45f8fd0bb29d2f809681"
+      },
+      "frontend/tests/conversational-actions.spec.mjs": {
+        "sha256": "45824f4198869d681f65a15ad5acb3c5223291345076989a69ea86951363e2fc"
+      },
+      "frontend/tests/conversational-copy.spec.mjs": {
+        "sha256": "b2397b853bccf32d064a8714e563858be47af99100d9c3e5041af6a7ff45a8c5"
+      },
+      "frontend/tests/generation-failure.spec.mjs": {
+        "sha256": "1e728a0cdf194aa58356f3a2a71b2caa091327598e8b98a0024efff24dddc045"
+      },
+      "frontend/tests/intake-workspace.spec.mjs": {
+        "sha256": "58f26959479308be309401822b87f37bab14d91a0662740e67e5eab189cb7f5f"
+      },
+      "frontend/tests/offline-journey.spec.mjs": {
+        "sha256": "8cbf0052e780db0bc7271cf0e2724d58198a1b573174c74a0cf2e68aa35b5119"
+      },
+      "frontend/tests/openrouter.spec.mjs": {
+        "sha256": "6994015831f74926daa784fed4b79e96fd14794788b25acec0080078c8982d8c"
+      },
+      "frontend/tests/review-regressions.spec.mjs": {
+        "sha256": "7f687b8869e6b764abb001004550cc09cce0f2d10b26d784b16d47421185ed43"
+      },
+      "frontend/tests/sequence-journey.spec.mjs": {
+        "sha256": "78c0a617783edae957af61c54ee8253b3aa6a64516d0f69bc8a26fc468d9e9cb"
+      },
+      "scripts/architecture_policy.json": {
+        "sha256": "2e0761a2531478b912cdc442472fc3216c35467b8e3ee0c23cf356bb67605946"
+      },
+      "scripts/benchmark_sequence_review.py": {
+        "sha256": "008bf2f8b43b0566cabce83426d82a9abc65c547f2fe5bdbc737ec5e87d5942e"
+      },
+      "scripts/boundary_journey_fixture.py": {
+        "sha256": "ff35ce034e7c547875592ee13f3dcee1efa083d6ac1defeaf519c3c489eaefbc"
+      },
+      "scripts/browser_ci_scope.py": {
+        "sha256": "54b0dfd4e572ba6672020d8b85f3c0da7414c33e18f3201647d453e50c864179"
+      },
+      "scripts/check_architecture.py": {
+        "sha256": "1710919b33090978521ba61d1e6c7c94fa483f4fb76fee9ade3fc4df0a518dc4"
+      },
+      "scripts/check_failure_mutations.py": {
+        "sha256": "c023ccadc4a8cfc37722f2cb48061c4535f9aa7f39780619831d1c3783f77aa4"
+      },
+      "scripts/evaluate_boundary_journey.py": {
+        "sha256": "7f771c198ae92975bf4127423fe2d1787d3634dbac93a780acf99809fe52ea1e"
+      },
+      "scripts/evaluate_claim_screen.py": {
+        "sha256": "343fbeb02bebdeae5b2935b41f55e83867d48a9e10bd7b074c2028b9e6fe5b58"
+      },
+      "scripts/evaluate_conversational_agent.py": {
+        "sha256": "7b66ae84d8ed5ca93321340ce88c19ccbe77bc28e250ead7bac22ddc68528008"
+      },
+      "scripts/evaluate_offline_journey.py": {
+        "sha256": "ad8b435037816b1150e6146cda2f7b7174fae54c6be3a52a631cdc035b043c33"
+      },
+      "scripts/evaluation_evidence.py": {
+        "sha256": "4ca3ed766d447312c768a9ab4a8b75b9d15f59e697c25aea7ea6022da98c88f9"
+      },
+      "scripts/hosting_function.py": {
+        "sha256": "8f70c581e9380eacdce1878a4c0a26751f9f911e9f6f38530e55b4762998bc52"
+      },
+      "scripts/hosting_probe.py": {
+        "sha256": "e319e2402f359a337c737cb3048479072464164de8c4620e2d9d955aaf46aa94"
+      },
+      "scripts/intake_conformance.py": {
+        "sha256": "ccbea337ce0a7a271ba20e04553ce3f7fed809bf8c795d98b460c8d96028ba81"
+      },
+      "scripts/mutation_target.py": {
+        "sha256": "c16b9b9a0f2bdd1addd75130f27154227febc1c33c916b3b65c534e79f439f71"
+      },
+      "scripts/offline_journey_fixture.py": {
+        "sha256": "6729fa5631da60fcb4a29f6ca57d37c4abe396d9947312b2c5717058c83d38f8"
+      },
+      "scripts/package_hosting_probe.py": {
+        "sha256": "d4f17728ef2467c5817a7588f45a71f074a7933b683c74049c90237426ebce61"
+      },
+      "scripts/package_serverless_preparation.py": {
+        "sha256": "c74f96a640fd51bb0fed4b4691f82ad7c8e3dd1193c1a0e99b45720a99f26e6b"
+      },
+      "scripts/remote_storage_conformance.py": {
+        "sha256": "3ae07c50dc55e12dbdc6a6815d2d74107cf18e6944cf34a58faf90745c7ea4b2"
+      },
+      "scripts/run_backend_shard.py": {
+        "sha256": "1e638e687981669b5f9655e0b0434e141ea5204bebd2955de89846403d97b45b"
+      },
+      "scripts/run_hosting_probe.py": {
+        "sha256": "a1be511cde84d0fe40177b2efd89131acea0ee78b0919bdc11b8dc2f6114f9b5"
+      },
+      "scripts/serverless_preparation_conformance.py": {
+        "sha256": "603ed5f20357951de24c9c42a4f890e3d8ac1a9d4a6c2b0dc021f4fc69c4934c"
+      },
+      "src/acquisition/__init__.py": {
+        "sha256": "7ab2dfb5b9832595f9f3d31b572f13058e533253e47017aae05ab9c0b5358e73"
+      },
+      "src/acquisition/__main__.py": {
+        "sha256": "a8dc417916ad47670281c2352454ce013e07ac4707d0d4ba49acd052c336f96e"
+      },
+      "src/acquisition/adapters/__init__.py": {
+        "sha256": "16b10641236f2af419a0eab88ef020f0435ea3369097227ff24ee6377f612cf1"
+      },
+      "src/acquisition/adapters/audience_strategies.py": {
+        "sha256": "116cd934c92fd59b41fe20e26c36f9e9dddbe8c2f02e7a3a272df09d3acff874"
+      },
+      "src/acquisition/adapters/channel_fixtures.py": {
+        "sha256": "b0faf06d0927f1cea7915d81b09d21c122e336966df62313b76c34d64c53e38d"
+      },
+      "src/acquisition/adapters/contact_fixtures.py": {
+        "sha256": "83d0b375011019fa54853472f7591936c14fb69ae5a4d2f8dac52babbf00056b"
+      },
+      "src/acquisition/adapters/environment.py": {
+        "sha256": "06467fdc8dbe6c0c4f1f1670157f0844322099178f786e19999266010371177a"
+      },
+      "src/acquisition/adapters/files.py": {
+        "sha256": "70785d519a4b4bbfd35d6860b8741fc9ca120c7ee2c18f277d63c585a29e7725"
+      },
+      "src/acquisition/adapters/http/__init__.py": {
+        "sha256": "e6fb36db132f454f31eaccace4cbab4c1022fd9536384e2f9c2c3def5ae6764c"
+      },
+      "src/acquisition/adapters/http/serverless_preparation.py": {
+        "sha256": "e5b6680da045127fbd143bfb556478d8a5e4368ab0533c5a83b9251eb80847c0"
+      },
+      "src/acquisition/adapters/http/workspace_server.py": {
+        "sha256": "9d762cbbc4f3b95f54b1e8cc71bae6b7c90c80f4ec78bb8dc0572e45823f71c4"
+      },
+      "src/acquisition/adapters/learning_report.py": {
+        "sha256": "6b9c27481de98b51d35afe88e0702b7bfca7fa76cab2e7ca397ad0be73c98949"
+      },
+      "src/acquisition/adapters/local_audiences.py": {
+        "sha256": "a0b8dc6d9c869467cc046164d675b410c294c3631e3790b179dc42e80957d5e8"
+      },
+      "src/acquisition/adapters/local_profiles.py": {
+        "sha256": "774783bdde71735e174f5d570ee1137c47563735011ba1d91eee7f48a53ed3a1"
+      },
+      "src/acquisition/adapters/local_reports.py": {
+        "sha256": "add27c4bf558662941fc3c31e1c12d2839ead912a4aca2a4a1d1f70f6ddf8da1"
+      },
+      "src/acquisition/adapters/models/__init__.py": {
+        "sha256": "258a135ab8ccbb9b5dd58d1dbcdbaa1e24f47609150456ed822b97ca5f278bc2"
+      },
+      "src/acquisition/adapters/models/workspace_sessions.py": {
+        "sha256": "8ffc02f87e22e735afccb7aee46b1a8d13db86deb03e402f76bf65f8998ae315"
+      },
+      "src/acquisition/adapters/openrouter.py": {
+        "sha256": "d65a5fd9400c61e48dbff20458ba806a6455ed19b1c9721db5cc55f4766e217d"
+      },
+      "src/acquisition/adapters/recipient_fixtures.py": {
+        "sha256": "efc34c66c05bfaa1ce786f73a60d786683b8560accfbc1ad99a737999cb4a06f"
+      },
+      "src/acquisition/adapters/review_report.py": {
+        "sha256": "b48339c395d9dadea90c919eb5153780854c1856e042c83894e5036054c6eb3e"
+      },
+      "src/acquisition/adapters/sequence_interpreter.py": {
+        "sha256": "6bba1ccf0f0c4e11f86be28437c1fe4f7a64c3c90e0e6da4c6e0a6d0bed53710"
+      },
+      "src/acquisition/adapters/simulated_engagements.py": {
+        "sha256": "dfef5c0a60bba146b73c99d51053135d61b556c2575c25ea38f585dc8d94af80"
+      },
+      "src/acquisition/adapters/sqlite/__init__.py": {
+        "sha256": "83b5218ceb2d0f69b23e036075335d103e8c14ec54251feeb1140d306f26ba70"
+      },
+      "src/acquisition/adapters/sqlite/action_provenance.py": {
+        "sha256": "cc384a26926ee1da031b2be437ad938a25fdc5805412079adc8892f46d89abb2"
+      },
+      "src/acquisition/adapters/sqlite/actors.py": {
+        "sha256": "af5db991c867904f3ef2f00b400c6a1b65d541598fc3c15fc718edb3cc0894f6"
+      },
+      "src/acquisition/adapters/sqlite/admission_guard.py": {
+        "sha256": "7ecd1129a789c759e7228dc98a2ea4a3f96cafc007991603e661e84b94dd1dc2"
+      },
+      "src/acquisition/adapters/sqlite/admission_sources.py": {
+        "sha256": "4d0937002899de5cfc966015c1eb4884677f522f0db80862fabb94d72fd1dff3"
+      },
+      "src/acquisition/adapters/sqlite/admissions.py": {
+        "sha256": "ad7fbd371180dbfb2b65311638e3db353b7050162846b6eb3fe8698b142734e4"
+      },
+      "src/acquisition/adapters/sqlite/audience_decisions.py": {
+        "sha256": "1797d397a398297887bb6e270a1ac6560ded70a27f9db04a3770a38be67ac52c"
+      },
+      "src/acquisition/adapters/sqlite/audience_selections.py": {
+        "sha256": "463eb42d967a3de39136364e2d334aac40d20461a096fb95f960c2bae94fc9ab"
+      },
+      "src/acquisition/adapters/sqlite/audiences.py": {
+        "sha256": "2369a934ff67090f557e0777c3abcaf816dd7bb644074ccc5bdd6cd035074fe0"
+      },
+      "src/acquisition/adapters/sqlite/channel_content.py": {
+        "sha256": "111ddf9f7fcf6dc62d5f2018a94cd4a0edcd5ea7ec805be210a7bae82611d6d9"
+      },
+      "src/acquisition/adapters/sqlite/checkpoint_reconciliation.py": {
+        "sha256": "26e7a0a1e2ef07c92a0a2438ffd466ce3bc9b9e15b3312fbd46f26d1af57da71"
+      },
+      "src/acquisition/adapters/sqlite/contacts.py": {
+        "sha256": "fdac148e956cdd034216531a793e57d4bafcec3fed29ae5701293527d94caada"
+      },
+      "src/acquisition/adapters/sqlite/conversation_actions.py": {
+        "sha256": "1141c0fb41a6b39955a8d85ac1a766f04d68d6c92f0e85fd2b74b28a54000160"
+      },
+      "src/acquisition/adapters/sqlite/conversation_copy.py": {
+        "sha256": "1482af6af1615a4fa83b0d94189d97d5379319f41e8917995d04918bacd73e41"
+      },
+      "src/acquisition/adapters/sqlite/conversation_provenance.py": {
+        "sha256": "f38cbdf4939581c724ad496e1542e9fb6f4c2a5ac20fbb3ed3a8922d0dc7d605"
+      },
+      "src/acquisition/adapters/sqlite/conversations.py": {
+        "sha256": "d0030a6401327cf70011163845d282a1ffe087bdaa560aa8d0c2de096ad1835e"
+      },
+      "src/acquisition/adapters/sqlite/creative.py": {
+        "sha256": "524ea412df42d58c207a6aa776abf2bfefdf553f252286e835ea33ec28d7d8ad"
+      },
+      "src/acquisition/adapters/sqlite/database.py": {
+        "sha256": "a094e46744242ebe9db55f9f3294853676ad143446c6a05113922fd7983e1f37"
+      },
+      "src/acquisition/adapters/sqlite/drafts.py": {
+        "sha256": "0d757083693626cc9629ca487c24ec72c289aa0fd61eb768bfe3be496db19346"
+      },
+      "src/acquisition/adapters/sqlite/engagement_stops.py": {
+        "sha256": "2b2486fd0e081d7447fd6257a037bc2afd6ec0d6ae732157e9415a4efac15555"
+      },
+      "src/acquisition/adapters/sqlite/engagements.py": {
+        "sha256": "55776277770db4b3807023de8ae0f277932b11f110b096b428af191472a04c9d"
+      },
+      "src/acquisition/adapters/sqlite/errors.py": {
+        "sha256": "6f328cd1e319d78b687b098f593912e618412bb07d91b1eafc3feaeb68057d34"
+      },
+      "src/acquisition/adapters/sqlite/execution.py": {
+        "sha256": "b7e587f8567490083a979e564636688db3980e57021b0af23c4655ab76b09002"
+      },
+      "src/acquisition/adapters/sqlite/fixture_execution.py": {
+        "sha256": "980ff0ee29c828931964f93b0fb16d489d5027a7b7f427b0b11798de12379465"
+      },
+      "src/acquisition/adapters/sqlite/followups.py": {
+        "sha256": "e077117f1190200cb28e585f0c0cce04d154eca1eddf418e23f6a23718f3b8b8"
+      },
+      "src/acquisition/adapters/sqlite/inference.py": {
+        "sha256": "988fe4e7d51fbe4a288bea9a29dd3c1bb7932e3d01af1e4bbfb3f7364c235745"
+      },
+      "src/acquisition/adapters/sqlite/intake.py": {
+        "sha256": "0ab1e640f9a5dee3a29cb0140a55f8ae27da3de25cd7aa76655765d438dde8cb"
+      },
+      "src/acquisition/adapters/sqlite/intake_planning.py": {
+        "sha256": "0879a89fce8d2201f7ed162f294c56b8262ca9d1f0bbf2605368e9a2e0eb95f7"
+      },
+      "src/acquisition/adapters/sqlite/learning.py": {
+        "sha256": "cc7827976776c562b1cf44ee1d919fb91593944b8c655462cc6a15268bc23450"
+      },
+      "src/acquisition/adapters/sqlite/legacy_inventory.py": {
+        "sha256": "7824f86fdbc39e0e859a7f8453d5239f3e7d8ce48cb75cc4ff10f6f142dc3207"
+      },
+      "src/acquisition/adapters/sqlite/legacy_migration.py": {
+        "sha256": "4340df1051211718d7739db036270563d3311160fd6e048d224f3039e86db7d9"
+      },
+      "src/acquisition/adapters/sqlite/legacy_sources.py": {
+        "sha256": "bddfa075ace30b219f633e7e009acd0df403da203f9d14ce2370080bc5e2dbc1"
+      },
+      "src/acquisition/adapters/sqlite/preparation_context.py": {
+        "sha256": "893e704a361bb7b98b0adf8fafeaf9c7ffc39b8112320c2af15a4b1569b0536c"
+      },
+      "src/acquisition/adapters/sqlite/preparation_intents.py": {
+        "sha256": "d5e7114fa6843e1b3e9a396a69153554a2f4351bc8ddcaeadd26c65aad19bd66"
+      },
+      "src/acquisition/adapters/sqlite/preparations.py": {
+        "sha256": "4dbcb744ca8eddf60271105af7433da90c7ca17842b8488a6193a1317d0fd539"
+      },
+      "src/acquisition/adapters/sqlite/profile_drafts.py": {
+        "sha256": "93a64b870c3dab3ad6b9dc319ec5792c86ccc55525adb8ed46f162114043431e"
+      },
+      "src/acquisition/adapters/sqlite/recipient_contexts.py": {
+        "sha256": "2944e7c1a2aa4476a0faaab7d28c0c215fbe2d35b6569cc51f83505d531a7cb9"
+      },
+      "src/acquisition/adapters/sqlite/report_monitoring.py": {
+        "sha256": "34b9a63b473f5052095591956a33b528de4eb64390d73e8f1568e5d428fe25e8"
+      },
+      "src/acquisition/adapters/sqlite/reviews.py": {
+        "sha256": "670ca4b463e51f555da505d593d6d88b26789860507d2c21bc90088fd5c443bb"
+      },
+      "src/acquisition/adapters/sqlite/revision_provenance.py": {
+        "sha256": "f7ebfc876d49e414e252dd82dac85b8232372d3435674245d2aba5230ddb11c0"
+      },
+      "src/acquisition/adapters/sqlite/selected_audience.py": {
+        "sha256": "9755ab130e6d24449fa6f29839ac419ce5b79ba923665a34f10f2aa8b57bf6da"
+      },
+      "src/acquisition/adapters/sqlite/sequence_journeys.py": {
+        "sha256": "e339b992e892170f24aa157c56bea2bd03876d0db58cbde42642e1d59f6f9fd8"
+      },
+      "src/acquisition/adapters/sqlite/sequence_proposals.py": {
+        "sha256": "063f737f5d6de4b932864f13b5b77ca2131509fe5812f44aafea8d222ea6d43e"
+      },
+      "src/acquisition/adapters/sqlite/sequence_reviews.py": {
+        "sha256": "1bcf370ad4b8555c90d06aa642dac4eda545c25e0f667a9ea15cbdd5fbadb74d"
+      },
+      "src/acquisition/adapters/sqlite/simulated_delivery.py": {
+        "sha256": "6adcab918995c6c5ee7a3c979d6e6ad6c72a4c9a5fc2f53fe37afa5fb96af0f4"
+      },
+      "src/acquisition/adapters/sqlite/tasks.py": {
+        "sha256": "647a5f2697ccd7231e3b0f58771fb15c8dab4cce737d34f68ad79323571f831a"
+      },
+      "src/acquisition/adapters/sqlite/workspace_ancestry.py": {
+        "sha256": "44d33a9d7e3b118b1f06026d82d6efb85769c7efbb1b95e626e64e004a855255"
+      },
+      "src/acquisition/adapters/sqlite/workspace_checkpoint.py": {
+        "sha256": "52457cb85712d18d4a88bbe39a80d2fc29779ad3618b1e8cf301376cdfc49257"
+      },
+      "src/acquisition/adapters/sqlite/workspace_control.py": {
+        "sha256": "d8042a6695fc156cc02e34b481da13e87abc848f1972e96ad14c6614659cf4a9"
+      },
+      "src/acquisition/adapters/sqlite/workspace_projection.py": {
+        "sha256": "cb0d10156a239c4fe038dbd6743a1f12d6139dbde31e5127c0306388f2ad030b"
+      },
+      "src/acquisition/adapters/sqlite/workspace_sources.py": {
+        "sha256": "a903564ec4c6e02b72c69c013b897d7320b177cac6b4283417e2c8182238d567"
+      },
+      "src/acquisition/adapters/sqlite/workspace_state.py": {
+        "sha256": "e02d4af254df2e6bc86df5902a0e1b4f11c114f5929680e2d173c3aa3a479266"
+      },
+      "src/acquisition/adapters/sqlite/writing_preferences.py": {
+        "sha256": "bb8582da3a39ffecd5cb211b3e0e5621a8ebc39bed7b575e7c91123d0a7e347b"
+      },
+      "src/acquisition/adapters/synthetic.py": {
+        "sha256": "cc9d412389449bb52ccb8487183e4834ec91610a2603c28c60e9959e62aa9ac5"
+      },
+      "src/acquisition/adapters/turso/__init__.py": {
+        "sha256": "3d5167df26743b5424b54426f2cf0447cb3434ee32dbc9f9f34df7c2ec3ba997"
+      },
+      "src/acquisition/adapters/turso/admissions.py": {
+        "sha256": "c11127a8d2dca7e947f4a3a6d4f8a8df609642c9958889f3d618b56fa0a8576a"
+      },
+      "src/acquisition/adapters/turso/database.py": {
+        "sha256": "985c6cc275627879e2ae4789cd2cc2fa1463da934ef0afd8d697cbe37bb9b401"
+      },
+      "src/acquisition/adapters/turso/transport.py": {
+        "sha256": "f8180feaba3f69ae007b4e372313302a4d220927424c5d948d32e26d9ae04e17"
+      },
+      "src/acquisition/application/__init__.py": {
+        "sha256": "61957f0a187d37a782d190d54c345af6b20343d95ded96d88803a545f2e420f0"
+      },
+      "src/acquisition/application/cli_commands.py": {
+        "sha256": "0a0e081d4ffe13132c63518d26fcbfc2efacfe1a384fba2a5ce31ac8c09d7049"
+      },
+      "src/acquisition/application/recovery.py": {
+        "sha256": "3a0f940078d67133775ab48f96e998789c8700cf55faa853f7cbbc7dbe640237"
+      },
+      "src/acquisition/application/workspace/__init__.py": {
+        "sha256": "da623abe0c7d597547dc552845a1e7eaacd1ad911f07c977d4eecf4ebe240104"
+      },
+      "src/acquisition/application/workspace/intake.py": {
+        "sha256": "5dbd8312a75af730703cc91a1a7c239a619f9d8632731bcbab99e6fc755dfed3"
+      },
+      "src/acquisition/application/workspace/ports.py": {
+        "sha256": "577543af1d4dad7a85c4d05dfb53c1dd588129218f048ca5aff3ca283c826318"
+      },
+      "src/acquisition/application/workspace/service.py": {
+        "sha256": "f7c877a8f84b6812a8284f70b407c46423743db97ca86fadf9e1819e234a679d"
+      },
+      "src/acquisition/application/workspace/state.py": {
+        "sha256": "cc1d689a196ef8b41fd8ed7e70db50456d3957536845cbf349fb6d005b963591"
+      },
+      "src/acquisition/application/workspace/views.py": {
+        "sha256": "415c262e467a2cfa37a54be4f5d017a9bc6a6517bce244cdf2c17fa53bc4d37b"
+      },
+      "src/acquisition/audiences/__init__.py": {
+        "sha256": "ae89de7283835a861a7247f695dfa96d1805058b87fa042677a773abbbf91b3a"
+      },
+      "src/acquisition/audiences/application.py": {
+        "sha256": "64680162533170879218d6cb982ab22ca129691ba32f7d83e34bb738db16bb4b"
+      },
+      "src/acquisition/audiences/contact_application.py": {
+        "sha256": "f9c09697da5c3c52770f61276640aae8aae11290b4f3869138b5439e3ae00329"
+      },
+      "src/acquisition/audiences/contacts.py": {
+        "sha256": "c666b08e185b381379f24295bd13ea3ece93d8e57be0a6c123038dcd6f8eaff3"
+      },
+      "src/acquisition/audiences/domain.py": {
+        "sha256": "4daf5cb5c8f8b4d1d0d6d53f584702832d2b7e785aa91c9d9cf929ebd3812cc3"
+      },
+      "src/acquisition/audiences/ports.py": {
+        "sha256": "afda8d4d687f02d64cd575967f9abd6a9745f29d201bbf2a3fb51f44bd065fa2"
+      },
+      "src/acquisition/audiences/strategies.py": {
+        "sha256": "42cb79e383feacdf7bb2ea80f7a5725ef770795bd2f3c1f1ee3b673247576941"
+      },
+      "src/acquisition/audiences/strategy_application.py": {
+        "sha256": "3f5f17c40c762409957b28822478d10d3d02fded3709891435969a1c6c49a0ee"
+      },
+      "src/acquisition/bootstrap.py": {
+        "sha256": "05dba1a82362b18a37cd3f223ebdb2efdeb5bbcacb0305ac310b77a56d8cf5cd"
+      },
+      "src/acquisition/campaigns/__init__.py": {
+        "sha256": "ff26b4267c280dbb47e33b712464dec79086169f178e6895dac953449301860e"
+      },
+      "src/acquisition/campaigns/application.py": {
+        "sha256": "72337cd9a9d31b3cdf21ae17a797481d47e8202aa6ea6a71135cc0f0ba3286ba"
+      },
+      "src/acquisition/campaigns/contact_decisions.py": {
+        "sha256": "4880cb799736894ad9dee177d4d9adb9a41798eaf016719770d48106a4e38e5a"
+      },
+      "src/acquisition/campaigns/contact_eligibility.py": {
+        "sha256": "fdaedf1188611602d8ac5723d56145f6123e2410d5f9aa6fa6c3f2bda3c8a634"
+      },
+      "src/acquisition/campaigns/domain.py": {
+        "sha256": "a246ae7a2a3c7c45f2e4c55c4895180c9a889eed9e060cd989c683ab4acc71d9"
+      },
+      "src/acquisition/campaigns/intake.py": {
+        "sha256": "91498d76b98a407a5e5c3528e40e3b4b817e5ffe245338f624a1c6042540d49f"
+      },
+      "src/acquisition/campaigns/intake_application.py": {
+        "sha256": "17e17b488bd039ebefe16a7b5253de6cfc2559d46e20f6cde547fc844d91cbb8"
+      },
+      "src/acquisition/campaigns/ports.py": {
+        "sha256": "588944ff81bc291904b4ef1dc398bf0d642f14edb0eef0eb5b614d387a55a40d"
+      },
+      "src/acquisition/campaigns/preparation_context.py": {
+        "sha256": "13fe12a253c5336b04e184fff2dc1f9b8f161c38fd9ab42a1de284d07d972c1a"
+      },
+      "src/acquisition/campaigns/preparation_context_application.py": {
+        "sha256": "b409b7d5afb7da5da31bdaf39cd7ede5f0c69090ab58c91622e86d2051d6279e"
+      },
+      "src/acquisition/campaigns/sequence_application.py": {
+        "sha256": "65e135763dde8aa2e6e6de1822449fd5766164feae784800b267b0dc8f6541f1"
+      },
+      "src/acquisition/campaigns/sequences.py": {
+        "sha256": "226ec604392eb5b51aefde5c11c70bc82710e0a0e2d2c6096e976ed97dfc59cf"
+      },
+      "src/acquisition/channel_cli.py": {
+        "sha256": "31ec30d9fa2afc1e0723bf4bf0d74c27a423d12051d3580b19a0a11de754eba5"
+      },
+      "src/acquisition/contact_cli.py": {
+        "sha256": "aa78fecf87d9dfe5914ad9e97a22d18063df91045ed1074b0c946115217c6151"
+      },
+      "src/acquisition/contracts.py": {
+        "sha256": "af8a6fb07db2519fbec538cbea66e71f1fcc15b2909014f269c1e53e3a11820c"
+      },
+      "src/acquisition/conversation_cli.py": {
+        "sha256": "f6516354606c81427b6b709379252daf04be65e2c2d3e59b3c77dbb775bad8ef"
+      },
+      "src/acquisition/conversations/__init__.py": {
+        "sha256": "3162b8081940789c5fed1b636555b986a393036488d7773f3df2452e562171ce"
+      },
+      "src/acquisition/conversations/actions.py": {
+        "sha256": "53f297af84241df8f525b9d75b32736410134069be8620dffac06f09022d55e6"
+      },
+      "src/acquisition/conversations/admission.py": {
+        "sha256": "7c623b2566840be44537fe2fc9f4d32cb95f088e591f791cb3c1a3c1ba1374cb"
+      },
+      "src/acquisition/conversations/admission_application.py": {
+        "sha256": "52fb70625c7f37d9a1d03cc4689f56dd04b42964caf5f2fdf69bbaef907e2a0c"
+      },
+      "src/acquisition/conversations/application.py": {
+        "sha256": "14f3a9bc476b140e3e56cc905b783f9f28ee55fd13ebfd19cfa0f4935f62419c"
+      },
+      "src/acquisition/conversations/audiences.py": {
+        "sha256": "c70c1b0ddd9320751062c1886c9d134014d9de7fa523b68c81b1c17b935d4840"
+      },
+      "src/acquisition/conversations/budgets.py": {
+        "sha256": "ecb8b6693174a59339635753373d3a474884d1c457420ee207cbb6bfe7af986e"
+      },
+      "src/acquisition/conversations/domain.py": {
+        "sha256": "c0db2e1a10f09aae2b308aaa04deafc82ab527a4233d3db50a90676ba61de903"
+      },
+      "src/acquisition/conversations/execution.py": {
+        "sha256": "26a61f99ad2217b79116c9d7f9f9335cbe8140d0aa3c579e2972cddfedda50f1"
+      },
+      "src/acquisition/conversations/hosted_preparation.py": {
+        "sha256": "9a688a0cf4fec2ff2509e997bc4bfafa605c686809fb95ca0b6cb04c35c13dae"
+      },
+      "src/acquisition/conversations/intake_planning.py": {
+        "sha256": "2cf68e07dfa575bceff05a16efa49923ed386c098c461b50078005cc8bb6c4be"
+      },
+      "src/acquisition/conversations/intake_planning_application.py": {
+        "sha256": "3982844b3d113fe5c490461ed401bda95c5230b195188c3810d2c408f467affe"
+      },
+      "src/acquisition/conversations/legacy_migration.py": {
+        "sha256": "4944e37dbec7e7788636199f119e6380b84a55f2a5364fb486e883ade7f8989e"
+      },
+      "src/acquisition/conversations/legacy_migration_report.py": {
+        "sha256": "10efdd5be219e5863ec04c04e83f728662b593277690880eb3ca7f5483830a1d"
+      },
+      "src/acquisition/conversations/ports.py": {
+        "sha256": "f908ea731281768b60023358b180e4a2d8c2a764a1e41b0bf4c34d089a256de5"
+      },
+      "src/acquisition/conversations/preparation.py": {
+        "sha256": "e209d814b798d3ad98e7fb143e95dc3c839b7999682922a3a56978e2f9e75cc3"
+      },
+      "src/acquisition/conversations/profile_planning.py": {
+        "sha256": "1a5ec7adc70278e4f01396d8cea1c66ea2c22aca2978f8106e4479a7de50e30f"
+      },
+      "src/acquisition/conversations/projection.py": {
+        "sha256": "3e96f14c6719a312f9a0880868396bda801d6062f29c7130678562e1ff42d6e7"
+      },
+      "src/acquisition/conversations/scope.py": {
+        "sha256": "110e67802efbccd17a3aa9efe2f02c57f3a7aab38fb2c2274bf1e25297793237"
+      },
+      "src/acquisition/conversations/sequence_journey.py": {
+        "sha256": "2720527fdc96a1c33093d475b25f7bd0a8f031973d2fd49ecdce481eb2fcaacd"
+      },
+      "src/acquisition/conversations/workspace_state.py": {
+        "sha256": "fc908a445783da3c7fa3d4162350a925ad0361c8f3a2ffcdf0883880c620bc86"
+      },
+      "src/acquisition/creative/__init__.py": {
+        "sha256": "5dd8ad6c0264bbb3f4af350b3228d98f8a5be76e90bdafd62ff6268f48b06fa0"
+      },
+      "src/acquisition/creative/application.py": {
+        "sha256": "94b47fe45d35cbe5057fafeb8310c57127b364263caf7b8613f792fdc908190d"
+      },
+      "src/acquisition/creative/channel_agent.py": {
+        "sha256": "376ab7da40e98d5b452b0901904505e28bb8bbd09303bce1a7a79f742f316950"
+      },
+      "src/acquisition/creative/channel_content.py": {
+        "sha256": "3add7f8e6ff18049cdd6b40a2fd6458009b0f42a71ebd49cbd7053c09364731c"
+      },
+      "src/acquisition/creative/company_drafts.py": {
+        "sha256": "af1fcab3402d463d3350b3e7944d79278272328d8a13330f59eeec6351819a83"
+      },
+      "src/acquisition/creative/copy_contracts.py": {
+        "sha256": "c7bc2588fb2d58255a18355b41b7b625ac0a10c71959a239fa79270b0376d461"
+      },
+      "src/acquisition/creative/domain.py": {
+        "sha256": "06a8e42113df4f2a8752ff4eb7ff3fb8e704d0f716ce41be15629342b5808f8e"
+      },
+      "src/acquisition/creative/grounding.py": {
+        "sha256": "2d19217f73b58bc99195ef88e04aa823b342b6534e07adcbf7c82e7c9ec947af"
+      },
+      "src/acquisition/creative/grounding_policy.py": {
+        "sha256": "4b5db28fe7253e9581601545f42c0f48605b54541b2e891697c02bc9ad045f6b"
+      },
+      "src/acquisition/creative/ports.py": {
+        "sha256": "d62d168af2e8087122d154040ab56ff6fe27ed3b0bef9cf399a83d3433b89f48"
+      },
+      "src/acquisition/creative/profile_application.py": {
+        "sha256": "a15aa2f6e8f4daa734ad4df2ab6f28edd91caa2e06324cb0578c6b6d551f6cb4"
+      },
+      "src/acquisition/creative/profiles.py": {
+        "sha256": "c502e71f344743219c8da28e1434b7c6b284beaaf4d8a51e0c69cf261bab6593"
+      },
+      "src/acquisition/creative/recipient_application.py": {
+        "sha256": "652c15024ace1842d3fe422aa3c3e075b8d79bc2269831ce5dc3dac685e6a164"
+      },
+      "src/acquisition/creative/recipient_context.py": {
+        "sha256": "8663c0b593278e23a41fecd3386123c8bb68640de2c540b38d8c27f5377762fc"
+      },
+      "src/acquisition/decision_cli.py": {
+        "sha256": "11530d27dc2e1b4441582c63721db7d6d93c6fa8774c1d78110c6e6ca745a60b"
+      },
+      "src/acquisition/engagements/__init__.py": {
+        "sha256": "d1ed1e1cd92037a4512385d3cac836a5dc078dc672ca0fdd6a7bae5c8b7b320a"
+      },
+      "src/acquisition/engagements/application.py": {
+        "sha256": "d462cf84c0d53d682932fdd8cfe504ccfeb519ff1d1e92269bc1414ddd9a9be9"
+      },
+      "src/acquisition/engagements/domain.py": {
+        "sha256": "367a933fcbdc7b26fb191de228fa15cad38897d0ac38628e91af4055d08665e7"
+      },
+      "src/acquisition/engagements/ports.py": {
+        "sha256": "f3da608c867818e123fb358d35ea1cd019cf63e005b9df1e66e828599d7ef9ca"
+      },
+      "src/acquisition/entrypoints/__init__.py": {
+        "sha256": "793eb3e9a4f04bbb8ade538adf434acff72919bf7f53486774c6df774267414a"
+      },
+      "src/acquisition/entrypoints/channel_cli.py": {
+        "sha256": "0cfe5f0ddc0670a33d8ecee5c21484b42f1b0109f976f443cf4d10e0def011fd"
+      },
+      "src/acquisition/entrypoints/cli.py": {
+        "sha256": "de77e8eb3a9c44929ec8c8221115a819a950a2dab044d267ccb82276b248810f"
+      },
+      "src/acquisition/entrypoints/contact_cli.py": {
+        "sha256": "4fcce98ac0cff78247390c7cd15474192c5d52b9643984455c903910d63f54e3"
+      },
+      "src/acquisition/entrypoints/conversation_cli.py": {
+        "sha256": "fbf34a9b3cbe5a5fe6777203887c1eb4a4baf5025da92788437ecbf35e8fc577"
+      },
+      "src/acquisition/entrypoints/decision_cli.py": {
+        "sha256": "960a3b7a31e77f25de2af0b3d39dfd80d10cd10193c5f7e0453168c1e1aa397f"
+      },
+      "src/acquisition/entrypoints/learning_cli.py": {
+        "sha256": "274aebdfb84a19b0a6e2a6e4c154556f68a70cc3ccde49c72bff82c4e05a178a"
+      },
+      "src/acquisition/entrypoints/learning_demo.py": {
+        "sha256": "1577ead07599581ba4e7ce36014d5912613d78176445a34181f411eaf3358fe3"
+      },
+      "src/acquisition/entrypoints/legacy_migration.py": {
+        "sha256": "bf8b112ffe2d0582a12bfebbcf802f3f1380b1c43caf94f8d66d7c3af1f19d1a"
+      },
+      "src/acquisition/entrypoints/profile_cli.py": {
+        "sha256": "f0eabf5d6c5e32a7696e227c1bc7860df9016ac6695be0c8e7c6500495856489"
+      },
+      "src/acquisition/entrypoints/recipient_cli.py": {
+        "sha256": "b911ba3cdc7d553b86633f6e5eca280235e8c7905518de8c9e6ce81fe6a1a5b6"
+      },
+      "src/acquisition/entrypoints/review_cli.py": {
+        "sha256": "aa125b6ad0b83e81bcc1678778cc85d5140d00997ea9fc35c21858a58e4a773c"
+      },
+      "src/acquisition/entrypoints/review_demo.py": {
+        "sha256": "7f808ff9fd041b972df90eaed493f79325c8a5be1942411331a973909cd3fbe2"
+      },
+      "src/acquisition/entrypoints/sequence_cli.py": {
+        "sha256": "c4346dc01cd8aa29732beb4710b96a727e5bc907ef25a3cbd87cd4d48545f253"
+      },
+      "src/acquisition/entrypoints/serverless_preparation.py": {
+        "sha256": "ac1ea7d700a0d6e5ee9e8adc3745b144a0b1d00cc5ba7ff06d9b172ecb11d1b4"
+      },
+      "src/acquisition/entrypoints/workspace.py": {
+        "sha256": "a6fcdd48c19aabb8d4b978489e92f28cef3f0e6f3b8fae46ca4ce15acde300ac"
+      },
+      "src/acquisition/entrypoints/workspace_checkpoint.py": {
+        "sha256": "a8902249cbcee9cce5c3392e5a8cc36e9db5ad5cc7d9cc4c4591c4d5c260feb3"
+      },
+      "src/acquisition/entrypoints/workspace_fixture.py": {
+        "sha256": "0f883daa2d673bea5227d6c243e4aa53280a10e39bb2d35a8184c931395c3327"
+      },
+      "src/acquisition/entrypoints/workspace_rebuild.py": {
+        "sha256": "0df49c17a37c9b6e314de885a8235afcc955458ea18c2c2e021cb8721df2ddf5"
+      },
+      "src/acquisition/learning/__init__.py": {
+        "sha256": "35baea542244673c941f736ddd338c1e12cf2205fff4325394d50fd435d80637"
+      },
+      "src/acquisition/learning/application.py": {
+        "sha256": "fa10150deed326e71f4c665a54dd414b01f92e7426d6699f741944712d233ae2"
+      },
+      "src/acquisition/learning/domain.py": {
+        "sha256": "92701a43c8e4eaaece2127bc6fa7282e5f21efa97223ab15b86895e6d5c2bfde"
+      },
+      "src/acquisition/learning/hypotheses.py": {
+        "sha256": "0091cc80297852a9401e87846e2e6e9261955e3f61b8722720f3f4b31ce9a05d"
+      },
+      "src/acquisition/learning/outcomes.py": {
+        "sha256": "2075be86fa072564590ffb267592d52f690637a7998bfb784b90d3a888ec59c2"
+      },
+      "src/acquisition/learning/ports.py": {
+        "sha256": "451a2feea818e5e1d725cabc66ad23bddff88193d703041b01c6ee270334106c"
+      },
+      "src/acquisition/learning/recommendations.py": {
+        "sha256": "1a20531025bf76cdbae9bb72743f6f695fd196fbeb9533e41adcdbf4abf9233e"
+      },
+      "src/acquisition/learning/reports.py": {
+        "sha256": "64f19896f972c4843bac089e8a6f9ecd77c446fbb4bce3b949afe0c51f7d242d"
+      },
+      "src/acquisition/learning_cli.py": {
+        "sha256": "2b78d382b95175dc668d56cd31552dafa09ea709dad1c19bed2e8cbff3bc49c9"
+      },
+      "src/acquisition/learning_demo.py": {
+        "sha256": "e4d0008622666876c6615107811c91b0bb06e423dad69b9cc52cf6039ffeeec4"
+      },
+      "src/acquisition/legacy_migration.py": {
+        "sha256": "0446c21f7b3dd66b7c478ddf04c1b0ec932d46fade854fab52dcbb785ca86a7b"
+      },
+      "src/acquisition/local_root.py": {
+        "sha256": "742ac6787fac1f80853a73b8a264308a8dc0912075892114664843d7661df504"
+      },
+      "src/acquisition/profile_cli.py": {
+        "sha256": "f16ac24beba75d6ebe00eb0d389e5695fc88075c979240fcd36d8ebe1157c6d3"
+      },
+      "src/acquisition/reasoning/__init__.py": {
+        "sha256": "058eea8ce461a4ee1b1f2fe10737e24ae38e403b4a797dbcf66b967938e1f025"
+      },
+      "src/acquisition/reasoning/application.py": {
+        "sha256": "31f8afaf5594867401f1d52a2fa69f9df8eace3fab9ad57de9b520d6b5e04a89"
+      },
+      "src/acquisition/reasoning/catalogue.py": {
+        "sha256": "290e9b2481323a2a82b5e97505fdd6b17458834c6531254a54bcee8fad3546a9"
+      },
+      "src/acquisition/reasoning/domain.py": {
+        "sha256": "b4460fe73801bd9e88a4716551688ea312319c2f14ce8a4347e55620879df261"
+      },
+      "src/acquisition/reasoning/ports.py": {
+        "sha256": "83e1765e452bc93d0e015da6990e3a0d3217340f3c9b69e9fa0aab93147a1ae9"
+      },
+      "src/acquisition/recipient_cli.py": {
+        "sha256": "1e097c44adc71c1a8abbe871aebc7a26d5822a7190ea980d1844ed89e5bc3abc"
+      },
+      "src/acquisition/review_cli.py": {
+        "sha256": "23235f233960eb85f31da10a2cb6ab53d3a420dc43ff61c33c8e2da9d90146cc"
+      },
+      "src/acquisition/review_demo.py": {
+        "sha256": "6e46a69b853013c675c3f294729a90c322f3e398fa6ff32cedc5f2cfc37d0a45"
+      },
+      "src/acquisition/reviews/__init__.py": {
+        "sha256": "722218f274881af2a107a3ad10713d0d5284dadc32fd071dc6de20c3975bad73"
+      },
+      "src/acquisition/reviews/application.py": {
+        "sha256": "14f3fc35ac8263fce23d51ad178e90de62a177d4550a6e40336f22d1f63a4e08"
+      },
+      "src/acquisition/reviews/delivery.py": {
+        "sha256": "c7ab6aa8ae56d5c7424e76df900318c08b7c7260e9af9e34526d8d35e3719b4c"
+      },
+      "src/acquisition/reviews/domain.py": {
+        "sha256": "9ee8c6301770cd027f3cce4e635d259ca796734f64887fb5748d2aa5fe59452e"
+      },
+      "src/acquisition/reviews/ports.py": {
+        "sha256": "e917450494914327248791e75606cba363f7cfeabff06dbd175d7d36467a47ff"
+      },
+      "src/acquisition/reviews/revisions.py": {
+        "sha256": "07bd23b6d6012bbfe7799a2f210893cfb83972410f6a8639c7020c03d15fddc8"
+      },
+      "src/acquisition/reviews/sequences.py": {
+        "sha256": "e876a479edfe1d407a59380a0958eefa220c5ad91bdb92aded9ea86acd222753"
+      },
+      "src/acquisition/runtime/__init__.py": {
+        "sha256": "0e08876427f891c5dec6004429afea3459cde63ba169db32b9a26b5298b5dfc5"
+      },
+      "src/acquisition/runtime/application.py": {
+        "sha256": "388f74c4034f05082a378b599ce358b5aefa1555c4acebac2b975c9b1912da10"
+      },
+      "src/acquisition/runtime/domain.py": {
+        "sha256": "67f340cb356e510b3e1c6f813e85f49cc74c42791d332b48996e8f9cd526e5e7"
+      },
+      "src/acquisition/runtime/ports.py": {
+        "sha256": "415d1464fc57e8a6e6bf2bd354ff0691a4453cae68f1cb44821e66d687006568"
+      },
+      "src/acquisition/sequence_cli.py": {
+        "sha256": "d3f7ca29112d5943c986d56417be1f4da479dce7f283567158c770c185c6daef"
+      },
+      "src/acquisition/workflows/__init__.py": {
+        "sha256": "b8a64cbb6eab3ee94e88492c0cf939cf526043425f56740eecd7c7c82d0be0c8"
+      },
+      "src/acquisition/workflows/admission_coverage.py": {
+        "sha256": "e8c90670cfbe168a73fc3a6d2378d9f0c3bac02bec3b86f1db3ed88ec776bdd9"
+      },
+      "src/acquisition/workflows/audience_discovery.py": {
+        "sha256": "5285beafea4b723a8aa42039a5dfcd564d6c551adbf6fcfb48d340f6841e5897"
+      },
+      "src/acquisition/workflows/campaign_application.py": {
+        "sha256": "dfc3289b143a4a6bc598f6563ddb66c84133329d8865e627dcb0513bf78bcc70"
+      },
+      "src/acquisition/workflows/channel_content.py": {
+        "sha256": "80949f3881d867691722d0221d4c73eb09ff56889cc9668f817b02729b8fd7fe"
+      },
+      "src/acquisition/workflows/conversation.py": {
+        "sha256": "c7f9317bda180b57b27479995208b9e32946d27f35d69a373324ed9f61d6731b"
+      },
+      "src/acquisition/workflows/conversational_actions.py": {
+        "sha256": "2996238206d3f58bc06febd0c8f572895d076e59aacf3b931cc46ede0ea8a613"
+      },
+      "src/acquisition/workflows/copy_revision.py": {
+        "sha256": "5c628d3b1f350c1a05778b2f6092ad2e4947e11cc3467e2a3a0b721c4d6348ad"
+      },
+      "src/acquisition/workflows/intake_interpretation.py": {
+        "sha256": "ec7f02079ba14f43dd8c5b45c196cb45c379d647c1e707eb586724259b61eed1"
+      },
+      "src/acquisition/workflows/learning.py": {
+        "sha256": "fd2ba3abebfa4af0e242e2f9f98660ff443f252377020818462c699db28a8559"
+      },
+      "src/acquisition/workflows/model_mail.py": {
+        "sha256": "1edd240d171a2883e2e70b212b37857481a5493f8f500d69a7cb1bd2a12fa1bc"
+      },
+      "src/acquisition/workflows/monthly_mail.py": {
+        "sha256": "8d990ae82529364b83143e6e786784185d2d74eac5e7ab86542ab3c73d344c55"
+      },
+      "src/acquisition/workflows/preparation_host.py": {
+        "sha256": "f41dae6b6c9a6cd6aadc803ad3c1ebe8cb950304958dcd5105560512ef0e7d59"
+      },
+      "src/acquisition/workflows/profile_preparation.py": {
+        "sha256": "a41794e605c86853f40b4a702fb1e34393f896f569e924352ee5a462cde79b8b"
+      },
+      "src/acquisition/workflows/sequence_journey.py": {
+        "sha256": "7fdf2d8c81b4bfb25df31ef059694bac3f86d9520533b907519b2e7c59837b05"
+      },
+      "src/acquisition/workflows/sequences.py": {
+        "sha256": "2dd7b81c81f76c07d2728dd58e0391e034af6c13baa2af3f50291a6cebf5ee98"
+      },
+      "src/acquisition/workflows/workspace_state.py": {
+        "sha256": "7a30ae8c685a6f263c624e100cbf22ce9c4059cf168adc9f9e33aa68ce890d5c"
+      },
+      "src/acquisition/workspace.py": {
+        "sha256": "99f9671e494c7650dc05b7774d10bfa49593f1c8b30a9d9499940d0082cc4ea2"
+      },
+      "src/acquisition/workspace_checkpoint.py": {
+        "sha256": "f0c1bf995c6b3cc9fa57ec091c801d4f96bc61ca777a3b363bc02829ede6375e"
+      },
+      "src/acquisition/workspace_fixture.py": {
+        "sha256": "c9c5a1f4febf2c15ea14ecd3a0e17583b22ae0fca0385cf4484d8deb3aac5c30"
+      },
+      "src/acquisition/workspace_rebuild.py": {
+        "sha256": "0433ba46ddebcfc45029a559835889e6d5667361c5cb40b16e144318fcb74765"
+      },
+      "src/acquisition/workspace_server.py": {
+        "sha256": "a9816bbe1ef236f15401687eae749d32949d2eb1d5c9e21ebf94d40274020b82"
+      },
+      "tests/channel_history.py": {
+        "sha256": "9419d8539f6450e3b5c425310358870e82622a0bc6babf5886270b3a7a9d25af"
+      },
+      "tests/prepared_workspace_fixture.py": {
+        "sha256": "98637aae0c47fc5be7b2e71e66208bee97e6f681e114a344658dd16c68311c14"
+      },
+      "tests/test_admission_contracts.py": {
+        "sha256": "92c54be52420e0fcbaa97fbd7f125735c6dbf08957be52fd9b97e7b1ce20cc03"
+      },
+      "tests/test_admission_entrypoints.py": {
+        "sha256": "2241ca0a1c018a5217aa2ff828b9d63e3d5215016217dea24d125f094be42f89"
+      },
+      "tests/test_admission_workflow_coverage.py": {
+        "sha256": "6f35d93d22065fd5f6c89588b542fd055c0f752b553dd063800ea3c2a33771fa"
+      },
+      "tests/test_agent_assets.py": {
+        "sha256": "affbfc082ca04856baa14f169d4819b37a6f92d748ec8976b9366015f67234b5"
+      },
+      "tests/test_architecture.py": {
+        "sha256": "f41c5af900f9dc69870c29f703a610217c13dbbe02d444ad46e3d613b2bb8303"
+      },
+      "tests/test_atomic_admissions.py": {
+        "sha256": "752c3f2e9aad2e68dd1914e4964e11858a0226f96a5f9ffdc977df5568b9d7a2"
+      },
+      "tests/test_audience_catalogue.py": {
+        "sha256": "07e4a647a117e1215010c173c590d0323ebf474d132639e22885823a3cf41ab6"
+      },
+      "tests/test_audience_strategies.py": {
+        "sha256": "b9d6174bb1e9da18cb2803d86222c807d5e30f3a5ffac8e394fbc040a2ccb1b0"
+      },
+      "tests/test_boundary_evaluation.py": {
+        "sha256": "5f03c184538827f49a73664c5d5eef16962bc67886ba6d73c003dc30e7f62eb1"
+      },
+      "tests/test_budget_clarification.py": {
+        "sha256": "ed4994786a7c2fb36a324658be34e1212c94308f07def85f74d29ad595f94e7a"
+      },
+      "tests/test_channel_content.py": {
+        "sha256": "992ffc4aeeefbaca5f0410a8a4092fc619a8832aba6f95d79ae64e158f74e1e2"
+      },
+      "tests/test_checkpoint_reconciliation.py": {
+        "sha256": "8c00b48d7cd23cc335058718a07d92998f81724aa633b7618d69df24d4125998"
+      },
+      "tests/test_ci_tools.py": {
+        "sha256": "9b0b6f0ad563cb5958cb01c47f0f879df84ccf497ef335d84da9e6a2b32cbb2d"
+      },
+      "tests/test_contacts.py": {
+        "sha256": "31c6a2011a50d4ab1bbe3b00914f8abed25eb10ca69ef4585e1b1099e06b0aa7"
+      },
+      "tests/test_conversation_actions.py": {
+        "sha256": "7707eef6be8b4dd14d188ed27d90bbeaa26f8aef81f63d3a101c3d4a4ed46390"
+      },
+      "tests/test_conversation_audiences.py": {
+        "sha256": "e7af9372d12182a1898c5d9af3f0edb1e3bb7356510381cbfd1ad9f496651a60"
+      },
+      "tests/test_conversation_campaign.py": {
+        "sha256": "5dc9d8281639b9455461d4ca599e82851e6a2a7ee3780147d68828f572933b5d"
+      },
+      "tests/test_conversation_handoff.py": {
+        "sha256": "bd66f1cfef9546c26851dbb0649349468754a9b4b9ec07410139477ee9b4c8cb"
+      },
+      "tests/test_conversation_learning.py": {
+        "sha256": "c78cc32e11d80d4eb09368ff60b025b2cc16f0ce6620e628b000a877cc2c9de2"
+      },
+      "tests/test_conversational_copy_revision.py": {
+        "sha256": "84786a792b30754956482bc3fec69bf4112a64980018bc3ea3af286516ff9887"
+      },
+      "tests/test_conversational_evaluation.py": {
+        "sha256": "03ad22f1e8c3ea71d5f88d8a76a476d5e38b41a729495e0bb3c82402e836b39e"
+      },
+      "tests/test_conversations.py": {
+        "sha256": "20fe2f08fa2d7e03e8b7c0cbe421a1cd76e694e4f70322a2b7064a6a17223abb"
+      },
+      "tests/test_copy_revisions.py": {
+        "sha256": "cdcc9bbfe602740c590cb9eaba869d5f6b1a9fdee6424842654aedea83390620"
+      },
+      "tests/test_cutover_review_regressions.py": {
+        "sha256": "f9bfa4f1b98d66bfc08dfb967a58647735a880fc932efaf8776660d66db012df"
+      },
+      "tests/test_database_initialization.py": {
+        "sha256": "6aa1efd72857d300d0eb6f8b6b76fe7f7e3cc0218f0e1c2528332f736b47eefe"
+      },
+      "tests/test_domain.py": {
+        "sha256": "dfbec2ec65e8c08228bc63098b2fe2872a8d5eeb9b1c0c89e2093a45e407294b"
+      },
+      "tests/test_execution_authority_model.py": {
+        "sha256": "a077d59a57a546cea5ade7d37586bd4b43ffaa3dbd094d56fa16f1e95a1ff4bb"
+      },
+      "tests/test_execution_controls.py": {
+        "sha256": "3b2fc299d53d8dddfeb6f660e2ed7202ab14f45d8319b2200e340dc2a05c8881"
+      },
+      "tests/test_failure_boundaries.py": {
+        "sha256": "749324ab3badc1ad29778819dd2cb28ee3da4802dfca41c5ae7b0332bc97b4ab"
+      },
+      "tests/test_fixture_activation.py": {
+        "sha256": "b9816e1900e1b8879227133d35b69a9e364373a6e93980db1ccbf296b2b153b1"
+      },
+      "tests/test_followup_hypotheses.py": {
+        "sha256": "2f18a7ec6aaf9268f512e056e0572c3777de12f31f19e51ed861e1df9d74a428"
+      },
+      "tests/test_followups.py": {
+        "sha256": "5a44b246ea4499d8c5406f5ed18da2a4ea74e23ee83852d4d962a563a487d290"
+      },
+      "tests/test_grounding.py": {
+        "sha256": "f80d28f6e2f0f9f931d659dec81c6ffe75c346943116cdc8da9c6d46141239c6"
+      },
+      "tests/test_hosting_probe.py": {
+        "sha256": "90cfed5709bc7a2d59d36a1d93416adfe01ab7739fb347e0c2eb6464d2d2fd01"
+      },
+      "tests/test_intake.py": {
+        "sha256": "ad4ff02ee58c05ac6e54d09213147e35cc9badcc663b0383484a2938bafe4d50"
+      },
+      "tests/test_intake_planning.py": {
+        "sha256": "28704129942020a84d99fb62dca8d73e8f70420a1a1ea87d6020e4bd86fec8e2"
+      },
+      "tests/test_knowledge.py": {
+        "sha256": "881489568c83ad70ce90893058aa5403141a9e5323367c864057401028bd9b9e"
+      },
+      "tests/test_learning.py": {
+        "sha256": "dd1f953644b67117b61a9e332ec328cc792c8735865d7e9bfee78350cc4d8fa0"
+      },
+      "tests/test_learning_cli.py": {
+        "sha256": "cc2c0f704068bf4287585f2e0510f9598af798a48f9e2c4f564a70097bd794c3"
+      },
+      "tests/test_legacy_action_replay.py": {
+        "sha256": "0dea33dbefe13731e721aab9274b4fac85b3b803149e792c08a34231f46cf95a"
+      },
+      "tests/test_legacy_followup_scope.py": {
+        "sha256": "e16b126935247bc1a2221f062bcc13b15de1a4b4b4f655b9b137d53aee90b6c9"
+      },
+      "tests/test_legacy_inventory.py": {
+        "sha256": "8f8149bf4ab93feb18a468970b7c5748683af5de58f58ef36b2e3f5ab6bb6546"
+      },
+      "tests/test_legacy_migration.py": {
+        "sha256": "b8b8a1c366a06ac58a3d0503a6c83cabfdad9557b8beaf54cef3685c010c03fa"
+      },
+      "tests/test_model_copy.py": {
+        "sha256": "7d241479bfc495380c537aed649ef98e8487242c92b3af5275088a5db136f334"
+      },
+      "tests/test_offline_journey_evaluation.py": {
+        "sha256": "df1250a051123b7a97e353d05d00787107ac633d27ed02bbae20cfdbd9f084ca"
+      },
+      "tests/test_openrouter_catalogue.py": {
+        "sha256": "c484657f7c49db5f9592cbdc9b0cbf46459237213ce1ca7e4e7b716e262a93d4"
+      },
+      "tests/test_persistence.py": {
+        "sha256": "9acbc20420e3d0f594db3bb42d9887df2ef03c0e9aed3a53a7423287a21fdade"
+      },
+      "tests/test_planning_request_scope.py": {
+        "sha256": "a1a277e37879e699bde2067235382690ca12a81339374223f276659ff614122a"
+      },
+      "tests/test_pre_entrypoint_recovery.py": {
+        "sha256": "76494143bc1d53b94c8154179473d234e82873111dd3b2eb5af45a45e72798a6"
+      },
+      "tests/test_preparation_context.py": {
+        "sha256": "86dd412493b7a6f287fc51ec39cb7169f1ef9e2686836147d77896012a723909"
+      },
+      "tests/test_preparations.py": {
+        "sha256": "4127ad6efce74ed1d7783d44632649f55dc9c4fe40b057aa28b40ccb3c2524db"
+      },
+      "tests/test_profiles.py": {
+        "sha256": "9b224374979e62c74af9bb6763c949a5e6e69fb7dd702a26f8b5683bf559538e"
+      },
+      "tests/test_recipient_context.py": {
+        "sha256": "bad90a59631f194b9568785c0636a0ba5613cda0ad0ed40f4df4dcd55341fe40"
+      },
+      "tests/test_recovery_commands.py": {
+        "sha256": "b6d44161736f3af69dd8a2d7d9306cb8ce0f884aead0eb3d9383a39827565d70"
+      },
+      "tests/test_requested_scope.py": {
+        "sha256": "5d9bbd5591c38cb7d0d726490f56edfaa4b06cc2f6c160bb3980b210bec157df"
+      },
+      "tests/test_review_cli.py": {
+        "sha256": "99b7ca900f1e71199a96aad912b43c7dbcece01fa4a0c7724c9fc21d7bc213d4"
+      },
+      "tests/test_review_regressions.py": {
+        "sha256": "c3ee0ca93086f583fb62c27c40778e2700a2c7e9994832ebc79e6d3079915faa"
+      },
+      "tests/test_reviews.py": {
+        "sha256": "60248466c3bfdf06b9bac2fbda851f54722adf02f95d3db4033abd870711e3a2"
+      },
+      "tests/test_sequence_journeys.py": {
+        "sha256": "0bbd6f850c86d6dff78b81e31ed50e1406bd7b20ac4aa15cc7a13f9c506f57f7"
+      },
+      "tests/test_sequence_reviews.py": {
+        "sha256": "a0b5e8fa0ccb2d832731a236f018bc8ae3a86a0c5bb07dfc32127dafc5137fda"
+      },
+      "tests/test_sequences.py": {
+        "sha256": "9b2d5ad5674763729ef5443f05697500e6ac3eae749635627d4450e34ae4913f"
+      },
+      "tests/test_serverless_preparation.py": {
+        "sha256": "7cb9fc3bffc46b3ca8ef799a9d6717bfe053209b85b79ea7b804fc36e05c77fd"
+      },
+      "tests/test_turso_storage.py": {
+        "sha256": "9d6200a0066981b0130c8c4dac960e46d03804cd996c214397df6a4e8616ded9"
+      },
+      "tests/test_typed_chat_routing.py": {
+        "sha256": "989b98ebad1fba8e100d5aad8ba3afb6bda7d32715ddec90ae7a7d9ae977bf92"
+      },
+      "tests/test_validation_reports.py": {
+        "sha256": "9f208f27603a6417d32142190f43730c0ac66302868dcc700969c19e26118884"
+      },
+      "tests/test_workspace.py": {
+        "sha256": "db52ec3e158a321c36a3ed7f8fabe78b24eaddde554e8f354b01c61a6a2bc32b"
+      },
+      "tests/test_workspace_authority.py": {
+        "sha256": "c5a5d99357da1868b709028b4e55c5e05af2c7d7ad64f43ec5af05cb8f8a72ba"
+      },
+      "tests/test_workspace_checkpoint.py": {
+        "sha256": "d7146ab801f5dd1ab9cd937901db716029d8aa6c86a490f360dd5737280f133d"
+      },
+      "tests/test_workspace_composition.py": {
+        "sha256": "c2559ba0e59e211c199a78b54397b65c3638690ccd5ae86eaef1b21bf631d607"
+      },
+      "tests/test_workspace_control.py": {
+        "sha256": "dca759f91c483aa8357d7ad340456157403c1bb248155f737be2c86255e3b306"
+      },
+      "tests/test_workspace_intake.py": {
+        "sha256": "7cf9bb06528d654c8dd41fcd2ad08d71d2271a74cad01d6586a1b5ac37e4a39c"
+      },
+      "tests/test_workspace_projection.py": {
+        "sha256": "9d2648cba60157ba6a74374179f2b7a649d4a10177906baa1240c53080dbfb72"
+      },
+      "tests/workspace_control_fixture.py": {
+        "sha256": "e1dcd3081d12cfc51d1721e63db39d0bb5482eba968e28ff6182119b174e0e79"
+      }
+    },
+    "files_sha256": "6a12d198254e83f5354ec31d7a74fd2f6aabf6a475383a849b9d03978ac0175f",
+    "git_status": [],
+    "head_commit": "c671be2b1036c307cc6988c2a5b5b7ffa387a01f",
+    "worktree_dirty": false
+  },
+  "evidence_commit_contract": "This report and the validation ledger are a later evidence-only commit. Production, test and contract inputs retain the evaluated source bytes.",
+  "failure_space": {
+    "caught_mutations": 3,
+    "caught_positions": 2,
+    "limits": "Finite exercised schedules, not exhaustive SQL, concurrency or failure-space coverage. Native independent stores use concurrent threads; the provider conformance uses separate competing processes.",
+    "modeled_native_process_exit_positions": 2,
+    "mutation_artifact": {
+      "bytes": 826,
+      "path": "/private/tmp/iwoca-reviewed-context-mutations/results.json",
+      "sha256": "dc2257725e6d1ffe1380ad11f18f3618bf911fba500944b3fa5e1ba51ff6f8be"
+    },
+    "mutation_checks": [
+      {
+        "caught": true,
+        "exit_code": 1,
+        "failure_observed": [
+          "AssertionError: Conflict not raised"
+        ],
+        "log": "/private/tmp/iwoca-reviewed-context-mutations/source_self_certification/result.log",
+        "log_artifact": {
+          "bytes": 1109,
+          "path": "/private/tmp/iwoca-reviewed-context-mutations/source_self_certification/result.log",
+          "sha256": "74606bb5ee40bcf3af6ba6370995cf426dea152a80d7c9a2a7527ec9876af93b"
+        },
+        "mutation": "source_self_certification",
+        "test": "test_immutable_history_and_independent_source_reconstruction_reject_rehashed_corruption"
+      },
+      {
+        "caught": true,
+        "exit_code": 1,
+        "failure_observed": [
+          "AssertionError: Conflict not raised"
+        ],
+        "log": "/private/tmp/iwoca-reviewed-context-mutations/stale_company_head/result.log",
+        "log_artifact": {
+          "bytes": 1033,
+          "path": "/private/tmp/iwoca-reviewed-context-mutations/stale_company_head/result.log",
+          "sha256": "d0527b6dc2983c9e56060403be01f2c94ee63e5fefd342c17297193f3cc09e65"
+        },
+        "mutation": "stale_company_head",
+        "test": "test_company_and_brief_changes_fence_preview_and_keep_old_context_historical"
+      },
+      {
+        "caught": true,
+        "exit_code": 1,
+        "failure_observed": [
+          "AssertionError: True is not false"
+        ],
+        "log": "/private/tmp/iwoca-reviewed-context-mutations/renew_replayed_expiry/result.log",
+        "log_artifact": {
+          "bytes": 1068,
+          "path": "/private/tmp/iwoca-reviewed-context-mutations/renew_replayed_expiry/result.log",
+          "sha256": "edb081d9bc27e7feca0ecb7a6feb93c2b32269ccb0f6f8c44dfd98cb2cc3e576"
+        },
+        "mutation": "renew_replayed_expiry",
+        "test": "test_expiry_and_explicit_rereview_never_renew_a_replayed_receipt"
+      }
+    ]
+  },
+  "focused": [
+    {
+      "log": {
+        "bytes": 29650,
+        "path": "/private/tmp/iwoca-reviewed-context-precommit-focused.log",
+        "sha256": "b375a610697f0371b691cf9abeb8cab7e46f0c041aa99d02c2a90f74e1d3829f"
+      },
+      "seconds": 42.953,
+      "suite": "Native, intake, planning, SQLite initialization, Turso wire, conversations and legacy migration",
+      "tests": 159
+    },
+    {
+      "log": {
+        "bytes": 7113,
+        "path": "/private/tmp/iwoca-reviewed-context-integrated-focused.log",
+        "sha256": "4b1c5380e246af8410f546c2f1aae6c85c9dbdb71ead0b46f8d840e7dc26cfc2"
+      },
+      "seconds": 27.309,
+      "suite": "Native context, Turso wire, guarded HTTP and checkpoint integration",
+      "tests": 38
+    },
+    {
+      "log": {
+        "bytes": 3329,
+        "path": "/private/tmp/iwoca-reviewed-context-browser-focused-final.log",
+        "sha256": "66229cd3dec33fff08d589e48e91edb8a35a66c179cd8ea8d98ea9720de088b3"
+      },
+      "seconds": 41.5,
+      "suite": "Intake Chromium file including five new preparation context cases",
+      "tests": 22
+    }
+  ],
+  "focused_attribution": "Focused checks were run while preparing the source commit. The full final gates above establish the committed source; these are not additional final-commit reruns.",
+  "gates": {
+    "architecture": {
+      "classified_modules": 228,
+      "command": "make arch-check",
+      "errors": [],
+      "log": {
+        "bytes": 127,
+        "path": "/private/tmp/iwoca-reviewed-context-arch.log",
+        "sha256": "46b6e84f35ded0835a4258a6ae7e90c1ad1cfd8927491a708da8185368faf783"
+      },
+      "passed": true,
+      "temporary_exceptions": 0
+    },
+    "backend": {
+      "command": "make test",
+      "log": {
+        "bytes": 227797,
+        "path": "/private/tmp/iwoca-reviewed-context-backend.log",
+        "sha256": "c77aebeb0f1cda8199deced50a9d5813b79e41c591737e2eeefb29a04b18c969"
+      },
+      "passed": true,
+      "seconds": 1362.598,
+      "tests": 1171
+    },
+    "boundary": {
+      "cases": 5,
+      "cases_observed": [
+        {
+          "exit_code": 0,
+          "id": "compatibility-model-journey",
+          "network_attempts": 0
+        },
+        {
+          "exit_code": 0,
+          "id": "verified-commit-rebuild-replay",
+          "network_attempts": 0
+        },
+        {
+          "exit_code": 0,
+          "id": "uncertain-restart",
+          "network_attempts": 0
+        },
+        {
+          "exit_code": 0,
+          "id": "profile-replay",
+          "network_attempts": 0
+        },
+        {
+          "exit_code": 0,
+          "id": "engagement-replay",
+          "network_attempts": 0
+        }
+      ],
+      "command": "make boundary-check",
+      "historical_artifacts": 34,
+      "historical_bytes_unchanged": true,
+      "network_attempts": 0,
+      "passed": true,
+      "report": {
+        "bytes": 86385,
+        "path": "/private/tmp/iwoca-reviewed-context-boundary/results.json",
+        "sha256": "eda3d03fae312a5a0e910cd0f8fd25f3d84cde4b0170a113d358b7e695ff5ec0"
+      },
+      "source_stable": true
+    },
+    "interface": {
+      "build": true,
+      "chromium_cases": 140,
+      "command": "BROWSER_PORT=8897 make interface-check",
+      "elapsed": "12.8m",
+      "format": true,
+      "log": {
+        "bytes": 21343,
+        "path": "/private/tmp/iwoca-reviewed-context-interface.log",
+        "sha256": "178ad7dbbe5347e8b513ad7af07b58920cbc2d5562f90b656124b4b9883f748d"
+      },
+      "passed": true,
+      "port_note": "The default port was occupied by an unrelated worktree. BROWSER_PORT is validated and optional; default and CI shard behavior remain unchanged."
+    },
+    "managed_turso": {
+      "command": "PYTHONPATH=src:scripts python3 scripts/intake_conformance.py --env-file /private/tmp/iwoca-hosting-feasibility-60/.env.feasibility.local --output /private/tmp/iwoca-reviewed-context-remote.json",
+      "log": {
+        "bytes": 855,
+        "path": "/private/tmp/iwoca-reviewed-context-remote.log",
+        "sha256": "c4a9a80cad74d24809397b861b779eb0794ac55b0093fe9698e4ed7afaf6bd94"
+      },
+      "observed": {
+        "brief_revisions": 3,
+        "campaign_runs": 0,
+        "changed_input_rejected": true,
+        "company_revision_pinned": true,
+        "company_revisions": 3,
+        "competing_processes": 2,
+        "context_competing_processes": 2,
+        "context_foreign_scope_rejected": true,
+        "context_lost_ack_replayed": true,
+        "context_original_expiry_preserved": true,
+        "foreign_scope_rejected": true,
+        "incomplete_runtime_admission_blocked": true,
+        "lost_commit_ack_replayed": true,
+        "organization": "intake_conformance_9037c1a9621c48209f3cb035d669642f",
+        "original_plan_replayed": true,
+        "paid_model_calls": 0,
+        "planning_sources": 1,
+        "planning_status": "succeeded",
+        "receipts": 6,
+        "replacement_plan_rejected": true,
+        "reviewed_contexts": 2,
+        "schema": 26,
+        "stale_edit_rejected": true,
+        "synthetic_model_calls": 1
+      },
+      "passed": true,
+      "report": {
+        "bytes": 50863,
+        "path": "/private/tmp/iwoca-reviewed-context-remote.json",
+        "sha256": "992d1592602b2eb626d3b96ae1947b3a3411aa1357024a6a4377e60a70f116df"
+      },
+      "resource": "acquisition-hosting-probe",
+      "source_stable": true,
+      "synthetic": true
+    }
+  },
+  "issue": 131,
+  "limits": [
+    "Human selection is not independent product fact verification, campaign approval or generation permission.",
+    "References were stored without fetching. Contradictions/questions are operator observations, not automatic semantic detection.",
+    "No live-model quality, hosted authentication, Gateplane integration or campaign-generation capability is claimed.",
+    "One existing isolated managed database and unique synthetic organization were reused. No new resource, paid call, deployment or outbound effect was created."
+  ],
+  "manual_browser": {
+    "console": "Two expected original-request lookup 404 responses before first submission; no runtime exceptions.",
+    "counts": {
+      "model_calls": 0,
+      "review_decisions": 0,
+      "runs": 0
+    },
+    "keyboard": {
+      "focused_button": "Save reviewed preparation context",
+      "method": "Tab from confirmation checkbox, DOM inspection",
+      "outline": "rgb(23, 23, 23) solid 2px"
+    },
+    "passed": true,
+    "products": [
+      {
+        "cta_exact": true,
+        "description_selected": false,
+        "excluded_claims": 1,
+        "fingerprint": "527cbf5800b6fb2cec26fe0102d917585b66ffedb6e38201e2730dd2ad250b5d",
+        "product": "aster product",
+        "qualification_exact": true,
+        "selected_claims": 1
+      },
+      {
+        "cta_exact": true,
+        "description_selected": false,
+        "excluded_claims": 1,
+        "fingerprint": "420aeeddefa3985f7c141e0cf6b6fc65d651bb026317ea1abe22ecb13034cd78",
+        "product": "beacon product",
+        "qualification_exact": true,
+        "selected_claims": 1
+      }
+    ],
+    "source_commit": "c671be2b1036c307cc6988c2a5b5b7ffa387a01f",
+    "synthetic": true,
+    "visual": {
+      "automated_screenshots": [
+        {
+          "inspected": true,
+          "path": "/private/tmp/iwoca-reviewed-preparation-context/.local/browser-test-results/shard-1/intake-workspace-preparati-d1bac-d-review-history-on-desktop/preparation-context-desktop.png",
+          "sha256": "fa8ba8ea51e9bb2b5dca99a3a683757c251a3e9f61a938ab1990e021314f2d6b"
+        },
+        {
+          "inspected": true,
+          "path": "/private/tmp/iwoca-reviewed-preparation-context/.local/browser-test-results/shard-1/intake-workspace-preparati-c71f2-nd-review-history-on-mobile/preparation-context-mobile.png",
+          "sha256": "1ec20d3e9fd27266a2bfb584ba2759f17dda9cf3fcdc6f00fd1b25e3885ed458"
+        }
+      ],
+      "desktop": "/private/tmp/iwoca-reviewed-preparation-context/output/playwright/reviewed-context-beacon.png",
+      "inspected": true,
+      "sha256": "552f0d919327e248b8eb0b1d4e8b157ec3e67c683631c6449324d6db879323e5"
+    }
+  },
+  "original_checkout": {
+    "after": {
+      "bytes": 600,
+      "path": "/private/tmp/iwoca-reviewed-context-original-checkout-after.json",
+      "sha256": "c0f66c6130f3a6610216ffe0c2a0ea7a620577facb26232267ef0607ab41ed5b"
+    },
+    "before": {
+      "bytes": 600,
+      "path": "/private/tmp/iwoca-reviewed-context-original-checkout.json",
+      "sha256": "c0f66c6130f3a6610216ffe0c2a0ea7a620577facb26232267ef0607ab41ed5b"
+    },
+    "files": {
+      ".gitignore": {
+        "mode": 420,
+        "sha256": "b7bb8a574b328b96ed0656c518e870868c561c605ea71b0a3b53310bb011f77e"
+      },
+      "docs/channel-expansion-plan.md": {
+        "mode": 420,
+        "sha256": "381f76feddc2d7f08b4d2a7740264fe9b2b60cae4535340ae2b68d9602f34927"
+      },
+      "frontend/test-results/.last-run.json": {
+        "mode": 420,
+        "sha256": "91d1c43004802cd49950d78eb11c8fa7d05da8ffffe219a8b13b2f561bc00903"
+      }
+    },
+    "head": "788c77e6202ee1eaff8dc9a07a4867a7e5074543",
+    "status": " M .gitignore\n?? docs/channel-expansion-plan.md\n?? frontend/test-results/\n",
+    "unchanged": true
+  },
+  "passed": true,
+  "schema": "reviewed-preparation-context-evaluation/v1",
+  "scope": {
+    "authority": "none",
+    "capability": "Exact saved company and campaign input review with immutable selection, qualifications, references, questions and finite review validity.",
+    "format": "reviewed-preparation-context/v1",
+    "generation": "unavailable",
+    "no_effects": [
+      "No context confirmation creates a runtime run, task, model call, campaign, approval, delivery or URL fetch."
+    ],
+    "provenance": "user_supplied_unverified",
+    "schema": 26
+  },
+  "source_after": {
+    "changes_to_head": [],
+    "files_sha256": "6a12d198254e83f5354ec31d7a74fd2f6aabf6a475383a849b9d03978ac0175f",
+    "git_status": [],
+    "head_commit": "c671be2b1036c307cc6988c2a5b5b7ffa387a01f",
+    "worktree_dirty": false
+  },
+  "source_stable": true
+}

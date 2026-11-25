@@ -4155,3 +4155,164 @@ zero network attempts, stable source and unchanged historical artifacts. No
 frontend files changed, so the interface gate was not repeated. The original
 dirty checkout and earlier evaluation bytes are preserved. See the
 [review evidence](evaluations/issue-60-intake-planning-admission-review-2026-11-24.json).
+
+
+## 24 November 2026: reviewed preparation context
+
+Source `c671be2b1036c307cc6988c2a5b5b7ffa387a01f` adds exact saved-input review
+under #131. Campaigns owns an immutable schema-26 preparation context; bootstrap
+wires its narrow store for SQLite and Turso. The workspace lets an operator select
+description, claims with their original qualifications and references, and CTA,
+retain exact campaign requirements, record questions and confirm a one-to-thirty
+day input-review window. Selected assertions remain `user_supplied_unverified`.
+No context record grants fact verification, campaign approval or generation
+authority. References are not fetched and human questions are not automatic
+semantic contradiction detection.
+
+One writer transaction rechecks the exact saved source, observed company head,
+preview and expected review revision and appends the original command with the
+immutable context. Original retries reconcile before stale-selection checks and
+never renew expiry. Competing confirmations converge on one original receipt;
+new commands against the same prior review conflict. Later company/brief edits,
+new reviews and expiry mark old contexts historical without changing bytes.
+Independent reconstruction from native source revisions rejects coordinated
+rehashing of substituted source and derived payload.
+
+The guarded loopback API keeps organization and actor server-resolved and uses
+the original store identity. Browser recovery persists the whole original
+command before dispatch, reconciles its receipt first, fences a different store,
+and blocks uncertain or corrupt-storage resubmission under a new key. Inspection
+restores retain history without write or definite-original-absence authority.
+Native process exits before and after commit both recover the original request.
+
+`make test` passed 1171 cases in 1362.598 seconds. `make interface-check`
+passed all 140 Chromium cases in 12.8 minutes, plus build and formatting. The
+optional validated `BROWSER_PORT=8897` override avoided another worktree's server;
+default/CI ports were preserved. Architecture passed with 228 modules and zero
+exceptions. All five recovery boundary cases passed with zero network attempts,
+stable source and all 34 historical artifacts unchanged. Three of three semantic
+mutations were caught: trusting a substituted source, ignoring the current
+company head and renewing a replayed expiry.
+
+The existing isolated managed Turso database passed schema-26 review persistence,
+two competing processes, foreign-scope refusal and lost-acknowledgement replay
+with original expiry retained. Its existing planning regression used one synthetic
+response; no paid call or campaign run was created. The context-only phase had
+zero execution effects. Manual browser and authoritative SQLite checks retained
+one claim, qualification and CTA for each of two different products with no
+substitution, zero runs, model calls or approval decisions. Desktop/mobile visuals
+and keyboard focus were inspected. The source remained byte-identical throughout
+the gates and the original dirty checkout's HEAD, status, file hashes and modes
+were preserved.
+
+Schema-25 processes must be upgraded before opening migrated schema-26 stores.
+Parallel YouTube migrations and shared integration points require reconciliation
+before merge; that worktree was not changed. No deployment, hosted identity,
+live-model quality or generation-from-context capability is claimed. The finite
+checks establish the exercised schedules, not exhaustive failure-space coverage.
+See [the implemented contract](reviewed-preparation-context.md) and
+[commit-bound evidence](evaluations/issue-131-reviewed-preparation-context-2026-11-24.json).
+
+
+## 25 November 2026: preparation review-history reconciliation
+
+Source `a895a842a7f921b970c93baaae1b58fda2929247` fixes the reviewed P2:
+reconciling an older original receipt no longer makes a newer review historical.
+The browser merges by original request and review revision, preserves the newest
+server projection and existing historical reasons, sorts history by revision,
+and updates displayed selection from the same merged state. It never promotes
+a cached historical record to current. Obsolete in-flight history reads are
+cancelled after acknowledgement so that late empty results cannot erase the
+saved review. Original recovery waits for the workspace store identity to load;
+the original-store check, request binding, payload and expiry remain unchanged.
+
+Three controlled regressions fail against the original component and pass after
+the correction. Each schedule passed ten repeats, for 30 of 30 passes: older
+receipt after a newer review, delayed startup store identity, and an empty
+history response captured before confirmation but delivered afterward. Native
+SQLite assertions retain the original payload and expiry, two exact review rows
+after competing review, no replay POST and zero model calls or approval effects.
+These finite schedules do not establish the precise cause of the reviewer's
+earlier intermittent run or every possible browser interleaving.
+
+The first broad run exposed an existing wall-clock-dependent admission test:
+its subprocess used the real date after bundled evidence expired on 24 November.
+Source `cdd1bf5bbdd45ad019f2762d173b24c2d1a137c1` pins that subprocess to the
+fixture's existing 26 October clock before imports capture defaults. Production
+freshness checks and evidence were not changed. The first backend and browser
+runs were interrupted, retained as incomplete evidence, and restarted on this
+committed source for that fixture. The shared browser fixture also used the
+real date, which correctly disabled expired synthetic catalogue choices in four
+existing offline-example and knowledge cases. Source `c3db76beb06717dfa904a5ae8133b3c0ecc0a58a`
+gives only the Playwright-launched shared server a 1 November fixture date plus
+monotonic elapsed time. All four targeted scenarios pass. Production freshness
+rules, recorded evidence windows, root locking and elapsed-time progression
+were retained. The native run then found a second ineffective CLI fixture clock:
+it patched a build hook on a compatibility wrapper that no longer owns startup.
+Source `d68551499d4aa502b33cf6ac64a4e23eacdc60d3` pins the intended clock before
+canonical CLI imports instead. All four CLI review tests pass with the original restart,
+receipt, approval and export assertions retained. The earlier monolithic run was
+interrupted and final complete backend verification used the existing CI shards.
+The shared HTTP fixture also replaced its clock only after composition, leaving
+the audience port on the real date. Source `abf57038a2f569bbab3bb56bd7177b0b3201e87e`
+injects that mutable fixture clock before composition. Its 19 tests and all other users
+in the 40-case intake/admission check pass. The fourth backend partition was
+repeated after this repair; the first three retain their earlier source
+attribution. No production freshness or authority rule was weakened.
+
+All 1171 backend cases passed through the existing four-way `make test-shard`
+runner. Independent discovery and timing-record comparison prove the selected
+successful partitions cover every discovered test ID once, without omissions
+or duplicates. The slowest partition took 590.267 seconds. The full
+`make interface-check` passed 142 Chromium cases, including all 24 intake cases,
+plus build and formatting. Architecture passed with 228 modules and zero
+exceptions. All five native recovery boundary cases passed with zero network
+attempts, stable source and all 35 historical artifacts unchanged. The original
+dirty checkout's HEAD, status, protected path inventory, hashes and modes are
+unchanged. Frontend, API and browser launch/body code stayed byte-identical during
+the final interface gate. Later changes were native CLI and HTTP test fixtures.
+Per-partition source attribution and focused
+fixture consumer reruns are recorded in the evidence; final boundary checks
+bind the final source.
+No live provider, schema migration, deployment or paid model activation
+was part of this correction. See the
+[commit-bound review evidence](evaluations/issue-131-preparation-history-review-2026-11-25.json).
+
+
+## 25 November 2026: PR 139 merge with native YouTube main
+
+Source `ff9ebba4e6db10a7320f0e46f63c6768aa9003b8` merges reviewed head `be29709` with main
+`a1659ce`. YouTube retains its published schema-26 migration; reviewed
+preparation appends schema 27. Both bootstrap services, HTTP surfaces, architecture
+roles, checkpoint validators and legacy migration bounds remain.
+
+Published intake schema 25, published YouTube schema 26 and the unpublished
+YouTube schema-25 preview retain their supported paths. The intact earlier
+preparation-only schema-26 preview is recognized by exact context table/trigger
+definitions and absence of YouTube objects. It upgrades atomically without
+rewriting payloads, source identities, original requests or expiry. Failures after
+either addition roll back both; missing guards and partial channel shapes fail
+closed. Historical read-only inspection does not migrate.
+
+All 228 focused integration cases passed in 89.425 seconds. These include native
+YouTube approval/export preservation across schema-27 review creation, exact
+preparation-preview recovery, both migration rollback positions, genuine older
+fixtures and real Hrana-wire lost-acknowledgement/concurrent-command behavior.
+Architecture passed with 235 modules and zero exceptions. All five native boundary
+cases passed with zero network attempts, stable source and
+38 historical artifacts unchanged. Frontend build and formatting passed.
+
+The fourth native partition completed all 246 cases and the first full browser
+partition completed all 38 cases. Other local partitions were interrupted after
+the user reported heat/fan activity; remaining complete coverage was moved to
+the existing GitHub CI workflow. Interrupted partitions are not counted as full
+passes. One existing uncertain-provider browser expectation timed out while its
+copy task was still in progress, then passed three independent repeats with
+unchanged assertions and timeouts. The precise timing cause remains unconfirmed.
+
+The original checkout's HEAD, status, protected paths, hashes and modes are
+unchanged. The managed Turso check was unavailable because its ignored operator
+configuration is no longer present. Earlier provider evidence retains its source
+attribution. No live model, paid activation, deployment or new cloud resource was
+used. The [integration record](evaluations/issue-131-main-integration-2026-11-25.json)
+retains exact source attribution, partial local results and CI follow-up scope.

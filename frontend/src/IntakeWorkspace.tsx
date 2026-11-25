@@ -27,6 +27,7 @@ import type {
 } from "./intake-api";
 import "./intake.css";
 import IntakePlanning from "./IntakePlanning";
+import PreparationContext from "./PreparationContext";
 
 const emptyCompany = (): CompanyInput => ({
   company_name: "",
@@ -170,8 +171,14 @@ export default function IntakeWorkspace({ active }: { active: boolean }) {
   const [listAttempt, setListAttempt] = useState(0);
   const errorRef = useRef<HTMLDivElement>(null);
   const [planningLocked, setPlanningLocked] = useState(false);
+  const [contextLocked, setContextLocked] = useState(false);
   const locked =
-    busy || !!pending || !!storageError || !loaded || planningLocked;
+    busy ||
+    !!pending ||
+    !!storageError ||
+    !loaded ||
+    planningLocked ||
+    contextLocked;
   const companyDirty =
     JSON.stringify(company) !==
     JSON.stringify(companyBase?.draft ?? emptyCompany());
@@ -988,9 +995,28 @@ export default function IntakeWorkspace({ active }: { active: boolean }) {
             !!storageError ||
             !loaded ||
             companyDirty ||
-            briefDirty
+            briefDirty ||
+            contextLocked
           }
           onLock={setPlanningLocked}
+          onError={setError}
+          onNotice={setNotice}
+        />
+        <PreparationContext
+          brief={briefBase}
+          storeId={storeId}
+          active={active}
+          sourceVersion={`${companyBase?.id ?? ""}:${companyBase?.revision ?? ""}`}
+          disabled={
+            busy ||
+            !!pending ||
+            !!storageError ||
+            !loaded ||
+            companyDirty ||
+            briefDirty ||
+            planningLocked
+          }
+          onLock={setContextLocked}
           onError={setError}
           onNotice={setNotice}
         />

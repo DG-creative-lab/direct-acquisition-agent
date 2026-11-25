@@ -29,6 +29,7 @@ from acquisition.adapters.sqlite.sequence_reviews import SEQUENCE_REVIEWS
 from acquisition.adapters.sqlite.intake import INTAKE
 from acquisition.adapters.sqlite.youtube import YOUTUBE
 from acquisition.adapters.sqlite.intake_planning import INTAKE_PLANNING
+from acquisition.adapters.sqlite.preparation_context import PREPARATION_CONTEXTS
 from acquisition.adapters.sqlite.sequence_journeys import SEQUENCE_JOURNEYS
 import test_copy_revisions as revisions
 import test_followups as followups
@@ -432,8 +433,8 @@ class WorkflowAdmissionMigrationTests(unittest.TestCase):
         self.path=Path(self.temp.name)/'old.sqlite';self.now=1792972800.
         original=Database._apply_migration
         def eleven(db,script):
-            if script not in {WORKFLOW_ADMISSIONS,ADMISSION_CUTOVER, WRITING_PREFERENCES, SIMULATED_DELIVERY, REPORT_MONITORING, CONTACT_DIRECTORY, RECIPIENT_CONTEXTS, CHANNEL_CONTENT, SEQUENCES, SEQUENCE_REVIEWS, SEQUENCE_JOURNEYS, INTAKE, INTAKE_PLANNING, YOUTUBE}:original(db,script)
-        with patch.object(Database,'_apply_migration',side_effect=eleven),patch.object(Database,'_initialize_workspace_schema'),patch.object(Database,'_validate_writing_preference_schema'),patch.object(Database,'_validate_simulated_delivery_schema'),patch.object(Database,'_validate_report_monitoring_schema'),patch.object(Database,'_validate_contact_schema'),patch.object(Database,'_validate_recipient_context_schema'),patch.object(Database,'_validate_channel_schema'),patch.object(Database,'_validate_sequence_schema'),patch.object(Database,'_validate_sequence_review_schema'),patch.object(Database,'_validate_sequence_journey_schema'), patch('acquisition.adapters.sqlite.intake.validate_intake_schema'), patch('acquisition.adapters.sqlite.youtube.validate_youtube_schema'), patch('acquisition.adapters.sqlite.intake_planning.validate_intake_planning_schema'):
+            if script not in {WORKFLOW_ADMISSIONS,ADMISSION_CUTOVER, WRITING_PREFERENCES, SIMULATED_DELIVERY, REPORT_MONITORING, CONTACT_DIRECTORY, RECIPIENT_CONTEXTS, CHANNEL_CONTENT, SEQUENCES, SEQUENCE_REVIEWS, SEQUENCE_JOURNEYS, INTAKE, INTAKE_PLANNING, YOUTUBE, PREPARATION_CONTEXTS}:original(db,script)
+        with patch.object(Database,'_apply_migration',side_effect=eleven),patch.object(Database,'_initialize_workspace_schema'),patch.object(Database,'_validate_writing_preference_schema'),patch.object(Database,'_validate_simulated_delivery_schema'),patch.object(Database,'_validate_report_monitoring_schema'),patch.object(Database,'_validate_contact_schema'),patch.object(Database,'_validate_recipient_context_schema'),patch.object(Database,'_validate_channel_schema'),patch.object(Database,'_validate_sequence_schema'),patch.object(Database,'_validate_sequence_review_schema'),patch.object(Database,'_validate_sequence_journey_schema'), patch('acquisition.adapters.sqlite.intake.validate_intake_schema'), patch('acquisition.adapters.sqlite.intake_planning.validate_intake_planning_schema'), patch('acquisition.adapters.sqlite.preparation_context.validate_preparation_context_schema'), patch('acquisition.adapters.sqlite.youtube.validate_youtube_schema'):
             app=build(self.path,clock=lambda:self.now)
             store=build_admissions(self.path,clock=lambda:self.now)
             org='one';cid=app.conversations.create(org,'chat')['id']
@@ -454,7 +455,7 @@ class WorkflowAdmissionMigrationTests(unittest.TestCase):
         store=build_admissions(self.path,clock=lambda:self.now)
         self.assertEqual(store.admit(self.intent,self.now),self.receipt)
         with store.database.connect() as db:
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],26)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],27)
             self.assertEqual(db.execute('PRAGMA integrity_check').fetchone()[0],'ok')
             self.assertEqual(db.execute('PRAGMA foreign_key_check').fetchall(),[])
             with self.assertRaises(sqlite3.IntegrityError):db.execute('DELETE FROM admission_requests')

@@ -197,3 +197,11 @@ See [saved-intake planning](intake-planning.md) for the explicit planning action
 proposal-only result, six-request bound, exact revision selection and original
 request recovery. Planning preserves unsupported requirements and user assertions.
 It cannot promote them into verified facts or create a campaign.
+
+## Reviewed preparation inputs
+
+The Company & brief workspace can record a separate human review of selected
+source wording, qualifications, references and CTA. Missing evidence and
+questions remain visible. This does not verify claims, activate generation or
+grant campaign approval. See [reviewed preparation inputs](reviewed-preparation-context.md)
+for exact selection, freshness, optimistic conflicts and original-command recovery.

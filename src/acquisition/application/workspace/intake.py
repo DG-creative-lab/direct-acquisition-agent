@@ -1,6 +1,6 @@
 """Local intake boundary. Scope comes from the operator workspace, never JSON."""
 
-from acquisition.campaigns import CampaignIntake, CampaignBriefDraft
+from acquisition.campaigns import CampaignIntake, CampaignBriefDraft, PreparationReview
 from acquisition.creative import CompanyDraft, CompanyClaimDraft
 from acquisition.conversations import intake_readiness
 
@@ -23,6 +23,29 @@ class WorkspaceIntake:
 
     def store_identity(self):
         return self.intake.store_identity()
+
+    def preparation_preview(self, identity, revision):
+        return self.intake.preparation.preview('local-conversations', identity, revision)
+
+    def preparation_history(self, identity):
+        return {'items':self.intake.preparation.history('local-conversations', identity)}
+
+    def preparation_request(self, request_id):
+        return self.intake.preparation.request('local-conversations', request_id)
+
+    def preparation_not_committed(self, request_id):
+        return self.intake.preparation.not_committed('local-conversations', request_id)
+
+    def confirm_preparation(self, payload):
+        expected = {'request_id','brief_id','brief_revision','preview_id','expected_context_revision',
+                    'selected_claim_ids','include_description','include_cta','review_days','review_note','issues','confirmed'}
+        if type(payload) is not dict or set(payload) != expected:
+            raise ValueError('Use exact preparation review fields')
+        value = {k:v for k,v in payload.items() if k != 'request_id'}
+        value['selected_claim_ids'] = array(value['selected_claim_ids'])
+        value['issues'] = array(value['issues'])
+        return self.intake.preparation.confirm('local-conversations','local-operator',payload['request_id'],
+                                               PreparationReview(**value))
 
     def readiness(self, identity, revision):
         brief = self.intake.brief('local-conversations', identity, revision)
