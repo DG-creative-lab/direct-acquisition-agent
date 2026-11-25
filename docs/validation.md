@@ -4335,3 +4335,14 @@ recovery. The workspace intake browser suite adds required evidence confirmation
 consent reset, mobile/desktop rendering, saved-draft reopening, original-store
 recovery and corrupt-storage refusal. Execution results and limitations are
 recorded in the dated commit-bound evaluation for this slice.
+
+Executed on 25 November 2026 against source `ff1428d`: `make test` passed all
+1,221 cases in 1,308.129 seconds; `make arch-check` passed with 239 modules and zero
+exceptions; `make interface-check` passed its build, formatting and all 158 browser
+cases with one worker. The five native boundary cases passed with zero network
+attempts, stable source and 39 historical artifacts unchanged. An actual checkpoint
+restore preserved the exact grounded draft and source review, refused new writes
+and retained unchanged database bytes. The full suites ran sequentially. Managed
+Turso was not rechecked because the operator configuration is unavailable; the
+focused conformance uses real SQLite through independent Hrana wire sessions.
+See the [commit-bound results](evaluations/issue-131-preparation-eligibility-2026-11-25.json).

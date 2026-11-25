@@ -127,3 +127,7 @@ not establish current managed Turso availability, live response quality, factual
 truth or hosted access. New managed-provider evidence requires the isolated
 operator configuration, which was absent during PR #139 integration. No cloud
 resource or credential is created as part of this slice.
+
+The [25 November 2026 verification record](evaluations/issue-131-preparation-eligibility-2026-11-25.json)
+binds the executed checks to source `ff1428d`, records the sequential test policy
+and preserves the managed-provider and live-model evidence limits.
