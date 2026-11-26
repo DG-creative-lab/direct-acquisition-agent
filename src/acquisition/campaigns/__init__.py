@@ -34,3 +34,9 @@ __all__ += ['PreparationReview', 'preparation_preview', 'reviewed_preparation', 
 from .preparation_eligibility import GroundedPreparationRequest, grounding_request_from, evaluate_preparation_eligibility
 from .ports import GroundedPreparationStore
 __all__ += ['GroundedPreparationRequest', 'grounding_request_from', 'evaluate_preparation_eligibility', 'GroundedPreparationStore']
+
+from .domain import EmailCampaignProfile
+__all__ += ['EmailCampaignProfile']
+
+from .intake_email import IntakeEmails
+__all__ += ['IntakeEmails']

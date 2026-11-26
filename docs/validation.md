@@ -1,5 +1,58 @@
 # Validation and limits
 
+## Email sender display-name review fix, 26 November 2026
+
+The email approval view now displays each immutable email's `from_name` together
+with its sender address and reply-to address. These are the same fields already
+bound by the review subject and included in the JSON export. Rendering uses React
+text nodes; sender data is not interpreted as HTML.
+
+The existing desktop/mobile email regressions open every intended email before
+approval, assert the literal fixture display name, capture the complete displayed
+sender header and compare it with each downloaded email. The assertions fail on
+`9163f55`, which displayed only the sender address. The patch changes presentation
+and its client type; it does not modify email payloads, approval subjects or
+backend persistence. Verification passes 14 email tests, 18 inherited preparation
+tests, architecture with 245 modules and zero exceptions, and the full 162-case
+interface gate with one worker, including build and formatting. The unchanged
+backend retains its prior 1,235-test and five-case recovery evidence; those full
+backend gates were not repeated for this presentation fix. Exact source
+commits, the failing-before/fixed-after regression and hashes are retained in the
+[sender review evidence](evaluations/issue-131-intake-email-sender-review-2026-11-26.json).
+
+## Reviewed intake email preparation and export, 26 November 2026
+
+The email-only intake path preserves the exact reviewed company/brief revisions,
+selected wording, qualification and official CTA in a bounded synthetic package.
+The contacts, permissions, sender and planned cost are explicitly synthetic and
+are not matched to the requested audience. No runtime, model or dispatch work is
+admitted. See [the contract](intake-email-preparation.md).
+
+| Invariant | Commit/authority boundary | Executable regression |
+| --- | --- | --- |
+| Exact source, original command and one batch per context | Two intake journal bindings in one writer transaction; native source reconstruction | `test_intake_email`: selected wording and two companies; changed inputs; expiry rollback; lost commit and two contenders; fresh-process reopen |
+| Source review, recipient permission and export approval are separate | Purpose-specific subject binds complete batch and scoped authority/stop basis | `test_intake_email`: foreign/purpose/role substitution, missing approval, suppression, edited sources |
+| Historical approval/export receipts never authorize current downloads | Writer transaction rechecks current sources, actor generation, eligibility, expiry and revocation | `test_intake_email`: cached export after revocation/expiry/source edit; expiry before bytes; readonly, actual checkpoint restore and verified pause; exact byte hash |
+| Interrupted commands reconcile the original store and inputs | Browser saves the full command before POST; receipt-first retry with store fence | `intake-workspace.spec.mjs`: lost preparation/approval/export replies, malformed recovery data, store switch and original-store recovery, desktop/mobile exact export |
+| Remote transport preserves original native semantics | Existing Turso adapter via bootstrap; schema 27 and native journal transactions | `RemoteIntakeEmailTests`: loopback Hrana lost COMMIT acknowledgement, reopened replay, review and exact JSON download |
+
+Sequential verification passes 1,235 backend tests, 162 browser tests with one
+worker, architecture with 245 modules and zero exceptions, and all five integrated
+recovery cases. Recovery records zero network attempts, 40 unchanged historical
+artifacts and stable source. Four additional scoped native-state fault cases
+cover contact pause, account stop, email objection and a foreign-organization
+negative control. They inject native rows, rather than claiming a new contact
+administration workflow.
+
+The full backend run binds `940afa5`; subsequent commits change only frontend
+selection and test synchronization. The final browser and recovery checks bind
+`e0eb7be`. The [26 November verification record](evaluations/issue-131-intake-email-2026-11-26.json)
+retains exact hashes, logs, source manifests and those attribution limits.
+Managed Turso, live model/provider and real permission or sending behavior remain
+outside this evidence. PR #145 grounding is included as a prerequisite without
+modifying its independent branch.
+
+
 ## YouTube media refresh, 25 November 2026
 
 The bundled comparisons now use the exact rendered files from merged YouTube

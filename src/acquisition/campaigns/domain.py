@@ -67,8 +67,8 @@ class CampaignProfile:
     def __post_init__(self):
         for value in (self.key, self.version, self.company, self.product_key):
             catalogue_identity(value)
-        if (self.schema != 'campaign-profile/v1' or self.country != 'UK' or self.currency != 'GBP'
-                or self.channel != 'direct_mail' or self.objective != 'response_experiment'
+        expected = ('campaign-profile/v2', 'email') if type(self) is EmailCampaignProfile else ('campaign-profile/v1', 'direct_mail')
+        if ((self.schema,self.channel) != expected or self.country != 'UK' or self.currency != 'GBP' or self.objective != 'response_experiment'
                 or type(self.taxonomy) is not AudienceTaxonomy
                 or type(self.product_profile_id) is not str or not self.product_profile_id.startswith('product_profile_')
                 or len(self.product_profile_id) != len('product_profile_') + 64
@@ -80,8 +80,15 @@ class CampaignProfile:
         return 'campaign_profile_' + digest(asdict(self))
 
 
+@dataclass(frozen=True)
+class EmailCampaignProfile(CampaignProfile):
+    channel: str = 'email'
+    schema: str = 'campaign-profile/v2'
+
+
 def campaign_profile_from(payload):
-    return CampaignProfile(**(payload | {'taxonomy': taxonomy_from(payload['taxonomy'])}))
+    cls = EmailCampaignProfile if payload.get('schema') == 'campaign-profile/v2' else CampaignProfile
+    return cls(**(payload | {'taxonomy': taxonomy_from(payload['taxonomy'])}))
 
 
 @dataclass(frozen=True)

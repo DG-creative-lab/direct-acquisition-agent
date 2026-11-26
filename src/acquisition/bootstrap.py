@@ -423,8 +423,19 @@ def build_intake(path, clock=time.time, *, remote_storage=None, read_only=False,
     from acquisition.workflows.intake_preparation import IntakePreparation, IntakePreparationBuilder
     builder = IntakePreparationBuilder(SyntheticProfileAudience())
     grounded = IntakePreparation(SqliteIntakePreparation(database, builder.build, clock, read_only=read_only), builder, clock)
+    from acquisition.campaigns import IntakeEmails
+    from acquisition.reviews import IntakeEmailReviews
+    from acquisition.adapters.sqlite.intake_email import SqliteIntakeEmails
+    from acquisition.adapters.sqlite.intake_email_reviews import SqliteIntakeEmailReviews
+    from acquisition.workflows.intake_email import IntakeEmailBuilder
+    email_builder = IntakeEmailBuilder()
+    email_store = SqliteIntakeEmails(database, email_builder.build, clock, read_only=read_only)
+    emails = IntakeEmails(email_store, clock)
+    review_store = SqliteIntakeEmailReviews(email_store, clock, local_roles=SqliteReviews(database, clock, None))
+    email_reviews = IntakeEmailReviews(review_store)
     return CampaignIntake(SqliteCampaignIntake(database, read_only=read_only), clock,
-        ReviewedPreparation(SqlitePreparationContexts(database, read_only=read_only), clock), grounded)
+        ReviewedPreparation(SqlitePreparationContexts(database, read_only=read_only), clock), grounded,
+        emails, email_reviews, review_store.initialize_local_defaults)
 
 
 def build_youtube(path, clock=time.time, *, organization='local-conversations', actor='local-operator',

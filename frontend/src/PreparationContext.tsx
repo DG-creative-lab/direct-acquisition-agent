@@ -1,3 +1,4 @@
+import IntakeEmail from "./IntakeEmail";
 import IntakePreparation from "./IntakePreparation";
 import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent } from "react";
@@ -48,6 +49,7 @@ export default function PreparationContext({
   }>({ rows: [], view: null });
   const [loadedFor, setLoadedFor] = useState("");
   const [groundedLocked, setGroundedLocked] = useState(false);
+  const [emailLocked, setEmailLocked] = useState(false);
   const [selection, setSelection] = useState({
     key: "",
     claims: [] as string[],
@@ -75,8 +77,10 @@ export default function PreparationContext({
     }
   }, [onError]);
   useEffect(() => {
-    onLock(busy || !!pending || !!storageError || groundedLocked);
-  }, [busy, pending, storageError, groundedLocked, onLock]);
+    onLock(
+      busy || !!pending || !!storageError || groundedLocked || emailLocked,
+    );
+  }, [busy, pending, storageError, groundedLocked, emailLocked, onLock]);
   useEffect(() => {
     setLoadedFor("");
     setPreview(null);
@@ -177,7 +181,8 @@ export default function PreparationContext({
       disabled ||
       preview?.read_only ||
       loadedFor !== selectionKey ||
-      groundedLocked
+      groundedLocked ||
+      emailLocked
     )
       return;
     try {
@@ -263,7 +268,8 @@ export default function PreparationContext({
                 !!pending ||
                 !!storageError ||
                 loadedFor !== selectionKey ||
-                groundedLocked
+                groundedLocked ||
+                emailLocked
               }
             >
               <legend>Source wording to retain</legend>
@@ -428,7 +434,7 @@ export default function PreparationContext({
           </label>
           <select
             id={id + "-history"}
-            disabled={busy || !!pending}
+            disabled={busy || !!pending || groundedLocked || emailLocked}
             value={view?.request_id ?? ""}
             onChange={(event) =>
               setHistory((prior) => ({
@@ -538,8 +544,30 @@ export default function PreparationContext({
         storeId={storeId}
         sourceVersion={selectionKey}
         active={active}
-        disabled={disabled || busy || !!pending || !!storageError}
+        disabled={
+          disabled || busy || !!pending || !!storageError || emailLocked
+        }
         onLock={setGroundedLocked}
+        enabled={
+          !view?.context.requirements.channels.some(
+            (channel) => channel.toLowerCase() === "email",
+          )
+        }
+      />
+      <IntakeEmail
+        contextRequest={view?.request_id ?? ""}
+        storeId={storeId}
+        sourceVersion={selectionKey}
+        active={active}
+        enabled={
+          !!view?.context.requirements.channels.some(
+            (channel) => channel.toLowerCase() === "email",
+          )
+        }
+        disabled={
+          disabled || busy || !!pending || !!storageError || groundedLocked
+        }
+        onLock={setEmailLocked}
       />
     </section>
   );

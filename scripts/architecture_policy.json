@@ -240,6 +240,12 @@
     "acquisition.campaigns.preparation_eligibility": "domain",
     "acquisition.workflows.intake_preparation": "workflow",
     "acquisition.adapters.sqlite.intake_preparation": "adapter",
+    "acquisition.creative.intake_email": "application",
+    "acquisition.campaigns.intake_email": "application",
+    "acquisition.reviews.intake_email": "application",
+    "acquisition.workflows.intake_email": "workflow",
+    "acquisition.adapters.sqlite.intake_email": "adapter",
+    "acquisition.adapters.sqlite.intake_email_reviews": "adapter",
     "acquisition.youtube.decisioning": "domain",
     "acquisition.youtube.recommendations": "application",
     "acquisition.adapters.youtube_decision_inputs": "adapter"
