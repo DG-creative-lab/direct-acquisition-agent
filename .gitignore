@@ -133,6 +133,7 @@ dist/
 !/docs/evaluations/issue-144-offline-benchmark-2026-11-26.json
 !/docs/evaluations/issue-144-review-corrections-2026-11-26.json
 !/docs/evaluations/issue-144-model-evaluation-2026-11-26.json
+!/docs/evaluations/issue-144-source-validation-fix-2026-11-26.json
 !/docs/evaluations/issue-60-intake-planning-2026-11-24.json
 !/docs/evaluations/issue-60-intake-planning-admission-review-2026-11-24.json
 

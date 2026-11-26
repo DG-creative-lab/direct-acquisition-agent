@@ -233,6 +233,18 @@ leaves subsequent cases `not_run`, including failures with known zero cost.
 A semantically poor but structurally valid ranking receives its low quality
 score and does not become an execution failure. No silent rules fallback occurs.
 
+Plan/report v2 additionally checks source identity before and after each leased
+case and appends a zero-provider final validation task. A detected mismatch
+persists `EvaluationSourceChanged` in the existing runtime, fails the run and
+prevents later calls. The final task saves the matching fingerprint after all
+model cases commit. This defines the validation cutoff; it is not continuous
+filesystem monitoring after completion. A missing final receipt is unverified,
+not complete, and can resume without repeating the paid cases. A saved mismatch
+stays invalid after file restoration and inspection. Whole-sample and split
+aggregate scores are unavailable unless the durable validation succeeded.
+Comparison requires source-validated v2 reports; historical v1 plans/reports
+cannot be silently promoted to that guarantee.
+
 Reports retain per-case replies, reasons, failures, rules/model relevance,
 requested/resolved identity, reported cost and inference wall time. Recovered
 receipts cannot reconstruct original latency, so that field remains unavailable.

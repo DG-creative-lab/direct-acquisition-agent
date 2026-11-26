@@ -20,7 +20,8 @@ from acquisition.bootstrap import build, build_youtube_ranking_evaluation, build
 from acquisition.contracts import canonical, digest
 from acquisition.reasoning import Inference, ModelConfig
 from acquisition.runtime import TaskSpec
-from acquisition.workflows.youtube_ranking import reported_cost, request_ceiling
+from acquisition.workflows.youtube_ranking import (reported_cost, request_ceiling,
+                                                  RANKING_FINALIZATION, EvaluationSourceChanged)
 from acquisition.youtube import (RANKING_EVALUATION, RANKING_PROMPT, YouTubeError,
                                  ranking_request, ranking_response, rules_ranking)
 
@@ -57,7 +58,7 @@ def make_plan(model, budget='0.25', case_ids=None):
                              'request_sha256': digest(request)})
     if source_state()['files_sha256'] != before:
         raise ValueError('Source changed during preparation')
-    plan = {'schema': 'youtube-model-ranking-plan/v1', 'corpus_sha256': CORPUS_SHA256,
+    plan = {'schema': 'youtube-model-ranking-plan/v2', 'corpus_sha256': CORPUS_SHA256,
             'source_commit': source_state()['head_commit'],
             'source_sha256': before, 'prompt_version': RANKING_PROMPT,
             'model_config': config.payload(), 'budget_usd': str(budget),
@@ -79,7 +80,9 @@ def task_specs(plan, gateway_kind):
     return [TaskSpec(RANKING_EVALUATION, case | {
         'model_config': plan['model_config'], 'plan_id': plan['id'], 'gateway_kind': gateway_kind,
         'budget_usd': plan['budget_usd'], 'source_sha256': plan['source_sha256']}, max_attempts=2)
-        for case in plan['cases']]
+        for case in plan['cases']] + [TaskSpec(RANKING_FINALIZATION, {
+            'plan_id': plan['id'], 'source_sha256': plan['source_sha256'],
+            'gateway_kind': gateway_kind}, max_attempts=2)]
 
 
 def admit(app, plan, batch_id, gateway_kind='test_double'):
@@ -102,12 +105,29 @@ def verify_case(case, ranking):
             'model_relevance': grade_ranking(case['frozen'], ranking, case['positive_pairs'])}
 
 
+def verify_source(inputs):
+    observed = source_state()['files_sha256']
+    if observed != inputs['source_sha256']:
+        raise EvaluationSourceChanged('Evaluation source differs from the pinned plan')
+    return {'expected_sha256': inputs['source_sha256'], 'observed_sha256': observed}
+
+
 def report(app, plan, organization, run, *, gateway_kind):
     state = app.tasks.inspect(organization, run)
+    tasks = state['tasks'][:len(plan['cases'])]
+    finalization = state['tasks'][len(plan['cases']):]
+    expected_validation = {'expected_sha256': plan['source_sha256'], 'observed_sha256': plan['source_sha256']}
+    unstable = any((task['output'] or {}).get('error_code') == EvaluationSourceChanged.__name__
+                   for task in state['tasks'])
+    validated = (len(finalization) == 1 and finalization[0]['capability'] == RANKING_FINALIZATION
+                 and finalization[0]['status'] == 'succeeded'
+                 and finalization[0]['output'] == {'plan_id': plan['id'], 'source_validation': expected_validation}
+                 and all((task['output'] or {}).get('source_validation') == expected_validation for task in tasks))
+    source_stable = False if unstable else True if validated else None
     calls = app.calls.inspect(organization, run)
     by_key = {call['key']: call for call in calls}
     rows, costs, unknown_cost = [], [], 0
-    for case, task in zip(plan['cases'], state['tasks'], strict=True):
+    for case, task in zip(plan['cases'], tasks, strict=True):
         row = {'case_id': case['case_id'], 'split': case['split'], 'input_id': case['frozen']['id'],
                'status': 'not_run', 'model_relevance': None, 'ranking': None,
                'rules_relevance': grade_ranking(case['frozen'], rules_ranking(case['frozen']), case['positive_pairs'])}
@@ -138,11 +158,14 @@ def report(app, plan, organization, run, *, gateway_kind):
             row['status'] = 'execution_error'
         row['runtime_status'], row['runtime_output'] = task['status'], task['output']
         rows.append(row)
-    complete = (state['run']['status'] == 'succeeded' and not unknown_cost
+    complete = (source_stable is True and state['run']['status'] == 'succeeded' and not unknown_cost
                 and all(c['status'] == 'completed' and 'failure' not in c for c in rows))
     mean = lambda key: sum(c['model_relevance'][key] for c in rows) / len(rows) if complete else None
-    latencies = [t['output']['inference_wall_seconds'] for t in state['tasks'] if t['status'] == 'succeeded']
-    return {'schema': 'youtube-model-ranking-evaluation/v1', 'plan_id': plan['id'],
+    latencies = [t['output']['inference_wall_seconds'] for t in tasks if t['status'] == 'succeeded']
+    return {'schema': 'youtube-model-ranking-evaluation/v2', 'plan_id': plan['id'],
+            'source_stable': source_stable,
+            'source_validation': {'status': 'unstable' if unstable else 'validated' if validated else 'unavailable',
+                                  'finalization': finalization[0] if len(finalization) == 1 else None},
             'source_commit': plan['source_commit'],
             'corpus_sha256': plan['corpus_sha256'], 'source_sha256': plan['source_sha256'],
             'model_config': plan['model_config'], 'prompt_version': plan['prompt_version'],
@@ -156,10 +179,10 @@ def report(app, plan, organization, run, *, gateway_kind):
                 if complete and all(v is not None for v in latencies) else None,
             'relevance_summary': [{
                 'split': split, 'cases': sum(c['split'] == split for c in rows),
-                'complete': all(c['status'] == 'completed' for c in rows if c['split'] == split),
+                'complete': source_stable is True and all(c['status'] == 'completed' for c in rows if c['split'] == split),
                 'mean_precision_at_1': (sum(c['model_relevance']['precision_at_1'] for c in rows
                     if c['split'] == split) / sum(c['split'] == split for c in rows))
-                    if all(c['status'] == 'completed' for c in rows if c['split'] == split) else None}
+                    if source_stable is True and all(c['status'] == 'completed' for c in rows if c['split'] == split) else None}
                 for split in sorted({c['split'] for c in rows})],
             'budget_usd': plan['budget_usd'], 'provider_receipts': calls,
             'limits': 'Small authored relevance corpus. No audience response calibration, causal lift or production promotion.'}
@@ -167,18 +190,12 @@ def report(app, plan, organization, run, *, gateway_kind):
 
 def execute(plan, database, batch_id, gateway, *, clock=time.time, gateway_kind='test_double'):
     config = validate_plan(plan)
-    app = build_youtube_ranking_evaluation(database, config, gateway, verify_case, clock)
+    app = build_youtube_ranking_evaluation(database, config, gateway, verify_case, clock, verify_source=verify_source)
     organization, run = admit(app, plan, batch_id, gateway_kind)
-    for _ in plan['cases']:
-        if source_state()['files_sha256'] != plan['source_sha256']:
-            app.tasks.cancel(organization, run, clock())
-            break
+    for _ in task_specs(plan, gateway_kind):
         if not app.worker.tick(organization, run_id=run):
             break
-    result = report(app, plan, organization, run, gateway_kind=gateway_kind)
-    result['source_stable'] = source_state()['files_sha256'] == plan['source_sha256']
-    result['complete'] = result['complete'] and result['source_stable']
-    return result
+    return report(app, plan, organization, run, gateway_kind=gateway_kind)
 
 
 def inspect_sample(plan, database, batch_id):
@@ -194,14 +211,14 @@ def inspect_sample(plan, database, batch_id):
     kind = state['tasks'][0]['inputs']['gateway_kind']
     if [t['inputs'] for t in state['tasks']] != [s.inputs for s in task_specs(plan, kind)]:
         raise ValueError('Saved evaluation differs from this plan')
-    result = report(app, plan, organization, run, gateway_kind=kind)
-    result['source_stable'] = True
-    return result
+    return report(app, plan, organization, run, gateway_kind=kind)
 
 
 def compare(reports):
     if len(reports) < 2:
         raise ValueError('Compare at least two model reports')
+    if any(r.get('schema') != 'youtube-model-ranking-evaluation/v2' for r in reports):
+        raise ValueError('Comparison requires source-validated v2 evaluation reports')
     signature = lambda r: (r['corpus_sha256'], r['source_sha256'], r['prompt_version'],
                             {k: v for k, v in r['model_config'].items() if k != 'model'},
                             [(c['case_id'], c['input_id']) for c in r['cases']])
@@ -211,11 +228,12 @@ def compare(reports):
     for r in reports:
         model = {key: r[key] for key in ('model_config', 'gateway_kind', 'complete',
                  'mean_precision_at_1', 'mean_ndcg_at_3', 'reported_cost_usd', 'calls_without_reported_cost')}
-        if not r['complete']:
+        model['complete'] = r['complete'] and r.get('source_stable') is True
+        if not model['complete']:
             model.update(mean_precision_at_1=None, mean_ndcg_at_3=None)
         models.append(model)
     return {'schema': 'youtube-model-ranking-comparison/v1',
-            'complete': all(r['complete'] for r in reports),
+            'complete': all(model['complete'] for model in models),
             'models': models, 'production_promotion': 'blocked',
             'limits': 'Relevance on the same small authored corpus only; incomplete reports have no aggregate score.'}
 

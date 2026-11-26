@@ -4521,3 +4521,36 @@ general reasoning, audience calibration or a production winner. #144 remains
 open for a separately authorized genuine comparison. #133 follows with trusted
 scoped assignments and generated-sample job/result receipts, retaining explicit
 rehearsal labels and the separate original instruction experiment.
+
+### Issue 144 review: durable source-validation outcomes
+
+Review base `5539f5e`. The new regression reproduced three failures: execution
+retained a whole-sample mean after detecting source instability, inspection
+promoted that run after restoration, and replay also promoted it. Verification
+used fake gateways and simulated source fingerprints, with no credentials or
+live provider calls.
+
+Plan/report v2 now has source guards inside each leased model case and a final
+zero-provider validation task. Typed `EvaluationSourceChanged` failures persist
+in the existing runtime and stop subsequent cases. A successful final receipt
+records the expected/observed fingerprint at the sample's validation cutoff.
+No new database schema or production worker capability is installed.
+
+Reports reconstruct historical validity from those saved outcomes before
+computing whole-sample or split aggregates. Restoring files cannot erase a
+saved failure. Missing finalization remains unavailable rather than valid and
+can resume without another provider call. Comparison rejects historical v1
+reports and suppresses scores if a v2 report lacks a positive source verdict.
+
+Regressions cover changes during the final response, after the last model task
+commits, saved invalidity across fresh inspection/replay, and recovery of a
+pending final validation. The
+[review evidence](evaluations/issue-144-source-validation-fix-2026-11-26.json)
+records the exact current-source checks and retains the earlier implementation
+record unchanged. Real model performance remains unmeasured.
+
+All 1,260 backend tests passed in the four standard shards, including 16 model
+ranking tests. Architecture passed with 240 modules and zero exceptions. All
+five boundary cases and the unchanged 576-trial allocation benchmark passed;
+source fingerprints were stable, network attempts were zero and all 44
+historical evaluation artifacts were unchanged.

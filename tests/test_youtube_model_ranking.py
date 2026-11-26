@@ -9,6 +9,7 @@ import sys
 from unittest.mock import patch
 
 from acquisition.adapters.openrouter import normalize
+from acquisition.adapters.sqlite.tasks import SqliteTasks
 from acquisition.bootstrap import build_youtube_ranking_evaluation
 from acquisition.contracts import Conflict, digest
 from acquisition.reasoning import CallScope
@@ -51,7 +52,8 @@ class ModelRankingTests(unittest.TestCase):
 
     def app(self, gateway):
         return build_youtube_ranking_evaluation(self.path, self.config, gateway,
-                                                evaluation.verify_case, clock=lambda: self.now)
+                                                evaluation.verify_case, clock=lambda: self.now,
+                                                verify_source=evaluation.verify_source)
 
     def run_sample(self, gateway):
         return evaluation.execute(self.plan, self.path, 'comparison', gateway, clock=lambda: self.now)
@@ -138,6 +140,74 @@ class ModelRankingTests(unittest.TestCase):
         again = self.run_sample(gateway)
         self.assertEqual(again['runtime_status'], 'failed')
         self.assertEqual(len(gateway.requests), 1)
+
+    def test_source_change_during_final_case_is_durable_and_suppresses_all_aggregates(self):
+        changed = False
+        original_source = evaluation.source_state
+        gateway = RankingGateway()
+        def after_response(response):
+            nonlocal changed
+            changed = len(gateway.requests) == len(self.plan['cases'])
+        gateway.change = after_response
+        def source():
+            state = original_source()
+            return state | {'files_sha256': '0' * 64} if changed else state
+        with patch.object(evaluation, 'source_state', side_effect=source):
+            executed = self.run_sample(gateway)
+        inspected = evaluation.inspect_sample(self.plan, self.path, 'comparison')
+        for name, result in [('execute', executed), ('inspect_after_restore', inspected)]:
+            with self.subTest(path=name):
+                self.assertFalse(result['complete'])
+                self.assertFalse(result['source_stable'])
+                self.assertIsNone(result['mean_precision_at_1'])
+                self.assertIsNone(result['mean_ndcg_at_3'])
+                self.assertIsNone(result['mean_inference_wall_seconds'])
+                self.assertTrue(all(not row['complete'] and row['mean_precision_at_1'] is None
+                                    for row in result['relevance_summary']))
+        replay = self.run_sample(gateway)
+        self.assertFalse(replay['complete'])
+        self.assertFalse(replay['source_stable'])
+        self.assertEqual(len(gateway.requests), 2)
+
+    def test_source_change_after_last_case_commit_fails_the_saved_finalization(self):
+        changed = False
+        original_source, original_settle = evaluation.source_state, SqliteTasks.settle
+        final_case = self.plan['cases'][-1]['case_id']
+        def source():
+            state = original_source()
+            return state | {'files_sha256': '0' * 64} if changed else state
+        def settle(store, claim, outcome, now):
+            nonlocal changed
+            original_settle(store, claim, outcome, now)
+            if claim.inputs.get('case_id') == final_case:
+                changed = True
+        gateway = RankingGateway()
+        with patch.object(evaluation, 'source_state', side_effect=source), patch.object(SqliteTasks, 'settle', settle):
+            result = self.run_sample(gateway)
+        self.assertTrue(all(row['status'] == 'completed' for row in result['cases']))
+        self.assertFalse(result['complete'])
+        self.assertFalse(result['source_stable'])
+        self.assertEqual(result['source_validation']['status'], 'unstable')
+        self.assertIsNone(result['mean_precision_at_1'])
+        inspected = evaluation.inspect_sample(self.plan, self.path, 'comparison')
+        self.assertFalse(inspected['complete'])
+        self.assertFalse(inspected['source_stable'])
+        self.assertIsNone(inspected['mean_precision_at_1'])
+        self.assertEqual(len(gateway.requests), 2)
+
+    def test_missing_finalization_stays_unverified_and_resumes_without_model_calls(self):
+        gateway = RankingGateway()
+        app = self.app(gateway)
+        organization, run = evaluation.admit(app, self.plan, 'comparison')
+        app.worker.drain(organization, max_tasks=len(self.plan['cases']), run_id=run)
+        pending = evaluation.inspect_sample(self.plan, self.path, 'comparison')
+        self.assertFalse(pending['complete'])
+        self.assertIsNone(pending['source_stable'])
+        self.assertIsNone(pending['mean_precision_at_1'])
+        resumed = self.run_sample(gateway)
+        self.assertTrue(resumed['complete'])
+        self.assertTrue(resumed['source_stable'])
+        self.assertEqual(len(gateway.requests), 2)
 
     def test_known_billing_invalid_result_stops_batch_without_falling_back_to_rules(self):
         def wrong_input(response):
@@ -231,6 +301,11 @@ class ModelRankingTests(unittest.TestCase):
         comparison = evaluation.compare([result, other])
         self.assertFalse(comparison['complete'])
         self.assertIsNone(comparison['models'][1]['mean_precision_at_1'])
+        other['complete'], other['source_stable'] = True, False
+        self.assertFalse(evaluation.compare([result, other])['complete'])
+        legacy = deepcopy(result);legacy['schema'] = 'youtube-model-ranking-evaluation/v1'
+        with self.assertRaises(ValueError):
+            evaluation.compare([result, legacy])
         other['cases'][0]['input_id'] = 'other-input'
         with self.assertRaises(ValueError):
             evaluation.compare([result, other])

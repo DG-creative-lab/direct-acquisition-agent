@@ -7,6 +7,12 @@ from acquisition.reasoning import CallScope
 from acquisition.runtime import Outcome
 from acquisition.youtube import ranking_response, YouTubeError
 
+RANKING_FINALIZATION = 'youtube.contextual_ranking_finalize.v1'
+
+
+class EvaluationSourceChanged(RuntimeError):
+    """Persisted runtime failure code: never reinterpret as a valid old sample."""
+
 
 def check(condition, code):
     if not condition:
@@ -14,11 +20,12 @@ def check(condition, code):
 
 
 class ContextualRankingEvaluation:
-    def __init__(self, inference, verify):
-        self.inference, self.verify = inference, verify
+    def __init__(self, inference, verify, verify_source):
+        self.inference, self.verify, self.verify_source = inference, verify, verify_source
 
     def rank(self, claim):
         inputs = claim.inputs
+        self.verify_source(inputs)
         if inputs['model_config'] != self.inference.config.payload():
             raise YouTubeError('ranking_settings_changed', 'Resume with the pinned model settings.')
         # Use exact saved request bytes, never rerender a paid request during recovery.
@@ -37,10 +44,17 @@ class ContextualRankingEvaluation:
             raise YouTubeError('reported_cost_exceeded_ceiling', 'Stop and reconcile provider billing.')
         # Independent grading/native consumption must finish before the next paid case.
         evidence = self.verify(inputs, ranking)
+        source_validation = self.verify_source(inputs)
         return Outcome('succeeded', {'case_id': inputs['case_id'], 'ranking': ranking,
                                     'response_sha256': digest(response),
                                     'inference_wall_seconds': None if recovered else elapsed,
-                                    'receipt_recovered': recovered, 'verification': evidence})
+                                    'receipt_recovered': recovered, 'verification': evidence,
+                                    'source_validation': source_validation})
+
+    def finalize(self, claim):
+        # Completion has an explicit saved cutoff after all paid cases settle.
+        return Outcome('succeeded', {'plan_id': claim.inputs['plan_id'],
+                                    'source_validation': self.verify_source(claim.inputs)})
 
 
 def reported_cost(response):
