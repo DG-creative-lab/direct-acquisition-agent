@@ -418,8 +418,13 @@ def build_intake(path, clock=time.time, *, remote_storage=None, read_only=False,
                               verified_admissions=verified_admissions)
     from acquisition.campaigns import ReviewedPreparation
     from acquisition.adapters.sqlite.preparation_context import SqlitePreparationContexts
+    from acquisition.adapters.sqlite.intake_preparation import SqliteIntakePreparation
+    from acquisition.adapters.local_profiles import SyntheticProfileAudience
+    from acquisition.workflows.intake_preparation import IntakePreparation, IntakePreparationBuilder
+    builder = IntakePreparationBuilder(SyntheticProfileAudience())
+    grounded = IntakePreparation(SqliteIntakePreparation(database, builder.build, clock, read_only=read_only), builder, clock)
     return CampaignIntake(SqliteCampaignIntake(database, read_only=read_only), clock,
-        ReviewedPreparation(SqlitePreparationContexts(database, read_only=read_only), clock))
+        ReviewedPreparation(SqlitePreparationContexts(database, read_only=read_only), clock), grounded)
 
 
 def build_youtube(path, clock=time.time, *, organization='local-conversations', actor='local-operator',

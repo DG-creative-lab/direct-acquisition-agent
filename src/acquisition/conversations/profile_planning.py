@@ -13,7 +13,7 @@ def profile_plan(organization, request_id, profile: CampaignProfile, *, objectiv
             or not request_id or type(profile) is not CampaignProfile):
         raise ValueError('A scoped request and installed profile are required')
     if (type(objective) is not str or not 1 <= len(objective.strip()) <= 600
-            or any(ord(c) < 32 for c in objective) or chr(0x2014) in objective):
+            or any(ord(c) < 32 for c in objective)):
         raise ValueError('Use a bounded explicit campaign objective')
     if type(budget_pence) is not int or not 1 <= budget_pence <= 1_000_000:
         raise ValueError('Supply an explicit integer GBP budget')

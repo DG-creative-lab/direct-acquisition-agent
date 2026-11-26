@@ -212,3 +212,24 @@ exercises the browser's monitoring controls, lost-response recovery and a real
 server-process restart. All data is synthetic. See the
 [offline evaluation guide](evaluations/issue-23-offline-journey.md) for exact
 expectations and retained artifacts.
+
+### Prepare a fixture from reviewed company inputs
+
+In **Company & brief**, save your company and campaign requirements, then save a
+preparation input review. For this bounded capability, choose UK postal, GBP and
+synthetic contacts. **Preparation eligibility and source review** explains any
+missing evidence, unsupported requirements or stale input review.
+
+Inspect every listed official source yourself. Confirm its support for the exact
+selected wording, qualifications and CTA, record a source review note, and choose
+**Prepare grounded synthetic draft**. This separate confirmation records your
+attestation; the application does not fetch sources or independently verify them.
+The result uses fixed questions and at most one hundred synthetic rows, with no
+model calls. Its population is not matched to your audience requirements. It is
+an unapproved fixture with no campaign approval, handoff or send capability.
+
+If the response is lost, use **Retry original grounded preparation**. Keep the
+original browser session and workspace store. Retrying reconciles the saved
+request without creating another draft or extending its review window. Editing
+sources requires a fresh input review for another preparation. See the
+[grounding contract](preparation-eligibility.md) for supported scope and limits.

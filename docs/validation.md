@@ -4316,3 +4316,33 @@ configuration is no longer present. Earlier provider evidence retains its source
 attribution. No live model, paid activation, deployment or new cloud resource was
 used. The [integration record](evaluations/issue-131-main-integration-2026-11-25.json)
 retains exact source attribution, partial local results and CI follow-up scope.
+
+## Reviewed intake preparation eligibility and grounding (#131)
+
+The [implemented preparation contract](preparation-eligibility.md) separates input
+selection, explicit operator source attestation and offline fixture preparation.
+The draft binds exact source revisions, selected wording, qualifications, CTA,
+requirements and no-model settings. It cannot grant campaign approval or activate
+profile model execution. Current sources and review expiry are checked inside the
+publication transaction. Existing native artifact tables atomically retain the
+original request and exact-context binding, with no new schema migration.
+
+`tests/test_intake_preparation.py` exercises literal product-specific output and
+unselected-text exclusion, authority/scope substitution, current-source and expiry
+fences, original-request conflicts, complete rollback, lost acknowledgements,
+process reopening, two-writer convergence, verified-store pauses and Hrana wire
+recovery. The workspace intake browser suite adds required evidence confirmation,
+consent reset, mobile/desktop rendering, saved-draft reopening, original-store
+recovery and corrupt-storage refusal. Execution results and limitations are
+recorded in the dated commit-bound evaluation for this slice.
+
+Executed on 25 November 2026 against source `ff1428d`: `make test` passed all
+1,221 cases in 1,308.129 seconds; `make arch-check` passed with 239 modules and zero
+exceptions; `make interface-check` passed its build, formatting and all 158 browser
+cases with one worker. The five native boundary cases passed with zero network
+attempts, stable source and 39 historical artifacts unchanged. An actual checkpoint
+restore preserved the exact grounded draft and source review, refused new writes
+and retained unchanged database bytes. The full suites ran sequentially. Managed
+Turso was not rechecked because the operator configuration is unavailable; the
+focused conformance uses real SQLite through independent Hrana wire sessions.
+See the [commit-bound results](evaluations/issue-131-preparation-eligibility-2026-11-25.json).

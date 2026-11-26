@@ -235,7 +235,11 @@
     "acquisition.workflows.intake_interpretation": "workflow",
     "acquisition.campaigns.preparation_context": "domain",
     "acquisition.campaigns.preparation_context_application": "application",
-    "acquisition.adapters.sqlite.preparation_context": "adapter"
+    "acquisition.adapters.sqlite.preparation_context": "adapter",
+    "acquisition.creative.intake_grounding": "domain",
+    "acquisition.campaigns.preparation_eligibility": "domain",
+    "acquisition.workflows.intake_preparation": "workflow",
+    "acquisition.adapters.sqlite.intake_preparation": "adapter"
   },
   "exceptions": []
 }
