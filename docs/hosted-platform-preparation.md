@@ -4,6 +4,12 @@ Status: migration planning, 24 November 2026. This is a gap map against accepted
 
 The target is a bounded online product a permitted tester can actually use: save company and campaign context, talk to the agent, review an exact result, export it and return to saved work. YouTube adds a usable viewer and channel-specific evidence loop. See the [migration sequence](youtube-migration-plan.md) and [shared workspace design](multichannel-workspace-design.md).
 
+The [targeting feasibility gate](targeting-decisioning-feasibility.md) now
+precedes the next #133 channel build: #143 establishes actual control/data/reward
+and #144 compares offline contextual recommendations. #130 continues hosted
+composition, not an assumed per-impression ad-serving integration. A writable
+creative API is not proof of writable targeting or a compatible outcome report.
+
 ## Reuse the completed preparation
 
 | Existing capability | Evidence in this repository | Remaining distinction |
@@ -54,6 +60,12 @@ Compose the React bundle, authenticated workspace API and installed channel capa
 Define which requests complete within a bounded invocation and which require durable continuation. User-visible status must describe the durable stage, including failed, blocked, unknown and completed states. A disconnect must not imply success, cancellation or safe repeat. Health/readiness must use a fresh bounded storage probe and distinguish process liveness from ability to perform authorized work.
 
 Exports and viewer assets need exact content identity, appropriate visibility, content types, usable links and revocation behavior. A download must correspond to the displayed authorized subject. Avoid persisting private assets under public static paths.
+
+The [shared creative asset design](creative-asset-storage-design.md) specifies
+SQL catalogue metadata plus replaceable file storage, with private Vercel Blob
+as the first proposed remote adapter. #70 retains scope/connection authority;
+#130 composes delivery. Local viewer/learning work can proceed before cloud
+provisioning. Neither path makes public publication implicit.
 
 ### Remote operations and release evidence
 

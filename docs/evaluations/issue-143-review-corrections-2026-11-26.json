@@ -1,0 +1,89 @@
+{
+  "schema": "youtube-feasibility-review-corrections/v1",
+  "recorded_date": "2026-11-26",
+  "reviewed_commit": "abab7a86cbc6c3eacd44bce82cf187ef4999e8f7",
+  "supersedes_current_handoff_from": "docs/evaluations/issue-143-feasibility-2026-11-26.json",
+  "previous_candidate_sha256": "d70454c2db829c103d49ad8dcc1698fb50bebd1ef9255ed81fa45ed3242da2d8",
+  "contract_path": "config/youtube-decision-contract-v1.json",
+  "canonical_contract_sha256": "c7f4129dd6d50e5de4a2c41db4ab0cddf34f31bb6e1829711019ad462df59949",
+  "version_boundary": "corrected proposed v1 before PR acceptance; original draft evidence remains historical at reviewed_commit",
+  "reproduced_before_fix": [
+    "proposed v1 has no explicit point/posterior availability policy",
+    "validator accepts each independent consistent change: days 8, total 9000, daily 2100, exploration 900, improvement threshold 100",
+    "validator accepts a sensitivity variant_id inside baseline simulation"
+  ],
+  "corrections": {
+    "missing_outcomes": "point and cohort posterior update unavailable for incomplete, empty or unknown-outcome cohorts; never use S/(S+F)",
+    "bounds": "for known complete mature assignment manifest with N=S+F+U>0, [S/N,(S+U)/N]; not a confidence or credible interval",
+    "comparison": "both cohorts complete at the same frozen cutoff; no selected complete-case promotion",
+    "frozen_baseline": "exact typed equality of all simulation fields, including budgets, days, threshold, utility and interpretation",
+    "sensitivity": "separate schema/version, variant ID, parent hash and assumptions; baseline checker rejects sensitivity overrides"
+  },
+  "illustrative_contract_examples": [
+    {
+      "S": 1,
+      "F": 0,
+      "U": 1,
+      "N": 2,
+      "point_estimate": null,
+      "bounds": [
+        0.5,
+        1.0
+      ],
+      "cohort_posterior_update": "blocked"
+    },
+    {
+      "S": 1,
+      "F": 1,
+      "U": 0,
+      "N": 2,
+      "coverage": "complete",
+      "point_estimate": 0.5,
+      "bounds": [
+        0.5,
+        0.5
+      ],
+      "cohort_posterior_update": "once"
+    },
+    {
+      "S": 0,
+      "F": 0,
+      "U": 0,
+      "N": 0,
+      "point_estimate": null,
+      "bounds": null,
+      "cohort_posterior_update": "blocked"
+    }
+  ],
+  "checks": [
+    {
+      "command": "PYTHONPATH=src:tests python3 -m unittest test_youtube_decision_contract -v",
+      "result": "passed",
+      "tests": 10
+    },
+    {
+      "command": "python3 scripts/check_youtube_decision_contract.py",
+      "result": "passed",
+      "live_ready": false
+    },
+    {
+      "command": "make arch-check",
+      "result": "passed",
+      "classified_modules": 235,
+      "temporary_exceptions": 0
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "evidence_limits": "tests validate proposed configuration semantics and CLI refusal only; numeric examples are design cases, not executed runtime aggregation or posterior evidence",
+  "full_backend_suite": "delegated to updated PR CI, not rerun locally",
+  "live_model_calls": 0,
+  "account_probes": 0,
+  "campaign_writes": 0,
+  "future_owners": {
+    "144": "implement independent benchmark consumers and separately identified sensitivity format",
+    "133": "implement exact cohort receipts, completeness, bounds and once-only learning updates"
+  }
+}
