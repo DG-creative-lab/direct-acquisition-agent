@@ -31,3 +31,6 @@ from .preparation_context import PreparationReview, preparation_preview, reviewe
 from .preparation_context_application import ReviewedPreparation
 from .ports import PreparationContextStore
 __all__ += ['PreparationReview', 'preparation_preview', 'reviewed_preparation', 'preparation_readiness', 'ReviewedPreparation', 'PreparationContextStore']
+from .preparation_eligibility import GroundedPreparationRequest, grounding_request_from, evaluate_preparation_eligibility
+from .ports import GroundedPreparationStore
+__all__ += ['GroundedPreparationRequest', 'grounding_request_from', 'evaluate_preparation_eligibility', 'GroundedPreparationStore']

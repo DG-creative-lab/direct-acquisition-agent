@@ -492,3 +492,5 @@ Bootstrap selects shared application storage; the operator HTTP adapter resolves
 a fixed server-owned scope and has no approval or dispatch route. Hosted
 preparation freezes a real invocation clock policy for recoverable leases while
 local simulations keep their synthetic clock. No new database schema is added.
+
+The [reviewed intake grounding slice](preparation-eligibility.md) composes the existing offline profile contracts after a separate operator source attestation. Campaigns owns eligibility; Creative owns source-bound product material; a narrow transactional adapter rechecks native source/review state and publishes the original command and exact fixture draft together. It adds no schema version or model execution capability.

@@ -1,6 +1,6 @@
 """Local intake boundary. Scope comes from the operator workspace, never JSON."""
 
-from acquisition.campaigns import CampaignIntake, CampaignBriefDraft, PreparationReview
+from acquisition.campaigns import CampaignIntake, CampaignBriefDraft, PreparationReview, grounding_request_from
 from acquisition.creative import CompanyDraft, CompanyClaimDraft
 from acquisition.conversations import intake_readiness
 
@@ -46,6 +46,26 @@ class WorkspaceIntake:
         value['issues'] = array(value['issues'])
         return self.intake.preparation.confirm('local-conversations','local-operator',payload['request_id'],
                                                PreparationReview(**value))
+
+    def preparation_eligibility(self, request_id):
+        return self.intake.grounded.preview('local-conversations', request_id)
+
+    def grounded_request(self, request_id):
+        return self.intake.grounded.request('local-conversations', request_id)
+
+    def grounded_not_committed(self, request_id):
+        return self.intake.grounded.not_committed('local-conversations', request_id)
+
+    def prepare_grounded(self, payload):
+        expected = {'request_id', 'context_request_id', 'preview_id', 'evidence', 'confirmed_synthetic_preparation'}
+        if type(payload) is not dict or set(payload) != expected:
+            raise ValueError('Use exact grounded preparation fields')
+        evidence = payload['evidence']
+        if (type(evidence) is not dict or set(evidence) != {'reference_ids', 'checked_on', 'review_days', 'note',
+                'confirmed_official_sources', 'confirmed_exact_wording'} or type(evidence['reference_ids']) is not list):
+            raise ValueError('Use an exact source evidence review')
+        request = grounding_request_from({k:v for k,v in payload.items() if k != 'request_id'})
+        return self.intake.grounded.prepare('local-conversations', 'local-operator', payload['request_id'], request)
 
     def readiness(self, identity, revision):
         brief = self.intake.brief('local-conversations', identity, revision)

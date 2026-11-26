@@ -1816,3 +1816,232 @@ test("preparation review storage failure and corrupt recovery prevent dispatch",
     expect(preparationRows(root)).toHaveLength(0);
   });
 });
+
+function seedGroundedIntake(root) {
+  const script = `
+import json,sys
+from pathlib import Path
+from acquisition.bootstrap import build_intake
+from acquisition.campaigns import CampaignBriefDraft,PreparationReview
+from acquisition.creative import CompanyDraft,CompanyClaimDraft
+app=build_intake(Path(sys.argv[1])/'conversations.sqlite')
+c=app.save_company('local-conversations','local-operator','grounding-company',CompanyDraft(company_name='Aster',product_name='Retail advice',
+ claims=(CompanyClaimDraft('Aster offers retail advice.','Subject to the published terms.',('https://aster.invalid/product',)),
+ CompanyClaimDraft('UNSELECTED SECRET CLAIM','Never selected.',('https://unselected.invalid/source',))),
+ official_cta='Read the Aster terms.',cta_url='https://aster.invalid/terms'))['snapshot']
+b=app.save_brief('local-conversations','local-operator','grounding-brief',CampaignBriefDraft(c['id'],1,objective='Compare responses.',audience='Independent retailers',
+ country='UK',currency='GBP',channels=('postal',),budget_minor=12345,contact_source='synthetic'))['snapshot']
+p=app.preparation.preview('local-conversations',b['id'],1)
+app.preparation.confirm('local-conversations','local-operator','grounding-review',PreparationReview(b['id'],1,p['id'],0,(p['claims'][0]['id'],),False,True,7,'Selected exact material.',confirmed=True))
+print(json.dumps({'company':c['id'],'brief':b['id']}))
+`;
+  return JSON.parse(
+    execFileSync("python3", ["-c", script, root], {
+      cwd: project,
+      env: { ...process.env, PYTHONPATH: "src" },
+      encoding: "utf8",
+    }),
+  );
+}
+function groundedRows(root) {
+  return JSON.parse(
+    execFileSync(
+      "python3",
+      [
+        "-c",
+        `import json,sqlite3,sys
+with sqlite3.connect(sys.argv[1]+'/conversations.sqlite') as db:
+ print(json.dumps([json.loads(r[0]) for r in db.execute("SELECT manifest FROM drafts WHERE manifest LIKE '%intake-grounding/v1%'")]))`,
+        root,
+      ],
+      { cwd: project, encoding: "utf8" },
+    ),
+  );
+}
+async function selectGroundedBrief(page, ids) {
+  await page
+    .getByLabel("Saved company drafts", { exact: true })
+    .selectOption(ids.company);
+  await page
+    .getByLabel("Saved campaign briefs", { exact: true })
+    .selectOption(ids.brief);
+  const area = page.getByRole("region", {
+    name: "Preparation eligibility and source review",
+    exact: true,
+  });
+  await expect(area).toContainText("Selected company: Aster");
+  return area;
+}
+async function consentGrounding(area) {
+  await area
+    .getByLabel("Source evidence review note (required)")
+    .fill(
+      "Inspected each official page and its exact wording, qualifications and CTA.",
+    );
+  await area
+    .getByLabel(
+      "I checked the official sources, exact selected wording, qualifications and CTA. Prepare this unapproved synthetic fixture.",
+      { exact: true },
+    )
+    .check();
+}
+for (const mobile of [false, true])
+  test(`grounded intake prepares selected product wording without model or approval on ${mobile ? "mobile" : "desktop"}`, async ({
+    page,
+  }, testInfo) => {
+    await isolated(async (url, root) => {
+      const ids = seedGroundedIntake(root);
+      await page.setViewportSize(
+        mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 },
+      );
+      await enter(page, url);
+      const area = await selectGroundedBrief(page, ids);
+      expect(groundedRows(root)).toHaveLength(0);
+      const prepare = area.getByRole("button", {
+        name: "Prepare grounded synthetic draft",
+        exact: true,
+      });
+      await prepare.click();
+      await expect(
+        area.getByLabel("Source evidence review note (required)"),
+      ).toBeFocused();
+      await consentGrounding(area);
+      await area
+        .getByLabel("Source evidence review note (required)")
+        .fill("A changed source review note.");
+      await expect(area.getByRole("checkbox")).not.toBeChecked();
+      await area.getByRole("checkbox").check();
+      await prepare.click();
+      await expect(
+        area.getByRole("heading", {
+          name: "Unapproved grounded synthetic draft",
+          exact: true,
+        }),
+      ).toBeVisible();
+      await expect(area).toContainText(
+        "Aster offers retail advice. Subject to the published terms.",
+      );
+      await expect(area).not.toContainText("UNSELECTED SECRET CLAIM");
+      const saved = groundedRows(root);
+      expect(saved).toHaveLength(1);
+      expect(rows(root).model_calls).toHaveLength(0);
+      expect(rows(root).review_decisions).toHaveLength(0);
+      await area.screenshot({
+        path: testInfo.outputPath(
+          `grounded-intake-${mobile ? "mobile" : "desktop"}.png`,
+        ),
+      });
+      await page.reload();
+      await page
+        .getByRole("button", { name: "Company & brief", exact: true })
+        .click();
+      await selectGroundedBrief(page, ids);
+      await expect(
+        area.getByRole("heading", {
+          name: "Unapproved grounded synthetic draft",
+          exact: true,
+        }),
+      ).toBeVisible();
+      expect(groundedRows(root)).toEqual(saved);
+    });
+  });
+
+test("grounded preparation lost reply stays bound to the original store and reconciles without another POST", async ({
+  page,
+}) => {
+  await isolated(async (url, root, restart) => {
+    const ids = seedGroundedIntake(root);
+    await enter(page, url);
+    const area = await selectGroundedBrief(page, ids);
+    await consentGrounding(area);
+    await page.route("**/api/intake/preparations", async (route) => {
+      await route.fetch();
+      await route.abort("failed");
+    });
+    await area
+      .getByRole("button", {
+        name: "Prepare grounded synthetic draft",
+        exact: true,
+      })
+      .click();
+    const retry = page.getByRole("button", {
+      name: "Retry original grounded preparation",
+      exact: true,
+    });
+    await expect(retry).toBeEnabled();
+    expect(groundedRows(root)).toHaveLength(1);
+    const original = groundedRows(root);
+    const saved = await page.evaluate(() =>
+      sessionStorage.getItem("workspace-grounded-preparation:v1"),
+    );
+    expect(saved).toBeTruthy();
+    await page.unroute("**/api/intake/preparations");
+    const other = await restart();
+    await page.reload();
+    await page
+      .getByRole("button", { name: "Company & brief", exact: true })
+      .click();
+    let posts = 0;
+    page.on("request", (r) => {
+      if (r.method() === "POST" && r.url().endsWith("/api/intake/preparations"))
+        posts++;
+    });
+    await retry.click();
+    await expect(page.getByRole("alert")).toContainText(
+      "original workspace store",
+    );
+    expect(posts).toBe(0);
+    expect(groundedRows(other)).toEqual([]);
+    expect(
+      await page.evaluate(() =>
+        sessionStorage.getItem("workspace-grounded-preparation:v1"),
+      ),
+    ).toBe(saved);
+    await restart(root);
+    await page.reload();
+    await page
+      .getByRole("button", { name: "Company & brief", exact: true })
+      .click();
+    await retry.click();
+    await expect(retry).toHaveCount(0);
+    await selectGroundedBrief(page, ids);
+    await expect(
+      area.getByRole("heading", {
+        name: "Unapproved grounded synthetic draft",
+        exact: true,
+      }),
+    ).toBeVisible();
+    expect(posts).toBe(0);
+    expect(groundedRows(root)).toEqual(original);
+    expect(
+      await page.evaluate(() =>
+        sessionStorage.getItem("workspace-grounded-preparation:v1"),
+      ),
+    ).toBeNull();
+  });
+});
+
+test("corrupt grounded preparation recovery blocks new commands", async ({
+  page,
+}) => {
+  await isolated(async (url, root) => {
+    seedGroundedIntake(root);
+    await page.addInitScript(() =>
+      sessionStorage.setItem(
+        "workspace-grounded-preparation:v1",
+        '{"payload":{"request_id":"lost"}}',
+      ),
+    );
+    await page.goto(url);
+    await page
+      .getByRole("button", { name: "Company & brief", exact: true })
+      .click();
+    await expect(page.getByRole("alert")).toContainText(
+      "original grounded preparation could not be restored",
+    );
+    await expect(
+      page.getByRole("button", { name: "Save company draft", exact: true }),
+    ).toBeDisabled();
+    expect(groundedRows(root)).toEqual([]);
+  });
+});

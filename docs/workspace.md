@@ -282,3 +282,10 @@ original request and store identity for explicit recovery.
 The review is a record of selected user assertions, not independently verified
 product facts or campaign approval. Campaign generation from these inputs is
 a separate slice. See [the preparation context contract](reviewed-preparation-context.md).
+
+The [preparation eligibility and grounding slice](preparation-eligibility.md)
+adds a separate source-review confirmation under Company & brief. It creates an
+unapproved offline profile fixture from selected inputs, with zero model calls,
+fixed synthetic framing and visibly unmatched synthetic contacts. Server-side
+eligibility, grounding and publication remain in their existing module owners;
+React only presents exact inputs, confirmation and original-store recovery.

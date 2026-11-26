@@ -1,3 +1,4 @@
+import IntakePreparation from "./IntakePreparation";
 import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import type { BriefInput, IntakeSnapshot } from "./intake-api";
@@ -46,6 +47,7 @@ export default function PreparationContext({
     view: Context | null;
   }>({ rows: [], view: null });
   const [loadedFor, setLoadedFor] = useState("");
+  const [groundedLocked, setGroundedLocked] = useState(false);
   const [selection, setSelection] = useState({
     key: "",
     claims: [] as string[],
@@ -73,8 +75,8 @@ export default function PreparationContext({
     }
   }, [onError]);
   useEffect(() => {
-    onLock(busy || !!pending || !!storageError);
-  }, [busy, pending, storageError, onLock]);
+    onLock(busy || !!pending || !!storageError || groundedLocked);
+  }, [busy, pending, storageError, groundedLocked, onLock]);
   useEffect(() => {
     setLoadedFor("");
     setPreview(null);
@@ -174,7 +176,8 @@ export default function PreparationContext({
       storageError ||
       disabled ||
       preview?.read_only ||
-      loadedFor !== selectionKey
+      loadedFor !== selectionKey ||
+      groundedLocked
     )
       return;
     try {
@@ -259,7 +262,8 @@ export default function PreparationContext({
                 busy ||
                 !!pending ||
                 !!storageError ||
-                loadedFor !== selectionKey
+                loadedFor !== selectionKey ||
+                groundedLocked
               }
             >
               <legend>Source wording to retain</legend>
@@ -529,6 +533,14 @@ export default function PreparationContext({
       >
         Reload preparation sources and history
       </button>
+      <IntakePreparation
+        contextRequest={view?.request_id ?? ""}
+        storeId={storeId}
+        sourceVersion={selectionKey}
+        active={active}
+        disabled={disabled || busy || !!pending || !!storageError}
+        onLock={setGroundedLocked}
+      />
     </section>
   );
 }
