@@ -15,6 +15,9 @@ The owner selected **qualified product-demo actions** on 26 November. The
 [machine-readable v1 handoff](../config/youtube-decision-contract-v1.json)
 freeze the first task, evidence unit, maturity, attribution, cost assumptions
 and exclusions. Context/creative recommendations remain unapproved proposals.
+Maturity alone is insufficient: an outcome point estimate or posterior update
+requires a complete, nonempty cohort with no unknown outcomes. Otherwise only
+explicit missing-outcome bounds are permitted when its full manifest is known.
 
 The selected route is `offline_only`, using permitted authored examples.
 A future manual export is conditional on a buyer verifying actual placement
@@ -151,7 +154,13 @@ handoff and emits its content hash. It is not an account capability probe,
 runtime event validator or production authorization policy. Focused tests reject
 proxy rewards, altered units/maturity, weakened exclusions, missing identity,
 false live claims, invented propensities and inconsistent simulation money.
+They also reject changed frozen simulation assumptions even when internally
+consistent, and weakened completeness/bounds policy. Sensitivity contracts
+require separate identity and validation rather than v1 overrides.
 No statistical calibration or performance result is claimed by these checks.
+The [review correction record](evaluations/issue-143-review-corrections-2026-11-26.json)
+identifies the corrected candidate hash and regression evidence. It supersedes
+the pre-review draft handoff for current #144/#133 use, before v1 acceptance.
 
 ## Primary source register
 

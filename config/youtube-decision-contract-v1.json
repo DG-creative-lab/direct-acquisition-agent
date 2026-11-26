@@ -40,6 +40,14 @@
     "ingestion_grace_seconds": 300,
     "zero_requires": ["mature_window", "complete_coverage", "no_uncertain_task"],
     "missing_outcome": "unknown",
+    "estimation": {
+      "point_estimate_requires": ["nonempty_mature_cohort", "known_complete_assignment_manifest", "complete_coverage", "zero_unknown_outcomes"],
+      "incomplete_cohort": "bounds_only_no_posterior_update",
+      "empty_cohort": "unavailable",
+      "bounds_require": "known_complete_assignment_manifest",
+      "bounds": "[S/N,(S+U)/N]",
+      "comparison_requires": "complete_cohorts_at_same_frozen_cutoff"
+    },
     "excluded_sources": ["fixture", "rehearsal", "staff", "unknown", "llm_simulation"],
     "insufficient_events": [
       "page_view",

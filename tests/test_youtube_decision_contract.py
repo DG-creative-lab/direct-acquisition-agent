@@ -66,6 +66,57 @@ class YouTubeDecisionContractTests(unittest.TestCase):
             with self.subTest(field=field), self.assertRaises(ValueError):
                 validate(changed)
 
+    def test_rate_and_posterior_require_a_complete_nonempty_mature_cohort(self):
+        expected = {
+            "point_estimate_requires": [
+                "nonempty_mature_cohort", "known_complete_assignment_manifest",
+                "complete_coverage", "zero_unknown_outcomes"],
+            "incomplete_cohort": "bounds_only_no_posterior_update",
+            "empty_cohort": "unavailable",
+            "bounds_require": "known_complete_assignment_manifest",
+            "bounds": "[S/N,(S+U)/N]",
+            "comparison_requires": "complete_cohorts_at_same_frozen_cutoff",
+        }
+        self.assertEqual(self.contract["reward"].get("estimation"), expected)
+        for field, value in (
+            ("point_estimate_requires", ["nonempty_mature_cohort"]),
+            ("point_estimate_requires", ["nonempty_mature_cohort",
+                                         "known_complete_assignment_manifest", "complete_coverage"]),
+            ("incomplete_cohort", "count_unknown_as_failure"),
+            ("incomplete_cohort", "drop_unknown_from_denominator"),
+            ("empty_cohort", "zero"),
+            ("bounds_require", "assumed_population"),
+            ("bounds", "[S/N,S/N]"),
+            ("comparison_requires", "available_cases_only"),
+        ):
+            changed = deepcopy(self.contract)
+            changed["reward"]["estimation"][field] = value
+            with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                validate(changed)
+
+    def test_consistent_changes_to_frozen_v1_assumptions_are_rejected(self):
+        for field, value in (
+            ("period_days", 8),
+            ("period_days", 7.0),
+            ("total_budget_pence", 9000),
+            ("daily_cap_pence", 2100),
+            ("exploration_cap_pence", 900),
+            ("minimum_worthwhile_activation_lift_basis_points", 100),
+        ):
+            changed = deepcopy(self.contract)
+            changed["simulation"][field] = value
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, "Frozen v1"):
+                validate(changed)
+        changed = deepcopy(self.contract)
+        changed["simulation"]["utility_value_per_qualified_action_pence"] = 600
+        changed["simulation"]["utility"] = "qualified_actions_times_600_minus_cost_pence"
+        with self.assertRaises(ValueError):
+            validate(changed)
+        changed = deepcopy(self.contract)
+        changed["simulation"]["variant_id"] = "sensitivity-01"
+        with self.assertRaises(ValueError):
+            validate(changed)
+
     def test_missing_asset_and_scope_identity_is_rejected(self):
         for key in ("organization", "asset_digest", "reward_version", "candidate_snapshot_id"):
             changed = deepcopy(self.contract)
@@ -88,10 +139,11 @@ class YouTubeDecisionContractTests(unittest.TestCase):
                 validate(changed)
 
     def test_unknown_version_and_duplicate_json_cannot_hide_a_changed_reward(self):
-        changed = deepcopy(self.contract)
-        changed["schema"] = "youtube-decision-feasibility/v2"
-        with self.assertRaises(ValueError):
-            validate(changed)
+        for schema in ("youtube-decision-feasibility/v2", "youtube-decision-sensitivity/v1"):
+            changed = deepcopy(self.contract)
+            changed["schema"] = schema
+            with self.subTest(schema=schema), self.assertRaises(ValueError):
+                validate(changed)
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "duplicate.json"
             path.write_text('{"objective":"recording_preference","objective":"qualified_product_demo_actions"}')
@@ -102,14 +154,19 @@ class YouTubeDecisionContractTests(unittest.TestCase):
                 load_contract(path)
 
     def test_cli_rejects_bad_contract_instead_of_emitting_a_validity_receipt(self):
-        changed = deepcopy(self.contract)
-        changed["reward"]["missing_outcome"] = "zero"
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "invalid.json"
-            path.write_text(json.dumps(changed))
-            result = subprocess.run(
-                [sys.executable, "scripts/check_youtube_decision_contract.py", "--contract", str(path)],
-                capture_output=True, text=True, timeout=10)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(result.stdout, "")
-        self.assertIn("unknown", result.stderr)
+        for section, field, value, message in (
+            ("reward", "missing_outcome", "zero", "unknown"),
+            ("reward", "estimation", {}, "Unknown"),
+            ("simulation", "daily_cap_pence", 2100, "Frozen v1"),
+        ):
+            changed = deepcopy(self.contract)
+            changed[section][field] = value
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "invalid.json"
+                path.write_text(json.dumps(changed))
+                result = subprocess.run(
+                    [sys.executable, "scripts/check_youtube_decision_contract.py", "--contract", str(path)],
+                    capture_output=True, text=True, timeout=10)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, "")
+                self.assertIn(message, result.stderr)

@@ -6,6 +6,18 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT = ROOT / "config/youtube-decision-contract-v1.json"
+FROZEN_SIMULATION_V1 = {
+    "currency": "GBP",
+    "money_unit": "pence",
+    "period_days": 7,
+    "total_budget_pence": 10000,
+    "daily_cap_pence": 2000,
+    "exploration_cap_pence": 1000,
+    "utility_value_per_qualified_action_pence": 500,
+    "minimum_worthwhile_activation_lift_basis_points": 200,
+    "utility": "qualified_actions_times_500_minus_cost_pence",
+    "interpretation": "authored_benchmark_tradeoff_not_revenue_or_spending_authority",
+}
 
 
 def unique_object(pairs):
@@ -74,6 +86,16 @@ def validate(contract):
                 "mature_window", "complete_coverage", "no_uncertain_task"}
             and reward.get("missing_outcome") == "unknown",
             "Incomplete or immature outcomes must stay unknown")
+    require(reward.get("estimation") == {
+        "point_estimate_requires": [
+            "nonempty_mature_cohort", "known_complete_assignment_manifest",
+            "complete_coverage", "zero_unknown_outcomes"],
+        "incomplete_cohort": "bounds_only_no_posterior_update",
+        "empty_cohort": "unavailable",
+        "bounds_require": "known_complete_assignment_manifest",
+        "bounds": "[S/N,(S+U)/N]",
+        "comparison_requires": "complete_cohorts_at_same_frozen_cutoff",
+    }, "Unknown outcomes require bounds; point estimates and posterior updates need complete cohorts")
     require(set(reward.get("excluded_sources", [])) >= {
         "fixture", "rehearsal", "staff", "unknown", "llm_simulation"}
         and set(reward.get("insufficient_events", [])) >= {
@@ -91,22 +113,10 @@ def validate(contract):
     require(set(data.get("permitted_offline_sources", [])) == {
         "authored_synthetic", "creator_supplied_with_permission", "licensed_with_permission"},
         "Retain the source permission boundary for model inputs")
-    require(sim.get("currency") == "GBP" and sim.get("money_unit") == "pence"
-            and sim.get("interpretation") == "authored_benchmark_tradeoff_not_revenue_or_spending_authority",
-            "Simulation money is not revenue or permission to spend")
-    keys = ("period_days", "total_budget_pence", "daily_cap_pence",
-            "exploration_cap_pence", "utility_value_per_qualified_action_pence",
-            "minimum_worthwhile_activation_lift_basis_points")
-    require(all(type(sim.get(key)) is int and sim[key] > 0 for key in keys),
-            "Benchmark limits require positive integers")
-    require(sim["exploration_cap_pence"] <= sim["total_budget_pence"]
-            and sim["daily_cap_pence"] <= sim["total_budget_pence"]
-            <= sim["daily_cap_pence"] * sim["period_days"]
-            and sim["minimum_worthwhile_activation_lift_basis_points"] < 10000,
-            "Benchmark budget and rate limits are inconsistent")
-    require(sim["utility_value_per_qualified_action_pence"] == 500
-            and sim.get("utility") == "qualified_actions_times_500_minus_cost_pence",
-            "Utility must match its explicitly authored value")
+    require(set(sim) == set(FROZEN_SIMULATION_V1)
+            and all(type(sim[key]) is type(value) and sim[key] == value
+                    for key, value in FROZEN_SIMULATION_V1.items()),
+            "Frozen v1 simulation assumptions changed; use a separately identified sensitivity contract")
     require(handoff.get("next_issue") == 144 and handoff.get("measurement_issue") == 133
             and handoff.get("instruction_policy") == "preserve_instruction-beta-v1_separately"
             and handoff.get("shadow_ready") is False

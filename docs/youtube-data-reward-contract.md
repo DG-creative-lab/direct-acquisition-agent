@@ -69,22 +69,51 @@ exist for this new protocol.
 
 ## Metrics and reporting grain
 
-The learnable post-click response is:
+The post-click response uses one frozen, mature assignment cohort. Let `S` be
+verified successes, `F` verified non-successes and `U` unknown outcomes, with
+the full eligible assignment manifest providing `N = S + F + U`. Time maturity
+alone does not establish outcome completeness. An early success in an immature
+assignment cannot enter the cohort rate or posterior before its denominator.
 
-**qualified assignments / mature eligible assigned demo arrivals**.
+A **point estimate `S/N` is available only when `N > 0`, coverage is complete
+and `U = 0`**. If any mature outcome remains unknown, report the point estimate
+as unavailable. Do not treat the unknown as a failure, divide by `S + F` or
+assume that missing outcomes resemble observed outcomes.
 
-Both terms use the same mature assignment cohort and frozen cutoff. An early
-success in an immature assignment is shown as pending cohort maturity and
-cannot enter the rate or posterior before that assignment's denominator does.
-This prevents selecting only quick successes while slower outcomes are pending.
+When the complete assignment manifest and valid `S/F/U` counts are known, an
+incomplete cohort may show bounds **`[S/N, (S+U)/N]`**. These are worst/best-case
+missing-outcome bounds, not a confidence or credible interval. If `N = 0`, or
+the assignment manifest itself is incomplete, both the point estimate and
+bounds are unavailable.
 
-Return numerator, denominator, unresolved count, exclusions, protocol/cutoff
-and coverage rather than only a percentage. Excluded traffic stays visible
-separately. Do not call this ad-impression conversion rate, individual-person
-conversion, purchase, revenue or causal lift.
+| Mature cohort | Point estimate | Missing-outcome bounds | Cohort posterior update |
+| --- | --- | --- | --- |
+| One success, one unknown (`N=2`) | Unavailable | 50% to 100% | Blocked |
+| One success, one verified non-success (`N=2`, complete coverage) | 50% | 50% to 50% | May consume `S=1, F=1` once |
+| One unknown (`N=1`) | Unavailable | 0% to 100% | Blocked |
+| No eligible assignments (`N=0`) | Unavailable | Unavailable | Blocked |
+
+No outcome-conditioned posterior or learning update is produced from an
+incomplete cohort, including its observed successes. A prior or posterior from
+earlier complete cohorts can remain visible with its original support; this
+cohort adds none until it is complete and mature, then contributes `S/F` once.
+An improvement comparison or promotion requires both comparison cohorts to be
+complete at the same frozen cutoff. Unknown cells cannot be removed to obtain
+a favorable complete-case comparison. Late resolution uses the explicit
+correction/new-snapshot path without counting a cohort twice.
+
+Return `S/F/U/N`, immature count, exclusions, protocol/cutoff, manifest and
+coverage status alongside availability and any bounds. Excluded traffic stays
+visible separately. Do not call this ad-impression conversion rate,
+individual-person conversion, purchase, revenue or causal lift. These are
+required #144/#133 semantics; this PR installs no event aggregation or posterior
+implementation.
 
 Business cost per qualified action additionally requires known, compatible
-spend and attribution to the same frozen cell/time period. With no actions,
+spend and attribution to the same frozen cell/time period, plus complete mature
+outcomes. Incomplete outcomes also block final cost-per-action and realized
+utility point estimates; raw observed counts/cost remain explicitly partial.
+With a complete cohort and no actions,
 show no qualified actions; with missing cost, show cost unavailable. Never
 divide by zero or report unknown spend as zero. Choosing acquisition placements
 also needs traffic/exposure/cost evidence: post-click completion alone cannot
@@ -115,7 +144,7 @@ semantics and never feed this qualified-action posterior.
 | Assignment | Trusted scoped campaign-link ingress, protocol and server clock | Stable identity; distinguish participant, rehearsal, fixture, staff and unknown |
 | Task outcome | Authorized server job/result receipt | Validate task success and exact output; one positive per assignment |
 | Exposure/cost | Compatible provider report and bounded account mapping | No populated destination report or validated join yet; coverage/currency/time zone required |
-| Snapshot | Immutable cutoff, numerator/denominator/unknown/exclusions and source IDs | Deduplicate; maturity/grace; explicit late corrections; no pooling across source types |
+| Snapshot | Immutable cutoff, `S/F/U/N`, immature/excluded counts and source IDs | Complete-manifest bounds only; complete nonempty cohorts for point estimates/posterior updates; explicit late corrections; no pooling across source types |
 
 ## Retention and deletion boundary
 
@@ -151,8 +180,16 @@ action value is an authored comparison tradeoff, not estimated revenue, customer
 value or an approved acquisition price. The minimum worthwhile post-click
 activation-rate improvement is two percentage points, a predeclared development
 comparison threshold, not a powered live-test design. #144 must retain these
-values before comparisons and report sensitivity separately rather than tune
-the held-out result.
+values before comparisons rather than tune the held-out result. The baseline
+checker pins every simulation field and its type, including these exact numeric
+values, currency, utility formula and interpretation; a different hash alone
+does not admit changed assumptions under v1.
+
+Sensitivity cases require a separately identified contract with its own schema
+or version, variant ID, parent baseline hash and complete changed assumptions.
+Their results must remain labeled as sensitivity, outside the frozen baseline
+comparison. This checker rejects sensitivity contracts and additional variant
+fields under v1; #144 must explicitly validate any future sensitivity format.
 
 Use independent synthetic assignments with known response/cost surfaces for
 initial policy tests, labeling that independence assumption. Real visitors may
