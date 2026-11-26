@@ -154,7 +154,8 @@ python3 -m acquisition --db .local/external-outcomes.sqlite --organization outco
 python3 -m acquisition --db .local/external-outcomes.sqlite --organization outcomes-fixture outcomes-receipt --actor operator --request-id final-report-1 --operation import
 ```
 
-Progress has one positive, five unknown results and no posterior. Finalization has
+Progress has one positive, five unknown results and no posterior. A mature cohort
+with complete final coverage shows `ready_to_finalize`. Finalization has
 two trials per arm: A and holdout each one success, B zero. With the illustrative
 Beta(1,19) prior, A/holdout become Beta(2,20), B Beta(1,21). Support is too small
 for a preferred next experiment.
@@ -172,7 +173,10 @@ Versioned external records use reserved `external-*` journal keys in existing
 learning commands/events, with distinct schemas/kinds and separate report,
 membership and native-identity records. Journal hashes and atomic audit copies
 detect inconsistent stored evidence. No schema migration is required; version 27
-and historical synthetic formats remain intact. These checks do not defend
+and historical synthetic formats remain intact. Stop older application writers
+before using this registry and run all writers from this build or later. Older
+builds do not enforce the new external membership fence; mixed-version writes
+and rollback writers after external registration are unsupported. These checks do not defend
 against an administrator rewriting the whole database and all evidence.
 
 Registration/report/finalization use one database write transaction with native

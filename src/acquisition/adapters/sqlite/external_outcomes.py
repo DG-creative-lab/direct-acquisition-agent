@@ -198,7 +198,7 @@ class SqliteExternalOutcomes:
             db.execute('BEGIN');now=self.now();c,s,outcomes,reports,events,size,final=self.state(db,org,cohort_id)
             frozen=final is not None
             current=self.current(db,org,cohort_id,reports,final,now)
-            return {'cohort':c,'current':current,'status':'historical_evidence_after_current_clock' if not current else 'finalized' if frozen else 'awaiting_complete_outcomes' if now>=c['window_end'] else 'observing',
+            return {'cohort':c,'current':current,'status':'historical_evidence_after_current_clock' if not current else 'finalized' if frozen else ('ready_to_finalize' if s['coverage_complete'] else 'awaiting_complete_outcomes') if now>=c['window_end'] else 'observing',
                 'as_of':now,'enrolled':len(c['assignments']),**s,'reports':[p['receipt'] for p in reports],
                 'posterior_groups':final['payload']['groups'] if frozen and current else [],'comparisons':final['payload']['comparisons'] if frozen and current else [],
                 'finalization':final['payload'] if frozen else None,'authority':'OBSERVATIONS_ONLY_NO_SEND_OR_APPROVAL',

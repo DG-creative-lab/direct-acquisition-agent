@@ -74,7 +74,8 @@ class ExternalOutcomeTests(unittest.TestCase):
         self.assertEqual(v['event_counts']['opened'],20);self.assertEqual(v['business_counts']['opened'],1)
         self.ingest(report(self.c,[event(m,'qualified_enquiry')],identity='early'))
         with self.assertRaises(Conflict):self.app.finalize('one','operator','too-soon',self.c['id'])
-        self.complete();result=self.app.finalize('one','operator','final',self.c['id'])
+        self.complete();self.assertEqual(self.app.view('one',self.c['id'])['status'],'ready_to_finalize')
+        result=self.app.finalize('one','operator','final',self.c['id'])
         groups={g['arm']:g for g in result['groups']}
         self.assertEqual((groups['A']['trials'],groups['A']['successes'],groups['A']['alpha'],groups['A']['beta']),(2,1,2,20))
         self.assertEqual((groups['B']['alpha'],groups['B']['beta']),(1,21));self.assertEqual((groups['holdout']['alpha'],groups['holdout']['beta']),(2,20))
