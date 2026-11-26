@@ -4596,6 +4596,22 @@ evidence; corrections, repeated exposure, model-context integration and hosted
 access are deferred. Resource caps prevent unbounded input within one cohort;
 there is no hosted ingestion rate-limit claim.
 
-The commit-bound verification record will identify full backend, architecture
-and integrated boundary results separately from these focused checks. Existing
-historical evaluation artifacts are preserved.
+The [commit-bound verification record](evaluations/outcomes-registration-2026-11-26.json)
+attributes the full backend pass to `faff202aced00f69e475c70cab462b773a5dc6dd`:
+1,300 tests in 1,253.334 seconds. All 481 fingerprinted source/config/test/fixture
+files remained unchanged during that run. A later one-line read-only projection
+refinement exposes complete mature cohorts as `ready_to_finalize`; its regression
+assertion and all 24 focused tests passed in 4.109 seconds. The full backend was
+not repeated after that status-label refinement.
+
+Final implementation `2f30ca3928eac43d92635c7ca8b7b8d16977e226` passes architecture
+with 253 modules and zero exceptions. All five integrated boundary cases pass
+with zero network attempts, stable attributable source and all 46 historical
+evaluation artifacts unchanged. Ten fresh network-blocked CLI processes verify
+the committed fixture, literal posteriors, saved snapshot and original replay;
+native model-call, run, synthetic-cohort and synthetic-belief counts remain zero.
+Heavy suites ran sequentially; only the two-contender race probes overlap.
+No frontend change was made, so interface-check was not required. Managed Turso,
+live providers and live model behavior were not tested. The original checkout's
+dirty files retain their pre-work hashes. The evidence/validation follow-up is
+documentation only and preserves historical records.
