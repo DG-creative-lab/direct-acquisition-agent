@@ -245,7 +245,10 @@
     "acquisition.reviews.intake_email": "application",
     "acquisition.workflows.intake_email": "workflow",
     "acquisition.adapters.sqlite.intake_email": "adapter",
-    "acquisition.adapters.sqlite.intake_email_reviews": "adapter"
+    "acquisition.adapters.sqlite.intake_email_reviews": "adapter",
+    "acquisition.youtube.decisioning": "domain",
+    "acquisition.youtube.recommendations": "application",
+    "acquisition.adapters.youtube_decision_inputs": "adapter"
   },
   "exceptions": []
 }

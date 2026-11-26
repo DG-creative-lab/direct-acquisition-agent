@@ -1,0 +1,1236 @@
+{
+  "schema": "youtube-contextual-benchmark-evidence/v1",
+  "recorded_date": "2026-11-26",
+  "base_commit": "208826199f2390e90491dbf72466915d29ecdf22",
+  "contract_sha256": "c7f4129dd6d50e5de4a2c41db4ab0cddf34f31bb6e1829711019ad462df59949",
+  "corpus_sha256": "9a82400b1695f5fcf0fd489c8f64d556cd07becb74c456f51a4f0f3948ec8b36",
+  "source": {
+    "head_commit": "208826199f2390e90491dbf72466915d29ecdf22",
+    "files_sha256": "95641a66cd6caa44317e721dff4688abdf2f608f5e6ba65de872f5e7720f22d3",
+    "worktree_dirty": true,
+    "source_overlay": {
+      "config/youtube-contextual-benchmark-v1.json": {
+        "sha256": "9c457e809bc7ab1bf01f13a40f5e9856bfdca9d059884be5134d620ec980e1fb"
+      },
+      "scripts/architecture_policy.json": {
+        "sha256": "332ca064fbde1562f9edd728f2e1dd1d2e4ba44cd580c49b64358dbceb0d2991"
+      },
+      "scripts/evaluate_youtube_contextual.py": {
+        "sha256": "0366fa66756c8bbe571064be711da8a9732b307ee2c23f05712e60835494d23e"
+      },
+      "scripts/youtube_contextual_fixture.py": {
+        "sha256": "5af71ba82760bae73ac83ea232107204363114b8ab65d91b44d6b87eb714d60f"
+      },
+      "src/acquisition/adapters/youtube_decision_inputs.py": {
+        "sha256": "7962a871d9cd80907edc509af9c390f9ce0464df0a1acbebddf7d6cb1117f8b3"
+      },
+      "src/acquisition/bootstrap.py": {
+        "sha256": "f5fb70cbcd8a76c95893f1a6b1705a5266c1badd2e876743cc864584075b4129"
+      },
+      "src/acquisition/youtube/__init__.py": {
+        "sha256": "d43875559abf6532a13bdc45b0a04f5ee413270ef7056b936f593c766455a256"
+      },
+      "src/acquisition/youtube/application.py": {
+        "sha256": "8e0ece6af0cf3c90fb4c1749ef0c238ac9a793416d999e565dd9837f30fd79c8"
+      },
+      "src/acquisition/youtube/decisioning.py": {
+        "sha256": "91845a1753575aa2fa24590f4ced9329a5d1b4304d797add18aa10a7de6aaeb3"
+      },
+      "src/acquisition/youtube/ports.py": {
+        "sha256": "30c7ef5ed0edb5a9d5eb35eec40d0f7e7150e37459349488720285126e659448"
+      },
+      "src/acquisition/youtube/recommendations.py": {
+        "sha256": "2745e6257e915f7a8fcf416bb5f45dc5ae21a88e8abaeccb1a666d244b121ba3"
+      },
+      "tests/test_youtube_contextual.py": {
+        "sha256": "e12545c933362d36263d708a5e1e3ae29cb0f409948c7575f20827453c28e8ce"
+      }
+    }
+  },
+  "full_local_report": ".local/evaluations/youtube-contextual-v1.json",
+  "full_local_report_sha256": "fd6d15ec948ffcb71236a51052eca35d41dc806d7104bfdae2c2152c4a8d57a8",
+  "source_stable": true,
+  "imported_source_matches": true,
+  "checks": {
+    "focused_tests": {
+      "passed": 55,
+      "command": "PYTHONPATH=src:tests python3 -m unittest test_youtube_contextual test_youtube_decision_contract test_youtube_flow -v"
+    },
+    "architecture": {
+      "classified_modules": 238,
+      "errors": [],
+      "temporary_exceptions": 0
+    },
+    "boundary": {
+      "passed": true,
+      "cases": [
+        {
+          "id": "compatibility-model-journey",
+          "exit_code": 0,
+          "network_attempts": 0
+        },
+        {
+          "id": "verified-commit-rebuild-replay",
+          "exit_code": 0,
+          "network_attempts": 0
+        },
+        {
+          "id": "uncertain-restart",
+          "exit_code": 0,
+          "network_attempts": 0
+        },
+        {
+          "id": "profile-replay",
+          "exit_code": 0,
+          "network_attempts": 0
+        },
+        {
+          "id": "engagement-replay",
+          "exit_code": 0,
+          "network_attempts": 0
+        }
+      ],
+      "source_files_sha256": "9ccd8799cd764112612834446fce9e607c77c7bfd8c34dcfe8387b601371b1e5",
+      "source_state_stable": true,
+      "historical_artifacts": 41,
+      "historical_bytes_unchanged": true,
+      "report_sha256": "40caadfb03ba123a1a28656588dab5e831695b6d18067a35e4103575f2a5b3c9"
+    }
+  },
+  "benchmark": {
+    "passed": true,
+    "trials": 576,
+    "scenarios": 6,
+    "seeds": 32,
+    "development_seeds": [
+      100
+    ],
+    "held_out_seed_range": [
+      200,
+      231
+    ],
+    "network_attempts": 0,
+    "live_model_calls": 0,
+    "real_participant_support": 0,
+    "constraint_violations": 0,
+    "summary": [
+      {
+        "scenario": "drift",
+        "policy": "contextual-bayes-epsilon/v1",
+        "trials": 32,
+        "mean_expected_utility_pence": 21070.3125,
+        "mean_expected_regret_pence": 16929.6875,
+        "mean_activation_rate": 0.17066953599444118,
+        "complete_rate_trials": 32,
+        "constraint_violations": 0,
+        "mean_spend_pence": 10000.0,
+        "mean_blocked_days": 1.0,
+        "mean_latency_seconds": 0.06067573695327155
+      },
+      {
+        "scenario": "drift",
+        "policy": "contextual-recorded/v1",
+        "trials": 32,
+        "mean_expected_utility_pence": 19226.5625,
+        "mean_expected_regret_pence": 18773.4375,
+        "mean_activation_rate": 0.1680016558837123,
+        "complete_rate_trials": 32,
+        "constraint_violations": 0,
+        "mean_spend_pence": 10000.0,
+        "mean_blocked_days": 1.0,
+        "mean_latency_seconds": 0.05504982281854609
+      },
+      {
+        "scenario": "drift",
+        "policy": "contextual-rules/v1",
+        "trials": 32,
+        "mean_expected_utility_pence": 9476.5625,
+        "mean_expected_regret_pence": 28523.4375,
+        "mean_activation_rate": 0.18034334836702726,
+        "complete_rate_trials": 32,
+        "constraint_violations": 0,
+        "mean_spend_pence": 10000.0,
+        "mean_blocked_days": 1.0,
+        "mean_latency_seconds": 0.021512944196729222
+      },
+      {
+        "scenario": "missing-cost",
+        "policy": "contextual-bayes-epsilon/v1",
+        "trials": 32,
+        "mean_expected_utility_pence": 0.0,
+        "mean_expected_regret_pence": 20000.0,
+        "mean_activation_rate": null,
+        "complete_rate_trials": 0,
+        "constraint_violations": 0,
+        "mean_spend_pence": 0.0,
+        "mean_blocked_days": 7.0,
+        "mean_latency_seconds": 0.000987836996500846
+      },
+      {
+        "scenario": "missing-cost",
+        "policy": "contextual-recorded/v1",
+        "trials": 32,
+        "mean_expected_utility_pence": 0.0,
+        "mean_expected_regret_pence": 20000.0,
+        "mean_activation_rate": null,
+        "complete_rate_trials": 0,
+        "constraint_violations": 0,
+        "mean_spend_pence": 0.0,
+        "mean_blocked_days": 7.0,
+        "mean_latency_seconds": 0.0009868619672488421
+      },
+      {
+        "scenario": "missing-cost",
+        "policy": "contextual-rules/v1",
+        "trials": 32,
+        "mean_expected_utility_pence": 0.0,
+        "mean_expected_regret_pence": 20000.0,
+        "mean_activation_rate": null,
+        "complete_rate_trials": 0,
+        "constraint_violations": 0,
+        "mean_spend_pence": 0.0,
+        "mean_blocked_days": 7.0,
+        "mean_latency_seconds": 0.0010041548775916453
+      },
+      {
+        "scenario": "negative-utility",
+        "policy": "contextual-bayes-epsilon/v1",
+        "trials": 32,
+        "mean_expected_utility_pence": -1798.515625,
+        "mean_expected_regret_pence": 1798.515625,
+        "mean_activation_rate": null,
+        "complete_rate_trials": 21,
+        "constraint_violations": 0,
+        "mean_spend_pence": 1812.5,
+        "mean_blocked_days": 5.59375,
+        "mean_latency_seconds": 0.0046229793297243305
+      },
+      {
+        "scenario": "negative-utility",
+        "policy": "contextual-recorded/v1",
+        "trials": 32,
+        "mean_expected_utility_pence": -6854.453125,
+        "mean_expected_regret_pence": 6854.453125,
+        "mean_activation_rate": null,
+        "complete_rate_trials": 21,
+        "constraint_violations": 0,
+        "mean_spend_pence": 6906.25,
+        "mean_blocked_days": 2.71875,
+        "mean_latency_seconds": 0.028281968927331036
+      },
+      {
+        "scenario": "negative-utility",
+        "policy": "contextual-rules/v1",
+        "trials": 32,
+        "mean_expected_utility_pence": -6860.078125,
+        "mean_expected_regret_pence": 6860.078125,
+        "mean_activation_rate": null,
+        "complete_rate_trials": 21,
+        "constraint_violations": 0,
+        "mean_spend_pence": 6906.25,
+        "mean_blocked_days": 2.71875,
+        "mean_latency_seconds": 0.02352640354365576
+      },
+      {
+        "scenario": "sparse-delayed",
+        "policy": "contextual-bayes-epsilon/v1",
+        "trials": 32,
+        "mean_expected_utility_pence": -3944.53125,
+        "mean_expected_regret_pence": 3944.53125,
+        "mean_activation_rate": null,
+        "complete_rate_trials": 1,
+        "constraint_violations": 0,
+        "mean_spend_pence": 8625.0,
+        "mean_blocked_days": 2.1875,
+        "mean_latency_seconds": 0.03344406007454381
+      },
+      {
+        "scenario": "sparse-delayed",
+        "policy": "contextual-recorded/v1",
+        "trials": 32,
+        "mean_expected_utility_pence": -3950.78125,
+        "mean_expected_regret_pence": 3950.78125,
+        "mean_activation_rate": null,
+        "complete_rate_trials": 0,
+        "constraint_violations": 0,
+        "mean_spend_pence": 9000.0,
+        "mean_blocked_days": 2.0,
+        "mean_latency_seconds": 0.03405547138027032
+      },
+      {
+        "scenario": "sparse-delayed",
+        "policy": "contextual-rules/v1",
+        "trials": 32,
+        "mean_expected_utility_pence": -2725.78125,
+        "mean_expected_regret_pence": 2725.78125,
+        "mean_activation_rate": null,
+        "complete_rate_trials": 0,
+        "constraint_violations": 0,
+        "mean_spend_pence": 9000.0,
+        "mean_blocked_days": 2.0,
+        "mean_latency_seconds": 0.020599137988028815
+      },
+      {
+        "scenario": "stationary",
+        "policy": "contextual-bayes-epsilon/v1",
+        "trials": 32,
+        "mean_expected_utility_pence": 14421.875,
+        "mean_expected_regret_pence": 5578.125,
+        "mean_activation_rate": 0.17664374996647567,
+        "complete_rate_trials": 32,
+        "constraint_violations": 0,
+        "mean_spend_pence": 10000.0,
+        "mean_blocked_days": 1.0,
+        "mean_latency_seconds": 0.03658014671236742
+      },
+      {
+        "scenario": "stationary",
+        "policy": "contextual-recorded/v1",
+        "trials": 32,
+        "mean_expected_utility_pence": 9653.125,
+        "mean_expected_regret_pence": 10346.875,
+        "mean_activation_rate": 0.13009910028549423,
+        "complete_rate_trials": 32,
+        "constraint_violations": 0,
+        "mean_spend_pence": 10000.0,
+        "mean_blocked_days": 1.0,
+        "mean_latency_seconds": 0.05253026024365681
+      },
+      {
+        "scenario": "stationary",
+        "policy": "contextual-rules/v1",
+        "trials": 32,
+        "mean_expected_utility_pence": 19496.875,
+        "mean_expected_regret_pence": 503.125,
+        "mean_activation_rate": 0.28126470608896914,
+        "complete_rate_trials": 32,
+        "constraint_violations": 0,
+        "mean_spend_pence": 10000.0,
+        "mean_blocked_days": 1.0,
+        "mean_latency_seconds": 0.0218363931926433
+      },
+      {
+        "scenario": "tracking-gaps",
+        "policy": "contextual-bayes-epsilon/v1",
+        "trials": 32,
+        "mean_expected_utility_pence": 10946.875,
+        "mean_expected_regret_pence": 9053.125,
+        "mean_activation_rate": null,
+        "complete_rate_trials": 0,
+        "constraint_violations": 0,
+        "mean_spend_pence": 8875.0,
+        "mean_blocked_days": 1.625,
+        "mean_latency_seconds": 0.039060050668922486
+      },
+      {
+        "scenario": "tracking-gaps",
+        "policy": "contextual-recorded/v1",
+        "trials": 32,
+        "mean_expected_utility_pence": 13871.875,
+        "mean_expected_regret_pence": 6128.125,
+        "mean_activation_rate": null,
+        "complete_rate_trials": 0,
+        "constraint_violations": 0,
+        "mean_spend_pence": 9156.25,
+        "mean_blocked_days": 1.46875,
+        "mean_latency_seconds": 0.03372251985274488
+      },
+      {
+        "scenario": "tracking-gaps",
+        "policy": "contextual-rules/v1",
+        "trials": 32,
+        "mean_expected_utility_pence": 15053.125,
+        "mean_expected_regret_pence": 4946.875,
+        "mean_activation_rate": null,
+        "complete_rate_trials": 0,
+        "constraint_violations": 0,
+        "mean_spend_pence": 9156.25,
+        "mean_blocked_days": 1.46875,
+        "mean_latency_seconds": 0.028412806015694514
+      }
+    ],
+    "decision": {
+      "scope": "next_offline_iteration_only",
+      "baseline": "retain_rules",
+      "stationary_activation_lift_bps": -1046.2095612249348,
+      "production_promotion": "blocked",
+      "model_semantic_quality": "not_evaluated_no_live_or_genuine_recorded_model",
+      "real_response_calibration": "unavailable",
+      "offline_replay_ips_dr": "unavailable_no_compatible_real_logs",
+      "rollback": "Any constraint failure, changed contract/corpus, or worse held-out utility.",
+      "measurement_handoff": "docs/youtube-contextual-benchmark.md"
+    }
+  },
+  "relevance_tasks": [
+    {
+      "id": "editing-development",
+      "split": "development",
+      "rules_relevance": {
+        "precision_at_1": 1,
+        "ndcg_at_3": 1.0,
+        "candidate_count": 4,
+        "positive_candidates": 4
+      },
+      "fixture_conformance": {
+        "precision_at_1": 1,
+        "ndcg_at_3": 1.0,
+        "candidate_count": 4,
+        "positive_candidates": 4
+      },
+      "model_semantic_quality": "not_evaluated_authored_response_only",
+      "latency_seconds": 0.013588833971880376,
+      "native_state_unchanged": true,
+      "recorded_model_calls": 0
+    },
+    {
+      "id": "books-development",
+      "split": "development",
+      "rules_relevance": {
+        "precision_at_1": 1,
+        "ndcg_at_3": 1.0,
+        "candidate_count": 4,
+        "positive_candidates": 4
+      },
+      "fixture_conformance": {
+        "precision_at_1": 1,
+        "ndcg_at_3": 1.0,
+        "candidate_count": 4,
+        "positive_candidates": 4
+      },
+      "model_semantic_quality": "not_evaluated_authored_response_only",
+      "latency_seconds": 0.009763167006894946,
+      "native_state_unchanged": true,
+      "recorded_model_calls": 0
+    },
+    {
+      "id": "two-contexts-development",
+      "split": "development",
+      "rules_relevance": {
+        "precision_at_1": 1,
+        "ndcg_at_3": 1.0,
+        "candidate_count": 16,
+        "positive_candidates": 8
+      },
+      "fixture_conformance": {
+        "precision_at_1": 1,
+        "ndcg_at_3": 1.0,
+        "candidate_count": 16,
+        "positive_candidates": 8
+      },
+      "model_semantic_quality": "not_evaluated_authored_response_only",
+      "latency_seconds": 0.012017208035103977,
+      "native_state_unchanged": true,
+      "recorded_model_calls": 0
+    },
+    {
+      "id": "explainer-held-out",
+      "split": "held_out",
+      "rules_relevance": {
+        "precision_at_1": 1,
+        "ndcg_at_3": 1.0,
+        "candidate_count": 4,
+        "positive_candidates": 4
+      },
+      "fixture_conformance": {
+        "precision_at_1": 1,
+        "ndcg_at_3": 1.0,
+        "candidate_count": 4,
+        "positive_candidates": 4
+      },
+      "model_semantic_quality": "not_evaluated_authored_response_only",
+      "latency_seconds": 0.009138374938629568,
+      "native_state_unchanged": true,
+      "recorded_model_calls": 0
+    },
+    {
+      "id": "narrator-held-out",
+      "split": "held_out",
+      "rules_relevance": {
+        "precision_at_1": 1,
+        "ndcg_at_3": 1.0,
+        "candidate_count": 4,
+        "positive_candidates": 4
+      },
+      "fixture_conformance": {
+        "precision_at_1": 1,
+        "ndcg_at_3": 1.0,
+        "candidate_count": 4,
+        "positive_candidates": 4
+      },
+      "model_semantic_quality": "not_evaluated_authored_response_only",
+      "latency_seconds": 0.01230974995996803,
+      "native_state_unchanged": true,
+      "recorded_model_calls": 0
+    },
+    {
+      "id": "mixed-held-out",
+      "split": "held_out",
+      "rules_relevance": {
+        "precision_at_1": 1,
+        "ndcg_at_3": 1.0,
+        "candidate_count": 16,
+        "positive_candidates": 8
+      },
+      "fixture_conformance": {
+        "precision_at_1": 1,
+        "ndcg_at_3": 1.0,
+        "candidate_count": 16,
+        "positive_candidates": 8
+      },
+      "model_semantic_quality": "not_evaluated_authored_response_only",
+      "latency_seconds": 0.012255292036570609,
+      "native_state_unchanged": true,
+      "recorded_model_calls": 0
+    }
+  ],
+  "sample_native_recommendation": {
+    "schema": "youtube-contextual-recommendation/v1",
+    "input": {
+      "schema": "youtube-contextual-input/v1",
+      "organization": "benchmark",
+      "profile_id": "voice-comparison-demo-v1",
+      "campaign_id": "ytc_7ba8db67095de83ec4ce71e11313b63ed8bc8625fb55d5b3e5600a6d51bf6342",
+      "brief_revision": 1,
+      "reviewed_context_id": "yt_context_7d9c189173c8039cc90cf569cc6fc16293e1e99b0b6e9562385030d92f131acb",
+      "context_fingerprint": "7d9c189173c8039cc90cf569cc6fc16293e1e99b0b6e9562385030d92f131acb",
+      "context_kind": "authored_fixture_not_grounded_product_facts",
+      "goal": "Prepare YouTube placements for video editing and audiobook narration.",
+      "contract_sha256": "c7f4129dd6d50e5de4a2c41db4ab0cddf34f31bb6e1829711019ad462df59949",
+      "reward_version": "qualified-demo-activation/v1",
+      "candidate_snapshot_id": "candidate_snapshot_0e188954bacdef9e9228e16afb96b1ea72717358184d6e7f425744bb1eed517c",
+      "candidates": [
+        {
+          "organization": "benchmark",
+          "profile_id": "voice-comparison-demo-v1",
+          "context_id": "video-editing",
+          "placement_id": "SAMPLE00002",
+          "placement_title": "Choosing narration for an explainer",
+          "creative_context": "audiobook",
+          "creative_version": "audiobook-a-8eb7e8cb3543cfff",
+          "asset_digest": "a4d01b741f0f616c179b701a6c7bd072e1246782e0413f6ad793ae284251e594",
+          "asset_path": "examples/youtube-ad-samples/audiobook-a.mp4",
+          "creative_text": "Make the first line\nworth following. One line can pull a reader into a story. Or leave them outside it. Hear the same passage read two ways, then choose the narrator you want to follow.",
+          "cost_per_batch_pence": 50,
+          "source": "authored_synthetic",
+          "id": "cell_01ffdba0c69354b8e776088e33a9bcd3a5d2569d49cb0425fbde1ae6a29e9dac"
+        },
+        {
+          "organization": "benchmark",
+          "profile_id": "voice-comparison-demo-v1",
+          "context_id": "audiobook",
+          "placement_id": "SAMPLE00003",
+          "placement_title": "Pacing an audiobook scene",
+          "creative_context": "video-editing",
+          "creative_version": "editing-a-5fdfb315c76638b9",
+          "asset_digest": "3461901f80ac27bac32dd81f3c4c789aaf6142fbb7ea869a051954f64a97690c",
+          "asset_path": "examples/youtube-ad-samples/editing-a.mp4",
+          "creative_text": "The cut is ready.\nIs the voice? Your cut is finished. The voice still feels wrong. Hear one scene with two different reads, then choose the delivery that fits your edit. Start with the comparison.",
+          "cost_per_batch_pence": 50,
+          "source": "authored_synthetic",
+          "id": "cell_0f8d907dbb6aec8e5991988f9abfddd5fde765e5ec2fa83626c41b52e96b247b"
+        },
+        {
+          "organization": "benchmark",
+          "profile_id": "voice-comparison-demo-v1",
+          "context_id": "audiobook",
+          "placement_id": "SAMPLE00004",
+          "placement_title": "Comparing story readings",
+          "creative_context": "video-editing",
+          "creative_version": "editing-b-c8e2bbedcbbfdd2f",
+          "asset_digest": "39f98e4983620e7800714a6b699fc2c77ba911e1d0135205314576428c1a84e3",
+          "asset_path": "examples/youtube-ad-samples/editing-b.mp4",
+          "creative_text": "Same scene.\nDifferent feeling. A voice can change the whole scene. Same picture. Same words. Two different reads. Play them side by side and hear what changes. Find the voice your story needs.",
+          "cost_per_batch_pence": 100,
+          "source": "authored_synthetic",
+          "id": "cell_113e75fbe32cb9c0cf4020f96e632ccaf74f37284ffa5a1b2ec12bb6fb0986dd"
+        },
+        {
+          "organization": "benchmark",
+          "profile_id": "voice-comparison-demo-v1",
+          "context_id": "audiobook",
+          "placement_id": "SAMPLE00003",
+          "placement_title": "Pacing an audiobook scene",
+          "creative_context": "audiobook",
+          "creative_version": "audiobook-a-8eb7e8cb3543cfff",
+          "asset_digest": "a4d01b741f0f616c179b701a6c7bd072e1246782e0413f6ad793ae284251e594",
+          "asset_path": "examples/youtube-ad-samples/audiobook-a.mp4",
+          "creative_text": "Make the first line\nworth following. One line can pull a reader into a story. Or leave them outside it. Hear the same passage read two ways, then choose the narrator you want to follow.",
+          "cost_per_batch_pence": 50,
+          "source": "authored_synthetic",
+          "id": "cell_118a8ca08acda9607daf2d97b1f42eabc8dfa151d923216066560c5296142473"
+        },
+        {
+          "organization": "benchmark",
+          "profile_id": "voice-comparison-demo-v1",
+          "context_id": "audiobook",
+          "placement_id": "SAMPLE00004",
+          "placement_title": "Comparing story readings",
+          "creative_context": "audiobook",
+          "creative_version": "audiobook-b-87c25dd708798105",
+          "asset_digest": "5edfdf3dc21b4f0736dfd1a5a69b130f620298983703a2da735bc37799d59eac",
+          "asset_path": "examples/youtube-ad-samples/audiobook-b.mp4",
+          "creative_text": "A whole story\nstarts with one voice. Before you choose a voice for a whole book, listen to one moment. Compare two readings of an original scene. Which one makes you want the next chapter? Listen, then decide.",
+          "cost_per_batch_pence": 100,
+          "source": "authored_synthetic",
+          "id": "cell_2f0c4b666319c2d9de2b25bafd05d05adf5d5da784e723f68b6b3a90dfcd1dc9"
+        },
+        {
+          "organization": "benchmark",
+          "profile_id": "voice-comparison-demo-v1",
+          "context_id": "video-editing",
+          "placement_id": "SAMPLE00002",
+          "placement_title": "Choosing narration for an explainer",
+          "creative_context": "audiobook",
+          "creative_version": "audiobook-b-87c25dd708798105",
+          "asset_digest": "5edfdf3dc21b4f0736dfd1a5a69b130f620298983703a2da735bc37799d59eac",
+          "asset_path": "examples/youtube-ad-samples/audiobook-b.mp4",
+          "creative_text": "A whole story\nstarts with one voice. Before you choose a voice for a whole book, listen to one moment. Compare two readings of an original scene. Which one makes you want the next chapter? Listen, then decide.",
+          "cost_per_batch_pence": 100,
+          "source": "authored_synthetic",
+          "id": "cell_4ce2cdc679f565c4e7fddd504e6e1e599eb949116395b90390ff5ac880c88211"
+        },
+        {
+          "organization": "benchmark",
+          "profile_id": "voice-comparison-demo-v1",
+          "context_id": "audiobook",
+          "placement_id": "SAMPLE00003",
+          "placement_title": "Pacing an audiobook scene",
+          "creative_context": "video-editing",
+          "creative_version": "editing-b-c8e2bbedcbbfdd2f",
+          "asset_digest": "39f98e4983620e7800714a6b699fc2c77ba911e1d0135205314576428c1a84e3",
+          "asset_path": "examples/youtube-ad-samples/editing-b.mp4",
+          "creative_text": "Same scene.\nDifferent feeling. A voice can change the whole scene. Same picture. Same words. Two different reads. Play them side by side and hear what changes. Find the voice your story needs.",
+          "cost_per_batch_pence": 100,
+          "source": "authored_synthetic",
+          "id": "cell_7b5c33b70d5d8fe7e86c430d1f6ed0814ac7cc824ffb350660ebc13e8612da9d"
+        },
+        {
+          "organization": "benchmark",
+          "profile_id": "voice-comparison-demo-v1",
+          "context_id": "video-editing",
+          "placement_id": "SAMPLE00002",
+          "placement_title": "Choosing narration for an explainer",
+          "creative_context": "video-editing",
+          "creative_version": "editing-a-5fdfb315c76638b9",
+          "asset_digest": "3461901f80ac27bac32dd81f3c4c789aaf6142fbb7ea869a051954f64a97690c",
+          "asset_path": "examples/youtube-ad-samples/editing-a.mp4",
+          "creative_text": "The cut is ready.\nIs the voice? Your cut is finished. The voice still feels wrong. Hear one scene with two different reads, then choose the delivery that fits your edit. Start with the comparison.",
+          "cost_per_batch_pence": 50,
+          "source": "authored_synthetic",
+          "id": "cell_80cbd1823c02846715067439584e3a9c4919c46a8eab1ca79c7c543c35077000"
+        },
+        {
+          "organization": "benchmark",
+          "profile_id": "voice-comparison-demo-v1",
+          "context_id": "video-editing",
+          "placement_id": "SAMPLE00001",
+          "placement_title": "Editing a tutorial voiceover",
+          "creative_context": "video-editing",
+          "creative_version": "editing-b-c8e2bbedcbbfdd2f",
+          "asset_digest": "39f98e4983620e7800714a6b699fc2c77ba911e1d0135205314576428c1a84e3",
+          "asset_path": "examples/youtube-ad-samples/editing-b.mp4",
+          "creative_text": "Same scene.\nDifferent feeling. A voice can change the whole scene. Same picture. Same words. Two different reads. Play them side by side and hear what changes. Find the voice your story needs.",
+          "cost_per_batch_pence": 100,
+          "source": "authored_synthetic",
+          "id": "cell_8fbdc17f1981c3568e850966f7ce8510d1eb08ea126e68a27a0fb22fa5ceefcf"
+        },
+        {
+          "organization": "benchmark",
+          "profile_id": "voice-comparison-demo-v1",
+          "context_id": "audiobook",
+          "placement_id": "SAMPLE00003",
+          "placement_title": "Pacing an audiobook scene",
+          "creative_context": "audiobook",
+          "creative_version": "audiobook-b-87c25dd708798105",
+          "asset_digest": "5edfdf3dc21b4f0736dfd1a5a69b130f620298983703a2da735bc37799d59eac",
+          "asset_path": "examples/youtube-ad-samples/audiobook-b.mp4",
+          "creative_text": "A whole story\nstarts with one voice. Before you choose a voice for a whole book, listen to one moment. Compare two readings of an original scene. Which one makes you want the next chapter? Listen, then decide.",
+          "cost_per_batch_pence": 100,
+          "source": "authored_synthetic",
+          "id": "cell_aad48f5a456b880219a5776f1c9bb660f9ad43eb33df6b67d8bab95ad63cb3f1"
+        },
+        {
+          "organization": "benchmark",
+          "profile_id": "voice-comparison-demo-v1",
+          "context_id": "audiobook",
+          "placement_id": "SAMPLE00004",
+          "placement_title": "Comparing story readings",
+          "creative_context": "audiobook",
+          "creative_version": "audiobook-a-8eb7e8cb3543cfff",
+          "asset_digest": "a4d01b741f0f616c179b701a6c7bd072e1246782e0413f6ad793ae284251e594",
+          "asset_path": "examples/youtube-ad-samples/audiobook-a.mp4",
+          "creative_text": "Make the first line\nworth following. One line can pull a reader into a story. Or leave them outside it. Hear the same passage read two ways, then choose the narrator you want to follow.",
+          "cost_per_batch_pence": 50,
+          "source": "authored_synthetic",
+          "id": "cell_b6a26efa9341ec9afa461793b3fd44484553d439f934626b5978f9d524c5ce68"
+        },
+        {
+          "organization": "benchmark",
+          "profile_id": "voice-comparison-demo-v1",
+          "context_id": "video-editing",
+          "placement_id": "SAMPLE00001",
+          "placement_title": "Editing a tutorial voiceover",
+          "creative_context": "audiobook",
+          "creative_version": "audiobook-b-87c25dd708798105",
+          "asset_digest": "5edfdf3dc21b4f0736dfd1a5a69b130f620298983703a2da735bc37799d59eac",
+          "asset_path": "examples/youtube-ad-samples/audiobook-b.mp4",
+          "creative_text": "A whole story\nstarts with one voice. Before you choose a voice for a whole book, listen to one moment. Compare two readings of an original scene. Which one makes you want the next chapter? Listen, then decide.",
+          "cost_per_batch_pence": 100,
+          "source": "authored_synthetic",
+          "id": "cell_bffe71471a6b5ce52f9727e36e7f27476b62a36388ce815e67a1dced6fb4c6f2"
+        },
+        {
+          "organization": "benchmark",
+          "profile_id": "voice-comparison-demo-v1",
+          "context_id": "video-editing",
+          "placement_id": "SAMPLE00002",
+          "placement_title": "Choosing narration for an explainer",
+          "creative_context": "video-editing",
+          "creative_version": "editing-b-c8e2bbedcbbfdd2f",
+          "asset_digest": "39f98e4983620e7800714a6b699fc2c77ba911e1d0135205314576428c1a84e3",
+          "asset_path": "examples/youtube-ad-samples/editing-b.mp4",
+          "creative_text": "Same scene.\nDifferent feeling. A voice can change the whole scene. Same picture. Same words. Two different reads. Play them side by side and hear what changes. Find the voice your story needs.",
+          "cost_per_batch_pence": 100,
+          "source": "authored_synthetic",
+          "id": "cell_ec372a4c9210f740a1b8ea8579f77050c43bcde2efdff3b643467d85868c5a2a"
+        },
+        {
+          "organization": "benchmark",
+          "profile_id": "voice-comparison-demo-v1",
+          "context_id": "video-editing",
+          "placement_id": "SAMPLE00001",
+          "placement_title": "Editing a tutorial voiceover",
+          "creative_context": "video-editing",
+          "creative_version": "editing-a-5fdfb315c76638b9",
+          "asset_digest": "3461901f80ac27bac32dd81f3c4c789aaf6142fbb7ea869a051954f64a97690c",
+          "asset_path": "examples/youtube-ad-samples/editing-a.mp4",
+          "creative_text": "The cut is ready.\nIs the voice? Your cut is finished. The voice still feels wrong. Hear one scene with two different reads, then choose the delivery that fits your edit. Start with the comparison.",
+          "cost_per_batch_pence": 50,
+          "source": "authored_synthetic",
+          "id": "cell_f5661a0558a581f284ef38597c42f60b5577ecab05ca1f7cd3cb543cfbe3c4a8"
+        },
+        {
+          "organization": "benchmark",
+          "profile_id": "voice-comparison-demo-v1",
+          "context_id": "audiobook",
+          "placement_id": "SAMPLE00004",
+          "placement_title": "Comparing story readings",
+          "creative_context": "video-editing",
+          "creative_version": "editing-a-5fdfb315c76638b9",
+          "asset_digest": "3461901f80ac27bac32dd81f3c4c789aaf6142fbb7ea869a051954f64a97690c",
+          "asset_path": "examples/youtube-ad-samples/editing-a.mp4",
+          "creative_text": "The cut is ready.\nIs the voice? Your cut is finished. The voice still feels wrong. Hear one scene with two different reads, then choose the delivery that fits your edit. Start with the comparison.",
+          "cost_per_batch_pence": 50,
+          "source": "authored_synthetic",
+          "id": "cell_fe75696795bf2edecbdf87ae978a5a4f341d565166f031934a9e25d91ee94ac1"
+        },
+        {
+          "organization": "benchmark",
+          "profile_id": "voice-comparison-demo-v1",
+          "context_id": "video-editing",
+          "placement_id": "SAMPLE00001",
+          "placement_title": "Editing a tutorial voiceover",
+          "creative_context": "audiobook",
+          "creative_version": "audiobook-a-8eb7e8cb3543cfff",
+          "asset_digest": "a4d01b741f0f616c179b701a6c7bd072e1246782e0413f6ad793ae284251e594",
+          "asset_path": "examples/youtube-ad-samples/audiobook-a.mp4",
+          "creative_text": "Make the first line\nworth following. One line can pull a reader into a story. Or leave them outside it. Hear the same passage read two ways, then choose the narrator you want to follow.",
+          "cost_per_batch_pence": 50,
+          "source": "authored_synthetic",
+          "id": "cell_ff6d324479b55aaf9583b065f859a282b38cc87931d1542bc97b65b163a61b69"
+        }
+      ],
+      "id": "input_a997ef7735b046c33cf220c2d50265073892aa38a5658ae398a601f5ec8c7764"
+    },
+    "ranking": {
+      "schema": "youtube-contextual-ranking/v1",
+      "input_id": "input_a997ef7735b046c33cf220c2d50265073892aa38a5658ae398a601f5ec8c7764",
+      "ranker": "contextual-rules/v1",
+      "model": "none",
+      "prompt_version": "none",
+      "provenance": "deterministic_rules",
+      "scores": [
+        {
+          "cell_id": "cell_01ffdba0c69354b8e776088e33a9bcd3a5d2569d49cb0425fbde1ae6a29e9dac",
+          "fit": 0,
+          "reason": "Context match and lexical overlap; not a response probability."
+        },
+        {
+          "cell_id": "cell_0f8d907dbb6aec8e5991988f9abfddd5fde765e5ec2fa83626c41b52e96b247b",
+          "fit": 0,
+          "reason": "Context match and lexical overlap; not a response probability."
+        },
+        {
+          "cell_id": "cell_113e75fbe32cb9c0cf4020f96e632ccaf74f37284ffa5a1b2ec12bb6fb0986dd",
+          "fit": 0,
+          "reason": "Context match and lexical overlap; not a response probability."
+        },
+        {
+          "cell_id": "cell_118a8ca08acda9607daf2d97b1f42eabc8dfa151d923216066560c5296142473",
+          "fit": 65,
+          "reason": "Context match and lexical overlap; not a response probability."
+        },
+        {
+          "cell_id": "cell_2f0c4b666319c2d9de2b25bafd05d05adf5d5da784e723f68b6b3a90dfcd1dc9",
+          "fit": 65,
+          "reason": "Context match and lexical overlap; not a response probability."
+        },
+        {
+          "cell_id": "cell_4ce2cdc679f565c4e7fddd504e6e1e599eb949116395b90390ff5ac880c88211",
+          "fit": 0,
+          "reason": "Context match and lexical overlap; not a response probability."
+        },
+        {
+          "cell_id": "cell_7b5c33b70d5d8fe7e86c430d1f6ed0814ac7cc824ffb350660ebc13e8612da9d",
+          "fit": 0,
+          "reason": "Context match and lexical overlap; not a response probability."
+        },
+        {
+          "cell_id": "cell_80cbd1823c02846715067439584e3a9c4919c46a8eab1ca79c7c543c35077000",
+          "fit": 65,
+          "reason": "Context match and lexical overlap; not a response probability."
+        },
+        {
+          "cell_id": "cell_8fbdc17f1981c3568e850966f7ce8510d1eb08ea126e68a27a0fb22fa5ceefcf",
+          "fit": 70,
+          "reason": "Context match and lexical overlap; not a response probability."
+        },
+        {
+          "cell_id": "cell_aad48f5a456b880219a5776f1c9bb660f9ad43eb33df6b67d8bab95ad63cb3f1",
+          "fit": 70,
+          "reason": "Context match and lexical overlap; not a response probability."
+        },
+        {
+          "cell_id": "cell_b6a26efa9341ec9afa461793b3fd44484553d439f934626b5978f9d524c5ce68",
+          "fit": 60,
+          "reason": "Context match and lexical overlap; not a response probability."
+        },
+        {
+          "cell_id": "cell_bffe71471a6b5ce52f9727e36e7f27476b62a36388ce815e67a1dced6fb4c6f2",
+          "fit": 0,
+          "reason": "Context match and lexical overlap; not a response probability."
+        },
+        {
+          "cell_id": "cell_ec372a4c9210f740a1b8ea8579f77050c43bcde2efdff3b643467d85868c5a2a",
+          "fit": 70,
+          "reason": "Context match and lexical overlap; not a response probability."
+        },
+        {
+          "cell_id": "cell_f5661a0558a581f284ef38597c42f60b5577ecab05ca1f7cd3cb543cfbe3c4a8",
+          "fit": 65,
+          "reason": "Context match and lexical overlap; not a response probability."
+        },
+        {
+          "cell_id": "cell_fe75696795bf2edecbdf87ae978a5a4f341d565166f031934a9e25d91ee94ac1",
+          "fit": 0,
+          "reason": "Context match and lexical overlap; not a response probability."
+        },
+        {
+          "cell_id": "cell_ff6d324479b55aaf9583b065f859a282b38cc87931d1542bc97b65b163a61b69",
+          "fit": 0,
+          "reason": "Context match and lexical overlap; not a response probability."
+        }
+      ]
+    },
+    "policy_version": "contextual-rules/v1",
+    "reward_version": "qualified-demo-activation/v1",
+    "day": 0,
+    "seed": 42,
+    "status": "reviewable",
+    "blocker": null,
+    "stop_reason": "insufficient_evidence_exploration_exhausted",
+    "approval": "not_granted",
+    "authority": "none",
+    "mode": "offline_authored",
+    "evidence_class": "authored_synthetic_only",
+    "real_participant_support": 0,
+    "live_blockers": [
+      "account_targeting_and_report_join_unverified",
+      "grounded_reviewed_brief_binding_not_installed",
+      "reference_ads_not_approved_for_generation_destination",
+      "qualified_generation_and_assignment_not_installed",
+      "hosted_scope_and_publication_not_verified"
+    ],
+    "allocations": [
+      {
+        "input_id": "input_a997ef7735b046c33cf220c2d50265073892aa38a5658ae398a601f5ec8c7764",
+        "cell_id": "cell_118a8ca08acda9607daf2d97b1f42eabc8dfa151d923216066560c5296142473",
+        "day": 0,
+        "reward_version": "qualified-demo-activation/v1",
+        "policy_version": "contextual-rules/v1",
+        "ranking_sha256": "af5591bf30c07f80d3daa8af387cd4630a2364b356ded759b287c7f5e6c88cb8",
+        "decision_seed": 42,
+        "cost_pence": 50,
+        "impressions": 100,
+        "exploration": true,
+        "selection_probability": 0.125,
+        "id": "allocation_9161bee8e3c4481564452efeb6fa2f290c1bbdc293c06d8bbdf47a68da16cd7d"
+      },
+      {
+        "input_id": "input_a997ef7735b046c33cf220c2d50265073892aa38a5658ae398a601f5ec8c7764",
+        "cell_id": "cell_8fbdc17f1981c3568e850966f7ce8510d1eb08ea126e68a27a0fb22fa5ceefcf",
+        "day": 0,
+        "reward_version": "qualified-demo-activation/v1",
+        "policy_version": "contextual-rules/v1",
+        "ranking_sha256": "af5591bf30c07f80d3daa8af387cd4630a2364b356ded759b287c7f5e6c88cb8",
+        "decision_seed": 42,
+        "cost_pence": 100,
+        "impressions": 100,
+        "exploration": true,
+        "selection_probability": 0.125,
+        "id": "allocation_6cc8106e124501287feea888243310d7d902f7d65d95eb21a0368c5fc1bc5f20"
+      },
+      {
+        "input_id": "input_a997ef7735b046c33cf220c2d50265073892aa38a5658ae398a601f5ec8c7764",
+        "cell_id": "cell_2f0c4b666319c2d9de2b25bafd05d05adf5d5da784e723f68b6b3a90dfcd1dc9",
+        "day": 0,
+        "reward_version": "qualified-demo-activation/v1",
+        "policy_version": "contextual-rules/v1",
+        "ranking_sha256": "af5591bf30c07f80d3daa8af387cd4630a2364b356ded759b287c7f5e6c88cb8",
+        "decision_seed": 42,
+        "cost_pence": 100,
+        "impressions": 100,
+        "exploration": true,
+        "selection_probability": 0.125,
+        "id": "allocation_061cee6e69e9bb9d84206f80d602ca7b5cc04d5888dace45346407a80a65e540"
+      },
+      {
+        "input_id": "input_a997ef7735b046c33cf220c2d50265073892aa38a5658ae398a601f5ec8c7764",
+        "cell_id": "cell_2f0c4b666319c2d9de2b25bafd05d05adf5d5da784e723f68b6b3a90dfcd1dc9",
+        "day": 0,
+        "reward_version": "qualified-demo-activation/v1",
+        "policy_version": "contextual-rules/v1",
+        "ranking_sha256": "af5591bf30c07f80d3daa8af387cd4630a2364b356ded759b287c7f5e6c88cb8",
+        "decision_seed": 42,
+        "cost_pence": 100,
+        "impressions": 100,
+        "exploration": true,
+        "selection_probability": 0.125,
+        "id": "allocation_8a628573193b2df2d0d6af5ace6e1c2fac71a1465aae1e903c7a6b87dc735505"
+      },
+      {
+        "input_id": "input_a997ef7735b046c33cf220c2d50265073892aa38a5658ae398a601f5ec8c7764",
+        "cell_id": "cell_118a8ca08acda9607daf2d97b1f42eabc8dfa151d923216066560c5296142473",
+        "day": 0,
+        "reward_version": "qualified-demo-activation/v1",
+        "policy_version": "contextual-rules/v1",
+        "ranking_sha256": "af5591bf30c07f80d3daa8af387cd4630a2364b356ded759b287c7f5e6c88cb8",
+        "decision_seed": 42,
+        "cost_pence": 50,
+        "impressions": 100,
+        "exploration": true,
+        "selection_probability": 0.125,
+        "id": "allocation_5635df3be5a0b038a109f9eaeea8f8714106071a21d0d08b190ab34fc7776e84"
+      },
+      {
+        "input_id": "input_a997ef7735b046c33cf220c2d50265073892aa38a5658ae398a601f5ec8c7764",
+        "cell_id": "cell_8fbdc17f1981c3568e850966f7ce8510d1eb08ea126e68a27a0fb22fa5ceefcf",
+        "day": 0,
+        "reward_version": "qualified-demo-activation/v1",
+        "policy_version": "contextual-rules/v1",
+        "ranking_sha256": "af5591bf30c07f80d3daa8af387cd4630a2364b356ded759b287c7f5e6c88cb8",
+        "decision_seed": 42,
+        "cost_pence": 100,
+        "impressions": 100,
+        "exploration": true,
+        "selection_probability": 0.125,
+        "id": "allocation_77b610ccffb0c211342c5bbac087273f1aa7a6ba8689f1448fd52cec212115eb"
+      },
+      {
+        "input_id": "input_a997ef7735b046c33cf220c2d50265073892aa38a5658ae398a601f5ec8c7764",
+        "cell_id": "cell_118a8ca08acda9607daf2d97b1f42eabc8dfa151d923216066560c5296142473",
+        "day": 0,
+        "reward_version": "qualified-demo-activation/v1",
+        "policy_version": "contextual-rules/v1",
+        "ranking_sha256": "af5591bf30c07f80d3daa8af387cd4630a2364b356ded759b287c7f5e6c88cb8",
+        "decision_seed": 42,
+        "cost_pence": 50,
+        "impressions": 100,
+        "exploration": true,
+        "selection_probability": 0.125,
+        "id": "allocation_6f39f94db75e31bfe22d4e11a69eec62f4e5e3ce0882c7ba159d54cc158ff5c3"
+      },
+      {
+        "input_id": "input_a997ef7735b046c33cf220c2d50265073892aa38a5658ae398a601f5ec8c7764",
+        "cell_id": "cell_ec372a4c9210f740a1b8ea8579f77050c43bcde2efdff3b643467d85868c5a2a",
+        "day": 0,
+        "reward_version": "qualified-demo-activation/v1",
+        "policy_version": "contextual-rules/v1",
+        "ranking_sha256": "af5591bf30c07f80d3daa8af387cd4630a2364b356ded759b287c7f5e6c88cb8",
+        "decision_seed": 42,
+        "cost_pence": 100,
+        "impressions": 100,
+        "exploration": true,
+        "selection_probability": 0.125,
+        "id": "allocation_bf666a2747fc9d967417d578c5af9bfa0d05fe694bbeccdfa53530728cd51607"
+      },
+      {
+        "input_id": "input_a997ef7735b046c33cf220c2d50265073892aa38a5658ae398a601f5ec8c7764",
+        "cell_id": "cell_aad48f5a456b880219a5776f1c9bb660f9ad43eb33df6b67d8bab95ad63cb3f1",
+        "day": 0,
+        "reward_version": "qualified-demo-activation/v1",
+        "policy_version": "contextual-rules/v1",
+        "ranking_sha256": "af5591bf30c07f80d3daa8af387cd4630a2364b356ded759b287c7f5e6c88cb8",
+        "decision_seed": 42,
+        "cost_pence": 100,
+        "impressions": 100,
+        "exploration": true,
+        "selection_probability": 0.125,
+        "id": "allocation_dedd68d0f77614c58262f48170a84abba9979b94cdda62de903961367ff32bc6"
+      },
+      {
+        "input_id": "input_a997ef7735b046c33cf220c2d50265073892aa38a5658ae398a601f5ec8c7764",
+        "cell_id": "cell_118a8ca08acda9607daf2d97b1f42eabc8dfa151d923216066560c5296142473",
+        "day": 0,
+        "reward_version": "qualified-demo-activation/v1",
+        "policy_version": "contextual-rules/v1",
+        "ranking_sha256": "af5591bf30c07f80d3daa8af387cd4630a2364b356ded759b287c7f5e6c88cb8",
+        "decision_seed": 42,
+        "cost_pence": 50,
+        "impressions": 100,
+        "exploration": true,
+        "selection_probability": 0.125,
+        "id": "allocation_b9961d6e70f6e085796be41b2504f1fcb7945a6001b8ac4f34a36b15a67d173c"
+      },
+      {
+        "input_id": "input_a997ef7735b046c33cf220c2d50265073892aa38a5658ae398a601f5ec8c7764",
+        "cell_id": "cell_80cbd1823c02846715067439584e3a9c4919c46a8eab1ca79c7c543c35077000",
+        "day": 0,
+        "reward_version": "qualified-demo-activation/v1",
+        "policy_version": "contextual-rules/v1",
+        "ranking_sha256": "af5591bf30c07f80d3daa8af387cd4630a2364b356ded759b287c7f5e6c88cb8",
+        "decision_seed": 42,
+        "cost_pence": 50,
+        "impressions": 100,
+        "exploration": true,
+        "selection_probability": 0.125,
+        "id": "allocation_70cd20720686d39114848f32ddc9641499ed500569f68d125779b912474b43fc"
+      },
+      {
+        "input_id": "input_a997ef7735b046c33cf220c2d50265073892aa38a5658ae398a601f5ec8c7764",
+        "cell_id": "cell_b6a26efa9341ec9afa461793b3fd44484553d439f934626b5978f9d524c5ce68",
+        "day": 0,
+        "reward_version": "qualified-demo-activation/v1",
+        "policy_version": "contextual-rules/v1",
+        "ranking_sha256": "af5591bf30c07f80d3daa8af387cd4630a2364b356ded759b287c7f5e6c88cb8",
+        "decision_seed": 42,
+        "cost_pence": 50,
+        "impressions": 100,
+        "exploration": true,
+        "selection_probability": 0.125,
+        "id": "allocation_3460bebbdc336221bd0e6bc84b2b79a6037072effa2dc7de26bac7bc2152bc80"
+      },
+      {
+        "input_id": "input_a997ef7735b046c33cf220c2d50265073892aa38a5658ae398a601f5ec8c7764",
+        "cell_id": "cell_8fbdc17f1981c3568e850966f7ce8510d1eb08ea126e68a27a0fb22fa5ceefcf",
+        "day": 0,
+        "reward_version": "qualified-demo-activation/v1",
+        "policy_version": "contextual-rules/v1",
+        "ranking_sha256": "af5591bf30c07f80d3daa8af387cd4630a2364b356ded759b287c7f5e6c88cb8",
+        "decision_seed": 42,
+        "cost_pence": 100,
+        "impressions": 100,
+        "exploration": true,
+        "selection_probability": 0.125,
+        "id": "allocation_b16f5f5791e861aefff7cc7e298273c7893470e57bb9146de1eeeb4e992cf6b6"
+      }
+    ],
+    "beliefs": {
+      "cell_01ffdba0c69354b8e776088e33a9bcd3a5d2569d49cb0425fbde1ae6a29e9dac": {
+        "reported_impressions": 0,
+        "reported_arrivals": 0,
+        "alpha": 1,
+        "beta": 1,
+        "support": 0,
+        "cohort_ids": [],
+        "posterior_mean": null,
+        "posterior_sd": null
+      },
+      "cell_0f8d907dbb6aec8e5991988f9abfddd5fde765e5ec2fa83626c41b52e96b247b": {
+        "reported_impressions": 0,
+        "reported_arrivals": 0,
+        "alpha": 1,
+        "beta": 1,
+        "support": 0,
+        "cohort_ids": [],
+        "posterior_mean": null,
+        "posterior_sd": null
+      },
+      "cell_113e75fbe32cb9c0cf4020f96e632ccaf74f37284ffa5a1b2ec12bb6fb0986dd": {
+        "reported_impressions": 0,
+        "reported_arrivals": 0,
+        "alpha": 1,
+        "beta": 1,
+        "support": 0,
+        "cohort_ids": [],
+        "posterior_mean": null,
+        "posterior_sd": null
+      },
+      "cell_118a8ca08acda9607daf2d97b1f42eabc8dfa151d923216066560c5296142473": {
+        "reported_impressions": 0,
+        "reported_arrivals": 0,
+        "alpha": 1,
+        "beta": 1,
+        "support": 0,
+        "cohort_ids": [],
+        "posterior_mean": null,
+        "posterior_sd": null
+      },
+      "cell_2f0c4b666319c2d9de2b25bafd05d05adf5d5da784e723f68b6b3a90dfcd1dc9": {
+        "reported_impressions": 0,
+        "reported_arrivals": 0,
+        "alpha": 1,
+        "beta": 1,
+        "support": 0,
+        "cohort_ids": [],
+        "posterior_mean": null,
+        "posterior_sd": null
+      },
+      "cell_4ce2cdc679f565c4e7fddd504e6e1e599eb949116395b90390ff5ac880c88211": {
+        "reported_impressions": 0,
+        "reported_arrivals": 0,
+        "alpha": 1,
+        "beta": 1,
+        "support": 0,
+        "cohort_ids": [],
+        "posterior_mean": null,
+        "posterior_sd": null
+      },
+      "cell_7b5c33b70d5d8fe7e86c430d1f6ed0814ac7cc824ffb350660ebc13e8612da9d": {
+        "reported_impressions": 0,
+        "reported_arrivals": 0,
+        "alpha": 1,
+        "beta": 1,
+        "support": 0,
+        "cohort_ids": [],
+        "posterior_mean": null,
+        "posterior_sd": null
+      },
+      "cell_80cbd1823c02846715067439584e3a9c4919c46a8eab1ca79c7c543c35077000": {
+        "reported_impressions": 0,
+        "reported_arrivals": 0,
+        "alpha": 1,
+        "beta": 1,
+        "support": 0,
+        "cohort_ids": [],
+        "posterior_mean": null,
+        "posterior_sd": null
+      },
+      "cell_8fbdc17f1981c3568e850966f7ce8510d1eb08ea126e68a27a0fb22fa5ceefcf": {
+        "reported_impressions": 0,
+        "reported_arrivals": 0,
+        "alpha": 1,
+        "beta": 1,
+        "support": 0,
+        "cohort_ids": [],
+        "posterior_mean": null,
+        "posterior_sd": null
+      },
+      "cell_aad48f5a456b880219a5776f1c9bb660f9ad43eb33df6b67d8bab95ad63cb3f1": {
+        "reported_impressions": 0,
+        "reported_arrivals": 0,
+        "alpha": 1,
+        "beta": 1,
+        "support": 0,
+        "cohort_ids": [],
+        "posterior_mean": null,
+        "posterior_sd": null
+      },
+      "cell_b6a26efa9341ec9afa461793b3fd44484553d439f934626b5978f9d524c5ce68": {
+        "reported_impressions": 0,
+        "reported_arrivals": 0,
+        "alpha": 1,
+        "beta": 1,
+        "support": 0,
+        "cohort_ids": [],
+        "posterior_mean": null,
+        "posterior_sd": null
+      },
+      "cell_bffe71471a6b5ce52f9727e36e7f27476b62a36388ce815e67a1dced6fb4c6f2": {
+        "reported_impressions": 0,
+        "reported_arrivals": 0,
+        "alpha": 1,
+        "beta": 1,
+        "support": 0,
+        "cohort_ids": [],
+        "posterior_mean": null,
+        "posterior_sd": null
+      },
+      "cell_ec372a4c9210f740a1b8ea8579f77050c43bcde2efdff3b643467d85868c5a2a": {
+        "reported_impressions": 0,
+        "reported_arrivals": 0,
+        "alpha": 1,
+        "beta": 1,
+        "support": 0,
+        "cohort_ids": [],
+        "posterior_mean": null,
+        "posterior_sd": null
+      },
+      "cell_f5661a0558a581f284ef38597c42f60b5577ecab05ca1f7cd3cb543cfbe3c4a8": {
+        "reported_impressions": 0,
+        "reported_arrivals": 0,
+        "alpha": 1,
+        "beta": 1,
+        "support": 0,
+        "cohort_ids": [],
+        "posterior_mean": null,
+        "posterior_sd": null
+      },
+      "cell_fe75696795bf2edecbdf87ae978a5a4f341d565166f031934a9e25d91ee94ac1": {
+        "reported_impressions": 0,
+        "reported_arrivals": 0,
+        "alpha": 1,
+        "beta": 1,
+        "support": 0,
+        "cohort_ids": [],
+        "posterior_mean": null,
+        "posterior_sd": null
+      },
+      "cell_ff6d324479b55aaf9583b065f859a282b38cc87931d1542bc97b65b163a61b69": {
+        "reported_impressions": 0,
+        "reported_arrivals": 0,
+        "alpha": 1,
+        "beta": 1,
+        "support": 0,
+        "cohort_ids": [],
+        "posterior_mean": null,
+        "posterior_sd": null
+      }
+    },
+    "rejected_candidates": [],
+    "budget": {
+      "currency": "GBP",
+      "total_pence": 1000,
+      "today_pence": 1000,
+      "exploration_pence": 1000,
+      "authority": "simulation_only"
+    },
+    "historical_outcomes": {
+      "S": 0,
+      "F": 0,
+      "U": 0,
+      "N": 0,
+      "reported_N": 0,
+      "counts_scope": "complete_manifest",
+      "all_allocations_reported": true,
+      "point": null,
+      "bounds": null,
+      "comparison_available": false
+    },
+    "outcome_comparison_available": false,
+    "provider_effects": 0,
+    "response_calibration": "unavailable_no_real_outcomes",
+    "offline_replay_ips_dr": "unavailable_no_compatible_real_logs",
+    "id": "recommendation_767ee05b89186702be0c19733ada368b021ae2048ffcf5fa7bc5ed23d629cd1b"
+  },
+  "prototype_status": "Earlier output retained only locally; superseded cell/day completeness and complete-replicate reporting were corrected without tuning priors, epsilon, budgets or truth surfaces.",
+  "gaps": [
+    "genuine LLM semantic ranking/cost/latency unmeasured",
+    "grounded reviewed-context binding not installed in this authored capability",
+    "reference ads still link to prerecorded comparisons, not a generated-sample task",
+    "provider targeting, inventory and compatible exposure/cost reports unverified",
+    "no real response labels, valid real propensities, calibration, causal lift or production promotion"
+  ],
+  "full_ci": "tracked in review PR; full suites were not run locally",
+  "next_handoff": "docs/youtube-contextual-benchmark.md; #133 after review; real model evidence remains under #144"
+}

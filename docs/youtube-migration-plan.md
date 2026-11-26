@@ -18,6 +18,14 @@ the product objective or evidence of ad conversion.
 
 ## Evidence baseline
 
+26 November implementation checkpoint: merged #146 freezes #143's offline
+contract. #144 now has a [native recommendation/benchmark slice](youtube-contextual-benchmark.md):
+scoped read-only proposals, exact bundled ads, complete cell/day evidence and
+576 authored simulation trials. Retain the rules comparison baseline; the
+Bayesian candidate is not promoted on these results. Genuine model ranking
+quality remains unmeasured. Accept the explicit measurement handoff before
+#133; hosted/live readiness and source retirement keep their existing gates.
+
 26 November checkpoint: #143 records
 [offline-only feasibility](youtube-targeting-verification.md) and a
 [qualified product-demo action contract](youtube-data-reward-contract.md).

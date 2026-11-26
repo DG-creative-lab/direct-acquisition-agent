@@ -1,0 +1,361 @@
+{
+  "schema": "youtube-contextual-review-evidence/v2",
+  "recorded_date": "2026-11-26",
+  "review_base": "c71cc09d3adcd69674dcd6f355d0833e276330ce",
+  "supersedes_for_current_use": "docs/evaluations/issue-144-offline-benchmark-2026-11-26.json",
+  "historical_v1_artifacts": "retained unchanged; not current sampling or estimation evidence",
+  "contract_sha256": "c7f4129dd6d50e5de4a2c41db4ab0cddf34f31bb6e1829711019ad462df59949",
+  "corpus_path": "config/youtube-contextual-benchmark-v2.json",
+  "corpus_sha256": "5ae6c3c963a9d21a48215ae35d8c7d3bb31739e4bb71c15a0f2a0d52be3737b4",
+  "source": {
+    "head_commit": "c71cc09d3adcd69674dcd6f355d0833e276330ce",
+    "files_sha256": "b359604ea657f028b2c40742716b9b7da919ffee3d36fd7a052d791910bd83fb",
+    "worktree_dirty": true,
+    "source_overlay": {
+      "config/youtube-contextual-benchmark-v2.json": {
+        "sha256": "54b594158594186469f0984ca6ed9538d2338196f26c6fda5d8f9f530d2c4f41"
+      },
+      "scripts/evaluate_youtube_contextual.py": {
+        "sha256": "4e654ffbf9920fe4c39667fc40c07bc257e11f0059b6f65793353366ddd430cf"
+      },
+      "src/acquisition/youtube/decisioning.py": {
+        "sha256": "ba472fc016a3f4b9cc6dac33f3e1cdd63f2cb0aae12a96f07876830c8991d52d"
+      },
+      "src/acquisition/youtube/recommendations.py": {
+        "sha256": "8050b3af9a66046f8c04f7a457b467c7f200356067f955f5a33d52583f607459"
+      },
+      "tests/test_youtube_contextual.py": {
+        "sha256": "883fd75113c1544f6c1f6d639b24e20e107e7b7f1ab55316b5ab2eeb327a4aa5"
+      }
+    }
+  },
+  "regressions_reproduced_before_fix": [
+    "Incomplete newer cell/day raised usable traffic from 2/100 to 102/200 while response posterior retained old support.",
+    "An incomplete exposure group unlocked exploitation after the exploration budget was spent.",
+    "Resumed same-day prefixes of lengths 1,4,7 repeated exploration instead of uninterrupted choices/probabilities."
+  ],
+  "corrections": {
+    "traffic": "Only complete closed cell/day exposure + manifest groups enter traffic_impressions/traffic_arrivals; partial_reported_* is reporting only.",
+    "sampling": "Per-allocation prefix-keyed namespace; canonical content fingerprints of all issued receipts and supported beliefs; partial counts excluded; IDs invariant across call partitions.",
+    "compatibility": "Allocation policies/recommendation schema v2; v1 histories rejected, semantic ranker/reward contracts unchanged.",
+    "unchanged": "Economic contract, truth surfaces, seeds, task labels, priors and epsilon verified identical to v1."
+  },
+  "focused_verification": {
+    "tests": 62,
+    "result": "passed",
+    "command": "PYTHONPATH=src:tests python3 -m unittest test_youtube_contextual test_youtube_decision_contract test_youtube_flow -v",
+    "includes": [
+      "missing exposure/manifest peers",
+      "open cell/day",
+      "zero-arrival complete group",
+      "independent qualified-response vs traffic completeness",
+      "no exploitation from partial traffic",
+      "partial counts do not affect draws",
+      "conditional epsilon mass on successive calls",
+      "split-call continuation equals uninterrupted choices and IDs",
+      "canonical reorder/duplicate replay",
+      "explicit v1 rejection",
+      "changed receipt body with reused authored ID changes draw namespace"
+    ]
+  },
+  "boundary": {
+    "passed": true,
+    "cases": [
+      {
+        "id": "compatibility-model-journey",
+        "exit_code": 0,
+        "network_attempts": 0
+      },
+      {
+        "id": "verified-commit-rebuild-replay",
+        "exit_code": 0,
+        "network_attempts": 0
+      },
+      {
+        "id": "uncertain-restart",
+        "exit_code": 0,
+        "network_attempts": 0
+      },
+      {
+        "id": "profile-replay",
+        "exit_code": 0,
+        "network_attempts": 0
+      },
+      {
+        "id": "engagement-replay",
+        "exit_code": 0,
+        "network_attempts": 0
+      }
+    ],
+    "architecture": {
+      "classified_modules": 238,
+      "errors": [],
+      "temporary_exceptions": 0
+    },
+    "historical_count": 42,
+    "historical_bytes_unchanged": true,
+    "source_stable": true,
+    "source_files_sha256": "3a6d7c0e868bfc57e9bd6c2534217608060df6f7314c9529f59938a68d0fa68b",
+    "local_report_sha256": "8fa996ad66eac77f2de2da46bd6a440a9a99faf440c9b97bdd62bc0f8536b67d"
+  },
+  "benchmark": {
+    "passed": true,
+    "network_attempts": 0,
+    "source_stable": true,
+    "imported_source_matches": true,
+    "summary": [
+      {
+        "scenario": "drift",
+        "policy": "contextual-bayes-epsilon/v2",
+        "trials": 32,
+        "mean_expected_utility_pence": 20562.5,
+        "mean_expected_regret_pence": 17437.5,
+        "mean_activation_rate": 0.1688989009282484,
+        "complete_rate_trials": 32,
+        "constraint_violations": 0,
+        "mean_spend_pence": 10000.0,
+        "mean_blocked_days": 1.0,
+        "mean_latency_seconds": 0.030255393408879172
+      },
+      {
+        "scenario": "drift",
+        "policy": "contextual-recorded/v2",
+        "trials": 32,
+        "mean_expected_utility_pence": 20317.1875,
+        "mean_expected_regret_pence": 17682.8125,
+        "mean_activation_rate": 0.1665638253560688,
+        "complete_rate_trials": 32,
+        "constraint_violations": 0,
+        "mean_spend_pence": 10000.0,
+        "mean_blocked_days": 1.0,
+        "mean_latency_seconds": 0.03208521353008109
+      },
+      {
+        "scenario": "drift",
+        "policy": "contextual-rules/v2",
+        "trials": 32,
+        "mean_expected_utility_pence": 9407.8125,
+        "mean_expected_regret_pence": 28592.1875,
+        "mean_activation_rate": 0.1820921745694953,
+        "complete_rate_trials": 32,
+        "constraint_violations": 0,
+        "mean_spend_pence": 10000.0,
+        "mean_blocked_days": 1.0,
+        "mean_latency_seconds": 0.01592075256485259
+      },
+      {
+        "scenario": "missing-cost",
+        "policy": "contextual-bayes-epsilon/v2",
+        "trials": 32,
+        "mean_expected_utility_pence": 0.0,
+        "mean_expected_regret_pence": 20000.0,
+        "mean_activation_rate": null,
+        "complete_rate_trials": 0,
+        "constraint_violations": 0,
+        "mean_spend_pence": 0.0,
+        "mean_blocked_days": 7.0,
+        "mean_latency_seconds": 0.001366116077406332
+      },
+      {
+        "scenario": "missing-cost",
+        "policy": "contextual-recorded/v2",
+        "trials": 32,
+        "mean_expected_utility_pence": 0.0,
+        "mean_expected_regret_pence": 20000.0,
+        "mean_activation_rate": null,
+        "complete_rate_trials": 0,
+        "constraint_violations": 0,
+        "mean_spend_pence": 0.0,
+        "mean_blocked_days": 7.0,
+        "mean_latency_seconds": 0.0011379819516150746
+      },
+      {
+        "scenario": "missing-cost",
+        "policy": "contextual-rules/v2",
+        "trials": 32,
+        "mean_expected_utility_pence": 0.0,
+        "mean_expected_regret_pence": 20000.0,
+        "mean_activation_rate": null,
+        "complete_rate_trials": 0,
+        "constraint_violations": 0,
+        "mean_spend_pence": 0.0,
+        "mean_blocked_days": 7.0,
+        "mean_latency_seconds": 0.0012070366283296607
+      },
+      {
+        "scenario": "negative-utility",
+        "policy": "contextual-bayes-epsilon/v2",
+        "trials": 32,
+        "mean_expected_utility_pence": -2046.5625,
+        "mean_expected_regret_pence": 2046.5625,
+        "mean_activation_rate": null,
+        "complete_rate_trials": 20,
+        "constraint_violations": 0,
+        "mean_spend_pence": 2062.5,
+        "mean_blocked_days": 5.46875,
+        "mean_latency_seconds": 0.0061585676376125775
+      },
+      {
+        "scenario": "negative-utility",
+        "policy": "contextual-recorded/v2",
+        "trials": 32,
+        "mean_expected_utility_pence": -7412.765625,
+        "mean_expected_regret_pence": 7412.765625,
+        "mean_activation_rate": null,
+        "complete_rate_trials": 23,
+        "constraint_violations": 0,
+        "mean_spend_pence": 7468.75,
+        "mean_blocked_days": 2.40625,
+        "mean_latency_seconds": 0.01813535109977238
+      },
+      {
+        "scenario": "negative-utility",
+        "policy": "contextual-rules/v2",
+        "trials": 32,
+        "mean_expected_utility_pence": -7135.765625,
+        "mean_expected_regret_pence": 7135.765625,
+        "mean_activation_rate": null,
+        "complete_rate_trials": 22,
+        "constraint_violations": 0,
+        "mean_spend_pence": 7187.5,
+        "mean_blocked_days": 2.5625,
+        "mean_latency_seconds": 0.015980917996785138
+      },
+      {
+        "scenario": "sparse-delayed",
+        "policy": "contextual-bayes-epsilon/v2",
+        "trials": 32,
+        "mean_expected_utility_pence": -3968.75,
+        "mean_expected_regret_pence": 3968.75,
+        "mean_activation_rate": null,
+        "complete_rate_trials": 0,
+        "constraint_violations": 0,
+        "mean_spend_pence": 8875.0,
+        "mean_blocked_days": 2.0625,
+        "mean_latency_seconds": 0.01746436433677445
+      },
+      {
+        "scenario": "sparse-delayed",
+        "policy": "contextual-recorded/v2",
+        "trials": 32,
+        "mean_expected_utility_pence": -4123.59375,
+        "mean_expected_regret_pence": 4123.59375,
+        "mean_activation_rate": null,
+        "complete_rate_trials": 0,
+        "constraint_violations": 0,
+        "mean_spend_pence": 9000.0,
+        "mean_blocked_days": 2.0,
+        "mean_latency_seconds": 0.01862188653103658
+      },
+      {
+        "scenario": "sparse-delayed",
+        "policy": "contextual-rules/v2",
+        "trials": 32,
+        "mean_expected_utility_pence": -2546.40625,
+        "mean_expected_regret_pence": 2546.40625,
+        "mean_activation_rate": null,
+        "complete_rate_trials": 0,
+        "constraint_violations": 0,
+        "mean_spend_pence": 9000.0,
+        "mean_blocked_days": 2.0,
+        "mean_latency_seconds": 0.01223086724348832
+      },
+      {
+        "scenario": "stationary",
+        "policy": "contextual-bayes-epsilon/v2",
+        "trials": 32,
+        "mean_expected_utility_pence": 14225.0,
+        "mean_expected_regret_pence": 5775.0,
+        "mean_activation_rate": 0.18079573039395164,
+        "complete_rate_trials": 32,
+        "constraint_violations": 0,
+        "mean_spend_pence": 10000.0,
+        "mean_blocked_days": 1.0,
+        "mean_latency_seconds": 0.02262923190573929
+      },
+      {
+        "scenario": "stationary",
+        "policy": "contextual-recorded/v2",
+        "trials": 32,
+        "mean_expected_utility_pence": 9268.125,
+        "mean_expected_regret_pence": 10731.875,
+        "mean_activation_rate": 0.12157237319254391,
+        "complete_rate_trials": 32,
+        "constraint_violations": 0,
+        "mean_spend_pence": 10000.0,
+        "mean_blocked_days": 1.0,
+        "mean_latency_seconds": 0.02876581905729836
+      },
+      {
+        "scenario": "stationary",
+        "policy": "contextual-rules/v2",
+        "trials": 32,
+        "mean_expected_utility_pence": 19514.375,
+        "mean_expected_regret_pence": 485.625,
+        "mean_activation_rate": 0.2809174912558484,
+        "complete_rate_trials": 32,
+        "constraint_violations": 0,
+        "mean_spend_pence": 10000.0,
+        "mean_blocked_days": 1.0,
+        "mean_latency_seconds": 0.015761661688884487
+      },
+      {
+        "scenario": "tracking-gaps",
+        "policy": "contextual-bayes-epsilon/v2",
+        "trials": 32,
+        "mean_expected_utility_pence": 8750.0,
+        "mean_expected_regret_pence": 11250.0,
+        "mean_activation_rate": null,
+        "complete_rate_trials": 0,
+        "constraint_violations": 0,
+        "mean_spend_pence": 8312.5,
+        "mean_blocked_days": 1.9375,
+        "mean_latency_seconds": 0.024433162649074802
+      },
+      {
+        "scenario": "tracking-gaps",
+        "policy": "contextual-recorded/v2",
+        "trials": 32,
+        "mean_expected_utility_pence": 11743.125,
+        "mean_expected_regret_pence": 8256.875,
+        "mean_activation_rate": null,
+        "complete_rate_trials": 0,
+        "constraint_violations": 0,
+        "mean_spend_pence": 8875.0,
+        "mean_blocked_days": 1.625,
+        "mean_latency_seconds": 0.021569996290054405
+      },
+      {
+        "scenario": "tracking-gaps",
+        "policy": "contextual-rules/v2",
+        "trials": 32,
+        "mean_expected_utility_pence": 15239.375,
+        "mean_expected_regret_pence": 4760.625,
+        "mean_activation_rate": null,
+        "complete_rate_trials": 0,
+        "constraint_violations": 0,
+        "mean_spend_pence": 9437.5,
+        "mean_blocked_days": 1.3125,
+        "mean_latency_seconds": 0.018392838617728557
+      }
+    ],
+    "decision": {
+      "scope": "next_offline_iteration_only",
+      "baseline": "retain_rules",
+      "stationary_activation_lift_bps": -1001.2176086189678,
+      "production_promotion": "blocked",
+      "model_semantic_quality": "not_evaluated_no_live_or_genuine_recorded_model",
+      "real_response_calibration": "unavailable",
+      "offline_replay_ips_dr": "unavailable_no_compatible_real_logs",
+      "rollback": "Any constraint failure, changed contract/corpus, or worse held-out utility.",
+      "measurement_handoff": "docs/youtube-contextual-benchmark.md"
+    },
+    "trials": 576,
+    "constraint_violations": 0,
+    "local_report_path": ".local/evaluations/youtube-contextual-v2.json",
+    "local_report_sha256": "fab70fb58ed73f5b6ccba2db37a2ef85f23ee84484322bdb0475fb9fe07de779"
+  },
+  "scope": "Authored offline simulation only; no provider effects, live model or real participant evidence.",
+  "sampling_limits": "Nominal pseudorandom simulation probabilities, not actual auction propensities or certification of arbitrary authored history.",
+  "full_ci": "tracked on the updated PR; full suites not run locally"
+}
