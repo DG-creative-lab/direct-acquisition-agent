@@ -235,7 +235,10 @@
     "acquisition.workflows.intake_interpretation": "workflow",
     "acquisition.campaigns.preparation_context": "domain",
     "acquisition.campaigns.preparation_context_application": "application",
-    "acquisition.adapters.sqlite.preparation_context": "adapter"
+    "acquisition.adapters.sqlite.preparation_context": "adapter",
+    "acquisition.youtube.decisioning": "domain",
+    "acquisition.youtube.recommendations": "application",
+    "acquisition.adapters.youtube_decision_inputs": "adapter"
   },
   "exceptions": []
 }

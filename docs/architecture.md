@@ -35,6 +35,13 @@ The [local checkpoint adapter](workspace-checkpoints.md) uses the same root lock
 
 ## Module ownership
 
+The first [offline contextual benchmark](youtube-contextual-benchmark.md) adds
+a YouTube-owned read-only recommendation service and pure allocation/evidence
+rules. Bootstrap injects bundled candidate data and optional authored ranking
+receipts through narrow ports. It changes no schema, runtime, live model serving
+or provider authority. Its synthetic response support remains separate from
+instruction experiments and real participant evidence.
+
 The proposed [contextual targeting feasibility design](targeting-decisioning-feasibility.md)
 keeps channel decision/reward policy in `youtube`, model calls behind existing
 `reasoning` ports, shared creative references in `creative`, and provider
