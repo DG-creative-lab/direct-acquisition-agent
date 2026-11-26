@@ -10,9 +10,10 @@ from .ports import CampaignIntakeStore
 
 
 class CampaignIntake:
-    def __init__(self, store: CampaignIntakeStore, clock, preparation=None, grounded=None):
+    def __init__(self, store: CampaignIntakeStore, clock, preparation=None, grounded=None, emails=None, email_reviews=None, initialize_email_defaults=None):
         self.store, self.clock, self.preparation = store, clock, preparation
         self.grounded = grounded
+        self.emails,self.email_reviews,self.initialize_email_defaults=emails,email_reviews,initialize_email_defaults
 
     def store_identity(self):
         """Persistent database identity for binding local recovery to its owner."""

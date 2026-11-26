@@ -46,3 +46,6 @@ from .company_drafts import CompanyDraft, CompanyClaimDraft, draft_text
 __all__ += ['CompanyDraft', 'CompanyClaimDraft', 'draft_text']
 from .intake_grounding import SourceEvidenceReview, selected_grounding_material, grounding_material_issues, grounded_intake_product
 __all__ += ['SourceEvidenceReview', 'selected_grounding_material', 'grounding_material_issues', 'grounded_intake_product']
+
+from .intake_email import render_intake_email
+__all__ += ['render_intake_email']

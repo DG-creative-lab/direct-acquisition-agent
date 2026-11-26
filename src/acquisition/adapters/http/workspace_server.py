@@ -7,7 +7,7 @@ from contextlib import ExitStack
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from html import escape
-from urllib.parse import urlsplit, parse_qs
+from urllib.parse import urlsplit, parse_qs, unquote
 from acquisition.contracts import Conflict, NotFound
 from acquisition.conversations import ActionNotSaved, AudienceSelectionRejected, MessageRejectedConflict, MessageRejectedInvalid, MessageRejectedNotFound
 from acquisition.reasoning import ModelError
@@ -123,6 +123,21 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, page.encode(), 'text/html; charset=utf-8')
             if path == '/api/intake/store' and not self.parsed_target.query:
                 return self._send(200, {'store_id': self.server.workspace.intake.store_identity()})
+            if path == '/api/intake/emails/eligibility':
+                query=parse_qs(self.parsed_target.query,keep_blank_values=True)
+                if set(query)!={'context_request_id'} or len(query['context_request_id'])!=1:
+                    return self._send(400,{'error':'Select one exact reviewed context'})
+                return self._send(200,self.server.workspace.intake.email_eligibility(query['context_request_id'][0]))
+            if len(parts)==5 and parts[:4]==['api','intake','emails','requests'] and not self.parsed_target.query:
+                return self._send(200,self.server.workspace.intake.email_view(unquote(parts[4])))
+            if len(parts)==6 and parts[:4]==['api','intake','emails','commands'] and not self.parsed_target.query:
+                return self._send(200,self.server.workspace.intake.email_receipt(parts[4],unquote(parts[5])))
+            if len(parts)==5 and parts[:4]==['api','intake','emails','exports']:
+                query=parse_qs(self.parsed_target.query,keep_blank_values=True)
+                if set(query)!={'subject_id'} or len(query['subject_id'])!=1:
+                    return self._send(400,{'error':'Download the exact displayed email subject'})
+                content=self.server.workspace.intake.email_download(unquote(parts[4]),query['subject_id'][0])
+                return self._send(200,content,'application/json','reviewed-synthetic-emails.json')
             if path == '/api/intake/eligibility':
                 query = parse_qs(self.parsed_target.query, keep_blank_values=True)
                 if set(query) != {'context_request_id'} or len(query['context_request_id']) != 1:
@@ -230,6 +245,7 @@ class Handler(BaseHTTPRequestHandler):
             intake_save = path in {'/api/intake/companies', '/api/intake/briefs'}
             context_save = path == '/api/intake/contexts'
             grounded_save = path == '/api/intake/preparations'
+            email_command = path.startswith('/api/intake/emails/')
             limit = 34 * 1024 * 1024 if monitoring_upload else 70 * 1024 if intake_save or context_save else 16384
             if not 0 < length <= limit or self.headers.get("Content-Type", "").split(";")[0] != "application/json":
                 return self._send(400, {"error": "Use a bounded JSON request"} |
@@ -244,7 +260,7 @@ class Handler(BaseHTTPRequestHandler):
                         result[key] = value
                     return result
                 youtube_request = path.startswith('/api/youtube/') or path.endswith('/youtube-messages')
-                data = json.loads(raw, object_pairs_hook=unique_pairs) if youtube_request or grounded_save else json.loads(raw)
+                data = json.loads(raw, object_pairs_hook=unique_pairs) if youtube_request or grounded_save or email_command else json.loads(raw)
                 if not isinstance(data, dict):
                     raise ValueError("Use a JSON object")
             except ValueError:
@@ -284,6 +300,20 @@ class Handler(BaseHTTPRequestHandler):
                 if intake_save:
                     return self._send(400, {'error': 'Intake saves do not use model funding', 'intake_not_saved': True})
                 raise ValueError("Use an OpenRouter connection handle.")
+            if email_command:
+                intake=self.server.workspace.intake
+                if (len(parts)!=4 or parts[-1] not in {'prepare','decision','revoke','export'}
+                        or self.parsed_target.query or handle is not None or tab is not None
+                        or any(len(self.headers.get_all(name,[]))!=1 for name in ('Host','Origin','X-Workspace-Token','X-Intake-Store'))):
+                    raise ValueError('Use an exact offline email command without model funding')
+                if self.headers.get('X-Intake-Store')!=intake.store_identity():
+                    return self._send(409,{'error':'Restore the original workspace store before retrying its email command.','code':'store_mismatch'})
+                operation=parts[-1]
+                try:return self._send(200,intake.email_command(operation,data))
+                except (ValueError,TypeError,NotFound) as error:
+                    try:definite=intake.email_not_committed(operation,data.get('request_id'))
+                    except ValueError:definite=False
+                    return self._send(409,{'error':str(error),'email_not_saved':definite,'store_id':intake.store_identity()})
             if grounded_save:
                 intake = self.server.workspace.intake
                 if (self.parsed_target.query or handle is not None or tab is not None

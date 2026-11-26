@@ -1817,7 +1817,7 @@ test("preparation review storage failure and corrupt recovery prevent dispatch",
   });
 });
 
-function seedGroundedIntake(root) {
+function seedGroundedIntake(root, channel = "postal") {
   const script = `
 import json,sys
 from pathlib import Path
@@ -1830,13 +1830,13 @@ c=app.save_company('local-conversations','local-operator','grounding-company',Co
  CompanyClaimDraft('UNSELECTED SECRET CLAIM','Never selected.',('https://unselected.invalid/source',))),
  official_cta='Read the Aster terms.',cta_url='https://aster.invalid/terms'))['snapshot']
 b=app.save_brief('local-conversations','local-operator','grounding-brief',CampaignBriefDraft(c['id'],1,objective='Compare responses.',audience='Independent retailers',
- country='UK',currency='GBP',channels=('postal',),budget_minor=12345,contact_source='synthetic'))['snapshot']
+ country='UK',currency='GBP',channels=(sys.argv[2],),budget_minor=12345,contact_source='synthetic'))['snapshot']
 p=app.preparation.preview('local-conversations',b['id'],1)
 app.preparation.confirm('local-conversations','local-operator','grounding-review',PreparationReview(b['id'],1,p['id'],0,(p['claims'][0]['id'],),False,True,7,'Selected exact material.',confirmed=True))
 print(json.dumps({'company':c['id'],'brief':b['id']}))
 `;
   return JSON.parse(
-    execFileSync("python3", ["-c", script, root], {
+    execFileSync("python3", ["-c", script, root, channel], {
       cwd: project,
       env: { ...process.env, PYTHONPATH: "src" },
       encoding: "utf8",
@@ -2043,5 +2043,386 @@ test("corrupt grounded preparation recovery blocks new commands", async ({
       page.getByRole("button", { name: "Save company draft", exact: true }),
     ).toBeDisabled();
     expect(groundedRows(root)).toEqual([]);
+  });
+});
+
+async function selectEmailBrief(page, ids) {
+  await page
+    .getByLabel("Saved company drafts", { exact: true })
+    .selectOption(ids.company);
+  await page
+    .getByLabel("Saved campaign briefs", { exact: true })
+    .selectOption(ids.brief);
+  const area = page.getByRole("region", {
+    name: "Email preparation, review and export",
+    exact: true,
+  });
+  await expect(
+    area.getByRole("button", {
+      name: "Prepare synthetic email batch",
+      exact: true,
+    }),
+  ).toBeEnabled();
+  return area;
+}
+function emailRecords(root) {
+  return JSON.parse(
+    execFileSync(
+      "python3",
+      [
+        "-c",
+        `import sqlite3,json,sys
+with sqlite3.connect(sys.argv[1]+'/conversations.sqlite') as db:
+ print(json.dumps([json.loads(r[0]) for r in db.execute("SELECT receipt FROM intake_requests WHERE json_extract(inputs,'$.kind')='intake_email_preparation/v1'")]))`,
+        root,
+      ],
+      { cwd: project, encoding: "utf8" },
+    ),
+  );
+}
+async function prepareEmail(area) {
+  await area
+    .getByLabel("Email source review note (required)")
+    .fill("Checked the exact official source wording and qualifications.");
+  await area
+    .getByLabel(
+      "I checked the exact selected wording, qualifications, official sources and CTA. Prepare synthetic emails only.",
+      { exact: true },
+    )
+    .check();
+  await area
+    .getByRole("button", { name: "Prepare synthetic email batch", exact: true })
+    .click();
+  await expect(
+    area.getByRole("heading", {
+      name: "Exact synthetic email batch",
+      exact: true,
+    }),
+  ).toBeVisible();
+}
+async function approveEmail(area) {
+  await area
+    .getByLabel("Email approval reason (required)")
+    .fill("Reviewed each complete synthetic email and permission record.");
+  await area
+    .getByLabel(
+      "I reviewed every exact recipient, subject, text, HTML, qualification and opt-out field. Approve this synthetic export only.",
+      { exact: true },
+    )
+    .check();
+  await area
+    .getByRole("button", { name: "Approve exact email export", exact: true })
+    .click();
+  await expect(
+    area
+      .getByRole("status")
+      .filter({ hasText: "Approved for this exact synthetic export only." }),
+  ).toBeVisible();
+}
+for (const mobile of [false, true])
+  test(`reviewed intake email batch requires exact approval and exports its displayed content on ${mobile ? "mobile" : "desktop"}`, async ({
+    page,
+  }, testInfo) => {
+    await isolated(async (url, root) => {
+      const ids = seedGroundedIntake(root, "email");
+      await page.setViewportSize(
+        mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 },
+      );
+      await enter(page, url);
+      const area = await selectEmailBrief(page, ids);
+      await area
+        .getByRole("button", {
+          name: "Prepare synthetic email batch",
+          exact: true,
+        })
+        .click();
+      await expect(
+        area.getByLabel("Email source review note (required)"),
+      ).toBeFocused();
+      await prepareEmail(area);
+      expect(emailRecords(root)).toHaveLength(2); // original command plus exact-context binding
+      const download = area.getByRole("button", {
+        name: "Download reviewed synthetic emails",
+        exact: true,
+      });
+      await expect(download).toBeDisabled();
+      await area
+        .locator("article > details")
+        .first()
+        .locator("summary")
+        .first()
+        .click();
+      await expect(area).toContainText("Aster offers retail advice.");
+      await expect(area).not.toContainText("UNSELECTED SECRET CLAIM");
+      await area
+        .getByRole("button", {
+          name: "Approve exact email export",
+          exact: true,
+        })
+        .click();
+      await expect(
+        area.getByLabel("Email approval reason (required)"),
+      ).toBeFocused();
+      await approveEmail(area);
+      const exportedResponse = page.waitForResponse(
+        (r) =>
+          r.request().method() === "POST" &&
+          r.url().endsWith("/api/intake/emails/export"),
+      );
+      const downloaded = page.waitForEvent("download");
+      await download.click();
+      const file = await downloaded;
+      const exportReceipt = await (await exportedResponse).json();
+      const content = JSON.parse(
+        await (
+          await import("node:fs/promises")
+        ).readFile(await file.path(), "utf8"),
+      );
+      expect(content.emails).toEqual(emailRecords(root)[0].content.rows);
+      expect(content.live_send_authority).toBe("none");
+      expect(content.emails[0].email.cta_url).toBe(
+        "https://aster.invalid/terms",
+      );
+      expect(rows(root).model_calls).toHaveLength(0);
+      expect(rows(root).runs).toHaveLength(0);
+      await area.screenshot({
+        path: testInfo.outputPath(
+          `intake-email-${mobile ? "mobile" : "desktop"}.png`,
+        ),
+      });
+      await page.reload();
+      await page
+        .getByRole("button", { name: "Company & brief", exact: true })
+        .click();
+      await page
+        .getByLabel("Saved company drafts", { exact: true })
+        .selectOption(ids.company);
+      await page
+        .getByLabel("Saved campaign briefs", { exact: true })
+        .selectOption(ids.brief);
+      await expect(download).toBeEnabled();
+      await area
+        .getByRole("button", {
+          name: "Revoke email export approval",
+          exact: true,
+        })
+        .click();
+      await expect(download).toBeDisabled();
+      const token = await page
+        .locator('meta[name="workspace-token"]')
+        .getAttribute("content");
+      const exportUrl = new URL(
+        `/api/intake/emails/exports/${exportReceipt.request_id}?subject_id=${exportReceipt.inputs.subject_id}`,
+        url,
+      ).href;
+      const denied = await page.request.get(exportUrl, {
+        headers: { "X-Workspace-Token": token },
+      });
+      expect(denied.status()).toBe(409);
+    });
+  });
+
+test("lost email preparation and approval replies reconcile without another effect", async ({
+  page,
+}) => {
+  await isolated(async (url, root) => {
+    const ids = seedGroundedIntake(root, "email");
+    await enter(page, url);
+    const area = await selectEmailBrief(page, ids);
+    await page.route("**/api/intake/emails/prepare", async (route) => {
+      await route.fetch();
+      await route.abort("failed");
+    });
+    await area
+      .getByLabel("Email source review note (required)")
+      .fill("Reviewed selected exact product wording.");
+    await area
+      .getByLabel(
+        "I checked the exact selected wording, qualifications, official sources and CTA. Prepare synthetic emails only.",
+        { exact: true },
+      )
+      .check();
+    await area
+      .getByRole("button", {
+        name: "Prepare synthetic email batch",
+        exact: true,
+      })
+      .click();
+    const retry = page.getByRole("button", {
+      name: "Retry original email command",
+      exact: true,
+    });
+    await expect(retry).toBeEnabled();
+    const original = emailRecords(root);
+    expect(original).toHaveLength(2);
+    await page.unroute("**/api/intake/emails/prepare");
+    let prepares = 0;
+    page.on("request", (r) => {
+      if (
+        r.method() === "POST" &&
+        r.url().endsWith("/api/intake/emails/prepare")
+      )
+        prepares++;
+    });
+    await retry.click();
+    await expect(
+      area.getByRole("heading", {
+        name: "Exact synthetic email batch",
+        exact: true,
+      }),
+    ).toBeVisible();
+    expect(prepares).toBe(0);
+    expect(emailRecords(root)).toEqual(original);
+    await page.route("**/api/intake/emails/decision", async (route) => {
+      await route.fetch();
+      await route.abort("failed");
+    });
+    await area
+      .getByLabel("Email approval reason (required)")
+      .fill("Reviewed each exact email.");
+    await area
+      .getByLabel(
+        "I reviewed every exact recipient, subject, text, HTML, qualification and opt-out field. Approve this synthetic export only.",
+        { exact: true },
+      )
+      .check();
+    await area
+      .getByRole("button", { name: "Approve exact email export", exact: true })
+      .click();
+    await expect(retry).toBeEnabled();
+    await page.unroute("**/api/intake/emails/decision");
+    let decisions = 0;
+    page.on("request", (r) => {
+      if (
+        r.method() === "POST" &&
+        r.url().endsWith("/api/intake/emails/decision")
+      )
+        decisions++;
+    });
+    await retry.click();
+    await expect(
+      area.getByRole("button", {
+        name: "Download reviewed synthetic emails",
+        exact: true,
+      }),
+    ).toBeEnabled();
+    expect(decisions).toBe(0);
+    await page.route("**/api/intake/emails/export", async (route) => {
+      await route.fetch();
+      await route.abort("failed");
+    });
+    await area
+      .getByRole("button", {
+        name: "Download reviewed synthetic emails",
+        exact: true,
+      })
+      .click();
+    await expect(retry).toBeEnabled();
+    await page.unroute("**/api/intake/emails/export");
+    let exports = 0;
+    page.on("request", (r) => {
+      if (
+        r.method() === "POST" &&
+        r.url().endsWith("/api/intake/emails/export")
+      )
+        exports++;
+    });
+    const downloaded = page.waitForEvent("download");
+    await retry.click();
+    const file = await downloaded;
+    const content = JSON.parse(
+      await (
+        await import("node:fs/promises")
+      ).readFile(await file.path(), "utf8"),
+    );
+    expect(content.emails).toEqual(original[0].content.rows);
+    expect(exports).toBe(0);
+    expect(rows(root).model_calls).toHaveLength(0);
+    await page.evaluate(() =>
+      sessionStorage.setItem("workspace-intake-email:v1", "{broken"),
+    );
+    await page.reload();
+    await page
+      .getByRole("button", { name: "Company & brief", exact: true })
+      .click();
+    await expect(area.getByRole("alert")).toContainText(
+      "original email command could not be restored",
+    );
+    expect(
+      await page.evaluate(() =>
+        sessionStorage.getItem("workspace-intake-email:v1"),
+      ),
+    ).toBe("{broken");
+    expect(exports).toBe(0);
+  });
+});
+
+test("email recovery refuses a switched store and retains the original command", async ({
+  page,
+}) => {
+  await isolated(async (url, root, restart) => {
+    const ids = seedGroundedIntake(root, "email");
+    await enter(page, url);
+    const area = await selectEmailBrief(page, ids);
+    await page.route("**/api/intake/emails/prepare", (route) =>
+      route.abort("failed"),
+    );
+    await area
+      .getByLabel("Email source review note (required)")
+      .fill("Checked sources for an exact email batch.");
+    await area
+      .getByLabel(
+        "I checked the exact selected wording, qualifications, official sources and CTA. Prepare synthetic emails only.",
+        { exact: true },
+      )
+      .check();
+    await area
+      .getByRole("button", {
+        name: "Prepare synthetic email batch",
+        exact: true,
+      })
+      .click();
+    const retry = page.getByRole("button", {
+      name: "Retry original email command",
+      exact: true,
+    });
+    await expect(retry).toBeEnabled();
+    const saved = await page.evaluate(() =>
+      sessionStorage.getItem("workspace-intake-email:v1"),
+    );
+    await page.unroute("**/api/intake/emails/prepare");
+    const other = await restart();
+    await page.reload();
+    await page
+      .getByRole("button", { name: "Company & brief", exact: true })
+      .click();
+    let posts = 0;
+    page.on("request", (r) => {
+      if (
+        r.method() === "POST" &&
+        r.url().endsWith("/api/intake/emails/prepare")
+      )
+        posts++;
+    });
+    await retry.click();
+    await expect(page.getByRole("alert")).toContainText(
+      "original workspace store",
+    );
+    expect(posts).toBe(0);
+    expect(emailRecords(other)).toEqual([]);
+    expect(
+      await page.evaluate(() =>
+        sessionStorage.getItem("workspace-intake-email:v1"),
+      ),
+    ).toBe(saved);
+    await restart(root);
+    await page.reload();
+    await page
+      .getByRole("button", { name: "Company & brief", exact: true })
+      .click();
+    await retry.click();
+    await expect(retry).toHaveCount(0);
+    expect(posts).toBe(1);
+    expect(emailRecords(root)).toHaveLength(2);
   });
 });

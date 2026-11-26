@@ -47,7 +47,7 @@ VALUE_IMPORTS = {
     'math': {'isfinite', 'isclose', 'ceil', 'floor'}, 'random': {'Random'},
     're': {'compile', 'match', 'search', 'fullmatch', 'sub'},
     'typing': {'Any', 'ContextManager', 'Protocol'}, 'unicodedata': {'normalize'},
-    'urllib.parse': {'urlparse', 'urlsplit', 'parse_qs'},
+    'urllib.parse': {'urlparse', 'urlsplit', 'parse_qs', 'unquote'},
 }
 COORDINATION_IMPORTS = {
     'contextlib': {'contextmanager'}, 'contextvars': {'ContextVar'},

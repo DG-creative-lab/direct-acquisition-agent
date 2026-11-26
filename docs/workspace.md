@@ -289,3 +289,11 @@ unapproved offline profile fixture from selected inputs, with zero model calls,
 fixed synthetic framing and visibly unmatched synthetic contacts. Server-side
 eligibility, grounding and publication remain in their existing module owners;
 React only presents exact inputs, confirmation and original-store recovery.
+
+## Reviewed intake email export
+
+Company & brief can prepare a bounded synthetic email batch from an exact
+reviewed email brief. The reviewer inspects every email and approves the exact
+JSON export, with expiry and revocation checked again on download. See
+[intake email preparation](intake-email-preparation.md) for scope, recovery and
+local identity rules. No model call or email delivery is enabled by this path.

@@ -1,5 +1,27 @@
 # Validation and limits
 
+## Reviewed intake email preparation and export, 26 November 2026
+
+The email-only intake path preserves the exact reviewed company/brief revisions,
+selected wording, qualification and official CTA in a bounded synthetic package.
+The contacts, permissions, sender and planned cost are explicitly synthetic and
+are not matched to the requested audience. No runtime, model or dispatch work is
+admitted. See [the contract](intake-email-preparation.md).
+
+| Invariant | Commit/authority boundary | Executable regression |
+| --- | --- | --- |
+| Exact source, original command and one batch per context | Two intake journal bindings in one writer transaction; native source reconstruction | `test_intake_email`: selected wording and two companies; changed inputs; expiry rollback; lost commit and two contenders; fresh-process reopen |
+| Source review, recipient permission and export approval are separate | Purpose-specific subject binds complete batch and scoped authority/stop basis | `test_intake_email`: foreign/purpose/role substitution, missing approval, suppression, edited sources |
+| Historical approval/export receipts never authorize current downloads | Writer transaction rechecks current sources, actor generation, eligibility, expiry and revocation | `test_intake_email`: cached export after revocation/expiry/source edit; expiry before bytes; readonly, actual checkpoint restore and verified pause; exact byte hash |
+| Interrupted commands reconcile the original store and inputs | Browser saves the full command before POST; receipt-first retry with store fence | `intake-workspace.spec.mjs`: lost preparation/approval/export replies, malformed recovery data, store switch and original-store recovery, desktop/mobile exact export |
+| Remote transport preserves original native semantics | Existing Turso adapter via bootstrap; schema 27 and native journal transactions | `RemoteIntakeEmailTests`: loopback Hrana lost COMMIT acknowledgement, reopened replay, review and exact JSON download |
+
+Verification results and their source attribution will be recorded after the
+sequential full gates. Managed Turso, live model/provider and real permission or
+sending behavior are outside this evidence. PR #145 grounding is a prerequisite
+included in this branch while its independent PR remains unmodified.
+
+
 ## YouTube media refresh, 25 November 2026
 
 The bundled comparisons now use the exact rendered files from merged YouTube

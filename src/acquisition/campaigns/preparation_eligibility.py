@@ -31,7 +31,8 @@ def grounding_request_from(payload):
         evidence | {'reference_ids': tuple(evidence['reference_ids'])}))}))
 
 
-def evaluate_preparation_eligibility(view, now):
+def evaluate_preparation_eligibility(view, now, *, channel="postal"):
+    if channel not in {"postal", "email"}:raise ValueError("Select an installed intake preparation channel")
     context_time(now)
     context = view['context']
     selected, requirements = context['selected_inputs'], context['requirements']
@@ -49,8 +50,9 @@ def evaluate_preparation_eligibility(view, now):
         blockers.append('Every selected description or claim needs a source reference.')
     if not selected['cta'] or not selected['cta']['url']:
         blockers.append('Select the official call to action and its reference URL.')
-    if len(requirements['channels']) != 1 or requirements['channels'][0].casefold() not in {'direct_mail', 'direct mail', 'postal'}:
-        blockers.append('This preparation capability supports one UK postal channel only. Other requests remain unchanged.')
+    allowed = {'email'} if channel == 'email' else {'direct_mail', 'direct mail', 'postal'}
+    if len(requirements['channels']) != 1 or requirements['channels'][0].casefold() not in allowed:
+        blockers.append('This preparation capability supports one UK '+channel+' channel only. Other requests remain unchanged.')
     if requirements['contact_source'] != 'synthetic':
         blockers.append('Explicitly select synthetic contacts in the saved brief.')
     if requirements['budget_minor'] is not None and requirements['budget_minor'] > 1_000_000:
@@ -67,4 +69,9 @@ def evaluate_preparation_eligibility(view, now):
             'recipe': 'reviewed-intake-fixture/v1', 'size': min(requirements['max_candidates'] or 100, 100),
             'seed': 42, 'framing': 'fixed_business_questions', 'targeting': 'synthetic_not_matched_to_user_audience'},
         'approval': 'not_granted', 'authority': 'none', 'live_generation': 'unavailable'}
+    if channel == 'email':
+        payload['schema']='intake-email-eligibility/v1'
+        payload['settings']=payload['settings'] | {'recipe':'reviewed-intake-email/v1','size':min(requirements['max_candidates'] or 3,6), 'synthetic_email_cost_minor':2}
+        if requirements['budget_minor'] is not None and requirements['budget_minor'] < payload['settings']['size']*2:
+            payload['blockers'].append('The saved budget does not cover this bounded synthetic email batch.')
     return payload | {'id': 'eligibility_' + digest(payload)}

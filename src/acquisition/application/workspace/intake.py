@@ -67,6 +67,47 @@ class WorkspaceIntake:
         request = grounding_request_from({k:v for k,v in payload.items() if k != 'request_id'})
         return self.intake.grounded.prepare('local-conversations', 'local-operator', payload['request_id'], request)
 
+    def email_eligibility(self, context_request):
+        return self.intake.emails.preview('local-conversations',context_request)
+
+    def email_view(self, key):
+        return self.intake.email_reviews.view('local-conversations',key)
+
+    def email_receipt(self, operation, key):
+        actor = 'local-operator' if operation=='export' else 'local-reviewer'
+        return self.intake.email_reviews.receipt('local-conversations',actor,operation,key)
+
+    def email_download(self, key, subject_id):
+        return self.intake.email_reviews.download('local-conversations','local-operator',key,subject_id)
+
+    def email_command(self, operation, payload):
+        if type(payload) is not dict:raise ValueError('Use an exact email command')
+        expected = {
+            'prepare':{'request_id','context_request_id','preview_id','evidence','confirmed_synthetic_preparation'},
+            'decision':{'request_id','preparation_request_id','subject_id','decision','reason','ttl_seconds'},
+            'revoke':{'request_id','preparation_request_id','approval_id','reason'},
+            'export':{'request_id','preparation_request_id','subject_id','approval_id'}}
+        if operation not in expected or set(payload)!=expected[operation]:raise ValueError('Use exact email operation fields')
+        if operation=='prepare':
+            evidence=payload['evidence']
+            if (type(evidence) is not dict or set(evidence)!={'reference_ids','checked_on','review_days','note','confirmed_official_sources','confirmed_exact_wording'}
+                    or type(evidence['reference_ids']) is not list):raise ValueError('Use an exact email source review')
+            request=grounding_request_from({k:v for k,v in payload.items() if k!='request_id'})
+            self.intake.initialize_email_defaults('local-conversations')
+            return self.intake.emails.prepare('local-conversations','local-operator',payload['request_id'],request)
+        data={k:v for k,v in payload.items() if k not in {'request_id','preparation_request_id'}}
+        key,request_id=payload['request_id'],payload['preparation_request_id']
+        if operation=='decision':return self.intake.email_reviews.decide('local-conversations','local-reviewer',key,request_id,**data)
+        if operation=='revoke':return self.intake.email_reviews.revoke('local-conversations','local-reviewer',key,request_id,**data)
+        return self.intake.email_reviews.export('local-conversations','local-operator',key,request_id,**data)
+
+    def email_not_committed(self, operation, key):
+        if operation=='prepare':return self.intake.emails.not_committed('local-conversations',key)
+        mapped={'decision':'decision','revoke':'revocation','export':'export'}
+        if operation not in mapped:return False
+        actor='local-operator' if operation=='export' else 'local-reviewer'
+        return self.intake.email_reviews.not_committed('local-conversations',actor,mapped[operation],key)
+
     def readiness(self, identity, revision):
         brief = self.intake.brief('local-conversations', identity, revision)
         company = self.intake.company('local-conversations', brief['draft']['company_id'], brief['draft']['company_revision'])

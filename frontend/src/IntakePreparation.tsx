@@ -19,6 +19,7 @@ type Props = {
   sourceVersion: string;
   active: boolean;
   disabled: boolean;
+  enabled?: boolean;
   onLock: (value: boolean) => void;
 };
 export default function IntakePreparation({
@@ -27,6 +28,7 @@ export default function IntakePreparation({
   sourceVersion,
   active,
   disabled,
+  enabled = true,
   onLock,
 }: Props) {
   const id = useId();
@@ -58,7 +60,7 @@ export default function IntakePreparation({
     setPreview(null);
     setResult(null);
     setConsent("");
-    if (!active || !contextRequest || !storeId) return;
+    if (!active || !enabled || !contextRequest || !storeId) return;
     const controller = new AbortController();
     eligibility(contextRequest, controller.signal)
       .then(async (p) => {
@@ -85,7 +87,7 @@ export default function IntakePreparation({
         if (!controller.signal.aborted) setError(e.message);
       });
     return () => controller.abort();
-  }, [selected, active, attempt]);
+  }, [selected, active, enabled, attempt]);
   async function send(command: PendingPreparation) {
     const atStart = current.current;
     setBusy(true);
@@ -110,6 +112,7 @@ export default function IntakePreparation({
       setBusy(false);
     }
   }
+  if (!enabled && !pending && !storageError) return null;
   return (
     <section aria-labelledby={id + "-heading"}>
       <h3 id={id + "-heading"}>Preparation eligibility and source review</h3>
