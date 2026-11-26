@@ -4428,3 +4428,44 @@ stable source attribution and all 41 historical evaluation artifacts unchanged.
 It exercises existing compatibility/model recovery, verified rebuild/replay,
 uncertain restart, profile isolation and engagement replay. These are finite
 native workflow checks, not hosted/browser or new model-quality evidence.
+
+### Issue 144 review corrections: complete traffic and resumed sampling
+
+Review base `c71cc09`. Three regression methods reproduced both findings:
+partial cell/day reports inflated traffic from 2/100 to 102/200 and unlocked
+exploitation, while same-day calls repeated the first draw with incorrect
+conditional probabilities. Prefix lengths 1, 4 and 7 exhibited the sampling
+failure. The preceding v1 results remain historical, not current evidence.
+
+Current allocation policies/recommendation schema are v2. Traffic estimation
+requires every member of a closed cell/day group to have mature, complete
+exposure and manifest reporting. Partial counts are separately labeled and
+cannot affect valuation or its supported draw basis. Response and exposure
+completeness remain independent: unknown task results cannot update the
+response posterior, but do not discard independently complete traffic reports.
+Zero-arrival complete groups contribute traffic denominators correctly.
+
+Each allocation now binds an `allocation-prefix-sha256/v1` draw namespace and
+decision ID to the canonical contents of its issued prefix and supported inputs. Changing a
+receipt body while retaining its ID changes the draw namespace. Call
+partitioning, duplicate/reordered identical history and same-state replay
+preserve choices, probabilities and allocation IDs. Subsequent decisions use
+different namespaces; calls never restart one correlated random prefix.
+Pre-review v1 histories are rejected. These are nominal simulation sampling
+probabilities, not certified auction propensities.
+
+All 62 focused tests passed, including conditional choice-mass and same-day
+continuation checks. Architecture remains 238 modules with zero exceptions.
+The corrected 576-trial benchmark passes with zero constraint violations and
+network attempts; source/import fingerprints are stable. It still retains the
+rules baseline: stationary expected utility is 19,514.375 versus 14,225 pence
+for Bayesian; under drift Bayesian scores 20,562.5 versus rules' 9,407.8125.
+These are authored utility units. Economic assumptions, priors, epsilon, truth
+surfaces and seeds were not tuned; the v2 corpus is separately identified.
+
+All five workflow boundary cases passed, with zero network attempts, stable
+source and 42 historical evaluation artifacts unchanged. The
+[v2 correction record](evaluations/issue-144-review-corrections-2026-11-26.json)
+supersedes the v1 handoff for current use while preserving its original record.
+Full checks run in updated PR CI. No provider/model calls or real participant
+learning were introduced.

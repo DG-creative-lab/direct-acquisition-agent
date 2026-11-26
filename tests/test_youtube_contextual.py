@@ -81,7 +81,7 @@ class ContextualDecisionTests(unittest.TestCase):
             self.authority.enabled = False
         service = build_youtube_recommendations(self.app.campaigns, ranker=ChangedRanking(revoke))
         with self.assertRaises(PermissionError):
-            service.prepare(self.cid, 1, policy='contextual-recorded/v1')
+            service.prepare(self.cid, 1, policy='contextual-recorded/v2')
 
     def test_existing_manual_approval_never_approves_an_adaptive_recommendation(self):
         view = self.app.campaigns.read(self.cid)
@@ -124,7 +124,7 @@ class ContextualDecisionTests(unittest.TestCase):
                 'draft': before['campaign']['draft'] | {'title': 'Changed while ranking'}})
         service = build_youtube_recommendations(self.app.campaigns, ranker=ChangedRanking(change_revision))
         self.error('recommendation_inputs_changed',
-                   lambda: service.prepare(self.cid, 1, policy='contextual-recorded/v1'))
+                   lambda: service.prepare(self.cid, 1, policy='contextual-recorded/v2'))
         self.error('campaign_changed', lambda: self.service.prepare(self.cid, 1))
 
     def test_untrusted_ranking_cannot_add_candidates_budget_authority_or_claim_live_quality(self):
@@ -140,11 +140,11 @@ class ContextualDecisionTests(unittest.TestCase):
         for code, change in changes:
             with self.subTest(code=code):
                 service = build_youtube_recommendations(self.app.campaigns, ranker=ChangedRanking(change))
-                self.error(code, lambda: service.prepare(self.cid, 1, policy='contextual-recorded/v1'))
+                self.error(code, lambda: service.prepare(self.cid, 1, policy='contextual-recorded/v2'))
 
     def test_missing_recorded_model_and_unknown_prices_do_not_silently_fallback(self):
         self.error('model_evidence_unavailable',
-                   lambda: self.service.prepare(self.cid, 1, policy='contextual-recorded/v1'))
+                   lambda: self.service.prepare(self.cid, 1, policy='contextual-recorded/v2'))
         def missing_prices(value):
             for row in value['manifest']['creatives']:
                 row['cost_per_batch_pence'] = None
@@ -178,8 +178,8 @@ class ContextualDecisionTests(unittest.TestCase):
 
     def test_empty_arrival_report_still_counts_exposures_without_inventing_reward_support(self):
         row = self.cohort(S=0, F=0, U=0, N=0)
-        belief = beliefs_for(self.frozen, self.ledger, [row], 86400)[self.ledger[0]['cell_id']]
-        self.assertEqual((belief['reported_impressions'], belief['reported_arrivals']), (100, 0))
+        belief = beliefs_for(self.frozen, self.ledger[:1], [row], 86400)[self.ledger[0]['cell_id']]
+        self.assertEqual((belief['traffic_impressions'], belief['traffic_arrivals']), (100, 0))
         self.assertEqual(belief['support'], 0)
         self.assertIsNone(belief['posterior_mean'])
 
@@ -204,6 +204,90 @@ class ContextualDecisionTests(unittest.TestCase):
         self.assertEqual((belief['alpha'], belief['beta'], belief['support']), (3, 3, 4))
         self.assertEqual(len(belief['cohort_ids']), 1)
 
+    def test_partial_traffic_reports_cannot_change_an_earlier_complete_traffic_estimate(self):
+        older = self.ledger[0]
+        high = older | {'id': 'high-arrival-report', 'day': 1}
+        missing = older | {'id': 'unreported-peer', 'day': 1}
+        rows = [self.cohort(older), self.cohort(high, S=50, F=50, N=100)]
+        belief = beliefs_for(self.frozen, [older, high, missing], rows, 2 * 86400)[older['cell_id']]
+        self.assertEqual((belief['traffic_impressions'], belief['traffic_arrivals']), (100, 2))
+        self.assertEqual((belief['partial_reported_impressions'], belief['partial_reported_arrivals']), (200, 102))
+        self.assertEqual((belief['alpha'], belief['beta']), (2, 2))
+
+    def test_partial_traffic_cannot_unlock_exploitation_after_exploration_is_spent(self):
+        base = self.ledger[0]
+        high = base | {'id': 'high-arrivals-day-one', 'day': 1, 'exploration': False}
+        missing = base | {'id': 'missing-day-one', 'day': 1, 'exploration': False}
+        rows = [self.cohort(allocation=row, exposure_complete=False) for row in self.ledger]
+        rows.append(self.cohort(high, S=50, F=50, N=100))
+        result = allocate_batch(self.frozen, rules_ranking(self.frozen),
+                                self.ledger + [high, missing], rows,
+                                policy='contextual-bayes-epsilon/v2', day=2, seed=31)
+        self.assertEqual(result['status'], 'blocked')
+        self.assertEqual(result['allocations'], [])
+        self.assertEqual(result['blocker'], 'complete_traffic_evidence_unavailable')
+
+    def test_traffic_groups_require_every_manifest_and_exposure_report_but_not_response_success(self):
+        older = self.ledger[0]
+        high = older | {'id': 'high-report', 'day': 1}
+        zero = older | {'id': 'zero-arrivals-peer', 'day': 1}
+        ledger = [older, high, zero]
+        complete = [self.cohort(older), self.cohort(high, S=50, F=50, N=100),
+                    self.cohort(zero, S=0, F=0, N=0)]
+        for key in ('manifest_complete', 'exposure_complete'):
+            rows = deepcopy(complete);rows[2][key] = False
+            belief = beliefs_for(self.frozen, ledger, rows, 2 * 86400)[older['cell_id']]
+            with self.subTest(flag=key):
+                self.assertEqual((belief['traffic_impressions'], belief['traffic_arrivals']), (100, 2))
+                self.assertEqual(len(belief['traffic_cohort_ids']), 1)
+        belief = beliefs_for(self.frozen, ledger, complete, 86400 + 2100)[older['cell_id']]
+        self.assertEqual((belief['traffic_impressions'], belief['traffic_arrivals']), (100, 2))
+        rows = deepcopy(complete);rows[1].update(S=0, F=0, U=100, coverage_complete=False)
+        belief = beliefs_for(self.frozen, ledger, rows, 2 * 86400)[older['cell_id']]
+        self.assertEqual((belief['traffic_impressions'], belief['traffic_arrivals']), (300, 102))
+        self.assertEqual((belief['alpha'], belief['beta']), (2, 2))
+
+    def test_partial_counts_cannot_change_draws_or_exploitation_using_supported_history(self):
+        older = self.ledger[0]
+        high = older | {'id': 'partial-high', 'day': 1, 'exploration': False}
+        missing = older | {'id': 'still-unreported', 'day': 1, 'exploration': False}
+        ledger = [older, high, missing]
+        kwargs = {'policy': 'contextual-bayes-epsilon/v2', 'day': 2, 'seed': 31}
+        ranking = rules_ranking(self.frozen)
+        before = allocate_batch(self.frozen, ranking, ledger, [self.cohort(older)], **kwargs)
+        after = allocate_batch(self.frozen, ranking, ledger, [
+            self.cohort(older), self.cohort(high, S=50, F=50, N=100)], **kwargs)
+        self.assertEqual(after['allocations'], before['allocations'])
+
+    def test_same_day_continuation_preserves_conditional_choices_and_probabilities(self):
+        ranking = rules_ranking(self.frozen)
+        older, row = self.ledger[:1], self.cohort()
+        full = allocate_batch(self.frozen, ranking, older, [row],
+                              policy='contextual-bayes-epsilon/v2', day=1, seed=31)
+        for count in (1, 4, 7):
+            with self.subTest(prefix=count):
+                resumed = allocate_batch(self.frozen, ranking, older + full['allocations'][:count], [row],
+                                         policy='contextual-bayes-epsilon/v2', day=1, seed=31)
+                def choice(allocation):
+                    return (allocation['cell_id'], allocation['exploration'], allocation['selection_probability'])
+                self.assertEqual(choice(resumed['allocations'][0]), choice(full['allocations'][count]))
+                self.assertEqual(resumed['allocations'], full['allocations'][count:])
+                canonical = allocate_batch(self.frozen, ranking,
+                                           list(reversed(older + full['allocations'][:count])) + older, [row],
+                                           policy='contextual-bayes-epsilon/v2', day=1, seed=31)
+                self.assertEqual(canonical['allocations'], resumed['allocations'])
+                self.assertNotEqual(full['allocations'][0]['decision_id'], resumed['allocations'][0]['decision_id'])
+
+    def test_draw_namespace_binds_receipt_contents_even_if_an_authored_id_is_reused(self):
+        ranking = rules_ranking(self.frozen)
+        history = self.ledger[:1]
+        first = allocate_batch(self.frozen, ranking, history, [self.cohort()],
+                               policy='contextual-bayes-epsilon/v2', day=1, seed=31)
+        changed = deepcopy(history);changed[0]['exploration'] = False
+        second = allocate_batch(self.frozen, ranking, changed, [self.cohort()],
+                                policy='contextual-bayes-epsilon/v2', day=1, seed=31)
+        self.assertNotEqual(first['allocations'][0]['decision_id'], second['allocations'][0]['decision_id'])
+
     def test_version_reward_source_and_impossible_count_substitutions_fail(self):
         row = self.cohort()
         for code, change in (
@@ -222,7 +306,7 @@ class ContextualDecisionTests(unittest.TestCase):
 
     def test_missing_outcomes_never_refund_exploration_or_enable_a_point_estimate(self):
         result = allocate_batch(self.frozen, rules_ranking(self.frozen), self.ledger, [],
-                                policy='contextual-bayes-epsilon/v1', day=1, seed=9)
+                                policy='contextual-bayes-epsilon/v2', day=1, seed=9)
         self.assertEqual(result['status'], 'blocked')
         self.assertEqual(result['blocker'], 'insufficient_evidence_exploration_exhausted')
         self.assertEqual(result['budget']['total_pence'], 1000)
@@ -234,7 +318,7 @@ class ContextualDecisionTests(unittest.TestCase):
     def test_complete_reports_resume_allocation_with_known_probabilities_and_daily_caps(self):
         rows = [self.cohort(allocation=row) for row in self.ledger]
         result = allocate_batch(self.frozen, rules_ranking(self.frozen), self.ledger, rows,
-                                policy='contextual-bayes-epsilon/v1', day=1, seed=9)
+                                policy='contextual-bayes-epsilon/v2', day=1, seed=9)
         self.assertEqual(result['budget']['today_pence'], 2000)
         self.assertEqual(result['budget']['total_pence'], 3000)
         self.assertEqual(result['budget']['exploration_pence'], 1000)
@@ -245,12 +329,32 @@ class ContextualDecisionTests(unittest.TestCase):
         self.assertIn('budget_violation', evaluation.constraint_failures(self.frozen, altered))
 
     def test_partial_history_exposes_exact_epsilon_and_uniform_choice_probabilities(self):
-        for seed, exploring in ((1, False), (31, True)):
+        seen = set()
+        for seed in range(128):
             result = allocate_batch(self.frozen, rules_ranking(self.frozen), self.ledger[:1],
-                                    [self.cohort()], policy='contextual-bayes-epsilon/v1', day=1, seed=seed)
+                                    [self.cohort()], policy='contextual-bayes-epsilon/v2', day=1, seed=seed)
             first = result['allocations'][0]
-            self.assertEqual(first['exploration'], exploring)
-            self.assertAlmostEqual(first['selection_probability'], .1 / 7 if exploring else .9)
+            seen.add(first['exploration'])
+            self.assertAlmostEqual(first['selection_probability'], .1 / 7 if first['exploration'] else .9)
+            resumed = allocate_batch(self.frozen, rules_ranking(self.frozen),
+                                     self.ledger[:1] + [first], [self.cohort()],
+                                     policy='contextual-bayes-epsilon/v2', day=1, seed=seed)
+            second = resumed['allocations'][0]
+            self.assertAlmostEqual(second['selection_probability'], .1 / 7 if second['exploration'] else .9)
+            self.assertEqual(second, result['allocations'][1])
+            if seen == {False, True}:
+                break
+        self.assertEqual(seen, {False, True})
+
+    def test_v1_sampling_receipts_are_not_silently_reinterpreted_as_v2(self):
+        legacy = deepcopy(self.ledger)
+        legacy[0]['policy_version'] = 'contextual-bayes-epsilon/v1'
+        self.error('allocation_version_changed', lambda: history_for(self.frozen, legacy, [], 1))
+        missing = deepcopy(self.ledger);del missing[0]['decision_id']
+        self.error('allocation_version_changed', lambda: history_for(self.frozen, missing, [], 1))
+        self.error('unsupported_decision_policy', lambda: allocate_batch(
+            self.frozen, rules_ranking(self.frozen), [], [],
+            policy='contextual-bayes-epsilon/v1', day=0, seed=31))
 
     def test_changed_asset_snapshot_after_ranking_never_returns_a_current_recommendation(self):
         source = self.service.source
@@ -276,7 +380,7 @@ class ContextualDecisionTests(unittest.TestCase):
         self.assertEqual(result['not_run_trials'], 576)
 
     def test_trial_summary_cannot_report_a_rate_from_only_complete_replicates(self):
-        row = {'scenario': 'missing-feedback', 'policy': 'contextual-rules/v1',
+        row = {'scenario': 'missing-feedback', 'policy': 'contextual-rules/v2',
                'outcomes': {'point': .5}, 'expected_utility_pence': 0, 'expected_regret_pence': 1,
                'spend_pence': 1, 'blocked_days': [], 'latency_seconds': 0, 'constraint_failures': []}
         result = evaluation.aggregate([row, row | {'outcomes': {'point': None}}])[0]
@@ -313,8 +417,8 @@ class ContextualDecisionTests(unittest.TestCase):
     def test_simulator_is_repeatable_and_keeps_truth_out_of_native_input(self):
         scenario = json.loads(evaluation.CORPUS.read_text())['scenarios'][0]
         ranking = rules_ranking(self.frozen)
-        first = evaluation.simulate(self.frozen, ranking, scenario, 'contextual-bayes-epsilon/v1', 100)
-        second = evaluation.simulate(self.frozen, ranking, scenario, 'contextual-bayes-epsilon/v1', 100)
+        first = evaluation.simulate(self.frozen, ranking, scenario, 'contextual-bayes-epsilon/v2', 100)
+        second = evaluation.simulate(self.frozen, ranking, scenario, 'contextual-bayes-epsilon/v2', 100)
         self.assertEqual(first | {'latency_seconds': 0}, second | {'latency_seconds': 0})
         self.assertGreaterEqual(first['expected_regret_pence'], -1e-8)
         self.assertNotIn('arrival_probability', json.dumps(self.frozen))

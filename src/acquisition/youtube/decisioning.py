@@ -9,7 +9,8 @@ from .domain import YouTubeError, identity
 
 DECISION_CONTRACT = 'c7f4129dd6d50e5de4a2c41db4ab0cddf34f31bb6e1829711019ad462df59949'
 REWARD = 'qualified-demo-activation/v1'
-POLICIES = ('contextual-rules/v1', 'contextual-bayes-epsilon/v1', 'contextual-recorded/v1')
+POLICIES = ('contextual-rules/v2', 'contextual-bayes-epsilon/v2', 'contextual-recorded/v2')
+SAMPLING = 'allocation-prefix-sha256/v1'
 
 
 def check(condition, code):
@@ -128,6 +129,9 @@ def history_for(frozen, allocations, cohorts, day):
     for row in allocations:
         check(row['input_id'] == frozen['id'] and row['cell_id'] in cells
               and row['reward_version'] == REWARD and row['policy_version'] in POLICIES
+              and row.get('sampling') == SAMPLING
+              and type(row.get('decision_id')) is str
+              and fullmatch(r'decision_[0-9a-f]{64}', row['decision_id'])
               and type(row['ranking_sha256']) is str and fullmatch(r'[0-9a-f]{64}', row['ranking_sha256'])
               and integer(row['decision_seed']), 'allocation_version_changed')
         check(integer(row['day']) and row['day'] <= day and row['impressions'] == 100
@@ -185,19 +189,20 @@ def outcome_summary(allocations, cohorts, now):
 def beliefs_for(frozen, allocations, cohorts, now):
     by_id = {row['id']: row for row in allocations}
     observed = {row['allocation_id']: row for row in cohorts}
-    result = {cell['id']: {'reported_impressions': 0, 'reported_arrivals': 0, 'alpha': 1, 'beta': 1,
-                          'support': 0, 'cohort_ids': []} for cell in frozen['candidates']}
+    result = {cell['id']: {'partial_reported_impressions': 0, 'partial_reported_arrivals': 0,
+                          'partial_counts_scope': 'available_mature_reports_only_not_estimation',
+                          'traffic_impressions': 0, 'traffic_arrivals': 0, 'traffic_cohort_ids': [],
+                          'alpha': 1, 'beta': 1, 'support': 0, 'cohort_ids': []}
+              for cell in frozen['candidates']}
     for row in cohorts:
         allocation = by_id[row['allocation_id']]
         belief = result[allocation['cell_id']]
-        # Descriptive exposure/arrival reporting is distinct from the qualified
-        # response posterior. Zero-arrival reports must not disappear.
-        if (row['exposure_complete'] and row['manifest_complete']
-                and now >= row['assigned_at'] + 2100):
-            belief['reported_impressions'] += allocation['impressions']
-            belief['reported_arrivals'] += row['N']
-    # Freeze the response cohort by cell/day BEFORE seeing outcomes. Learning
-    # from just its complete batches would silently select complete cases.
+        # Partial reported counts are visible, but never used for valuation.
+        if now >= row['assigned_at'] + 2100:
+            belief['partial_reported_impressions'] += allocation['impressions']
+            belief['partial_reported_arrivals'] += row['N']
+    # Both traffic estimation and response learning use the full frozen
+    # cell/day membership. A high-arrival subset must not steer allocation.
     groups = {}
     for allocation in allocations:
         groups.setdefault((allocation['cell_id'], allocation['day']), []).append(allocation['id'])
@@ -205,21 +210,28 @@ def beliefs_for(frozen, allocations, cohorts, now):
         if now < (day + 1) * 86400 or any(member not in observed for member in members):
             continue
         rows = [observed[member] for member in members]
+        belief = result[cell_id]
+        cohort_id = 'cohort_' + digest({
+            'input_id': frozen['id'], 'cell_id': cell_id, 'day': day, 'members': sorted(members)})
+        if all(row['manifest_complete'] and row['exposure_complete']
+               and now >= row['assigned_at'] + 2100 for row in rows):
+            belief['traffic_impressions'] += sum(by_id[member]['impressions'] for member in members)
+            belief['traffic_arrivals'] += sum(row['N'] for row in rows)
+            belief['traffic_cohort_ids'].append(cohort_id)
         if (not all(row['manifest_complete'] and row['coverage_complete'] and row['U'] == 0
                     and now >= row['assigned_at'] + 2100 for row in rows)
                 or sum(row['N'] for row in rows) == 0):
             continue
-        belief = result[cell_id]
         belief['alpha'] += sum(row['S'] for row in rows)
         belief['beta'] += sum(row['F'] for row in rows)
         belief['support'] += sum(row['N'] for row in rows)
-        belief['cohort_ids'].append('cohort_' + digest({
-            'input_id': frozen['id'], 'cell_id': cell_id, 'day': day, 'members': sorted(members)}))
+        belief['cohort_ids'].append(cohort_id)
     for belief in result.values():
         a, b = belief['alpha'], belief['beta']
         belief['posterior_mean'] = a / (a + b) if belief['support'] else None
         belief['posterior_sd'] = (a * b / ((a + b) ** 2 * (a + b + 1))) ** .5 if belief['support'] else None
         belief['cohort_ids'].sort()
+        belief['traffic_cohort_ids'].sort()
     return result
 
 
@@ -228,7 +240,10 @@ def allocate_batch(frozen, ranking, allocations, cohorts, *, policy, day, seed):
     scores = checked_ranking(frozen, ranking)
     allocations, cohorts, daily, spend, exploration = history_for(frozen, allocations, cohorts, day)
     beliefs = beliefs_for(frozen, allocations, cohorts, day * 86400)
-    rng, planned, today, stop_reason = Random(seed), [], daily.get(day, 0), None
+    planned, today, stop_reason = [], daily.get(day, 0), None
+    issued_fingerprints = [digest(row) for row in allocations]
+    supported = {cell: {key: b[key] for key in ('alpha', 'beta', 'traffic_impressions', 'traffic_arrivals')}
+                 for cell, b in beliefs.items()}
     rejected = [{'cell_id': cell['id'], 'reason': 'cost_unavailable'} for cell in frozen['candidates']
                 if cell['cost_per_batch_pence'] is None]
     while today < 2000 and spend < 10000:
@@ -236,12 +251,12 @@ def allocate_batch(frozen, ranking, allocations, cohorts, *, policy, day, seed):
                     and cell['cost_per_batch_pence'] is not None
                     and cell['cost_per_batch_pence'] <= min(2000 - today, 10000 - spend)]
         known = [cell for cell in eligible if beliefs[cell['id']]['support'] > 0
-                 and beliefs[cell['id']]['reported_impressions'] > 0]
+                 and beliefs[cell['id']]['traffic_impressions'] > 0]
         def value(cell):
             b = beliefs[cell['id']]
-            if policy != 'contextual-bayes-epsilon/v1':
+            if policy != 'contextual-bayes-epsilon/v2':
                 return scores[cell['id']]['fit']
-            qualified = 100 * b['reported_arrivals'] / b['reported_impressions'] * b['alpha'] / (b['alpha'] + b['beta'])
+            qualified = 100 * b['traffic_arrivals'] / b['traffic_impressions'] * b['alpha'] / (b['alpha'] + b['beta'])
             return (500 * qualified - cell['cost_per_batch_pence']) / cell['cost_per_batch_pence']
         known = [cell for cell in known if value(cell) > 0]
         greedy = sorted(known, key=lambda cell: (-value(cell), cell['id']))[0] if known else None
@@ -257,27 +272,38 @@ def allocate_batch(frozen, ranking, allocations, cohorts, *, policy, day, seed):
                 stop_reason = 'no_affordable_candidate'
             elif not any(beliefs[cell['id']]['support'] for cell in eligible):
                 stop_reason = 'insufficient_evidence_exploration_exhausted'
+            elif not any(beliefs[cell['id']]['support'] and beliefs[cell['id']]['traffic_impressions']
+                         for cell in eligible):
+                stop_reason = 'complete_traffic_evidence_unavailable'
             else:
                 stop_reason = 'nonpositive_expected_utility_or_insufficient_exploration_budget'
             break
         epsilon = .1 if alternatives and greedy else 1 if alternatives else 0
+        # A per-allocation namespace resumes identically across call partitions.
+        # Raw/partial traffic is deliberately excluded from the decision basis.
+        decision_id = 'decision_' + digest({
+            'sampling': SAMPLING, 'input_id': frozen['id'], 'policy': policy, 'day': day,
+            'seed': seed, 'ranking_sha256': digest(ranking), 'supported': supported,
+            'issued_fingerprints': sorted(issued_fingerprints)})
+        rng = Random(int(decision_id.removeprefix('decision_'), 16))
         exploring = rng.random() < epsilon
         selected = alternatives[rng.randrange(len(alternatives))] if exploring else greedy
         probability = epsilon / len(alternatives) if exploring else 1 - epsilon
         cost = selected['cost_per_batch_pence']
         row = {'input_id': frozen['id'], 'cell_id': selected['id'], 'day': day,
+               'sampling': SAMPLING, 'decision_id': decision_id,
                'reward_version': REWARD, 'policy_version': policy,
                'ranking_sha256': digest(ranking), 'decision_seed': seed,
                'cost_pence': cost, 'impressions': 100, 'exploration': exploring,
                'selection_probability': probability}
-        row['id'] = 'allocation_' + digest({'history': allocations, 'planned': planned,
-                    'policy': policy, 'ranking': ranking, 'seed': seed, 'row': row})
+        row['id'] = 'allocation_' + digest(row)
         planned.append(row)
+        issued_fingerprints.append(digest(row))
         spend, today = spend + cost, today + cost
         exploration += cost if exploring else 0
     summary = outcome_summary(allocations, cohorts, day * 86400)
     stop_reason = stop_reason or ('total_budget_exhausted' if spend >= 10000 else 'daily_budget_exhausted')
-    payload = {'schema': 'youtube-contextual-recommendation/v1', 'input': frozen, 'ranking': ranking,
+    payload = {'schema': 'youtube-contextual-recommendation/v2', 'input': frozen, 'ranking': ranking,
                'policy_version': policy, 'reward_version': REWARD, 'day': day, 'seed': seed,
                'status': 'reviewable' if planned else 'blocked',
                'blocker': None if planned else stop_reason, 'stop_reason': stop_reason,

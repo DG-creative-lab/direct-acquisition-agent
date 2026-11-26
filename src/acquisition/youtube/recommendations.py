@@ -11,14 +11,14 @@ class YouTubeRecommendations:
         self.campaigns, self.source, self.ranker = campaigns, source, ranker
 
     def prepare(self, campaign_id, expected_revision, *, day=0, seed=42,
-                policy='contextual-rules/v1', allocations=None, cohorts=None):
+                policy='contextual-rules/v2', allocations=None, cohorts=None):
         revision(expected_revision)
         view = self.campaigns.read(campaign_id)
         if view['campaign']['revision'] != expected_revision:
             raise YouTubeError('campaign_changed', 'Read the current campaign revision before recommending.')
         source = self.source.load(self.campaigns.scope)
         frozen = freeze_decision(self.campaigns.scope, view, source['manifest'], source['contract'])
-        if policy == 'contextual-recorded/v1':
+        if policy == 'contextual-recorded/v2':
             if self.ranker is None:
                 raise YouTubeError('model_evidence_unavailable', 'No recorded model ranking is installed.')
             ranking = self.ranker.rank(loads(canonical(frozen)))

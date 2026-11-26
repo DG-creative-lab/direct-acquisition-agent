@@ -5,6 +5,12 @@
 The [reward/data contract](youtube-data-reward-contract.md) remains pinned to
 `c7f4129dd6d50e5de4a2c41db4ab0cddf34f31bb6e1829711019ad462df59949`.
 
+Review update: current allocation policies and the recommendation format are
+**v2**. This corrects partial-traffic estimation and repeat-call sampling in the
+pre-review `c71cc09` candidate. Its v1 corpus/results remain historical;
+v1 allocation receipts cannot be silently consumed as v2. The input/reward
+contract, economic assumptions, seeds, priors and epsilon are unchanged.
+
 ## Usable slice
 
 An existing native YouTube campaign can produce a read-only JSON recommendation
@@ -59,7 +65,7 @@ admission/journaling; no separate live ledger or model client is introduced.
 
 ## Frozen method
 
-The [benchmark corpus](../config/youtube-contextual-benchmark-v1.json) is pinned
+The [v2 benchmark corpus](../config/youtube-contextual-benchmark-v2.json) is pinned
 by its canonical hash in the runner. Changing it requires a separately
 identified benchmark contract. There are three development and three held-out
 language tasks across only two authored context domains. They are not six
@@ -82,6 +88,16 @@ bounded exploration; its spending counts against the 1,000-pence cap. When
 there is a supported greedy action, alternatives have 0.1 total exploration
 probability, uniformly divided over affordable alternatives. The greedy action
 and alternatives are disjoint, so each recorded cell probability is exact.
+These are nominal simulation probabilities. Each allocation uses its own
+`allocation-prefix-sha256/v1` draw namespace, binding the input, policy, ranking,
+day, replicate seed, supported beliefs and canonical content hashes of all
+issued allocations. A changed receipt body cannot reuse a namespace merely
+by retaining its old ID.
+The allocation ID binds that decision and selected action. Identical state
+replays identically; issuing a prefix then calling again resumes the same
+remaining choices as one uninterrupted call. Reordering identical history or
+duplicating an identical receipt cannot reset the draw. Partial reported counts
+are excluded from both valuation and this supported decision basis.
 The current full-day cold start consumes the whole exploration cap. Later
 exploration is therefore unavailable in this baseline, a measured design
 limitation rather than a setting tuned after inspecting held-out results.
@@ -95,6 +111,8 @@ or a changed creative/version cannot reset the allocation ledger silently.
 
 An allocation records input/cell, policy/ranking hash, decision seed, reward,
 day, cost, 100 impressions, exploration status and local choice probability.
+V2 also records its draw protocol and decision ID. Pre-review v1 allocation
+receipts are rejected rather than certified under corrected probabilities.
 Duplicate identical receipts count once; conflicting identity or changed
 scope/version/reward is rejected. Only authored synthetic outcomes are accepted
 by this offline capability. Real participant support is always zero.
@@ -104,6 +122,15 @@ in that group**, before feedback. Missing one report or unknown result blocks
 the group's response-posterior update, including observed successes. A complete
 nonempty closed group contributes once in the stateless reconstruction. An
 earlier complete day's support remains separate from an incomplete new day.
+
+Traffic estimation also freezes the full cell/day group. Every issued member
+needs a mature report with complete exposure and assignment manifest coverage.
+Only then do `traffic_impressions` and `traffic_arrivals` enter valuation.
+An incomplete new day cannot inflate the rate supported by earlier complete
+days. Individual mature reports remain visible as `partial_reported_*` counts,
+explicitly labeled as reporting-only data. Unknown qualified-task outcomes do
+not invalidate independently complete exposure/arrival reporting, but cannot
+update the qualified-response posterior.
 
 Per-arrival maturity is 30 minutes plus 5 minutes grace in synthetic elapsed
 seconds. Zero-arrival reports still count descriptive exposures; they never
@@ -121,7 +148,7 @@ Run without credentials:
 PYTHONPATH=src python3 scripts/evaluate_youtube_contextual.py
 ```
 
-Output defaults to ignored `.local/evaluations/youtube-contextual-v1.json`.
+Output defaults to ignored `.local/evaluations/youtube-contextual-v2.json`.
 Native cases use temporary SQLite stores and preserve their campaigns/approvals.
 The runner denies network attempts, checks source before import and after
 execution, and stops the remaining batch on unexpected execution errors.
@@ -140,8 +167,10 @@ are retained. Real model cost/latency/quality and real response calibration are
 unavailable. Replay/IPS/doubly robust estimates remain unavailable: our local
 batch-choice probabilities do not establish Google's auction propensities.
 
-The [dated evidence](evaluations/issue-144-offline-benchmark-2026-11-26.json)
-records results and a falsifiable baseline decision. Promotion requires complete
+The [current v2 review evidence](evaluations/issue-144-review-corrections-2026-11-26.json)
+records corrected results and a falsifiable baseline decision. The
+[pre-review v1 evidence](evaluations/issue-144-offline-benchmark-2026-11-26.json)
+is retained with its original source attribution. Promotion requires complete
 stationary comparisons, at least 200 basis points activation improvement,
 better expected utility/regret and zero constraint violations. Its scope is
 only the next offline iteration. Production promotion remains blocked.
@@ -157,6 +186,9 @@ separately identified experiment.
 Implement the requested generated-sample task and server-bound assignment/job/
 result receipts before claiming the primary reward online. Freeze cell/day
 membership, exact native brief/creative/reward/policy, cutoff and report coverage.
+Gate both traffic estimation and response updates on their respective complete
+cell/day reports. Retain decision/draw identities when continuing a day's
+allocations; a repeated call must not restart a correlated random prefix.
 Deduplicate assignment and generation identities; keep unknown population and
 outcomes explicit. Consume complete groups once, with explicit late corrections.
 Persist issued allocations separately from observations.

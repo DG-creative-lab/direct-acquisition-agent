@@ -27,8 +27,8 @@ from acquisition.youtube import (YouTubeError, DECISION_CONTRACT, REWARD, alloca
                                  rules_ranking, outcome_summary, history_for)
 
 
-CORPUS = ROOT / 'config/youtube-contextual-benchmark-v1.json'
-CORPUS_SHA256 = '9a82400b1695f5fcf0fd489c8f64d556cd07becb74c456f51a4f0f3948ec8b36'
+CORPUS = ROOT / 'config/youtube-contextual-benchmark-v2.json'
+CORPUS_SHA256 = '5ae6c3c963a9d21a48215ae35d8c7d3bb31739e4bb71c15a0f2a0d52be3737b4'
 
 
 class MissingCosts:
@@ -182,7 +182,7 @@ def task_result(task):
         result = service.prepare(cid, 1)
         elapsed = time.perf_counter() - started
         model = build_youtube_recommendations(app.campaigns, ranker=AuthoredRankingReceipts())
-        fixture = model.prepare(cid, 1, policy='contextual-recorded/v1')
+        fixture = model.prepare(cid, 1, policy='contextual-recorded/v2')
         after = app.campaigns.read(cid)
         with app.campaigns.store.database.connect() as db:
             if db.execute('SELECT COUNT(*) FROM model_calls').fetchone()[0] != 0:
@@ -238,7 +238,7 @@ def run():
             for scenario in corpus['scenarios']:
                 frozen = missing if scenario.get('hide_costs') else base['input']
                 for policy in corpus['policies']:
-                    ranking = (AuthoredRankingReceipts().rank(frozen) if policy == 'contextual-recorded/v1'
+                    ranking = (AuthoredRankingReceipts().rank(frozen) if policy == 'contextual-recorded/v2'
                                else rules_ranking(frozen))
                     for seed in corpus['seeds']:
                         trials.append(simulate(frozen, ranking, scenario, policy, seed,
@@ -251,7 +251,7 @@ def run():
     after = source_state()
     summaries = aggregate(trials)
     stationary = {row['policy']: row for row in summaries if row['scenario'] == 'stationary'}
-    rules, bayes = stationary.get('contextual-rules/v1'), stationary.get('contextual-bayes-epsilon/v1')
+    rules, bayes = stationary.get('contextual-rules/v2'), stationary.get('contextual-bayes-epsilon/v2')
     complete = bool(rules and bayes and rules['complete_rate_trials']
                     == bayes['complete_rate_trials'] == len(corpus['seeds']))
     improvement = ((bayes['mean_activation_rate'] - rules['mean_activation_rate']) * 10000
@@ -272,7 +272,7 @@ def run():
         failures.append('execution_error')
     if attempts or before != after or before != IMPORTED_SOURCE:
         failures.append('source_changed_or_network_attempt')
-    return {'schema': 'youtube-contextual-evaluation/v1', 'contract_sha256': DECISION_CONTRACT,
+    return {'schema': 'youtube-contextual-evaluation/v2', 'contract_sha256': DECISION_CONTRACT,
             'corpus_sha256': digest(corpus), 'source': before, 'source_stable': before == after,
             'imported_source_matches': before == IMPORTED_SOURCE,
             'network_attempts': len(attempts), 'provider_effects': 0, 'model_calls': 0,
@@ -293,7 +293,7 @@ def run():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--output', type=Path, default=ROOT / '.local/evaluations/youtube-contextual-v1.json')
+    parser.add_argument('--output', type=Path, default=ROOT / '.local/evaluations/youtube-contextual-v2.json')
     args = parser.parse_args()
     result = run()
     args.output.parent.mkdir(parents=True, exist_ok=True)
