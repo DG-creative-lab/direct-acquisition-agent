@@ -12,7 +12,12 @@ approval, assert the literal fixture display name, capture the complete displaye
 sender header and compare it with each downloaded email. The assertions fail on
 `9163f55`, which displayed only the sender address. The patch changes presentation
 and its client type; it does not modify email payloads, approval subjects or
-backend persistence. Final verification is recorded in the
+backend persistence. Verification passes 14 email tests, 18 inherited preparation
+tests, architecture with 245 modules and zero exceptions, and the full 162-case
+interface gate with one worker, including build and formatting. The unchanged
+backend retains its prior 1,235-test and five-case recovery evidence; those full
+backend gates were not repeated for this presentation fix. Exact source
+commits, the failing-before/fixed-after regression and hashes are retained in the
 [sender review evidence](evaluations/issue-131-intake-email-sender-review-2026-11-26.json).
 
 ## Reviewed intake email preparation and export, 26 November 2026
