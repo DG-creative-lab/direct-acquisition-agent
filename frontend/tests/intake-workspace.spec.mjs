@@ -2140,18 +2140,28 @@ for (const mobile of [false, true])
         area.getByLabel("Email source review note (required)"),
       ).toBeFocused();
       await prepareEmail(area);
-      expect(emailRecords(root)).toHaveLength(2); // original command plus exact-context binding
+      const prepared = emailRecords(root);
+      expect(prepared).toHaveLength(2); // original command plus exact-context binding
       const download = area.getByRole("button", {
         name: "Download reviewed synthetic emails",
         exact: true,
       });
       await expect(download).toBeDisabled();
-      await area
-        .locator("article > details")
-        .first()
-        .locator("summary")
-        .first()
-        .click();
+      const messages = area.locator("article > details");
+      await expect(messages).toHaveCount(prepared[0].content.rows.length);
+      const reviewedSenders = [];
+      for (let i = 0; i < prepared[0].content.rows.length; i++) {
+        const email = prepared[0].content.rows[i].email;
+        expect(email.from_name).toBe("Aster demo");
+        const message = messages.nth(i);
+        await message.locator("summary").first().click();
+        const sender = message.locator(":scope > p").first();
+        await expect(sender).toBeVisible();
+        await expect(sender).toHaveText(
+          `From: ${email.from_name} <${email.from}>. Reply-to: ${email.reply_to}.`,
+        );
+        reviewedSenders.push(await sender.innerText());
+      }
       await expect(area).toContainText("Aster offers retail advice.");
       await expect(area).not.toContainText("UNSELECTED SECRET CLAIM");
       await area
@@ -2179,6 +2189,12 @@ for (const mobile of [false, true])
         ).readFile(await file.path(), "utf8"),
       );
       expect(content.emails).toEqual(emailRecords(root)[0].content.rows);
+      for (const [i, row] of content.emails.entries()) {
+        expect(row.email.from_name).toBe("Aster demo");
+        expect(reviewedSenders[i]).toBe(
+          `From: ${row.email.from_name} <${row.email.from}>. Reply-to: ${row.email.reply_to}.`,
+        );
+      }
       expect(content.live_send_authority).toBe("none");
       expect(content.requirements.channels).toEqual([
         mobile ? "EMAIL" : "email",

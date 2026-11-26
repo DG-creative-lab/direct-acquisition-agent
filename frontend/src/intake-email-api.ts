@@ -31,6 +31,7 @@ export type EmailView = {
         email: {
           to: string;
           from: string;
+          from_name: string;
           reply_to: string;
           subject: string;
           text: string;

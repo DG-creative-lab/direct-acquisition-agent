@@ -314,7 +314,8 @@ export default function IntakeEmail({
                 {row.email.subject} / {row.email.to}
               </summary>
               <p>
-                From: {row.email.from}. Reply-to: {row.email.reply_to}.
+                From: {row.email.from_name} &lt;{row.email.from}&gt;. Reply-to:{" "}
+                {row.email.reply_to}.
               </p>
               <pre>{row.email.text}</pre>
               <details>

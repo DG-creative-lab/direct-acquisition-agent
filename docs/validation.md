@@ -1,5 +1,20 @@
 # Validation and limits
 
+## Email sender display-name review fix, 26 November 2026
+
+The email approval view now displays each immutable email's `from_name` together
+with its sender address and reply-to address. These are the same fields already
+bound by the review subject and included in the JSON export. Rendering uses React
+text nodes; sender data is not interpreted as HTML.
+
+The existing desktop/mobile email regressions open every intended email before
+approval, assert the literal fixture display name, capture the complete displayed
+sender header and compare it with each downloaded email. The assertions fail on
+`9163f55`, which displayed only the sender address. The patch changes presentation
+and its client type; it does not modify email payloads, approval subjects or
+backend persistence. Final verification is recorded in the
+[sender review evidence](evaluations/issue-131-intake-email-sender-review-2026-11-26.json).
+
 ## Reviewed intake email preparation and export, 26 November 2026
 
 The email-only intake path preserves the exact reviewed company/brief revisions,
