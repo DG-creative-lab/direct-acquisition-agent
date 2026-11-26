@@ -16,10 +16,21 @@ admitted. See [the contract](intake-email-preparation.md).
 | Interrupted commands reconcile the original store and inputs | Browser saves the full command before POST; receipt-first retry with store fence | `intake-workspace.spec.mjs`: lost preparation/approval/export replies, malformed recovery data, store switch and original-store recovery, desktop/mobile exact export |
 | Remote transport preserves original native semantics | Existing Turso adapter via bootstrap; schema 27 and native journal transactions | `RemoteIntakeEmailTests`: loopback Hrana lost COMMIT acknowledgement, reopened replay, review and exact JSON download |
 
-Verification results and their source attribution will be recorded after the
-sequential full gates. Managed Turso, live model/provider and real permission or
-sending behavior are outside this evidence. PR #145 grounding is a prerequisite
-included in this branch while its independent PR remains unmodified.
+Sequential verification passes 1,235 backend tests, 162 browser tests with one
+worker, architecture with 245 modules and zero exceptions, and all five integrated
+recovery cases. Recovery records zero network attempts, 40 unchanged historical
+artifacts and stable source. Four additional scoped native-state fault cases
+cover contact pause, account stop, email objection and a foreign-organization
+negative control. They inject native rows, rather than claiming a new contact
+administration workflow.
+
+The full backend run binds `940afa5`; subsequent commits change only frontend
+selection and test synchronization. The final browser and recovery checks bind
+`e0eb7be`. The [26 November verification record](evaluations/issue-131-intake-email-2026-11-26.json)
+retains exact hashes, logs, source manifests and those attribution limits.
+Managed Turso, live model/provider and real permission or sending behavior remain
+outside this evidence. PR #145 grounding is included as a prerequisite without
+modifying its independent branch.
 
 
 ## YouTube media refresh, 25 November 2026

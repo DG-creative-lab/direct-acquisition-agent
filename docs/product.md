@@ -68,3 +68,15 @@ Follow-up questions can inspect progress and explain the saved audience, exclusi
 ## Conversational synthetic multichannel journey
 
 [Issue #68](conversational-sequences.md) adds an agent-led email, human call-task and follow-up journey for the two installed company fixtures. One supported chat objective reaches an exact unapproved proposal without a setup wizard. One exact approval continues bounded synthetic simulation; human call-task completion remains an explicit observation. Routine source/context preparation is automatic. The current interpreter and copy model are bounded offline fixtures at $0, not live-provider quality evidence. Unsupported scope remains explicit. The postal flow and historical artifacts retain their existing contracts.
+
+## Reviewed company intake to synthetic email export
+
+The [reviewed intake email capability](intake-email-preparation.md) accepts the
+operator's own saved company assertions and email-only UK/GBP brief. It prepares
+one to six fictional email messages using grounded fixed framing, then supports
+complete-package review, rejection, revocation and exact JSON export. Approval
+binds the exact package, current source and recipient eligibility, reviewer
+generation and bounded expiry, and is rechecked on download. It grants no send
+or sequence-simulation authority. Contacts remain synthetic and unmatched to the
+requested audience; live generation, real contact integrations and hosted tester
+identity remain separate work.

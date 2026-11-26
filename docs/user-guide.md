@@ -233,3 +233,19 @@ original browser session and workspace store. Retrying reconciles the saved
 request without creating another draft or extending its review window. Editing
 sources requires a fresh input review for another preparation. See the
 [grounding contract](preparation-eligibility.md) for supported scope and limits.
+
+### Prepare and export emails from reviewed company inputs
+
+Save an email-only UK/GBP brief with synthetic contacts, then review its saved
+company inputs in **Company & brief**. In **Email preparation, review and
+export**, inspect the source references, record a note and explicitly confirm the
+selected wording. **Prepare synthetic email batch** creates one to six fictional
+emails with fixed framing and no model calls.
+
+Inspect each recipient, subject, text, HTML, qualification and opt-out field.
+Record a reason and confirm the complete exact package before approving its
+synthetic export. Download the reviewed JSON while approval remains current;
+revocation, expiry, source changes and recipient stops block subsequent downloads.
+A lost reply is reconciled with **Retry original email command** in the original
+browser session and store. See [the email contract](intake-email-preparation.md).
+The recipients and sender are fictional, and the package has no send authority.
