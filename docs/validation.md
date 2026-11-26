@@ -4383,3 +4383,48 @@ The [review correction record](evaluations/issue-143-review-corrections-2026-11-
 preserves original attribution, counterexamples and verification limits. Full
 coverage runs in updated PR CI. No live provider calls, account checks, browser
 or campaign effects were introduced or executed by the local checks.
+
+## Issue 144: native offline contextual recommendations, 26 November 2026
+
+Base `208826199f2390e90491dbf72466915d29ecdf22`, merged #146. The
+[benchmark and measurement handoff](youtube-contextual-benchmark.md) adds a
+read-only native recommendation command and typed-tool entry, exact bundled
+creative identities, frozen simulation limits and a reproducible evaluator.
+Approval, SQL schema, hosted routing and provider execution are unchanged.
+
+| Invariant | Executed boundary | Result |
+| --- | --- | --- |
+| Native source and authority remain current | Real SQLite campaign read, revoked actor, revision change during ranking, changed asset snapshot, actual altered media bytes and exact command/tool replay | Denial or unchanged unapproved result; no inherited package approval |
+| Model proposals cannot establish scope, cost or authority | Foreign/duplicate candidate IDs, invalid fit types, extra budget field, false live-model identity and malformed provenance | Specific ranking/source blockers |
+| Unknown evidence cannot become a point estimate or support | One success/one unknown, empty/immature manifests, missing allocation reports, repeated/conflicting receipts, wrong source/reward and partial cell/day reports | Bounds only where permitted; no partial cell/day response update; unknown denominator stays unavailable |
+| Reports do not release resources | Issued-allocation ledger survives missing feedback, exploration exhaustion, daily/total limits and changed versions | No refunded budget or silent restart under a new snapshot |
+| Independent evaluation can falsify a candidate | Reversed but structurally valid context ranking, independent cost/limit grader and exact known-truth oracle including the no-spend option | Wrong relevance and constraints detected; regret uses compatible expected utility |
+| Failed execution does not become a passing denial or continue the batch | Injected unexpected simulation error | Failure report, one invocation, 576 remaining trials not run |
+| Report aggregation cannot select complete cases | One complete and one unavailable trial rate | Aggregate rate unavailable |
+
+All 55 focused tests passed, including 21 existing native YouTube flow cases,
+10 accepted contract checks and 24 new contextual cases. Architecture passes
+with 238 modules and zero temporary exceptions. The full 576-trial benchmark
+passes with zero constraint violations and network attempts; source/import
+fingerprints remain stable. Its Bayesian candidate is not promoted: the rules
+baseline has better stationary expected utility and activation rate, while the
+Bayesian policy is better in the authored drift case. Sparse/missing data can
+leave rates unavailable, and both policies lose to spending nothing in the
+negative-utility case.
+
+An initial prototype result remains in ignored local output. Self-review
+corrected per-batch completeness to freeze all cell/day allocations, and
+prevented reporting a mean activation rate over only complete replicates.
+Priors, epsilon, budgets and scenario surfaces were not tuned to favor the
+Bayesian result. The retained current corpus hash is
+`9a82400b1695f5fcf0fd489c8f64d556cd07becb74c456f51a4f0f3948ec8b36`.
+The [attributable evidence](evaluations/issue-144-offline-benchmark-2026-11-26.json)
+records the source overlay, metrics, baseline decision and verification limits.
+Full backend/browser checks run in PR CI. No actual LLM ranking quality,
+real-response calibration, replay/IPS/DR value or live delivery is established.
+
+The final five-case boundary journey also passed: zero network attempts,
+stable source attribution and all 41 historical evaluation artifacts unchanged.
+It exercises existing compatibility/model recovery, verified rebuild/replay,
+uncertain restart, profile isolation and engagement replay. These are finite
+native workflow checks, not hosted/browser or new model-quality evidence.

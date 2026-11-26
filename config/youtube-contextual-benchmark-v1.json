@@ -1,0 +1,231 @@
+{
+  "schema": "youtube-contextual-benchmark/v1",
+  "contract_sha256": "c7f4129dd6d50e5de4a2c41db4ab0cddf34f31bb6e1829711019ad462df59949",
+  "provenance": "authored_synthetic",
+  "seeds": [
+    200,
+    201,
+    202,
+    203,
+    204,
+    205,
+    206,
+    207,
+    208,
+    209,
+    210,
+    211,
+    212,
+    213,
+    214,
+    215,
+    216,
+    217,
+    218,
+    219,
+    220,
+    221,
+    222,
+    223,
+    224,
+    225,
+    226,
+    227,
+    228,
+    229,
+    230,
+    231
+  ],
+  "policies": [
+    "contextual-rules/v1",
+    "contextual-bayes-epsilon/v1",
+    "contextual-recorded/v1"
+  ],
+  "tasks": [
+    {
+      "id": "editing-development",
+      "split": "development",
+      "brief": "Prepare YouTube placements for video editors finishing a tutorial voiceover.",
+      "positive_pairs": [
+        [
+          "video-editing",
+          "editing-a"
+        ],
+        [
+          "video-editing",
+          "editing-b"
+        ]
+      ]
+    },
+    {
+      "id": "books-development",
+      "split": "development",
+      "brief": "Prepare YouTube placements for audiobook narrators choosing a story reading.",
+      "positive_pairs": [
+        [
+          "audiobook",
+          "audiobook-a"
+        ],
+        [
+          "audiobook",
+          "audiobook-b"
+        ]
+      ]
+    },
+    {
+      "id": "two-contexts-development",
+      "split": "development",
+      "brief": "Prepare YouTube placements for video editing and audiobook narration.",
+      "positive_pairs": [
+        [
+          "video-editing",
+          "editing-a"
+        ],
+        [
+          "video-editing",
+          "editing-b"
+        ],
+        [
+          "audiobook",
+          "audiobook-a"
+        ],
+        [
+          "audiobook",
+          "audiobook-b"
+        ]
+      ]
+    },
+    {
+      "id": "explainer-held-out",
+      "split": "held_out",
+      "brief": "Prepare YouTube placements for an editor who needs an explainer voice track.",
+      "positive_pairs": [
+        [
+          "video-editing",
+          "editing-a"
+        ],
+        [
+          "video-editing",
+          "editing-b"
+        ]
+      ]
+    },
+    {
+      "id": "narrator-held-out",
+      "split": "held_out",
+      "brief": "Prepare YouTube placements for audiobook producers testing the delivery of a chapter.",
+      "positive_pairs": [
+        [
+          "audiobook",
+          "audiobook-a"
+        ],
+        [
+          "audiobook",
+          "audiobook-b"
+        ]
+      ]
+    },
+    {
+      "id": "mixed-held-out",
+      "split": "held_out",
+      "brief": "Prepare YouTube placements for editing tutorials and audiobook reading guides.",
+      "positive_pairs": [
+        [
+          "video-editing",
+          "editing-a"
+        ],
+        [
+          "video-editing",
+          "editing-b"
+        ],
+        [
+          "audiobook",
+          "audiobook-a"
+        ],
+        [
+          "audiobook",
+          "audiobook-b"
+        ]
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "stationary",
+      "arrival_probability": 0.02,
+      "matched_a": 0.08,
+      "matched_b": 0.3,
+      "mismatched": 0.01,
+      "delay_days": 0,
+      "unknown_fraction": 0
+    },
+    {
+      "id": "sparse-delayed",
+      "arrival_probability": 0.005,
+      "matched_a": 0.08,
+      "matched_b": 0.3,
+      "mismatched": 0.01,
+      "delay_days": 2,
+      "unknown_fraction": 0
+    },
+    {
+      "id": "drift",
+      "arrival_probability": 0.02,
+      "matched_a": 0.3,
+      "matched_b": 0.05,
+      "mismatched": 0.01,
+      "switch_day": 3,
+      "delay_days": 0,
+      "unknown_fraction": 0
+    },
+    {
+      "id": "tracking-gaps",
+      "arrival_probability": 0.02,
+      "matched_a": 0.08,
+      "matched_b": 0.3,
+      "mismatched": 0.01,
+      "delay_days": 0,
+      "unknown_fraction": 0.3
+    },
+    {
+      "id": "missing-cost",
+      "arrival_probability": 0.02,
+      "matched_a": 0.08,
+      "matched_b": 0.3,
+      "mismatched": 0.01,
+      "delay_days": 0,
+      "unknown_fraction": 0,
+      "hide_costs": true
+    },
+    {
+      "id": "negative-utility",
+      "arrival_probability": 0.001,
+      "matched_a": 0.01,
+      "matched_b": 0.01,
+      "mismatched": 0.001,
+      "delay_days": 0,
+      "unknown_fraction": 0
+    }
+  ],
+  "promotion": {
+    "scope": "next_offline_iteration_only",
+    "constraint_violations": 0,
+    "minimum_worthwhile_activation_lift_basis_points": 200,
+    "require_better_expected_utility_and_regret": true,
+    "production_promotion": "blocked_pending_real_model_and_account_outcome_evidence"
+  },
+  "development_seeds": [
+    100
+  ],
+  "allocation_policy": {
+    "response_prior": {
+      "alpha": 1,
+      "beta": 1
+    },
+    "pooling": "none_per_frozen_cell",
+    "epsilon": 0.1,
+    "impressions_per_allocation": 100,
+    "cold_start": "unlearned_actions_consume_exploration",
+    "response_cohort": "frozen_cell_day_all_allocations"
+  }
+}
