@@ -1,0 +1,124 @@
+{
+  "schema": "youtube-feasibility-evidence/v1",
+  "recorded_date": "2026-11-26",
+  "base_commit": "74a53bbd7bb0e3d5c1b67ae12d12db6bbcaedda9",
+  "disposition": "offline_only",
+  "objective": "qualified_product_demo_actions",
+  "contract_path": "config/youtube-decision-contract-v1.json",
+  "canonical_contract_sha256": "d70454c2db829c103d49ad8dcc1698fb50bebd1ef9255ed81fa45ed3242da2d8",
+  "evidence": {
+    "public_primary_documentation": "reviewed_2026-11-26",
+    "account_requests_executed": 0,
+    "provider_writes": 0,
+    "live_model_calls": 0,
+    "real_qualified_action_events": 0,
+    "data_inventory": "source_inspection_not_market_sample",
+    "available_authored_contexts": 2,
+    "available_fictional_placements": 4,
+    "available_comparison_files": 5,
+    "available_reference_ad_files": 4
+  },
+  "checks": [
+    {
+      "command": "PYTHONPATH=src:tests python3 -m unittest test_youtube_decision_contract -v",
+      "result": "passed",
+      "tests": 8,
+      "scope": "offline_handoff_config_and_CLI_only"
+    },
+    {
+      "command": "python3 scripts/check_youtube_decision_contract.py",
+      "result": "passed",
+      "live_ready": false
+    },
+    {
+      "command": "make arch-check",
+      "result": "passed",
+      "classified_modules": 235,
+      "temporary_exceptions": 0
+    },
+    {
+      "command": "changed_document_relative_links",
+      "result": "passed",
+      "links": 19
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "full_backend_suite": "not_run_locally; required CI shards tracked on the review branch",
+  "not_exercised": [
+    "runtime_task_receipts",
+    "participant_event_collection",
+    "provider_targeting_readback",
+    "provider_report_population_and_join",
+    "ad_delivery",
+    "response_calibration",
+    "causal_lift",
+    "hosted_browser"
+  ],
+  "invariant_ledger": [
+    {
+      "invariant": "offline artifacts grant no live authority",
+      "producer": "authored v1 JSON",
+      "consumer": "checker and future #144",
+      "evidence": "CLI and false-readiness mutations; no production imports"
+    },
+    {
+      "invariant": "qualified product task is not a preference or client event",
+      "producer": "owner-selected objective and reward contract",
+      "consumer": "future #133 task receipt",
+      "evidence": "contract mutations only; receipt enforcement not implemented"
+    },
+    {
+      "invariant": "unknown outcomes and missing joins stay unknown",
+      "producer": "data/reward contract",
+      "consumer": "future measurement and benchmark",
+      "evidence": "missingness/proxy/propensity mutations; no real reports"
+    },
+    {
+      "invariant": "simulation utility and money are authored assumptions",
+      "producer": "frozen offline configuration",
+      "consumer": "future #144 simulator",
+      "evidence": "budget and utility mutations; no spending authority"
+    }
+  ],
+  "remaining_owners": {
+    "144": "independent relevance tasks and known-truth allocation simulations",
+    "133": "trusted task/assignment receipts, deduplication, maturity and retention",
+    "70/130": "hosted identity and composition",
+    "140/141": "asset permissions and storage",
+    "74/134": "account/delivery/report proof and separately authorized live release"
+  },
+  "revalidation": {
+    "next_documentation_review": "2026-12-01",
+    "before_live_activation": [
+      "API_version_or_campaign_type",
+      "effective_inclusions_exclusions_and_expansion",
+      "report_coverage_and_cost_join",
+      "source_permission_or_retention_change",
+      "reward_or_task_version",
+      "hosted_scope_and_separate_budget_authority"
+    ]
+  },
+  "sources": [
+    "https://developers.google.com/google-ads/api/docs/video/overview",
+    "https://developers.google.com/google-ads/api/docs/demand-gen/channel-controls",
+    "https://support.google.com/google-ads/answer/1704368?hl=en",
+    "https://support.google.com/google-ads/answer/2404186",
+    "https://support.google.com/google-ads/answer/15594567?hl=en",
+    "https://support.google.com/google-ads/answer/13695777?hl=en",
+    "https://developers.google.com/google-ads/api/docs/demand-gen/reporting",
+    "https://developers.google.com/google-ads/api/fields/v26/detail_placement_view",
+    "https://developers.google.com/google-ads/api/docs/conversions/upload-offline",
+    "https://developers.google.com/ads/blog/posts/2026/11/display-targeting-changes-in-demand-gen",
+    "https://developers.google.com/display-video/api/guides/concepts/targeting/youtube",
+    "https://developers.google.com/ads/blog/posts/2026/11/manage-responsive-youtube-ads-with-display",
+    "https://developers.google.com/display-video/api/guides/tasks/serve-demand-gen-ad/assign-targeting",
+    "https://developers.google.com/display-video/api/reference/rest/v5/advertisers.adGroups.targetingTypes.assignedTargetingOptions",
+    "https://developers.google.com/display-video/api/release-notes#june_10_2026",
+    "https://developers.google.com/youtube/terms/developer-policies-guide",
+    "https://developers.google.com/youtube/data/reference/rest/v3/captions/download",
+    "https://developers.google.com/youtube/analytics/reference/reports/query"
+  ]
+}
