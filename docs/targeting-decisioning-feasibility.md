@@ -5,6 +5,16 @@ and #60. Research is persisted in [contextual targeting options](contextual-targ
 This records the revised product direction, not a deployed targeting integration,
 verified response model, production allocation policy or permission to spend.
 
+26 November checkpoint: #143 selects **offline-only GO for #144**, with
+qualified product-demo actions as the owner-selected objective. The dated
+[control/data verification](youtube-targeting-verification.md),
+[action and reward contract](youtube-data-reward-contract.md) and
+[v1 handoff](../config/youtube-decision-contract-v1.json) resolve the first
+offline task. No route is account/write/delivery verified. Manual exact-context
+setup remains conditional; #133 follows the accepted #144 handoff and needs
+new trusted task receipts, not relabeled recording preferences. The design
+below remains the wider implementation plan.
+
 ## Decision and purpose
 
 The product should recommend suitable approved creative/context allocations

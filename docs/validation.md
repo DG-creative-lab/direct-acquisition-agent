@@ -4316,3 +4316,70 @@ configuration is no longer present. Earlier provider evidence retains its source
 attribution. No live model, paid activation, deployment or new cloud resource was
 used. The [integration record](evaluations/issue-131-main-integration-2026-11-25.json)
 retains exact source attribution, partial local results and CI follow-up scope.
+
+## Issue 143: targeting and qualified-action feasibility, 26 November 2026
+
+Base `74a53bbd7bb0e3d5c1b67ae12d12db6bbcaedda9` (merged #142). The dated
+[targeting/data matrix](youtube-targeting-verification.md) selects offline-only
+GO for #144. Public documentation is not account/write/delivery proof. The
+[reward contract](youtube-data-reward-contract.md) defines a requested,
+server-verified generated voice sample; prerecorded playback, preference and
+client events cannot become qualified actions. Both numerator and denominator
+use one mature, attributed assignment cohort. Current real events are zero for
+this protocol; task collection and enforcement remain #133 implementation.
+
+The producer is an authored frozen JSON handoff; its only executable consumer
+in this change is an offline checker. There are no production imports, commands,
+schema, provider, asset-serving or browser changes. The checker is not runtime
+authorization or an event verifier. Future #144/#133 consumers must implement
+and test their own admission, receipt, attribution and measurement boundaries.
+
+| Invariant | Finite evidence | Remaining gap |
+| --- | --- | --- |
+| Documentation cannot grant live authority | CLI rejects changed route readiness, automatic handoff/effects and impression-level interval | No account probe or actual ad setup |
+| Reward unit cannot become a proxy | Reject changed reward/denominator, client success, weakened exclusions and implicit failures | No trusted generation receipt/event handler yet |
+| Scope and provenance remain explicit | Missing scoped asset/candidate identity and invented real labels/propensities rejected | Runtime foreign/stale identity behavior belongs to future consumers |
+| Money is a declared simulation tradeoff | Boolean/inconsistent budgets and changed action-value formula rejected | Not a billing guarantee, calibrated value or spend permission |
+| Invalid files do not emit a validity receipt | Duplicate JSON, non-finite number, unknown version and invalid CLI input checked | Not a general-purpose schema validator |
+
+All eight focused checker tests passed. The real CLI emitted the canonical v1
+contract hash `d70454c2db829c103d49ad8dcc1698fb50bebd1ef9255ed81fa45ed3242da2d8`
+with `live_ready: false`. Architecture passed with 235 modules and zero
+exceptions; all 19 relative links in the four changed design documents resolve.
+Whitespace checks passed. Full backend coverage is delegated to the review
+branch's existing CI shards; it was not rerun locally. No browser or boundary
+journey is needed for this non-runtime handoff. No live provider, paid model,
+participant data collection, cloud resource or deployment was used. The
+[evidence record](evaluations/issue-143-feasibility-2026-11-26.json) separates
+these local checks from unexecuted runtime/statistical/live paths.
+
+### Issue 143 review corrections, 26 November 2026
+
+Review base `abab7a86cbc6c3eacd44bce82cf187ef4999e8f7`. Before the fix,
+regressions reproduced the missing estimation policy and acceptance of five
+independently changed, internally consistent simulation assumptions. An added
+variant ID was also accepted inside the baseline. The preceding eight-test
+record and `d70454...` hash describe that pre-review candidate, not the current
+handoff. This corrects the proposed v1 before acceptance; no installed consumer
+or released policy is migrated.
+
+The revised contract requires known manifest, nonempty mature cohort, complete
+coverage and zero unknown outcomes for a point estimate or cohort posterior
+update. One success and one unknown permits 50% to 100% missing-outcome bounds
+and no point estimate or update. Unknown manifest or empty cohort has no bounds.
+Partial cohorts cannot be dropped for a favorable comparison. #144/#133 must
+implement these rules; no runtime aggregation is added here.
+
+All simulation fields are now pinned with exact type/value/key equality.
+Seven days, budgets 10,000/2,000/1,000 pence, 500-pence utility and the 200-basis-
+point threshold cannot change under v1. Sensitivity needs a separate identified
+contract and validator, not a baseline override. The real CLI rejects invalid
+missingness and consistent budget changes without a validity receipt.
+
+All ten focused tests, architecture (235 modules, zero exceptions) and whitespace
+checks passed. The corrected candidate hash is
+`c7f4129dd6d50e5de4a2c41db4ab0cddf34f31bb6e1829711019ad462df59949`.
+The [review correction record](evaluations/issue-143-review-corrections-2026-11-26.json)
+preserves original attribution, counterexamples and verification limits. Full
+coverage runs in updated PR CI. No live provider calls, account checks, browser
+or campaign effects were introduced or executed by the local checks.

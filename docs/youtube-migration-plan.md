@@ -18,6 +18,16 @@ the product objective or evidence of ad conversion.
 
 ## Evidence baseline
 
+26 November checkpoint: #143 records
+[offline-only feasibility](youtube-targeting-verification.md) and a
+[qualified product-demo action contract](youtube-data-reward-contract.md).
+The next build after accepting that contract is **#144's offline benchmark**,
+then #133's objective-bound measurement/reuse slice. The first qualified task
+requires a requested, server-verified generated voice sample. No current live
+qualified-action data or exact-context platform write is verified. Merged #142
+is the source baseline for this checkpoint; cloud/asset work can continue in
+parallel without turning offline evidence into live readiness.
+
 Update, 25 November 2026: PR #138 is merged at
 `a1659ce661d5a92ac7d5ae91c7ad779e9bf7e47b`. #132 now supplies native local
 draft/review/manual export and refreshed samples. PR #139 is also merged,
