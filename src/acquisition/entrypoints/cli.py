@@ -2,17 +2,18 @@ import argparse
 import json
 from pathlib import Path
 
-from acquisition.bootstrap import build_cli_application, model_catalogue
+from acquisition.bootstrap import build_cli_application, build_outcomes, model_catalogue
 from acquisition.application.cli_commands import run_command
 from acquisition.contracts import Conflict, NotFound
 from acquisition.reasoning import ModelError
 from acquisition.entrypoints.learning_cli import add_learning_commands, learning_command
 from acquisition.entrypoints.learning_demo import run_learning_demo
 from acquisition.entrypoints.review_cli import add_review_commands, review_command
+from acquisition.entrypoints.outcomes_cli import add_outcome_commands, outcome_command
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Synthetic acquisition workflow; optional OpenRouter copy generation. No sending.")
+    parser = argparse.ArgumentParser(description="Campaign preparation and recorded outcomes; optional OpenRouter copy generation. No sending.")
     parser.add_argument("--db", default=".local/day-one.sqlite")
     parser.add_argument("--organization", default="demo-org", help="Local scope selector, not authentication")
     parser.add_argument("--model", help="OpenRouter model ID; model commands default to openai/gpt-oss-120b")
@@ -48,10 +49,16 @@ def main() -> None:
             action.add_argument("--reference", required=True)
         if name == "export":
             action.add_argument("--out", type=Path, default=Path(".local/exports"))
+    add_outcome_commands(commands)
     add_learning_commands(commands)
     add_review_commands(commands)
     args = parser.parse_args()
     try:
+        if args.command.startswith('outcomes-'):
+            read_only=args.command in {'outcomes-show','outcomes-show-report','outcomes-receipt'}
+            app=build_outcomes(args.db,read_only=read_only,verified_admissions=args.verified_admissions)
+            print(json.dumps(outcome_command(app,args),indent=2))
+            return
         if args.command == "models":
             print(json.dumps(model_catalogue(), indent=2))
             return

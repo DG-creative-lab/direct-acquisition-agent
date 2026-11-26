@@ -4552,3 +4552,50 @@ source and 42 historical evaluation artifacts unchanged. The
 supersedes the v1 handoff for current use while preserving its original record.
 Full checks run in updated PR CI. No provider/model calls or real participant
 learning were introduced.
+
+## Registered external campaigns and report intake, 26 November 2026
+
+The [API/CLI contract](external-outcomes.md) introduces an operator-attested
+external registry, separate from synthetic learning and model memory. Native
+SQLite owns the commit; a file adapter supplies recorded evidence; learning
+owns assignment, coverage and Bayesian rules. Read-only views and original
+receipts expose history without granting current authority. No frontend,
+provider fetch, model call, sending or schema migration is introduced.
+
+| Invariant | Independent oracle and failure probe | Observable requirement |
+| --- | --- | --- |
+| Original denominator survives partial or failed dispatch | Six literal A/B/holdout members; missing page/member and substituted manifest | Unknowns remain missing; no finalization or denominator shrink |
+| Engagement does not become statistical support | Twenty opens plus a click on one business | Twenty event counts, one engaged business, zero outcome trials |
+| Mature complete counts update once | Literal two-member groups: A/holdout 1 success, B 0; prior (1,19) | Final A/holdout (2,20), B (1,21); no synthetic beliefs/model calls |
+| Scope and source identity stay frozen | Wrong organization, CRM record, native dispatch, arm, content hash, data class or metric | Atomic denial, unchanged native row counts |
+| Exact replay observes original work | Duplicate source event/page/report, changed payload under old ID, new request key | Original receipt; no additional observations; contradictions roll back |
+| Every write retains active operator authority | Disable/generation change after final command write | Whole transaction rolls back; receipt inspection remains historical |
+| Evidence, audit and receipt commit together | Inject failure after registration/report/finalization audit and lose reply after commit | Zero partial effects or original committed receipt on retry |
+| Independent businesses cannot be counted twice | Real accepted legacy cohort before/after external registration; native CRM/dispatch alias | Cross-path conflict under native write transaction |
+| Process/concurrent recovery converges | Fresh Python process, two registration contenders, two finalizers, Hrana COMMIT reply loss | One original cohort/finalization and saved report; no repeated counts |
+| Historical evidence cannot be renewed | Actual checkpoint create/restore, disabled role, late correction and clock regression | Inspection works; writes deny; future history has no current posterior projection |
+| Missing or tampered relationships fail closed | Deleted source audit/member reservation and altered saved snapshot | No usable posterior/finalization from inconsistent evidence |
+| Advisory comparison is bounded | Literal A better than B but worse than holdout | No recommendation to prefer the treatment; authority remains advisory |
+
+The focused `test_external_outcomes.py` suite has 24 tests. Its real SQLite
+counts, process restart, actual checkpoint round trip and two-contender schedules
+exercise the listed failure mechanisms. The remote case uses the existing
+SQLite-backed Hrana wire server and string wire identities, with a fresh remote
+connection after a lost COMMIT acknowledgement. It is not managed Turso service
+or live provider evidence. The committed fixture is also run through separate
+CLI processes, proving registration, partial status, complete finalization,
+report retrieval and replay with the literal posterior values above.
+
+Manual attestation is the authority boundary, not independently verified
+provider truth. This slice cannot detect a dishonest original manifest,
+incorrect cross-system business mappings, contaminated holdouts, retrospective
+selection or invented source completeness. No automated learning from real
+feeds is claimed. Declared randomized designs and illustrative priors/thresholds
+need independent calibration. Complete finalized results are separate advisory
+evidence; corrections, repeated exposure, model-context integration and hosted
+access are deferred. Resource caps prevent unbounded input within one cohort;
+there is no hosted ingestion rate-limit claim.
+
+The commit-bound verification record will identify full backend, architecture
+and integrated boundary results separately from these focused checks. Existing
+historical evaluation artifacts are preserved.

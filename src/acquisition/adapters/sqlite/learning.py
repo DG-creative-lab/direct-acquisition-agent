@@ -180,6 +180,10 @@ class SqliteLearning:
                 # Pooling assumes independent business observations. Repeated
                 # exposure requires a future clustered/repeated-measures model.
                 for member in proposal["members"]:
+                    from .external_outcomes import member_key
+                    if db.execute('SELECT 1 FROM learning_commands WHERE organization=? AND request_id=?',
+                                  (organization,member_key(member['business_id']))).fetchone():
+                        raise Conflict('Business already belongs to an external learning cohort')
                     if db.execute("SELECT 1 FROM learning_members WHERE organization=? AND business_id=?", (organization, member["business_id"])).fetchone():
                         raise Conflict("Business already belongs to a learning cohort; repeated exposure is unsupported")
                 db.execute("INSERT INTO learning_cohorts VALUES(?,?,?,?,?,NULL,NULL)",

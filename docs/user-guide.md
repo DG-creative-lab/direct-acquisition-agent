@@ -1,5 +1,7 @@
 # Campaign user guide
 
+For externally executed postal/email campaigns, the [recorded outcomes API/CLI](external-outcomes.md) registers original assignments, imports attested JSON reports and finalizes separate advisory results. Use its disposable recorded fixture first. This capability has no browser screen or live provider connector.
+
 The separate [channel content API/CLI](channel-content.md) prepares synthetic
 personalized email and human call scripts from exact recipient contexts. It is
 an additive agent-facing capability; the workspace journey below retains its

@@ -1,0 +1,85 @@
+{
+  "schema": "external-outcome-report/v1",
+  "mode": "EXTERNAL_OPERATOR_ATTESTED",
+  "data_class": "recorded_fixture",
+  "organization": "outcomes-fixture",
+  "cohort_id": "external_cohort_c94366b94ca5beab0064760e110007e1e00680e0239b4799e811ffe873ef0f56",
+  "report_id": "fixture-final",
+  "source_id": "crm",
+  "watermark": 1795651200,
+  "final": true,
+  "page_count": 1,
+  "pages": [
+    {
+      "number": 1,
+      "events": [
+        {
+          "event_id": "fixture-outcome-0",
+          "business_id": "fixture-business-0",
+          "arm": "A",
+          "creative_sha256": "e402e9523cee09690b7a0c11ed980f4943af09477d89e7b17dd8492f0a36c3ef",
+          "record_id": "fixture-crm-0",
+          "kind": "qualified_enquiry",
+          "occurred_at": 1795568400,
+          "evidence_ref": "fixture:crm-outcome-0"
+        },
+        {
+          "event_id": "fixture-outcome-1",
+          "business_id": "fixture-business-1",
+          "arm": "A",
+          "creative_sha256": "e402e9523cee09690b7a0c11ed980f4943af09477d89e7b17dd8492f0a36c3ef",
+          "record_id": "fixture-crm-1",
+          "kind": "no_qualified_enquiry",
+          "occurred_at": 1795651200,
+          "evidence_ref": "fixture:crm-outcome-1"
+        },
+        {
+          "event_id": "fixture-outcome-2",
+          "business_id": "fixture-business-2",
+          "arm": "B",
+          "creative_sha256": "65be4ce78e6b18d35aaae5c3ef4bdfbd7c5b50fbf5c972e8f6468815f0c99eee",
+          "record_id": "fixture-crm-2",
+          "kind": "no_qualified_enquiry",
+          "occurred_at": 1795651200,
+          "evidence_ref": "fixture:crm-outcome-2"
+        },
+        {
+          "event_id": "fixture-outcome-3",
+          "business_id": "fixture-business-3",
+          "arm": "B",
+          "creative_sha256": "65be4ce78e6b18d35aaae5c3ef4bdfbd7c5b50fbf5c972e8f6468815f0c99eee",
+          "record_id": "fixture-crm-3",
+          "kind": "no_qualified_enquiry",
+          "occurred_at": 1795651200,
+          "evidence_ref": "fixture:crm-outcome-3"
+        },
+        {
+          "event_id": "fixture-outcome-4",
+          "business_id": "fixture-business-4",
+          "arm": "holdout",
+          "creative_sha256": null,
+          "record_id": "fixture-crm-4",
+          "kind": "qualified_enquiry",
+          "occurred_at": 1795568400,
+          "evidence_ref": "fixture:crm-outcome-4"
+        },
+        {
+          "event_id": "fixture-outcome-5",
+          "business_id": "fixture-business-5",
+          "arm": "holdout",
+          "creative_sha256": null,
+          "record_id": "fixture-crm-5",
+          "kind": "no_qualified_enquiry",
+          "occurred_at": 1795651200,
+          "evidence_ref": "fixture:crm-outcome-5"
+        }
+      ]
+    }
+  ],
+  "attestation": {
+    "confirmed": true,
+    "note": "Fictional recorded observations only. Full original population and closed window.",
+    "evidence_ref": "fixture:fixture-final",
+    "evidence_sha256": "ea5e72e113f17eeab2527c439068ddd5b83436a8a3d9520b6b12155eaff46c35"
+  }
+}
