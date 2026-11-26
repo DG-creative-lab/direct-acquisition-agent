@@ -110,7 +110,7 @@ class ModelRankingTests(unittest.TestCase):
                 self.assertEqual(error.exception.code, 2)
                 key.assert_not_called()
 
-    def test_crash_after_provider_receipt_recovers_on_fresh_app_without_another_call(self):
+    def test_crash_receipt_remains_inspectable_but_source_interval_is_unverified(self):
         gateway = RankingGateway()
         app = self.app(gateway)
         organization, run = evaluation.admit(app, self.plan, 'crash')
@@ -123,9 +123,14 @@ class ModelRankingTests(unittest.TestCase):
         resumed = self.app(gateway)
         self.assertTrue(resumed.worker.tick(organization, run_id=run))
         task = resumed.tasks.inspect(organization, run)['tasks'][0]
-        self.assertEqual(task['output']['response_sha256'], digest(response))
-        self.assertTrue(task['output']['receipt_recovered'])
-        self.assertIsNone(task['output']['inference_wall_seconds'])
+        self.assertEqual(task['status'], 'failed')
+        self.assertEqual(task['output']['error_code'], 'EvaluationSourceUnverified')
+        self.assertEqual(resumed.calls.inspect(organization, run)[0]['receipt'], response)
+        inspected = evaluation.inspect_sample(self.plan, self.path, 'crash')
+        self.assertFalse(inspected['complete'])
+        self.assertIsNone(inspected['source_stable'])
+        self.assertEqual(inspected['source_validation']['status'], 'unverified')
+        self.assertIsNone(inspected['mean_precision_at_1'])
         self.assertEqual(len(gateway.requests), 1)
 
     def test_unknown_outcome_stops_remaining_cases_and_cannot_retry_after_restart(self):
@@ -195,6 +200,64 @@ class ModelRankingTests(unittest.TestCase):
         self.assertIsNone(inspected['mean_precision_at_1'])
         self.assertEqual(len(gateway.requests), 2)
 
+    def test_expired_case_cannot_certify_restored_source_when_its_mismatch_was_not_committed(self):
+        changed = False
+        original_source = evaluation.source_state
+        gateway = RankingGateway()
+        def after_response(response):
+            nonlocal changed
+            if len(gateway.requests) == 1:
+                self.now += 181
+                changed = True
+        gateway.change = after_response
+        def source():
+            state = original_source()
+            return state | {'files_sha256': '0' * 64} if changed else state
+        app = self.app(gateway)
+        organization, run = evaluation.admit(app, self.plan, 'comparison')
+        with patch.object(evaluation, 'source_state', side_effect=source):
+            app.worker.tick(organization, run_id=run)
+        interrupted = app.tasks.inspect(organization, run)['tasks'][0]
+        self.assertEqual(interrupted['status'], 'running')
+        self.assertIsNone(interrupted['output'])
+        recovered = self.run_sample(gateway)
+        self.assertFalse(recovered['complete'])
+        self.assertIsNone(recovered['source_stable'])
+        self.assertEqual(recovered['source_validation']['status'], 'unverified')
+        self.assertIsNone(recovered['mean_precision_at_1'])
+        self.assertIsNone(recovered['mean_ndcg_at_3'])
+        self.assertEqual(len(gateway.requests), 1)
+        inspected = evaluation.inspect_sample(self.plan, self.path, 'comparison')
+        self.assertFalse(inspected['complete'])
+        self.assertIsNone(inspected['source_stable'])
+
+    def test_expired_final_validation_cannot_be_certified_after_source_restoration(self):
+        changed = False
+        original_source, original_verify = evaluation.source_state, evaluation.verify_source
+        def source():
+            state = original_source()
+            return state | {'files_sha256': '0' * 64} if changed else state
+        def verify(inputs):
+            nonlocal changed
+            if 'case_id' not in inputs:
+                self.now += 181
+                changed = True
+            return original_verify(inputs)
+        gateway = RankingGateway()
+        app = build_youtube_ranking_evaluation(self.path, self.config, gateway,
+            evaluation.verify_case, clock=lambda: self.now, verify_source=verify)
+        organization, run = evaluation.admit(app, self.plan, 'comparison')
+        with patch.object(evaluation, 'source_state', side_effect=source):
+            app.worker.drain(organization, max_tasks=3, run_id=run)
+        final = app.tasks.inspect(organization, run)['tasks'][-1]
+        self.assertEqual(final['status'], 'running')
+        self.assertIsNone(final['output'])
+        recovered = self.run_sample(gateway)
+        self.assertFalse(recovered['complete'])
+        self.assertIsNone(recovered['source_stable'])
+        self.assertEqual(recovered['source_validation']['status'], 'unverified')
+        self.assertEqual(len(gateway.requests), 2)
+
     def test_missing_finalization_stays_unverified_and_resumes_without_model_calls(self):
         gateway = RankingGateway()
         app = self.app(gateway)
@@ -207,6 +270,26 @@ class ModelRankingTests(unittest.TestCase):
         resumed = self.run_sample(gateway)
         self.assertTrue(resumed['complete'])
         self.assertTrue(resumed['source_stable'])
+        self.assertEqual(len(gateway.requests), 2)
+
+    def test_old_recovered_success_is_unverified_despite_positive_source_receipts(self):
+        gateway = RankingGateway()
+        result = self.run_sample(gateway)
+        self.assertTrue(result['complete'])
+        app = self.app(gateway)
+        task = app.tasks.inspect(result['organization'], result['run_id'])['tasks'][0]
+        for attempts, recovered in ((2, False), (1, True)):
+            output = deepcopy(task['output']);output['receipt_recovered'] = recovered
+            # Reconstruct older positive history which lacked the recovery fence.
+            with app.tasks.database.transaction() as db:
+                db.execute('UPDATE tasks SET attempts=?,output=? WHERE id=?',
+                           (attempts, json.dumps(output), task['id']))
+            inspected = evaluation.inspect_sample(self.plan, self.path, 'comparison')
+            with self.subTest(attempts=attempts, recovered=recovered):
+                self.assertFalse(inspected['complete'])
+                self.assertIsNone(inspected['source_stable'])
+                self.assertEqual(inspected['source_validation']['status'], 'unverified')
+                self.assertIsNone(inspected['mean_precision_at_1'])
         self.assertEqual(len(gateway.requests), 2)
 
     def test_known_billing_invalid_result_stops_batch_without_falling_back_to_rules(self):
@@ -303,9 +386,13 @@ class ModelRankingTests(unittest.TestCase):
         self.assertIsNone(comparison['models'][1]['mean_precision_at_1'])
         other['complete'], other['source_stable'] = True, False
         self.assertFalse(evaluation.compare([result, other])['complete'])
-        legacy = deepcopy(result);legacy['schema'] = 'youtube-model-ranking-evaluation/v1'
-        with self.assertRaises(ValueError):
-            evaluation.compare([result, legacy])
+        other['source_stable'] = True
+        other['source_validation']['recovery_policy'] = 'legacy-unknown'
+        self.assertFalse(evaluation.compare([result, other])['complete'])
+        for version in (1, 2):
+            legacy = deepcopy(result);legacy['schema'] = 'youtube-model-ranking-evaluation/v' + str(version)
+            with self.assertRaises(ValueError):
+                evaluation.compare([result, legacy])
         other['cases'][0]['input_id'] = 'other-input'
         with self.assertRaises(ValueError):
             evaluation.compare([result, other])

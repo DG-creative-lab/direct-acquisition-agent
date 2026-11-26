@@ -21,7 +21,7 @@ from acquisition.contracts import canonical, digest
 from acquisition.reasoning import Inference, ModelConfig
 from acquisition.runtime import TaskSpec
 from acquisition.workflows.youtube_ranking import (reported_cost, request_ceiling,
-                                                  RANKING_FINALIZATION, EvaluationSourceChanged)
+    RANKING_FINALIZATION, SOURCE_RECOVERY_POLICY, EvaluationSourceChanged, EvaluationSourceUnverified)
 from acquisition.youtube import (RANKING_EVALUATION, RANKING_PROMPT, YouTubeError,
                                  ranking_request, ranking_response, rules_ranking)
 
@@ -58,7 +58,8 @@ def make_plan(model, budget='0.25', case_ids=None):
                              'request_sha256': digest(request)})
     if source_state()['files_sha256'] != before:
         raise ValueError('Source changed during preparation')
-    plan = {'schema': 'youtube-model-ranking-plan/v2', 'corpus_sha256': CORPUS_SHA256,
+    plan = {'schema': 'youtube-model-ranking-plan/v3', 'corpus_sha256': CORPUS_SHA256,
+            'source_recovery_policy': SOURCE_RECOVERY_POLICY,
             'source_commit': source_state()['head_commit'],
             'source_sha256': before, 'prompt_version': RANKING_PROMPT,
             'model_config': config.payload(), 'budget_usd': str(budget),
@@ -79,9 +80,11 @@ def validate_plan(plan):
 def task_specs(plan, gateway_kind):
     return [TaskSpec(RANKING_EVALUATION, case | {
         'model_config': plan['model_config'], 'plan_id': plan['id'], 'gateway_kind': gateway_kind,
+        'source_recovery_policy': plan['source_recovery_policy'],
         'budget_usd': plan['budget_usd'], 'source_sha256': plan['source_sha256']}, max_attempts=2)
         for case in plan['cases']] + [TaskSpec(RANKING_FINALIZATION, {
             'plan_id': plan['id'], 'source_sha256': plan['source_sha256'],
+            'source_recovery_policy': plan['source_recovery_policy'],
             'gateway_kind': gateway_kind}, max_attempts=2)]
 
 
@@ -119,7 +122,12 @@ def report(app, plan, organization, run, *, gateway_kind):
     expected_validation = {'expected_sha256': plan['source_sha256'], 'observed_sha256': plan['source_sha256']}
     unstable = any((task['output'] or {}).get('error_code') == EvaluationSourceChanged.__name__
                    for task in state['tasks'])
-    validated = (len(finalization) == 1 and finalization[0]['capability'] == RANKING_FINALIZATION
+    ambiguous = any(task['attempts'] > 1
+                    or task['inputs'].get('source_recovery_policy') != SOURCE_RECOVERY_POLICY
+                    or (task['output'] or {}).get('receipt_recovered') is True
+                    or (task['output'] or {}).get('error_code') == EvaluationSourceUnverified.__name__
+                    for task in state['tasks'])
+    validated = (not ambiguous and len(finalization) == 1 and finalization[0]['capability'] == RANKING_FINALIZATION
                  and finalization[0]['status'] == 'succeeded'
                  and finalization[0]['output'] == {'plan_id': plan['id'], 'source_validation': expected_validation}
                  and all((task['output'] or {}).get('source_validation') == expected_validation for task in tasks))
@@ -162,9 +170,10 @@ def report(app, plan, organization, run, *, gateway_kind):
                 and all(c['status'] == 'completed' and 'failure' not in c for c in rows))
     mean = lambda key: sum(c['model_relevance'][key] for c in rows) / len(rows) if complete else None
     latencies = [t['output']['inference_wall_seconds'] for t in tasks if t['status'] == 'succeeded']
-    return {'schema': 'youtube-model-ranking-evaluation/v2', 'plan_id': plan['id'],
+    return {'schema': 'youtube-model-ranking-evaluation/v3', 'plan_id': plan['id'],
             'source_stable': source_stable,
-            'source_validation': {'status': 'unstable' if unstable else 'validated' if validated else 'unavailable',
+            'source_validation': {'status': 'unstable' if unstable else 'unverified' if ambiguous else 'validated' if validated else 'unavailable',
+                                  'recovery_policy': SOURCE_RECOVERY_POLICY,
                                   'finalization': finalization[0] if len(finalization) == 1 else None},
             'source_commit': plan['source_commit'],
             'corpus_sha256': plan['corpus_sha256'], 'source_sha256': plan['source_sha256'],
@@ -217,8 +226,8 @@ def inspect_sample(plan, database, batch_id):
 def compare(reports):
     if len(reports) < 2:
         raise ValueError('Compare at least two model reports')
-    if any(r.get('schema') != 'youtube-model-ranking-evaluation/v2' for r in reports):
-        raise ValueError('Comparison requires source-validated v2 evaluation reports')
+    if any(r.get('schema') != 'youtube-model-ranking-evaluation/v3' for r in reports):
+        raise ValueError('Comparison requires source-validated v3 evaluation reports')
     signature = lambda r: (r['corpus_sha256'], r['source_sha256'], r['prompt_version'],
                             {k: v for k, v in r['model_config'].items() if k != 'model'},
                             [(c['case_id'], c['input_id']) for c in r['cases']])
@@ -228,7 +237,8 @@ def compare(reports):
     for r in reports:
         model = {key: r[key] for key in ('model_config', 'gateway_kind', 'complete',
                  'mean_precision_at_1', 'mean_ndcg_at_3', 'reported_cost_usd', 'calls_without_reported_cost')}
-        model['complete'] = r['complete'] and r.get('source_stable') is True
+        model['complete'] = (r['complete'] and r.get('source_stable') is True
+                             and r.get('source_validation', {}).get('recovery_policy') == SOURCE_RECOVERY_POLICY)
         if not model['complete']:
             model.update(mean_precision_at_1=None, mean_ndcg_at_3=None)
         models.append(model)

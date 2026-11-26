@@ -51,12 +51,18 @@ recommendation port; core allocation policy and provider/spending authority
 remain unchanged. Only named Decimal value imports are added to the static
 architecture whitelist; temporary dependency exceptions remain empty.
 
-Evaluation plan/report v2 checks source identity inside each leased case and
+Evaluation plan/report v3 checks source identity inside each leased case and
 records a final source-validation task after the paid cases. The runtime saves
 source-instability failure codes and the successful validation receipt. Report
 completion and aggregate grades require that saved verdict. Inspection never
 derives past execution validity from a restored checkout. No runtime schema or
 production capability registration changes are needed for this evaluation gate.
+The evaluation's first-attempt recovery policy fences reclaimed cases and
+final validation before effects. A lease-lost attempt may have observed a
+mismatch without retaining authority to persist its failure. Durable attempt
+counts and saved recovery flags therefore make that interval unverified even
+after source restoration. Provider replies/billing remain inspectable; generic
+inference receipt recovery outside this evaluator is unchanged.
 
 The proposed [contextual targeting feasibility design](targeting-decisioning-feasibility.md)
 keeps channel decision/reward policy in `youtube`, model calls behind existing

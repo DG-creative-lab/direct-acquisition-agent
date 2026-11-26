@@ -193,9 +193,10 @@ continues to own candidates, prices, allocation, evidence and approval.
 selected cases, native input IDs, model settings, prompt/tool bytes, source
 fingerprint and conservative whole-batch estimate into a prepared plan. Plan
 preparation makes no network calls and does not read credentials. Changes to
-the prepared inputs or source require a new plan; receipt recovery uses the
-original checkout and exact saved messages/tools rather than rerendering a
-paid request with new instructions.
+the prepared inputs or source require a new plan. Saved messages, tools and
+provider replies remain available for inspection in the original checkout.
+Interrupted source-validation intervals are unverified rather than certified
+by rerendering or replaying a paid result after source restoration.
 
 The default six-task plan allows at most six calls with 2,400 output tokens,
 32,000 input bytes, forced tool choice and the existing $1/M input, $2/M output
@@ -214,8 +215,11 @@ terminal prompt, never the plan or model payload. Batch names must start with
 an ASCII letter or digit, so `.` and `..` cannot escape their dedicated store.
 Live/inspection commands reject budget overrides before credential access;
 model, task and budget changes require a new prepared plan. Reusing the batch ID cannot
-change its inputs. A saved provider receipt can recover after a process restart
-without another call; a reserved/unknown result cannot be repeated automatically.
+change its inputs. Saved provider receipts and billing survive a process restart
+without another call. Reclaimed attempts and cached replies without a committed
+source interval stop the evaluation as unverified; they cannot become a verified
+sample. A reserved/unknown result cannot be repeated automatically. Unstarted
+tasks, including an unclaimed final validation, may still continue normally.
 
 The model sees only the goal and candidate placement/creative text and IDs.
 Explicit context-category labels are omitted so it must compare the supplied
@@ -233,16 +237,24 @@ leaves subsequent cases `not_run`, including failures with known zero cost.
 A semantically poor but structurally valid ranking receives its low quality
 score and does not become an execution failure. No silent rules fallback occurs.
 
-Plan/report v2 additionally checks source identity before and after each leased
+Plan/report v3 checks source identity before and after each leased
 case and appends a zero-provider final validation task. A detected mismatch
 persists `EvaluationSourceChanged` in the existing runtime, fails the run and
 prevents later calls. The final task saves the matching fingerprint after all
 model cases commit. This defines the validation cutoff; it is not continuous
 filesystem monitoring after completion. A missing final receipt is unverified,
-not complete, and can resume without repeating the paid cases. A saved mismatch
+not complete; an unclaimed final task can resume without repeating the paid cases. A saved mismatch
 stays invalid after file restoration and inspection. Whole-sample and split
 aggregate scores are unavailable unless the durable validation succeeded.
-Comparison requires source-validated v2 reports; historical v1 plans/reports
+The pinned `first-attempt-source-validation/v1` policy also fences any reclaimed
+attempt or reply-only recovery before provider dispatch. An expired lease can
+prevent a detected mismatch from being saved; restoration cannot prove that
+lost interval stable. Durable attempt counts and saved recovery flags therefore
+keep it unverified, even if an older producer saved positive validation receipts.
+Saved replies/billing remain inspectable, scores stay unavailable and remaining
+paid cases do not run. A new sample requires explicit preparation/authorization;
+the evaluator never automatically repeats the paid calls to obtain a score.
+Comparison requires source-validated v3 reports; historical v1/v2 plans/reports
 cannot be silently promoted to that guarantee.
 
 Reports retain per-case replies, reasons, failures, rules/model relevance,

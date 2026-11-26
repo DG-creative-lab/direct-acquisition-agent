@@ -4554,3 +4554,37 @@ ranking tests. Architecture passed with 240 modules and zero exceptions. All
 five boundary cases and the unchanged 576-trial allocation benchmark passed;
 source fingerprints were stable, network attempts were zero and all 44
 historical evaluation artifacts were unchanged.
+
+### Issue 144 review: lease loss makes the source interval unverified
+
+Review base `36b9178`. Two fake-gateway/clock regressions reproduced successful
+certification after restoration when an expired case or final-validation lease
+prevented `EvaluationSourceChanged` from being committed. The task remained
+running with no failure output, and recovery reused the reply then certified
+the sample. No credentials or live provider calls were involved.
+
+Plan/report v3 pins `first-attempt-source-validation/v1`. Reclaimed attempts
+and cached replies without a committed source interval are fenced before
+provider dispatch as `EvaluationSourceUnverified`. Durable attempt counts and
+saved recovery flags independently suppress certification during reporting,
+including older positive histories. A lost observation is unknown, not proof
+of stability or proof of a committed mismatch. Aggregate scores stay unavailable.
+Restoration cannot upgrade that interval; further paid cases do not run.
+
+Provider replies and billing remain inspectable. The evaluator does not repeat
+paid calls automatically to obtain a score. Unstarted tasks, including an
+unclaimed final validation, can continue under their first attempt. Generic
+inference receipt recovery and runtime lease authority are unchanged; an expired
+worker receives no new permission to commit. No database schema changes occur.
+Historical v1/v2 evaluation reports are not certified by the v3 comparison.
+
+The 52 focused checks passed, including 19 evaluator regressions, generic model
+receipt recovery and architecture. The
+[lease-recovery review record](evaluations/issue-144-lease-recovery-fix-2026-11-26.json)
+records the full current-source verification separately, preserving previous
+implementation/review artifacts. Genuine model quality remains unmeasured.
+
+All 1,263 backend tests passed in four standard shards. The five boundary
+cases and the unchanged 576 allocation trials also passed with stable source
+fingerprints, zero network attempts and all 45 historical evaluation artifacts
+unchanged. Architecture remains 240 modules with zero dependency exceptions.

@@ -8,10 +8,15 @@ from acquisition.runtime import Outcome
 from acquisition.youtube import ranking_response, YouTubeError
 
 RANKING_FINALIZATION = 'youtube.contextual_ranking_finalize.v1'
+SOURCE_RECOVERY_POLICY = 'first-attempt-source-validation/v1'
 
 
 class EvaluationSourceChanged(RuntimeError):
     """Persisted runtime failure code: never reinterpret as a valid old sample."""
+
+
+class EvaluationSourceUnverified(RuntimeError):
+    """An interrupted interval cannot be certified from a restored checkout."""
 
 
 def check(condition, code):
@@ -24,6 +29,7 @@ class ContextualRankingEvaluation:
         self.inference, self.verify, self.verify_source = inference, verify, verify_source
 
     def rank(self, claim):
+        self.require_first_attempt(claim)
         inputs = claim.inputs
         self.verify_source(inputs)
         if inputs['model_config'] != self.inference.config.payload():
@@ -35,6 +41,8 @@ class ContextualRankingEvaluation:
             raise YouTubeError('ranking_request_changed', 'The pinned ranking request changed.')
         recovered = any(row['key'] == inputs['case_id'] for row in
                         self.inference.journal.inspect(claim.organization, claim.run_id))
+        if recovered:
+            raise EvaluationSourceUnverified('Saved provider reply has no committed source interval')
         started = monotonic()
         response = self.inference.call(CallScope(claim.organization, claim.run_id, claim.task_id, claim.token),
                                        inputs['case_id'], messages, tools)
@@ -52,9 +60,18 @@ class ContextualRankingEvaluation:
                                     'source_validation': source_validation})
 
     def finalize(self, claim):
+        self.require_first_attempt(claim)
         # Completion has an explicit saved cutoff after all paid cases settle.
         return Outcome('succeeded', {'plan_id': claim.inputs['plan_id'],
                                     'source_validation': self.verify_source(claim.inputs)})
+
+    @staticmethod
+    def require_first_attempt(claim):
+        # Claim attempts are durable before the handler runs. An expired worker
+        # may have detected a mismatch without retaining authority to save it.
+        if (claim.attempt != 1
+                or claim.inputs.get('source_recovery_policy') != SOURCE_RECOVERY_POLICY):
+            raise EvaluationSourceUnverified('Interrupted source-validation interval requires review')
 
 
 def reported_cost(response):
