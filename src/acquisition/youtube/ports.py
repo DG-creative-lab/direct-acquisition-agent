@@ -11,6 +11,16 @@ class ComparisonAssets(Protocol):
     def manifest(self, contexts: list[str]) -> dict: ...
 
 
+class DecisionInputs(Protocol):
+    """Trusted authored inputs, never model-supplied identity or cost."""
+    def load(self, scope: YouTubeScope) -> dict: ...
+
+
+class RankingReceipts(Protocol):
+    """Recorded offline proposals only. Live serving needs reasoning admission."""
+    def rank(self, frozen: dict) -> dict: ...
+
+
 class YouTubeStore(Protocol):
     def store_identity(self) -> str: ...
     def interactions(self, scope: YouTubeScope, actor: str, conversation_id: str) -> list[dict]: ...

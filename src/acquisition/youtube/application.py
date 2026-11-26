@@ -60,8 +60,14 @@ class YouTubeCampaigns:
 
 class YouTubeTools:
     """Agent entry point excludes human approval, revocation and download commands."""
-    def __init__(self, campaigns: YouTubeCampaigns, permission='none'):
+    def __init__(self, campaigns: YouTubeCampaigns, permission='none', recommendations=None):
         self.campaigns, self.permission = campaigns, permission
+        self.recommendations = recommendations
+
+    def recommend_contextual_batch(self, campaign_id, expected_revision, **settings):
+        if self.recommendations is None or self.recommendations.campaigns is not self.campaigns:
+            raise YouTubeError('capability_unavailable', 'Offline recommendations are not installed here.')
+        return self.recommendations.prepare(campaign_id, expected_revision, **settings)
 
     def read_campaign(self, campaign_id):
         return self.campaigns.read(campaign_id)

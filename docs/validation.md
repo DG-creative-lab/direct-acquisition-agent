@@ -4413,3 +4413,89 @@ The [review correction record](evaluations/issue-143-review-corrections-2026-11-
 preserves original attribution, counterexamples and verification limits. Full
 coverage runs in updated PR CI. No live provider calls, account checks, browser
 or campaign effects were introduced or executed by the local checks.
+
+## Issue 144: native offline contextual recommendations, 26 November 2026
+
+Base `208826199f2390e90491dbf72466915d29ecdf22`, merged #146. The
+[benchmark and measurement handoff](youtube-contextual-benchmark.md) adds a
+read-only native recommendation command and typed-tool entry, exact bundled
+creative identities, frozen simulation limits and a reproducible evaluator.
+Approval, SQL schema, hosted routing and provider execution are unchanged.
+
+| Invariant | Executed boundary | Result |
+| --- | --- | --- |
+| Native source and authority remain current | Real SQLite campaign read, revoked actor, revision change during ranking, changed asset snapshot, actual altered media bytes and exact command/tool replay | Denial or unchanged unapproved result; no inherited package approval |
+| Model proposals cannot establish scope, cost or authority | Foreign/duplicate candidate IDs, invalid fit types, extra budget field, false live-model identity and malformed provenance | Specific ranking/source blockers |
+| Unknown evidence cannot become a point estimate or support | One success/one unknown, empty/immature manifests, missing allocation reports, repeated/conflicting receipts, wrong source/reward and partial cell/day reports | Bounds only where permitted; no partial cell/day response update; unknown denominator stays unavailable |
+| Reports do not release resources | Issued-allocation ledger survives missing feedback, exploration exhaustion, daily/total limits and changed versions | No refunded budget or silent restart under a new snapshot |
+| Independent evaluation can falsify a candidate | Reversed but structurally valid context ranking, independent cost/limit grader and exact known-truth oracle including the no-spend option | Wrong relevance and constraints detected; regret uses compatible expected utility |
+| Failed execution does not become a passing denial or continue the batch | Injected unexpected simulation error | Failure report, one invocation, 576 remaining trials not run |
+| Report aggregation cannot select complete cases | One complete and one unavailable trial rate | Aggregate rate unavailable |
+
+All 55 focused tests passed, including 21 existing native YouTube flow cases,
+10 accepted contract checks and 24 new contextual cases. Architecture passes
+with 238 modules and zero temporary exceptions. The full 576-trial benchmark
+passes with zero constraint violations and network attempts; source/import
+fingerprints remain stable. Its Bayesian candidate is not promoted: the rules
+baseline has better stationary expected utility and activation rate, while the
+Bayesian policy is better in the authored drift case. Sparse/missing data can
+leave rates unavailable, and both policies lose to spending nothing in the
+negative-utility case.
+
+An initial prototype result remains in ignored local output. Self-review
+corrected per-batch completeness to freeze all cell/day allocations, and
+prevented reporting a mean activation rate over only complete replicates.
+Priors, epsilon, budgets and scenario surfaces were not tuned to favor the
+Bayesian result. The retained current corpus hash is
+`9a82400b1695f5fcf0fd489c8f64d556cd07becb74c456f51a4f0f3948ec8b36`.
+The [attributable evidence](evaluations/issue-144-offline-benchmark-2026-11-26.json)
+records the source overlay, metrics, baseline decision and verification limits.
+Full backend/browser checks run in PR CI. No actual LLM ranking quality,
+real-response calibration, replay/IPS/DR value or live delivery is established.
+
+The final five-case boundary journey also passed: zero network attempts,
+stable source attribution and all 41 historical evaluation artifacts unchanged.
+It exercises existing compatibility/model recovery, verified rebuild/replay,
+uncertain restart, profile isolation and engagement replay. These are finite
+native workflow checks, not hosted/browser or new model-quality evidence.
+
+### Issue 144 review corrections: complete traffic and resumed sampling
+
+Review base `c71cc09`. Three regression methods reproduced both findings:
+partial cell/day reports inflated traffic from 2/100 to 102/200 and unlocked
+exploitation, while same-day calls repeated the first draw with incorrect
+conditional probabilities. Prefix lengths 1, 4 and 7 exhibited the sampling
+failure. The preceding v1 results remain historical, not current evidence.
+
+Current allocation policies/recommendation schema are v2. Traffic estimation
+requires every member of a closed cell/day group to have mature, complete
+exposure and manifest reporting. Partial counts are separately labeled and
+cannot affect valuation or its supported draw basis. Response and exposure
+completeness remain independent: unknown task results cannot update the
+response posterior, but do not discard independently complete traffic reports.
+Zero-arrival complete groups contribute traffic denominators correctly.
+
+Each allocation now binds an `allocation-prefix-sha256/v1` draw namespace and
+decision ID to the canonical contents of its issued prefix and supported inputs. Changing a
+receipt body while retaining its ID changes the draw namespace. Call
+partitioning, duplicate/reordered identical history and same-state replay
+preserve choices, probabilities and allocation IDs. Subsequent decisions use
+different namespaces; calls never restart one correlated random prefix.
+Pre-review v1 histories are rejected. These are nominal simulation sampling
+probabilities, not certified auction propensities.
+
+All 62 focused tests passed, including conditional choice-mass and same-day
+continuation checks. Architecture remains 238 modules with zero exceptions.
+The corrected 576-trial benchmark passes with zero constraint violations and
+network attempts; source/import fingerprints are stable. It still retains the
+rules baseline: stationary expected utility is 19,514.375 versus 14,225 pence
+for Bayesian; under drift Bayesian scores 20,562.5 versus rules' 9,407.8125.
+These are authored utility units. Economic assumptions, priors, epsilon, truth
+surfaces and seeds were not tuned; the v2 corpus is separately identified.
+
+All five workflow boundary cases passed, with zero network attempts, stable
+source and 42 historical evaluation artifacts unchanged. The
+[v2 correction record](evaluations/issue-144-review-corrections-2026-11-26.json)
+supersedes the v1 handoff for current use while preserving its original record.
+Full checks run in updated PR CI. No provider/model calls or real participant
+learning were introduced.

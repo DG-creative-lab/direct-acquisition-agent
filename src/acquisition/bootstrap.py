@@ -466,6 +466,14 @@ def build_youtube(path, clock=time.time, *, organization='local-conversations', 
     return YouTubePreparation(campaigns, tasks, worker, initialize_authority=initialize_authority)
 
 
+def build_youtube_recommendations(campaigns, *, source=None, ranker=None):
+    """Offline read-only recommendations; no new live model/provider path."""
+    from acquisition.youtube import YouTubeRecommendations
+    from acquisition.adapters.youtube_decision_inputs import BundledDecisionInputs
+    source = source or BundledDecisionInputs(Path(__file__).resolve().parents[2])
+    return YouTubeRecommendations(campaigns, source, ranker)
+
+
 def build_admissions(path, clock=time.time, *, _database=None, verified_admissions=False, remote_storage=None):
     """Compose admissions, selecting the paused format at database opening when requested."""
     from acquisition.adapters.sqlite.admission_sources import load_source
