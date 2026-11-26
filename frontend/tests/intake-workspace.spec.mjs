@@ -2204,12 +2204,23 @@ for (const mobile of [false, true])
         .getByLabel("Saved campaign briefs", { exact: true })
         .selectOption(ids.brief);
       await expect(download).toBeEnabled();
+      const revoked = page.waitForResponse(
+        (r) =>
+          r.request().method() === "POST" &&
+          r.url().endsWith("/api/intake/emails/revoke"),
+      );
       await area
         .getByRole("button", {
           name: "Revoke email export approval",
           exact: true,
         })
         .click();
+      expect((await revoked).status()).toBe(200);
+      await expect(
+        area
+          .getByRole("status")
+          .filter({ hasText: "No current export approval." }),
+      ).toBeVisible();
       await expect(download).toBeDisabled();
       const token = await page
         .locator('meta[name="workspace-token"]')
