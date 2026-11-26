@@ -1,0 +1,93 @@
+{
+  "schema": "youtube-decision-feasibility/v1",
+  "decision_date": "2026-11-26",
+  "disposition": "offline_only",
+  "objective": "qualified_product_demo_actions",
+  "route": {
+    "selected": "authored_context_creative_recommendation",
+    "future_handoff": "manual_export_conditional_on_verified_placement_setup",
+    "account_verified": false,
+    "exact_targeting_write_verified": false,
+    "delivery_verified": false,
+    "live_execution_allowed": false
+  },
+  "action": {
+    "unit": "context_creative_cell",
+    "selection": "recommendation_batch",
+    "decision_interval_seconds": 86400,
+    "required_identity": [
+      "organization",
+      "reviewed_context_id",
+      "brief_revision",
+      "candidate_snapshot_id",
+      "context_id",
+      "creative_version",
+      "asset_digest",
+      "reward_version",
+      "policy_version"
+    ],
+    "allowed_effects": ["offline_evaluation", "unapproved_recommendation"]
+  },
+  "reward": {
+    "version": "qualified-demo-activation/v1",
+    "positive_event": "server_verified_demo_task_succeeded",
+    "task": "explicitly_request_and_receive_a_playable_generated_voice_sample",
+    "unit": "eligible_demo_assignment",
+    "denominator": "mature_eligible_assigned_demo_arrivals",
+    "maximum_successes_per_assignment": 1,
+    "attribution": "server_bound_campaign_cell_link_only",
+    "observation_window_seconds": 1800,
+    "ingestion_grace_seconds": 300,
+    "zero_requires": ["mature_window", "complete_coverage", "no_uncertain_task"],
+    "missing_outcome": "unknown",
+    "excluded_sources": ["fixture", "rehearsal", "staff", "unknown", "llm_simulation"],
+    "insufficient_events": [
+      "page_view",
+      "recording_preference",
+      "prerecorded_playback",
+      "generate_button_click",
+      "client_only_success",
+      "export_of_prerecorded_clip"
+    ],
+    "claim": "post_click_demo_activation_not_ad_impression_conversion_or_sales",
+    "current_live_events": 0
+  },
+  "data": {
+    "permitted_offline_sources": ["authored_synthetic", "creator_supplied_with_permission", "licensed_with_permission"],
+    "public_api_data_ranker_permission": "not_established",
+    "real_audience_labels": "unavailable",
+    "real_campaign_outcomes": "unavailable",
+    "real_selection_propensities": "unavailable",
+    "offline_replay_identifiable": false,
+    "available_authored_contexts": 2,
+    "available_fictional_placements": 4,
+    "available_comparison_files": 5,
+    "available_reference_ad_files": 4
+  },
+  "simulation": {
+    "currency": "GBP",
+    "money_unit": "pence",
+    "period_days": 7,
+    "total_budget_pence": 10000,
+    "daily_cap_pence": 2000,
+    "exploration_cap_pence": 1000,
+    "utility_value_per_qualified_action_pence": 500,
+    "minimum_worthwhile_activation_lift_basis_points": 200,
+    "utility": "qualified_actions_times_500_minus_cost_pence",
+    "interpretation": "authored_benchmark_tradeoff_not_revenue_or_spending_authority"
+  },
+  "handoff": {
+    "next_issue": 144,
+    "measurement_issue": 133,
+    "instruction_policy": "preserve_instruction-beta-v1_separately",
+    "shadow_ready": false,
+    "live_blockers": [
+      "account_targeting_and_effective_expansion_readback",
+      "eligible_inventory_and_approved_creatives",
+      "server_verified_product_demo_task_and_attribution",
+      "compatible_exposure_spend_outcome_report_join",
+      "current_hosted_scope_and_participant_access",
+      "separately_authorized_budget_and_execution"
+    ]
+  }
+}
