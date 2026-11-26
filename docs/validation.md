@@ -4638,5 +4638,16 @@ policy stay v1; the eligibility rule is separately versioned. Finalization and
 read projections share that rule, while stored historical receipts remain
 immutable. The dispatch-time rule is checked in the shared report validator on
 both import and evidence reconciliation. There is no data rewrite or migration.
-Full backend, architecture and final boundary results are recorded separately in
-the review-correction evidence after their sequential runs.
+[Review-correction evidence](evaluations/outcomes-review-corrections-2026-11-26.json)
+binds all final checks to `d92d3b8279efb715733999b86509bcc824c7897a`.
+The full backend passes 1,304 tests in 1,384.397 seconds; the focused suite passes
+28 in 4.716 seconds. Architecture passes with 253 modules and zero exceptions.
+All five boundary cases pass with zero network attempts, stable source and all
+47 historical evaluation artifacts unchanged. Ten fresh network-blocked CLI
+processes verify the committed recorded fixture and exact counts/replay. All
+481 fingerprinted source inputs remain unchanged across verification.
+
+Heavy suites ran sequentially, with one full backend process. The original
+checkout retains its dirty-file hashes. No frontend/dependency changes or
+interface-check were needed. Managed Turso, live providers and live models were
+not checked. This follow-up evidence commit changes documentation only.
