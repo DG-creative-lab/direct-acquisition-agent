@@ -4,6 +4,12 @@ Issue [#129](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/
 
 Implementation checkpoint: [issue #132 local preparation](youtube-preparation.md) installs authored drafts, review, approval, manual export and bundled preview links. The remaining viewer measurement, experiment and learning contracts below stay specified for #133; hosted/live context depends on the platform track.
 
+Sequencing update, 25 November 2026: [targeting and decisioning feasibility](targeting-decisioning-feasibility.md)
+adds #143 control/data/reward proof and #144 offline contextual recommendation
+comparison before the next #133 slice. The source-compatible instruction
+experiment below retains its own metric/policy. It is not redefined as an
+ad-response allocator or a commercial-conversion experiment.
+
 ## Decision and scope
 
 Add one business module, `acquisition.youtube`, for YouTube campaign packages, exact native review/manual export, comparison viewers, instruction experiments and evidence-backed findings. Reuse the destination's conversations, runtime, reviewed product context, inference journal and workspace. Workflows compose their public APIs; bootstrap selects adapters.

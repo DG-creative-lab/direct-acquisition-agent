@@ -8,7 +8,25 @@ Read alongside [shared product design](multichannel-workspace-design.md), [remai
 
 Issue #129 now specifies the [YouTube channel contract v1](youtube-channel-contract.md) and [authored acceptance examples](youtube-channel-contract-examples.json). The contract selects the native module, review/export format, routing and shared inference/funding boundaries. The open choices listed below belong to the earlier planning baseline; use the contract's implementation handoff for their resolution and remaining hosted prerequisites.
 
+The 25 November [targeting and decisioning feasibility design](targeting-decisioning-feasibility.md)
+and [research](contextual-targeting-research.md) revise the next-build decision:
+#143 defines actual platform control, permitted data and reward; #144 evaluates
+contextual recommendations offline; #133 follows that accepted measurement
+handoff. The product selects contextual creative allocations and learns from
+qualified outcomes. A visitor recording preference is optional research, not
+the product objective or evidence of ad conversion.
+
 ## Evidence baseline
+
+Update, 25 November 2026: PR #138 is merged at
+`a1659ce661d5a92ac7d5ae91c7ad779e9bf7e47b`. #132 now supplies native local
+draft/review/manual export and refreshed samples. PR #139 is also merged,
+adding reviewed input context. #133's measurement/reuse implementation follows
+#143 feasibility and #144's offline recommendation/measurement handoff.
+The [shared creative asset design](creative-asset-storage-design.md) records
+local catalogue/port foundations and the separate hosted Blob workstream.
+It preserves #70/#130 identity/composition ownership and #134 cutover gates.
+The table below remains the original planning baseline.
 
 | Repository | Inspected baseline | Use |
 | --- | --- | --- |
@@ -45,11 +63,18 @@ The source preview stores a whole workspace SQLite snapshot behind invite-scoped
 
 1. **Freeze the channel contract.** Inventory public operations, exact identities, approval subjects, permissions, prompt versions, provider receipts, viewer protocol and evidence lineage. Map owners, define unsupported states, and choose the first public channel boundary. Use authored examples and sanitized schemas, never private database exports.
 2. **Build one offline preparation slice.** From an explicitly selected YouTube capability and a saved brief, use the same workspace command path to create a channel-native placement/instruction draft, review it and produce its manual export. Demonstrate meaningful revision and reject stale or foreign approval. A missing capability must produce an explicit blocker.
-3. **Port the functional viewer and learning loop.** Exported comparison links must lead to usable assets in the target composition. Record eligible events, calculate the source recommendation, review evidence and prepare a new unapproved draft. A viewer stub or a static learning report does not satisfy this gate.
-4. **Prove hosted and live composition.** Combine the preceding slice with hosted identity, native remote storage, deployable frontend and the agreed model funding/session contract. Verify new-instance recovery, receipt reuse, isolation and budget exhaustion before an authorized live sample.
-5. **Decide cutover explicitly.** Compare source and destination behavior, review retained history and rollback options, then separately authorize public routing and any data import. Keep the existing source deployment available until this decision.
+3. **Prove targeting/data/reward feasibility (#143).** Define the unit we can control, exact platform route and positive/negative targeting support, permitted source fields, reporting grain, primary reward and budget/pacing constraints. Record an offline/manual/shadow/blocked-live decision with evidence. Documentation or an API resource name is not account/delivery proof.
+4. **Compare offline contextual recommendations (#144).** Evaluate rules, LLM-assisted ranking and a simple Bayesian allocation candidate on independent relevance tasks and known-truth simulations. Keep simulation, prediction and causal claims distinct. Produce the exact measurement handoff before choosing the next #133 slice.
+5. **Port the measurement and reviewed learning loop (#133).** Consume the accepted objective/action/reward contract. Deliver usable exact assets, deduplicated scoped outcomes, current evidence and unapproved finding reuse. Preserve the original instruction-beta-v1 comparison experiment separately; never reinterpret its completions or preference as ad conversions.
+6. **Prove hosted/shadow and separately authorized live composition.** Combine the preceding slices with hosted identity, native remote storage, frontend and model funding/session contracts. Verify fresh-instance recovery, isolation and budget exhaustion. Shadow recommendations make no writes/spend and cannot prove the value of unexecuted alternatives. Live tests require their own bounded randomized design and authorization.
+7. **Decide cutover explicitly.** Compare source and destination behavior, review retained history and rollback options, then separately authorize public routing and any data import. Keep the existing source deployment available until this decision.
 
-The platform work can run alongside steps 1 to 3: hosted tester identity and APIs, intake-to-planning binding, frontend deployment and operational controls. The hosted release waits for both tracks. Native channel development need not wait for real CRM, email delivery or a human-call pilot.
+The platform work can run alongside these channel gates: hosted tester identity
+and APIs, #131 reviewed-input grounding/preparation, #140/#141 shared assets,
+frontend delivery and operations. Hosted release waits for the applicable
+evidence from both tracks. Offline/manual feasibility can proceed without cloud
+provisioning; it does not claim a live route. Do not wait for real CRM, email
+delivery or a human-call pilot to evaluate the permitted offline baseline.
 
 ## Workstream coordination
 
@@ -103,7 +128,9 @@ Migration epic: [#128](https://github.com/DG-creative-lab/direct-acquisition-age
 | [#130](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/130) | Hosted frontend and preparation APIs | Platform; consumes #70 identity, #129 for YouTube integration |
 | [#131](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/131) | Saved intake to live preparation | Platform; reuse merged intake, agree funding/session contract with #129 |
 | [#132](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/132) | Native YouTube draft, review and export | YouTube; #129, authored context offline first |
-| [#133](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/133) | Viewer measurement and reviewed learning | YouTube; #129/#132, #130 for hosted delivery |
-| [#134](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/134) | Hosted parity and cutover recommendation | Joint under #74; #130/#131/#132/#133 and applicable #70 |
+| [#143](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/143) | Targeting controls, permitted data and reward feasibility | YouTube; first next-build gate, record offline/manual/shadow/blocked-live disposition |
+| [#144](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/144) | Offline contextual ranking and budgeted Bayesian allocation benchmark | YouTube; #143 contract/disposition, independent baseline and #133 handoff |
+| [#133](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/133) | Objective-bound measurement and reviewed learning | YouTube; #143/#144 handoff after #129/#132; retain separate instruction experiment; #130 for hosted delivery |
+| [#134](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/134) | Hosted parity and cutover recommendation | Joint under #74; #143/#144/#133 handoff, #130/#131/#132 and applicable #70 |
 
 Platform #70 and #74 retain their wider access and release-evidence ownership. Source [YouTube #136](https://github.com/DG-creative-lab/youtube-ad-agent/issues/136) coordinates the repository transition; source #133 to #135 retain UX/Knowledge/Learning requirements and defer duplicate standalone builds. No source issue is closed as delivered by this plan.
