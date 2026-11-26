@@ -37,6 +37,20 @@ def manifest(org='one',campaign='external-campaign',data_class='recorded_fixture
             'evidence_ref':'original-manifest','evidence_sha256':hashlib.sha256(b'fixture-manifest').hexdigest()}}
 
 
+def identical_manifest():
+    value=manifest();value['assignment_design']='operator_attested_randomized'
+    members=[];creative=value['assignments'][0]['creative_sha256']
+    for arm,total,index in [('A',30,0),('B',30,2),('holdout',10,4)]:
+        for i in range(total):
+            m=copy.deepcopy(value['assignments'][index]);identity=arm+'-'+str(i)
+            m['business_id']='business-'+identity;m['outcome_record_id']='crm-'+identity
+            if m['dispatch']:
+                m['creative_sha256']=creative;m['dispatch'].update(id='message-'+identity,content_sha256=creative)
+            members.append(m)
+    value['assignments']=members
+    return value
+
+
 def event(m,kind,at=None,event_id=None):
     return {'event_id':event_id or kind+'-'+m['business_id'],'business_id':m['business_id'],'arm':m['arm'],
         'creative_sha256':m['creative_sha256'],'record_id':m['outcome_record_id'] if kind in {'qualified_enquiry','no_qualified_enquiry'} else m['dispatch']['id'],
@@ -311,6 +325,90 @@ class ExternalOutcomeTests(unittest.TestCase):
         self.assertEqual(self.counts(),before)
         self.assertEqual(self.ingest(first[0],'replay-at-cap'),first[1])
         self.assertEqual(len(self.app.view('one',self.c['id'])['reports']),32)
+
+    def complete_identical_cohort(self):
+        self.register(value=identical_manifest());self.now=self.c['window_end']
+        rows=[event(m,'qualified_enquiry' if m['arm']=='A' else 'no_qualified_enquiry',NOW if m['arm']=='A' else self.now) for m in self.c['assignments']]
+        self.ingest(report(self.c,rows,identity='identical-final',final=True))
+
+    def test_identical_creatives_keep_literal_counts_without_a_variant_winner(self):
+        self.complete_identical_cohort();final=self.app.finalize('one','operator','final',self.c['id'])
+        self.assertEqual([(g['arm'],g['trials'],g['successes']) for g in final['groups']],[('A',30,30),('B',30,0),('holdout',10,0)])
+        comparison=final['comparisons'][0]
+        self.assertEqual(comparison['action'],'no_creative_contrast')
+        for key in ('candidate_arm','probability_beats_other','probability_beats_holdout'):self.assertIsNone(comparison[key])
+        reopened=build_outcomes(self.path,clock=lambda:self.now,read_only=True)
+        self.assertEqual(reopened.view('one',self.c['id'])['comparisons'],final['comparisons'])
+        self.assertEqual(reopened.snapshot('one',self.c['id'],'identical-final')['snapshot']['pages'][0]['events'][0]['kind'],'qualified_enquiry')
+        distinct=identical_manifest();distinct['organization']='two'
+        for member in distinct['assignments']:
+            if member['arm']=='B':
+                member['creative_sha256']=self.m['assignments'][2]['creative_sha256']
+                member['dispatch']['content_sha256']=member['creative_sha256']
+        self.roles.register_actor('two','operator',('operator',))
+        r=self.app.register('two','operator','register',distinct);c=self.app.view('two',r['cohort_id'])['cohort']
+        rows=[event(m,'qualified_enquiry' if m['arm']=='A' else 'no_qualified_enquiry',NOW if m['arm']=='A' else self.now) for m in c['assignments']]
+        self.app.ingest('two','operator','complete',c['id'],report(c,rows,identity='distinct-final',final=True))
+        comparison=self.app.finalize('two','operator','final',c['id'])['comparisons'][0]
+        self.assertEqual(comparison['action'],'consider_next_experiment');self.assertEqual(comparison['candidate_arm'],'A')
+        self.assertGreaterEqual(comparison['probability_beats_other'],.9);self.assertGreaterEqual(comparison['probability_beats_holdout'],.95)
+
+    def test_old_identical_creative_winner_is_historical_not_a_current_recommendation(self):
+        self.complete_identical_cohort()
+        legacy={'segment':'retail','candidate_arm':'A','action':'consider_next_experiment','probability_beats_other':1.,'probability_beats_holdout':1.,
+                'intervals_90':{'A':[.4,.8],'B':[0.,.1],'holdout':[0.,.2]},'authority':'ADVISORY_REQUIRES_NEW_PROPOSAL_AND_APPROVAL',
+                'policy':'external-advisory/v1','assignment_design':'operator_attested_randomized','limitation':'Historical v1 comparison.'}
+        with patch('acquisition.adapters.sqlite.external_outcomes.external_comparisons',return_value=[legacy]):
+            original=self.app.finalize('one','operator','old-final',self.c['id'])
+        before=hashlib.sha256(self.path.read_bytes()).hexdigest()
+        reopened=build_outcomes(self.path,clock=lambda:self.now,read_only=True);view=reopened.view('one',self.c['id'])
+        self.assertEqual(view['finalization'],original)
+        self.assertEqual(view['comparisons'][0]['action'],'no_creative_contrast')
+        self.assertIsNone(view['comparisons'][0]['candidate_arm']);self.assertIsNone(view['comparisons'][0]['probability_beats_other'])
+        self.assertEqual(view['comparisons'][0]['intervals_90'],legacy['intervals_90'])
+        receipt=reopened.receipt('one','operator','finalize','old-final')
+        self.assertEqual(receipt['comparisons'],[legacy]);self.assertEqual(receipt['observation'],'HISTORICAL_RECEIPT_NO_CURRENT_AUTHORITY')
+        self.assertEqual(hashlib.sha256(self.path.read_bytes()).hexdigest(),before)
+
+    def test_previously_saved_pre_send_report_fails_closed_without_rewriting_history(self):
+        from acquisition.learning import external_report
+        self.register();member=self.c['assignments'][0];sent=member['dispatch']['at']
+        original=report(self.c,[event(member,'opened',sent-1)],source='send',identity='legacy-early')
+        def old_validator(payload,cohort,now):
+            valid=copy.deepcopy(payload)
+            for page in valid['pages']:
+                for row in page['events']:row['occurred_at']=sent
+            external_report(valid,cohort,now)
+            return payload,[row for page in payload['pages'] for row in page['events']]
+        with patch('acquisition.adapters.sqlite.external_outcomes.external_report',side_effect=old_validator):
+            imported=self.ingest(original,'legacy-import')
+        before=hashlib.sha256(self.path.read_bytes()).hexdigest()
+        reopened=build_outcomes(self.path,clock=lambda:self.now,read_only=True)
+        with self.assertRaisesRegex(ValueError,'predate'):reopened.view('one',self.c['id'])
+        with self.assertRaisesRegex(ValueError,'predate'):reopened.snapshot('one',self.c['id'],'legacy-early')
+        self.assertEqual(reopened.receipt('one','operator','import','legacy-import'),imported|{'observation':'HISTORICAL_RECEIPT_NO_CURRENT_AUTHORITY'})
+        self.assertEqual(hashlib.sha256(self.path.read_bytes()).hexdigest(),before)
+
+    def test_dispatch_diagnostics_reject_pre_send_events_atomically_and_accept_send_boundary(self):
+        for channel,org in [('email','one'),('postal','two')]:
+            if org!='one':self.roles.register_actor(org,'operator',('operator',))
+            registered=self.app.register(org,'operator','register',manifest(org=org,channel=channel))
+            cohort=self.app.view(org,registered['cohort_id'])['cohort'];member=cohort['assignments'][0];sent=member['dispatch']['at']
+            kinds=['delivered','bounced','clicked','reply']+(['opened'] if channel=='email' else [])
+            accepted=[]
+            for kind in kinds:
+                bad=report(cohort,[event(member,kind,sent,event_id=kind+'-valid'),event(member,kind,sent-1,event_id=kind+'-early')],source='send',identity=kind+'-report')
+                before=self.counts()
+                with self.subTest(channel=channel,kind=kind),self.assertRaises(ValueError):self.app.ingest(org,'operator',kind,cohort['id'],bad)
+                self.assertEqual(self.counts(),before)
+                with self.assertRaises(NotFound):self.app.snapshot(org,cohort['id'],bad['report_id'])
+                accepted.extend([event(member,kind,sent,event_id=kind+'-valid'),event(member,kind,sent+1,event_id=kind+'-after')])
+            self.app.ingest(org,'operator','accepted',cohort['id'],report(cohort,accepted,source='send',identity='accepted'))
+            view=self.app.view(org,cohort['id']);self.assertEqual(view['event_counts'],dict.fromkeys(kinds,2))
+            self.assertEqual(view['received'],0);self.assertEqual(view['posterior_groups'],[])
+            # CRM records can observe organic enquiries anywhere in the frozen window.
+            self.app.ingest(org,'operator','organic',cohort['id'],report(cohort,[event(member,'qualified_enquiry',sent-1)],identity='organic'))
+            self.assertEqual(self.app.view(org,cohort['id'])['received'],1)
 
     def test_advisory_comparison_does_not_choose_a_treatment_that_loses_to_holdout(self):
         from acquisition.learning import external_registration,external_comparisons

@@ -4615,3 +4615,28 @@ No frontend change was made, so interface-check was not required. Managed Turso,
 live providers and live model behavior were not tested. The original checkout's
 dirty files retain their pre-work hashes. The evidence/validation follow-up is
 documentation only and preserves historical records.
+
+
+### Outcomes review corrections, 26 November 2026
+
+Review base `09468ad`. The two findings were reproduced before production fixes:
+a complete 30-A/30-B/10-holdout cohort with identical A/B content recommended A,
+and a valid dispatch event one second before sending committed evidence. Three
+regression methods failed on the old source, including the older saved-winner
+projection and unchanged-row-count oracle for the invalid import.
+
+| Invariant | Regression and independent oracle | Required result |
+| --- | --- | --- |
+| Assignment differences cannot prove a difference between identical creatives | Native 70-business identical-content cohort, A 30/30 success, B/holdout zero; equivalent distinct-content cohort | Identical content has no candidate or winner probabilities; distinct content retains the supported advisory recommendation; literal group counts remain unchanged |
+| Current projection cannot revive an invalid old recommendation | Persist a v1 winner, restart into read-only inspection and compare native bytes/receipt | Current comparison says `no_creative_contrast`; original v1 receipt and group intervals remain intact |
+| Diagnostics cannot precede their actual recorded dispatch | All five email diagnostic kinds and all four supported postal kinds at send minus one, exact send and send plus one | Nine invalid mixed reports roll back, with no saved snapshot; 18 boundary/after observations accepted; CRM organic enquiries within the cohort window remain valid |
+| Invalid historical diagnostics cannot enter current metrics | Save a legacy pre-send report, then reconcile under current validation | Read projection/snapshot fail closed; historical receipt and database bytes are retained |
+
+The focused suite passes 28 tests, including actual SQLite history, cross-channel
+boundaries and Hrana lost-COMMIT recovery. The comparison sampling algorithm and
+policy stay v1; the eligibility rule is separately versioned. Finalization and
+read projections share that rule, while stored historical receipts remain
+immutable. The dispatch-time rule is checked in the shared report validator on
+both import and evidence reconciliation. There is no data rewrite or migration.
+Full backend, architecture and final boundary results are recorded separately in
+the review-correction evidence after their sequential runs.

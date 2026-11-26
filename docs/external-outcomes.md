@@ -84,7 +84,10 @@ The [progress](../examples/external-outcomes/progress.json) and
 Every event has `event_id`, `business_id`, `arm`, `creative_sha256`, `record_id`,
 `kind`, `occurred_at`, `evidence_ref`. Primary outcomes must name the original CRM
 record and outcome source. Diagnostics must name the original recorded sent
-dispatch and dispatch source. Postal reports cannot claim email opens.
+dispatch and dispatch source, with `occurred_at` at or after the recorded send.
+Postal reports cannot claim email opens. A previously saved report with pre-send
+diagnostics fails evidence reconciliation rather than contributing to current
+metrics; its original bytes and historical command receipt remain unchanged.
 Event identities are native source-system/account identities, stable across
 cumulative reports. Exact duplicates add no new support. Changed event content,
 reused report IDs with changed snapshots, changed inputs under a command key,
@@ -121,7 +124,13 @@ Observational comparisons remain descriptive. These thresholds and probabilities
 are not calibrated causal proof or profit estimates. Selection, contamination,
 CRM qualification and late attribution remain external data-quality assumptions.
 Sampling is reproducible on the same Python runtime, and its frozen policy is
-`external-advisory/v1`.
+`external-advisory/v1`. A and B may have identical creative hashes as a record of
+assignment groups, but that cannot establish a creative winner. The
+`distinct-creatives/v1` eligibility rule returns `no_creative_contrast`, null
+candidate/winner probabilities and descriptive group intervals for that case.
+It applies to new finalizations and current comparison views of older results.
+Historical finalization/command receipts retain their original contents; an old
+stored winner is not renewed as a current recommendation.
 
 Finalized records are immutable. Exact old report/command replays return original
 receipts without recounting; new late reports or corrections reject. Retractions,

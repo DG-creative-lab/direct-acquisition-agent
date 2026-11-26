@@ -2,7 +2,7 @@
 import json
 from acquisition.contracts import Conflict,NotFound,canonical,digest
 from acquisition.learning import (external_registration,external_report,external_summarize,external_final_counts,
-    external_comparisons,external_text,external_number)
+    external_comparisons,external_comparison_view,external_text,external_number)
 from .actors import require_actor
 from .admission_guard import verified_required
 
@@ -200,7 +200,7 @@ class SqliteExternalOutcomes:
             current=self.current(db,org,cohort_id,reports,final,now)
             return {'cohort':c,'current':current,'status':'historical_evidence_after_current_clock' if not current else 'finalized' if frozen else ('ready_to_finalize' if s['coverage_complete'] else 'awaiting_complete_outcomes') if now>=c['window_end'] else 'observing',
                 'as_of':now,'enrolled':len(c['assignments']),**s,'reports':[p['receipt'] for p in reports],
-                'posterior_groups':final['payload']['groups'] if frozen and current else [],'comparisons':final['payload']['comparisons'] if frozen and current else [],
+                'posterior_groups':final['payload']['groups'] if frozen and current else [],'comparisons':external_comparison_view(c,final['payload']['comparisons']) if frozen and current else [],
                 'finalization':final['payload'] if frozen else None,'authority':'OBSERVATIONS_ONLY_NO_SEND_OR_APPROVAL',
                 'limitations':['External records are operator-attested, not independently provider-verified.',
                     'Opens, clicks and raw replies are diagnostics, not qualified outcomes.','Missing outcomes remain unknown.',
