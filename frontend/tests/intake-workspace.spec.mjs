@@ -2124,7 +2124,7 @@ for (const mobile of [false, true])
     page,
   }, testInfo) => {
     await isolated(async (url, root) => {
-      const ids = seedGroundedIntake(root, "email");
+      const ids = seedGroundedIntake(root, mobile ? "EMAIL" : "email");
       await page.setViewportSize(
         mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 },
       );
@@ -2180,6 +2180,9 @@ for (const mobile of [false, true])
       );
       expect(content.emails).toEqual(emailRecords(root)[0].content.rows);
       expect(content.live_send_authority).toBe("none");
+      expect(content.requirements.channels).toEqual([
+        mobile ? "EMAIL" : "email",
+      ]);
       expect(content.emails[0].email.cta_url).toBe(
         "https://aster.invalid/terms",
       );

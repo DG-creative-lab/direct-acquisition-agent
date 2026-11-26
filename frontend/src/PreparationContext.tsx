@@ -548,14 +548,22 @@ export default function PreparationContext({
           disabled || busy || !!pending || !!storageError || emailLocked
         }
         onLock={setGroundedLocked}
-        enabled={!view?.context.requirements.channels.includes("email")}
+        enabled={
+          !view?.context.requirements.channels.some(
+            (channel) => channel.toLowerCase() === "email",
+          )
+        }
       />
       <IntakeEmail
         contextRequest={view?.request_id ?? ""}
         storeId={storeId}
         sourceVersion={selectionKey}
         active={active}
-        enabled={!!view?.context.requirements.channels.includes("email")}
+        enabled={
+          !!view?.context.requirements.channels.some(
+            (channel) => channel.toLowerCase() === "email",
+          )
+        }
         disabled={
           disabled || busy || !!pending || !!storageError || groundedLocked
         }
