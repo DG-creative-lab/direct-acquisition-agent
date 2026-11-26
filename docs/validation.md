@@ -4469,3 +4469,55 @@ source and 42 historical evaluation artifacts unchanged. The
 supersedes the v1 handoff for current use while preserving its original record.
 Full checks run in updated PR CI. No provider/model calls or real participant
 learning were introduced.
+
+### Issue 144: opt-in model ranking evaluation
+
+Starting from merged #147 (`fecb9f0`), `feature/144-model-ranking` adds a
+credential-free plan preparation command and separately opt-in live execution.
+The six-task corpus, held-out labels and allocation policy remain unchanged.
+Requests contain only permitted authored goal/context/creative data, not prices,
+expected answers or simulation truth. Recorded ranking format v2 retains
+requested/resolved provider identity and exact request/response hashes; existing
+ranking v1 remains readable. Ordinary recommendation reads never dispatch.
+
+The existing runtime and inference journal own reservation, receipt recovery
+and terminal failure. Exact saved messages/tools survive a receipt-before-task
+crash. Unknown/reserved results cannot repeat automatically. Native consumption
+and independent grading finish before the next paid case, so a known-billing
+execution failure also leaves remaining cases not run. Unknown billing is never
+zero, and incomplete samples never receive whole-sample mean grades. Saved
+report inspection needs neither a key nor a provider call.
+
+All 13 new evaluator regressions and the final 96 focused checks pass. Final
+review also reproduced and fixed ignored live-budget arguments and dot-only
+batch paths. Their CLI regression proves rejection before credential access.
+The model payload omits category labels as well as expected answers.
+Architecture passes with 240 modules
+and zero dependency exceptions; Decimal/InvalidOperation are narrow value
+imports, while other decimal namespace access remains denied. The final five
+boundary cases pass with stable source, zero network attempts and all 43
+historical evaluation records unchanged. An initial boundary report was
+invalidated by an architecture-document edit during execution; the final
+frozen-source rerun supersedes it. The unchanged 576-trial allocation benchmark
+also passes and retains rules as its baseline.
+
+CLI preparation passed with credentials/network explicitly denied. The saved
+two-response conformance comparison gives precision@1 of 1 for the authored
+matching response and 0 for the deliberately wrong-context response. Both are
+labeled test doubles, not live model evidence. The
+[implementation record](evaluations/issue-144-model-evaluation-2026-11-26.json)
+tracks the full backend suite. No live provider/model calls, real participants,
+approval, ad spend, new UI or hosted deployment are introduced by verification.
+
+The full `make test` run passed 1,256 tests before the final CLI guards and
+text-only input refinements. Those three changed files then passed the final
+96 focused checks, five boundary cases and 576 allocation trials in an isolated
+checkout. The final branch's input-file hashes match that tested checkout.
+Both source snapshots and test stages are retained in the implementation record.
+
+The corpus is small: single-context cases mainly exercise conformance and
+mixed-context cases distinguish contextual relevance. This does not establish
+general reasoning, audience calibration or a production winner. #144 remains
+open for a separately authorized genuine comparison. #133 follows with trusted
+scoped assignments and generated-sample job/result receipts, retaining explicit
+rehearsal labels and the separate original instruction experiment.

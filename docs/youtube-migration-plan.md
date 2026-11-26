@@ -18,6 +18,15 @@ the product objective or evidence of ad conversion.
 
 ## Evidence baseline
 
+After merged #147 (`fecb9f0`), the next #144 slice is the
+[opt-in model ranking evaluator](youtube-contextual-benchmark.md#opt-in-model-ranking-evaluation).
+It freezes the same authored tasks and uses existing inference reservations,
+receipts and runtime recovery. Review it with fake gateways, then separately
+authorize a small real-model comparison. No real model quality is established
+until that comparison is run. #133 then starts trusted assignment and
+generated-sample job/result receipts against the accepted measurement handoff;
+its first local rehearsal keeps fake results separate from participants.
+
 26 November implementation checkpoint: merged #146 freezes #143's offline
 contract. #144 now has a [native recommendation/benchmark slice](youtube-contextual-benchmark.md):
 scoped read-only proposals, exact bundled ads, complete cell/day evidence and

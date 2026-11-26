@@ -94,19 +94,33 @@ def rules_ranking(frozen):
 
 
 def checked_ranking(frozen, ranking):
-    check(type(ranking) is dict and set(ranking) == {
-        'schema', 'input_id', 'ranker', 'model', 'prompt_version', 'provenance', 'scores'},
+    observed = type(ranking) is dict and ranking.get('schema') == 'youtube-contextual-ranking/v2'
+    check(type(ranking) is dict and set(ranking) == ({
+        'schema', 'input_id', 'ranker', 'model', 'prompt_version', 'provenance', 'scores'}
+        | ({'receipt'} if observed else set())),
         'invalid_ranking')
-    check(ranking['schema'] == 'youtube-contextual-ranking/v1'
+    check(ranking['schema'] == ('youtube-contextual-ranking/v2' if observed else 'youtube-contextual-ranking/v1')
           and ranking['input_id'] == frozen['id'], 'ranking_input_changed')
     check(type(ranking['provenance']) is str
-          and ranking['provenance'] in {'deterministic_rules', 'authored_model_fixture'},
+          and ranking['provenance'] in ({'observed_provider_response'} if observed else
+                                       {'deterministic_rules', 'authored_model_fixture'}),
           'model_evidence_unavailable')
-    expected = (('contextual-rules/v1', 'none', 'none')
+    expected = (('contextual-llm/v1', ranking['model'], 'contextual-rank/v2') if observed else
+                ('contextual-rules/v1', 'none', 'none')
                 if ranking['provenance'] == 'deterministic_rules'
                 else ('authored-ranking-fixture/v1', 'scripted-no-llm', 'contextual-rank/v1'))
     check((ranking['ranker'], ranking['model'], ranking['prompt_version']) == expected,
           'model_evidence_unavailable')
+    if observed:
+        receipt = ranking['receipt']
+        check(type(receipt) is dict and set(receipt) == {'requested_model', 'resolved_model', 'provider',
+              'generation_id', 'request_sha256', 'response_sha256'}, 'invalid_model_receipt')
+        for key in ('requested_model', 'resolved_model', 'provider', 'generation_id'):
+            check(type(receipt[key]) is str and 0 < len(receipt[key]) <= 200
+                  and receipt[key].isprintable(), 'missing_provider_identity')
+        for key in ('request_sha256', 'response_sha256'):
+            check(type(receipt[key]) is str and fullmatch(r'[0-9a-f]{64}', receipt[key]), 'invalid_model_receipt')
+        check(ranking['model'] == receipt['resolved_model'], 'invalid_model_receipt')
     check(type(ranking['scores']) is list and len(ranking['scores']) <= 64, 'invalid_ranking')
     scores = {}
     for row in ranking['scores']:

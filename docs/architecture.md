@@ -42,6 +42,15 @@ receipts through narrow ports. It changes no schema, runtime, live model serving
 or provider authority. Its synthetic response support remains separate from
 instruction experiments and real participant evidence.
 
+The opt-in contextual model evaluator is composed separately by
+`build_youtube_ranking_evaluation`. It uses the existing runtime and inference
+journal in a dedicated local evaluation store, with exact saved requests and
+independent grading before task commit. Workspace workers do not install this
+evaluation capability. Recorded ranking proposals enter the existing YouTube
+recommendation port; core allocation policy and provider/spending authority
+remain unchanged. Only named Decimal value imports are added to the static
+architecture whitelist; temporary dependency exceptions remain empty.
+
 The proposed [contextual targeting feasibility design](targeting-decisioning-feasibility.md)
 keeps channel decision/reward policy in `youtube`, model calls behind existing
 `reasoning` ports, shared creative references in `creative`, and provider

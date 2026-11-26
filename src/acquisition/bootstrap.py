@@ -469,6 +469,19 @@ def build_youtube_recommendations(campaigns, *, source=None, ranker=None):
     return YouTubeRecommendations(campaigns, source, ranker)
 
 
+def build_youtube_ranking_evaluation(path, config, gateway, verify, clock=time.time):
+    """Explicit local evaluation composition; not installed in workspace/chat workers."""
+    from acquisition.workflows.youtube_ranking import ContextualRankingEvaluation
+    from acquisition.youtube import RANKING_EVALUATION
+    if not config.force_tool_choice or config.max_calls > 6:
+        raise ValueError('Use forced tool choice and at most six evaluation calls')
+    app = build(path, clock=clock, gateway=gateway, model_config=config)
+    handler = ContextualRankingEvaluation(app.inference, verify)
+    app.worker = Worker(app.tasks, {RANKING_EVALUATION: handler.rank}, clock, lease_seconds=180,
+                        eligible=lambda capability, inputs: capability == RANKING_EVALUATION)
+    return app
+
+
 def build_admissions(path, clock=time.time, *, _database=None, verified_admissions=False, remote_storage=None):
     """Compose admissions, selecting the paused format at database opening when requested."""
     from acquisition.adapters.sqlite.admission_sources import load_source

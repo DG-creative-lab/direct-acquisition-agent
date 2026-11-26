@@ -1,6 +1,7 @@
 """Explicit bundled candidate/price assumptions and scripted ranking responses."""
 import hashlib
 import json
+from copy import deepcopy
 from pathlib import Path
 
 from acquisition.contracts import digest
@@ -55,3 +56,15 @@ class AuthoredRankingReceipts:
                             'fit': 90 if cell['context_id'] == cell['creative_context'] else 0,
                             'reason': 'Authored context-matching response for interface conformance only.'}
                            for cell in frozen['candidates']]}
+
+
+class RecordedModelRanking:
+    """Consume a locally verified evaluation result. Does not call a provider."""
+    def __init__(self, ranking):
+        self.ranking = deepcopy(ranking)
+
+    def rank(self, frozen):
+        if (self.ranking.get('schema') != 'youtube-contextual-ranking/v2'
+                or self.ranking.get('input_id') != frozen['id']):
+            raise YouTubeError('ranking_input_changed', 'The recorded ranking belongs to different inputs.')
+        return deepcopy(self.ranking)
