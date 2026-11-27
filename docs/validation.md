@@ -4684,5 +4684,16 @@ The former test asserting that legacy timing blocks all inspection was updated
 to prove retained snapshot access and exclusion from current metrics. The nine
 new-report timestamp rejection cases and native tamper tests still catch the
 unsafe admissions/integrity failures that must remain denied. No test was
-removed. The focused suite has 30 tests. Final gates and their exact source
-commit are recorded in the subsequent history-review evidence.
+removed. The focused suite passes 30 tests in 8.669 seconds. The
+[history-review evidence](evaluations/outcomes-history-review-2026-11-27.json)
+binds every final gate to `0bfdaf7bedc780fe9253555a52d74d9725fbb826`:
+1,306 backend tests pass in 1,343.643 seconds, architecture passes with 253
+modules and zero exceptions, and all five native boundary cases pass with zero
+network attempts. All 48 historical evaluation artifacts and 481 fingerprinted
+source inputs remain unchanged. Ten fresh network-blocked CLI processes verify
+the committed recorded example, exact counts and explicitly historical replay.
+
+Heavy suites ran sequentially with one full backend process. Original checkout
+hashes remain intact. No frontend/dependency changes required interface-check;
+managed Turso, live CRM/provider and live model checks were not run. The
+subsequent evidence commit changes documentation only.
