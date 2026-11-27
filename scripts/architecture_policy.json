@@ -253,7 +253,9 @@
     "acquisition.learning.external_application": "application",
     "acquisition.adapters.external_reports": "adapter",
     "acquisition.adapters.sqlite.external_outcomes": "adapter",
-    "acquisition.entrypoints.outcomes_cli": "entrypoint"
+    "acquisition.entrypoints.outcomes_cli": "entrypoint",
+    "acquisition.youtube.ranking": "domain",
+    "acquisition.workflows.youtube_ranking": "workflow"
   },
   "exceptions": []
 }

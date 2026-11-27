@@ -4697,3 +4697,122 @@ Heavy suites ran sequentially with one full backend process. Original checkout
 hashes remain intact. No frontend/dependency changes required interface-check;
 managed Turso, live CRM/provider and live model checks were not run. The
 subsequent evidence commit changes documentation only.
+
+### Issue 144: opt-in model ranking evaluation
+
+Starting from merged #147 (`fecb9f0`), `feature/144-model-ranking` adds a
+credential-free plan preparation command and separately opt-in live execution.
+The six-task corpus, held-out labels and allocation policy remain unchanged.
+Requests contain only permitted authored goal/context/creative data, not prices,
+expected answers or simulation truth. Recorded ranking format v2 retains
+requested/resolved provider identity and exact request/response hashes; existing
+ranking v1 remains readable. Ordinary recommendation reads never dispatch.
+
+The existing runtime and inference journal own reservation, receipt recovery
+and terminal failure. Exact saved messages/tools survive a receipt-before-task
+crash. Unknown/reserved results cannot repeat automatically. Native consumption
+and independent grading finish before the next paid case, so a known-billing
+execution failure also leaves remaining cases not run. Unknown billing is never
+zero, and incomplete samples never receive whole-sample mean grades. Saved
+report inspection needs neither a key nor a provider call.
+
+All 13 new evaluator regressions and the final 96 focused checks pass. Final
+review also reproduced and fixed ignored live-budget arguments and dot-only
+batch paths. Their CLI regression proves rejection before credential access.
+The model payload omits category labels as well as expected answers.
+Architecture passes with 240 modules
+and zero dependency exceptions; Decimal/InvalidOperation are narrow value
+imports, while other decimal namespace access remains denied. The final five
+boundary cases pass with stable source, zero network attempts and all 43
+historical evaluation records unchanged. An initial boundary report was
+invalidated by an architecture-document edit during execution; the final
+frozen-source rerun supersedes it. The unchanged 576-trial allocation benchmark
+also passes and retains rules as its baseline.
+
+CLI preparation passed with credentials/network explicitly denied. The saved
+two-response conformance comparison gives precision@1 of 1 for the authored
+matching response and 0 for the deliberately wrong-context response. Both are
+labeled test doubles, not live model evidence. The
+[implementation record](evaluations/issue-144-model-evaluation-2026-11-26.json)
+tracks the full backend suite. No live provider/model calls, real participants,
+approval, ad spend, new UI or hosted deployment are introduced by verification.
+
+The full `make test` run passed 1,256 tests before the final CLI guards and
+text-only input refinements. Those three changed files then passed the final
+96 focused checks, five boundary cases and 576 allocation trials in an isolated
+checkout. The final branch's input-file hashes match that tested checkout.
+Both source snapshots and test stages are retained in the implementation record.
+
+The corpus is small: single-context cases mainly exercise conformance and
+mixed-context cases distinguish contextual relevance. This does not establish
+general reasoning, audience calibration or a production winner. #144 remains
+open for a separately authorized genuine comparison. #133 follows with trusted
+scoped assignments and generated-sample job/result receipts, retaining explicit
+rehearsal labels and the separate original instruction experiment.
+
+### Issue 144 review: durable source-validation outcomes
+
+Review base `5539f5e`. The new regression reproduced three failures: execution
+retained a whole-sample mean after detecting source instability, inspection
+promoted that run after restoration, and replay also promoted it. Verification
+used fake gateways and simulated source fingerprints, with no credentials or
+live provider calls.
+
+Plan/report v2 now has source guards inside each leased model case and a final
+zero-provider validation task. Typed `EvaluationSourceChanged` failures persist
+in the existing runtime and stop subsequent cases. A successful final receipt
+records the expected/observed fingerprint at the sample's validation cutoff.
+No new database schema or production worker capability is installed.
+
+Reports reconstruct historical validity from those saved outcomes before
+computing whole-sample or split aggregates. Restoring files cannot erase a
+saved failure. Missing finalization remains unavailable rather than valid and
+can resume without another provider call. Comparison rejects historical v1
+reports and suppresses scores if a v2 report lacks a positive source verdict.
+
+Regressions cover changes during the final response, after the last model task
+commits, saved invalidity across fresh inspection/replay, and recovery of a
+pending final validation. The
+[review evidence](evaluations/issue-144-source-validation-fix-2026-11-26.json)
+records the exact current-source checks and retains the earlier implementation
+record unchanged. Real model performance remains unmeasured.
+
+All 1,260 backend tests passed in the four standard shards, including 16 model
+ranking tests. Architecture passed with 240 modules and zero exceptions. All
+five boundary cases and the unchanged 576-trial allocation benchmark passed;
+source fingerprints were stable, network attempts were zero and all 44
+historical evaluation artifacts were unchanged.
+
+### Issue 144 review: lease loss makes the source interval unverified
+
+Review base `36b9178`. Two fake-gateway/clock regressions reproduced successful
+certification after restoration when an expired case or final-validation lease
+prevented `EvaluationSourceChanged` from being committed. The task remained
+running with no failure output, and recovery reused the reply then certified
+the sample. No credentials or live provider calls were involved.
+
+Plan/report v3 pins `first-attempt-source-validation/v1`. Reclaimed attempts
+and cached replies without a committed source interval are fenced before
+provider dispatch as `EvaluationSourceUnverified`. Durable attempt counts and
+saved recovery flags independently suppress certification during reporting,
+including older positive histories. A lost observation is unknown, not proof
+of stability or proof of a committed mismatch. Aggregate scores stay unavailable.
+Restoration cannot upgrade that interval; further paid cases do not run.
+
+Provider replies and billing remain inspectable. The evaluator does not repeat
+paid calls automatically to obtain a score. Unstarted tasks, including an
+unclaimed final validation, can continue under their first attempt. Generic
+inference receipt recovery and runtime lease authority are unchanged; an expired
+worker receives no new permission to commit. No database schema changes occur.
+Historical v1/v2 evaluation reports are not certified by the v3 comparison.
+
+The 52 focused checks passed, including 19 evaluator regressions, generic model
+receipt recovery and architecture. The
+[lease-recovery review record](evaluations/issue-144-lease-recovery-fix-2026-11-26.json)
+records the full current-source verification separately, preserving previous
+implementation/review artifacts. Genuine model quality remains unmeasured.
+
+All 1,263 backend tests passed in four standard shards. The five boundary
+cases and the unchanged 576 allocation trials also passed with stable source
+fingerprints, zero network attempts and all 45 historical evaluation artifacts
+unchanged. Architecture remains 240 modules with zero dependency exceptions.

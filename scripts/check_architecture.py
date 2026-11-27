@@ -40,6 +40,7 @@ VALUE_IMPORTS = {
     'collections': {'Counter'}, 'collections.abc': {'Callable'},
     'csv': {'DictReader', 'DictWriter', 'reader', 'writer'},
     'dataclasses': {'asdict', 'dataclass', 'replace'},
+    'decimal': {'Decimal', 'InvalidOperation'},
     'datetime': {'date', 'datetime', 'timedelta', 'timezone'},
     'difflib': {'get_close_matches'},
     'hashlib': {'sha256'}, 'html': {'escape'},

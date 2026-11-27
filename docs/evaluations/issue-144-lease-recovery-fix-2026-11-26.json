@@ -1,0 +1,141 @@
+{
+  "schema": "youtube-model-ranking-lease-review-evidence/v1",
+  "recorded_date": "2026-11-26",
+  "review_base": "36b917842decfb7401d5fce1834e82f7775f569a",
+  "source": {
+    "head_commit": "36b917842decfb7401d5fce1834e82f7775f569a",
+    "files_sha256": "742efedbdcad9dc3d33c9a2e43f4275faf7c42fdb990e04d123de7d7b8a49391",
+    "worktree_dirty": true,
+    "source_overlay": {
+      "scripts/evaluate_youtube_model_ranking.py": {
+        "sha256": "16db83092d0675bd0c95f167876e9757b98d49cd0fa82af47db9ef08ca016905"
+      },
+      "src/acquisition/workflows/youtube_ranking.py": {
+        "sha256": "e662d7bd268ebd3b38861d082c62a78a87acc9754d453b5ee787dd96db3bdda5"
+      },
+      "tests/test_youtube_model_ranking.py": {
+        "sha256": "e9f5a98c0d8f5f6e2d00b11320b4fe45c66371bab28c329b238dc4d6b1c15f19"
+      }
+    }
+  },
+  "regressions_before_fix": {
+    "tests": 2,
+    "result": "both failed",
+    "cause": "Expired case/finalization lease could not commit a detected source mismatch; restoration and receipt recovery later certified the run."
+  },
+  "correction": {
+    "recovery_policy": "first-attempt-source-validation/v1",
+    "plan_schema": "youtube-model-ranking-plan/v3",
+    "report_schema": "youtube-model-ranking-evaluation/v3",
+    "decision": "Conservative unverified recovery; no late-worker authority or database schema changes.",
+    "execution": "Reclaimed attempts or cached replies without a committed interval stop before provider dispatch.",
+    "inspection": "Durable attempt counts, recovery flags and failure codes independently withhold source certification, including older positive histories.",
+    "preserved": "Provider replies and billing remain inspectable; generic inference receipt recovery is unchanged.",
+    "continuation": "Unstarted tasks, including unclaimed final validation, may continue under their first attempt.",
+    "compatibility": "Historical v1/v2 plans/reports cannot be promoted to the v3 source-validity guarantee."
+  },
+  "verification": {
+    "backend_tests": 1263,
+    "result": "passed",
+    "shards": [
+      {
+        "shard": 1,
+        "tests": 304,
+        "result": "passed",
+        "log_sha256": "428a16fd9faac2833c82dc4f564bd1a34637ff7b8ddd076442b90d4f2c44ca43"
+      },
+      {
+        "shard": 2,
+        "tests": 422,
+        "result": "passed",
+        "log_sha256": "a4d7187b511081f5ab0d51c0b05f6d18c9be126554fba7adccb9b9b74a4ba6e7"
+      },
+      {
+        "shard": 3,
+        "tests": 319,
+        "result": "passed",
+        "log_sha256": "f466b0e48c3548cdda1ef24ccbdd179da9d597e12bd9b3a44998db14b47b4d47"
+      },
+      {
+        "shard": 4,
+        "tests": 218,
+        "result": "passed",
+        "log_sha256": "310f7bc41279772b04860bee344a1aea0facb7c45b9b3e80674c7ee9a6c588a2"
+      }
+    ],
+    "model_ranking_tests": 19,
+    "focused_tests": 52,
+    "architecture": {
+      "classified_modules": 240,
+      "errors": [],
+      "temporary_exceptions": 0
+    },
+    "boundary": {
+      "passed": true,
+      "cases": [
+        {
+          "id": "compatibility-model-journey",
+          "exit_code": 0,
+          "network_attempts": 0
+        },
+        {
+          "id": "verified-commit-rebuild-replay",
+          "exit_code": 0,
+          "network_attempts": 0
+        },
+        {
+          "id": "uncertain-restart",
+          "exit_code": 0,
+          "network_attempts": 0
+        },
+        {
+          "id": "profile-replay",
+          "exit_code": 0,
+          "network_attempts": 0
+        },
+        {
+          "id": "engagement-replay",
+          "exit_code": 0,
+          "network_attempts": 0
+        }
+      ],
+      "source_stable": true,
+      "historical_count": 45,
+      "historical_bytes_unchanged": true,
+      "report_sha256": "42dfe84abce7c5757851939842dc48743dbc6eb0a43e920e1621107d36b70f14"
+    },
+    "allocation": {
+      "passed": true,
+      "trials": 576,
+      "source_stable": true,
+      "network_attempts": 0,
+      "baseline": "retain_rules",
+      "report_sha256": "7d5635437b4a6a06bb460f75fbc6ee6560b3cc29909d6ec2bb0ac288a2ef35d4"
+    },
+    "expired_lease_probe": {
+      "gateway_kind": "test_double",
+      "interrupted_task_status": "running",
+      "interrupted_failure_output": null,
+      "recovery_status": "unverified",
+      "inspection_after_restoration_status": "unverified",
+      "source_stable": null,
+      "mean_precision_at_1": null,
+      "fake_calls": 1,
+      "remaining_case_status": "not_run"
+    }
+  },
+  "regression_coverage": [
+    "expired case with lost mismatch failure",
+    "expired final validation with lost mismatch failure",
+    "reply remains inspectable after interruption without another call",
+    "older positive receipts with reclaimed attempts or recovery flags stay unverified",
+    "unclaimed final validation still resumes successfully",
+    "generic model-call receipt recovery remains supported"
+  ],
+  "limits": {
+    "credentials_used": false,
+    "live_provider_calls": 0,
+    "genuine_model_quality": "unmeasured",
+    "source_monitoring": "discrete validation checks, not continuous filesystem monitoring"
+  }
+}

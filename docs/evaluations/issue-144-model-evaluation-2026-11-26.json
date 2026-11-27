@@ -1,0 +1,170 @@
+{
+  "schema": "youtube-model-ranking-implementation-evidence/v1",
+  "recorded_date": "2026-11-26",
+  "base_commit": "fecb9f02735619a83457ecfcec784b9027c9f92a",
+  "source": {
+    "head_commit": "fecb9f02735619a83457ecfcec784b9027c9f92a",
+    "files_sha256": "5967570f6452136224e5ef701374fa61fe26c6425da6de4e8c5b04541dbed251",
+    "worktree_dirty": true,
+    "source_overlay": {
+      "scripts/architecture_policy.json": {
+        "sha256": "766b89dd8b1eeb66d258189a7f85119efbbe288ff492e767bb4de11450b73658"
+      },
+      "scripts/check_architecture.py": {
+        "sha256": "d0d4521bf778cbff63886729733d2d1a1b0db3e8705386d048abdd1d5ace48a5"
+      },
+      "scripts/evaluate_youtube_model_ranking.py": {
+        "sha256": "92a6815b9241e094ae3f6053250ec2618294056781d284405a039ab93eb04624"
+      },
+      "src/acquisition/adapters/youtube_decision_inputs.py": {
+        "sha256": "0fb8bb54ed64fd6f2e07df8b863f52fab936823ac052f6d0671898789d0066cc"
+      },
+      "src/acquisition/bootstrap.py": {
+        "sha256": "362954db0eaed3ec9851fa321da5e6db2c2896e3e75fc7c93a692c6536115f02"
+      },
+      "src/acquisition/workflows/youtube_ranking.py": {
+        "sha256": "77053d4da40c15597447fec9690efbf878d616e2260204f8403111df64742a36"
+      },
+      "src/acquisition/youtube/__init__.py": {
+        "sha256": "b0b07720c9b77ddd6961f11fdd4119e0f407d2914d3e4020e071f9f7487d0bcf"
+      },
+      "src/acquisition/youtube/decisioning.py": {
+        "sha256": "597d222cce4fa3be02cf14d57a61d2fb392c66a38155de53ad059147f1b77275"
+      },
+      "src/acquisition/youtube/ranking.py": {
+        "sha256": "3d5701d99e83d31590f05c75eeeb8fc807723567b31ff9d252015b3cca1c8d4f"
+      },
+      "tests/test_architecture.py": {
+        "sha256": "63a9d6a6098aef8ad34b7e2fe98a1e28808c356c8d1bfe01275eb470ccf6c0d0"
+      },
+      "tests/test_youtube_model_ranking.py": {
+        "sha256": "0538f26eb330f78d4901f777454381bd26d32378df839c251a8e182a03c9db4d"
+      }
+    }
+  },
+  "scope": "Opt-in local model ranking evaluator. Verification uses authored gateways; genuine LLM quality is unmeasured.",
+  "verification": {
+    "new_evaluator_tests": 13,
+    "new_evaluator_result": "passed",
+    "full_backend": {
+      "command": "make test",
+      "status": "passed",
+      "tests": 1256,
+      "source_files_sha256": "042d90a02e7eee9bed9382f7d8d6bbbc1a57a5d46bf4ec561737179690027fb0",
+      "stage": "Before final CLI guard and text-only payload refinements; final refinements verified by the 96 focused checks below.",
+      "log_sha256": "966912d1afe06be81a82ce6e4f941e403acb4e38a765b9913ff0949108a0805c"
+    },
+    "architecture": {
+      "classified_modules": 240,
+      "errors": [],
+      "temporary_exceptions": 0
+    },
+    "boundary": {
+      "passed": true,
+      "cases": [
+        {
+          "id": "compatibility-model-journey",
+          "exit_code": 0,
+          "network_attempts": 0
+        },
+        {
+          "id": "verified-commit-rebuild-replay",
+          "exit_code": 0,
+          "network_attempts": 0
+        },
+        {
+          "id": "uncertain-restart",
+          "exit_code": 0,
+          "network_attempts": 0
+        },
+        {
+          "id": "profile-replay",
+          "exit_code": 0,
+          "network_attempts": 0
+        },
+        {
+          "id": "engagement-replay",
+          "exit_code": 0,
+          "network_attempts": 0
+        }
+      ],
+      "source_stable": true,
+      "historical_count": 43,
+      "historical_bytes_unchanged": true,
+      "source_files_sha256": "99f5a91d64452d9bbcaa8acd5a00357e827aa61dbfa4609c04a72b8256ccc8de",
+      "report_sha256": "c5d4b3d01020398c988cf37ef378aea573e0d4aa5a3204f9a910bc8aedb3e827"
+    },
+    "allocation_regression": {
+      "passed": true,
+      "trials": 576,
+      "network_attempts": 0,
+      "source_stable": true,
+      "baseline": "retain_rules",
+      "report_sha256": "43bc50a12a2bcd7565e5fc64c7a173ebb2af5df84ec0cec39c861b8ec75ce3bd"
+    },
+    "cli_preparation": {
+      "passed": true,
+      "network": "explicitly_denied",
+      "credential_access": "explicitly_denied"
+    },
+    "cli_comparison": {
+      "passed": true,
+      "gateway_kinds": [
+        "test_double",
+        "test_double"
+      ],
+      "mean_precision_at_1": [
+        1.0,
+        0.0
+      ],
+      "report_sha256": "3cd8843a6c5267370d63cae5ae914a07fe32cf4839c88f4e0c808b32c7f703ed"
+    },
+    "final_focused": {
+      "tests": 96,
+      "result": "passed",
+      "source_files_sha256": "5967570f6452136224e5ef701374fa61fe26c6425da6de4e8c5b04541dbed251",
+      "covers": [
+        "model evaluation",
+        "native recommendations",
+        "reward contract",
+        "draft/review/export",
+        "architecture"
+      ],
+      "log_sha256": "8ed6ad451d88fce7a1cef4504b3aae3b0378f06c8f8f06f9ef8e0e2dc7fad4ec"
+    },
+    "source_changes_after_full_suite": [
+      "scripts/evaluate_youtube_model_ranking.py",
+      "src/acquisition/youtube/ranking.py",
+      "tests/test_youtube_model_ranking.py"
+    ]
+  },
+  "protected_failures": [
+    "unknown/reserved outcome never repeats automatically",
+    "recorded receipt recovers after restart",
+    "known-billing validation or execution failure stops remaining cases",
+    "unknown or excess billing stops remaining cases",
+    "changed settings/input/request cannot reuse the batch",
+    "incomplete samples have no aggregate score",
+    "low semantic quality remains distinct from execution failure"
+  ],
+  "limits": {
+    "live_provider_calls": 0,
+    "real_participant_support": 0,
+    "paid_sample_authorized": false,
+    "production_promotion": "blocked",
+    "model_quality": "not_measured",
+    "calibrated_response": "unavailable",
+    "new_workspace_ui": false
+  },
+  "next": [
+    "Review local evaluator",
+    "Separately authorize and run a small genuine model comparison",
+    "Accept #144 measurement handoff",
+    "Start #133 trusted assignment and generated-sample receipts; label rehearsal data"
+  ],
+  "final_review_corrections": [
+    "Pinned-plan execution rejects explicit budget overrides before credentials",
+    "Batch names start with an ASCII letter/digit; dot-only directory escape rejected",
+    "Model request excludes context-category labels and requires text-based relevance"
+  ]
+}
