@@ -26,6 +26,7 @@ dist/
 
 !/docs/ci-performance.md
 !/docs/architecture.md
+!/docs/gtm-platform-map.md
 !/docs/branding.md
 !/docs/conversations.md
 !/docs/learning.md

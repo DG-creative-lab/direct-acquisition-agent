@@ -4,6 +4,13 @@ Status: proposed implementation plan, 24 November 2026. The owner has selected t
 
 This is the coordination entry point for two workstreams: platform preparation in the iwoca chat, and YouTube compatibility and migration in the YouTube chat. The intended product is one marketing workspace with channel-specific campaign capabilities. Initial delivery remains bounded preparation, human review and manual export.
 
+The 27 November [platform map](gtm-platform-map.md) places YouTube under
+Advertising, alongside future Meta/TikTok channels, with Direct acquisition and
+Agentic commerce as separate product areas. It records ownership, channel
+access and the incremental build sequence. Continue #133 against its native
+measurement contract; a full namespace move or commerce migration is not a
+prerequisite. Hosted platform work remains coordinated through #70/#130.
+
 Read alongside [shared product design](multichannel-workspace-design.md), [remaining hosted preparation](hosted-platform-preparation.md), and the existing [multichannel expansion plan](channel-expansion-plan.md). Epic [#60](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/60) remains the overarching platform roadmap.
 
 Issue #129 now specifies the [YouTube channel contract v1](youtube-channel-contract.md) and [authored acceptance examples](youtube-channel-contract-examples.json). The contract selects the native module, review/export format, routing and shared inference/funding boundaries. The open choices listed below belong to the earlier planning baseline; use the contract's implementation handoff for their resolution and remaining hosted prerequisites.

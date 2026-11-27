@@ -2,6 +2,12 @@
 
 Direct Acquisition Agent is one deployable Python modular monolith with a React presentation client. Business modules own their rules and expose narrow public contracts. Application services depend on ports; SQLite, filesystem, synthetic data and OpenRouter adapters implement those ports. `bootstrap.py` is the composition root.
 
+The [go-to-market platform map](gtm-platform-map.md) defines the agreed future
+product-area taxonomy, native channel ownership, shared-service boundaries and
+channel access requirements. It does not move packages or install commerce
+capabilities. `acquisition` remains the current Python namespace; the module
+responsibilities below describe installed code.
+
 The custom runtime persists tasks and schedules explicit workflow steps. The model reasons within a bounded copy workflow; code owns population policy, budget calculations, task state, artifact identity, approval and counted outcomes. This keeps model behavior replaceable without moving authority into prompts or browser state.
 
 ## System structure
@@ -101,8 +107,8 @@ entry point or Gateplane dependency is introduced by this slice.
 
 `make arch-check` statically inspects every Python file under `src/acquisition`,
 without importing product code. `scripts/architecture_policy.json` is the reviewed,
-exact module-to-role inventory and temporary exception ledger. It currently
-classifies 232 modules, including workspace application/views, startup and HTTP adapters, compatibility wrappers, engagements and supporting
+exact module-to-role inventory and temporary exception ledger. It classifies
+every production module, including workspace application/views, startup and HTTP adapters, compatibility wrappers, engagements and supporting
 files and every root utility. An added file needs an explicit classification;
 removed files must lose their classifications. A file/package name collision is
 rejected. Tests and scripts are outside this production inventory and cannot be

@@ -2,6 +2,12 @@
 
 Status: provisional product and architecture design, 24 November 2026. It guides incremental implementation under #60 and the YouTube migration. It does not describe every screen or integration as implemented.
 
+The accepted 27 November [platform map](gtm-platform-map.md) extends this design
+with Direct acquisition, Advertising and Agentic commerce areas. It is the
+current taxonomy and ownership reference, including channel access, independent
+learning contracts and the future commerce migration boundary. The interaction
+principles below remain applicable; future areas are not installed UI modules.
+
 The user should prepare and improve a campaign in one workspace: supply product context, ask the campaign agent for help, review a concrete artifact, then use actual observed results to decide the next change. Shared navigation and knowledge should reduce repeated work across channels. Channel-specific identities, approvals and evidence remain explicit.
 
 For YouTube, the intended decision is a suitable context–creative allocation
