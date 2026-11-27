@@ -112,16 +112,26 @@ The repository name has changed; Python imports and commands still use
 `acquisition`. Package names, saved identities and historical artifacts have
 not been migrated by this documentation change.
 
+Before verification, install the locked frontend dependencies and Chromium
+while network access is available:
+
+```sh
+pnpm --dir frontend install --frozen-lockfile
+pnpm --dir frontend exec playwright install chromium
+```
+
+After dependencies and Chromium are installed, run the checks:
+
 ```sh
 make test
 make arch-check
 make boundary-check
 make mutation-check
-pnpm --dir frontend exec playwright install chromium
 make interface-check
 ```
 
-These checks are offline and need no provider credentials.
+These checks run offline after those prerequisites are installed and need no
+provider credentials. Local HTTP tests still require loopback access.
 `make boundary-check` retains a fresh evidence bundle under
 `.local/boundary-evidence/`; use `BOUNDARY_OUTPUT=/path/to/new-empty-directory`
 for another destination. It fails on missing/failed cases, network attempts or
