@@ -2,7 +2,12 @@
 
 Date: 27 November 2026.
 Status: accepted product and architecture direction; implementation remains incremental.
-Owner: platform architecture under [epic #60](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/60).
+Owner: platform architecture under [epic #60](https://github.com/DG-creative-lab/gtm-agent-platform/issues/60).
+
+The repository is now `gtm-agent-platform`, with GTM Agent Platform as the
+working product name. The [product overview](product.md) owns current scope and
+claims; the [design-partner brief](product-discovery.md) owns positioning
+hypotheses. This map owns taxonomy, boundaries and implementation direction.
 
 This is the current product-area taxonomy and responsibility map for the shared
 marketing workspace. It extends the [workspace design](multichannel-workspace-design.md)
@@ -273,7 +278,7 @@ latency rather than only the model's answer quality.
 | Parallel platform track | Implement authoritative hosted membership, channel grants, connection scope and composed access | #70 / #130; asset foundation #140 / #141 | Authorized single-channel journey, guessed IDs, grant revocation and cold-start recovery verified |
 | 4 | Release the bounded hosted YouTube journey | #134 / #74 | Actual hosted parity evidence and explicit cutover decision |
 | 5 | Define and validate one commerce capability migration | New work to scope after a source/destination gap review | Native contract, single shared authority/runtime ownership and compatibility evidence |
-| Separate optional cleanup | Choose a neutral product/package name and migrate imports | A separately scoped compatibility change | Entry points and old saved work preserved; historical evidence unchanged |
+| Separate optional cleanup | Decide whether to migrate the Python namespace after the repository rename | A separately scoped compatibility change | Entry points and old saved work preserved; historical evidence unchanged |
 
 The minimum boundary work for #133 should follow its actual dependencies; a
 wholesale directory migration is not a prerequisite. Hosted access work may
@@ -287,7 +292,7 @@ scope any additional implementation acceptance before starting that work.
 
 ## Open decisions
 
-- Final platform name and eventual Python namespace.
+- Customer-facing brand beyond the working product name and any later Python namespace migration.
 - Exact customer bundles, billing integration and historical access after downgrade.
 - First commerce capability to migrate and any data-import/rollback requirements.
 - A future cross-area attribution contract, if combined performance is needed.

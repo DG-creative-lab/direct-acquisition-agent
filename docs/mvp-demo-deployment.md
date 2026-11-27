@@ -1,5 +1,13 @@
 # Live MVP deployment plan
 
+Reading status: retained deployment design and dated feasibility context.
+Native remote storage and operator-only serverless preparation were implemented
+after this plan. Use [hosted preparation](hosted-platform-preparation.md) for
+current release gaps, [remote storage](remote-storage.md) and
+[serverless preparation](serverless-preparation.md) for installed contracts,
+and the [product overview](product.md) for current scope. The original
+observations below are not a fresh deployment or capacity claim.
+
 20 November 2026 · Reviewed main baseline 72ac7cb after PR #118
 
 Carry-forward review, 21 November 2026: the feasibility work is now based on

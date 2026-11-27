@@ -1,4 +1,4 @@
-# YouTube migration into the acquisition workspace
+# YouTube migration into GTM Agent Platform
 
 Status: proposed implementation plan, 24 November 2026. The owner has selected this repository as the destination for the YouTube product. This document approves no deployment, paid call, data import, outbound campaign or production cutover.
 
@@ -25,14 +25,18 @@ the product objective or evidence of ad conversion.
 
 ## Evidence baseline
 
-After merged #147 (`fecb9f0`), the next #144 slice is the
+Current checkpoint, 27 November: PR #149 has merged the
 [opt-in model ranking evaluator](youtube-contextual-benchmark.md#opt-in-model-ranking-evaluation).
 It freezes the same authored tasks and uses existing inference reservations,
-receipts and runtime recovery. Review it with fake gateways, then separately
-authorize a small real-model comparison. No real model quality is established
-until that comparison is run. #133 then starts trusted assignment and
+receipts and runtime recovery. The installed evaluator does not itself establish
+real model quality; a genuine comparison remains a separately authorized
+evidence step under #144. #133 starts trusted assignment and
 generated-sample job/result receipts against the accepted measurement handoff;
 its first local rehearsal keeps fake results separate from participants.
+
+The older checkpoints below retain their named baselines. The
+[platform map](gtm-platform-map.md#build-sequence-and-coordination) owns the
+current cross-area ordering and [product overview](product.md) owns current scope.
 
 26 November implementation checkpoint: merged #146 freezes #143's offline
 contract. #144 now has a [native recommendation/benchmark slice](youtube-contextual-benchmark.md):

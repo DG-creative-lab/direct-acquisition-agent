@@ -4,7 +4,13 @@ The CLI uses OpenRouter behind a provider-independent inference port. Model comm
 
 ## Configure and run
 
-Set `OPENROUTER_API_KEY` in ignored `.env.local`. Keep credentials server-side and outside prompts, reports and exports. The workspace's model option uses its fixed profile; CLI users can explicitly select a model.
+Set `OPENROUTER_API_KEY` in ignored `.env.local` for server-funded CLI/default
+generation. Keep credentials server-side and outside prompts, reports and
+exports. Supported workspace planning/copy paths also offer a scoped
+OpenRouter connection and model selection; see [local operations](workspace.md#optional-model-copy).
+The standalone campaign form retains its default profile, and CLI users can
+explicitly select a model. These settings do not activate live inference in
+authored YouTube or synthetic sequence preparation.
 
 ```sh
 PYTHONPATH=src python3 -m acquisition models

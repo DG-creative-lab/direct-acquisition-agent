@@ -1,18 +1,22 @@
 # Campaign user guide
 
-For externally executed postal/email campaigns, the [recorded outcomes API/CLI](external-outcomes.md) registers original assignments, imports attested JSON reports and finalizes separate advisory results. Use its disposable recorded fixture first. This capability has no browser screen or live provider connector.
+This guide follows the local postal campaign demonstration in GTM Agent
+Platform. The [product overview](product.md) separates this usable workflow
+from other installed capabilities and the broader product direction.
 
-The separate [channel content API/CLI](channel-content.md) prepares synthetic
-personalized email and human call scripts from exact recipient contexts. It is
-an additive agent-facing capability; the workspace journey below retains its
-postal preparation, review and simulation contracts.
+For other workflows:
 
-The [sequence simulation API/CLI](sequence-simulation.md) adds complete synthetic
-email/call strategies with controls, scheduled human tasks and explicit stop and
-uncertainty behavior. It can be called by an agent without a form-based setup.
-[Exact sequence review](sequence-review.md) adds one accountable approval for the
-full materialized sequence, with current checks before effects and validated
-operator summaries. The conversational multichannel route remains later work.
+- [YouTube preparation](youtube-preparation.md) covers authored placement drafts,
+  exact review and manual export in chat.
+- [Conversational sequences](conversational-sequences.md) covers the installed
+  synthetic email/human-call journey, including exact review and stop behavior.
+  The lower-level [sequence](sequence-simulation.md),
+  [review](sequence-review.md) and [content](channel-content.md) contracts remain available.
+- [Reviewed intake email preparation](intake-email-preparation.md) covers
+  fictional email packages from the user's reviewed company assertions.
+- [Recorded external outcomes](external-outcomes.md) covers operator-attested
+  postal/email assignment and report intake through API/CLI, with no browser
+  screen or authenticated provider connector.
 
 Use this guide with the local React workspace. [Local operations](workspace.md) covers installation and recovery. The workflow below uses offline fixtures and spends no provider credit.
 

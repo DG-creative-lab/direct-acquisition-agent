@@ -1,5 +1,11 @@
 # Hosted execution and storage feasibility
 
+Reading status: dated experiment and carry-forward evidence. The later
+[native remote storage](remote-storage.md) and
+[operator-only serverless preparation](serverless-preparation.md) are installed
+contracts; [hosted preparation](hosted-platform-preparation.md) records the
+remaining workspace release work. Preserve the original observations below.
+
 Original experiment: 20 November 2026 · Parent #60 · Baseline 72ac7cb.
 Carried forward for review on 21 November 2026 at merged main `2dcc5f4`, on
 `feature/60-hosting-feasibility-main`.

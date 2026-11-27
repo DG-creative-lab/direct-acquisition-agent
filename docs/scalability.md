@@ -1,6 +1,13 @@
 # Scaling and hosted operation
 
-This document describes a possible evolution of the local product. The steps below are proposals, not implemented capabilities or measured capacity claims. The current supported topology is one loopback server, one active worker and local SQLite databases with synthetic data.
+This document describes scaling beyond the current compositions. The local
+workspace supports one loopback server, one active worker and local SQLite.
+Native [remote libSQL storage](remote-storage.md) and bounded
+[operator-only serverless preparation](serverless-preparation.md) are also
+implemented. Neither supplies a complete hosted visitor workspace or establishes
+general multi-worker capacity. The stages below describe further requirements;
+use the [product overview](product.md) for current capability status and
+[hosted preparation](hosted-platform-preparation.md) for the current release gaps.
 
 The modular monolith is a useful starting point: campaign, review and learning rules already have explicit owners, deterministic identities and narrow ports. Keeping those modules together also keeps important authority transactions local. Splitting them into services before measuring a constraint would add failure modes without establishing more capacity.
 
@@ -24,7 +31,14 @@ These are dependency gates. More workers do not establish correct remote dispatc
 
 ## Storage and workers
 
-A PostgreSQL adapter could replace SQLite behind the existing ports when concurrent writers or hosted operation require it. SQL transactions, claim semantics, constraints and snapshot reads must be reimplemented and verified; the port definitions do not make database behavior interchangeable. Migrate organizations, immutable artifacts, legacy admission certificates and authoritative receipts without rewriting identities. Reconcile counts and hashes before switching writers.
+The installed remote libSQL adapter already supplies a supported storage
+boundary for explicit compositions; local SQLite remains the default.
+PostgreSQL is a possible later adapter if measured workload or deployment needs
+justify it, not an unfinished prerequisite for all hosted work. SQL transactions,
+claim semantics, constraints and snapshot reads must be implemented and verified
+for any replacement. Migrate organizations, immutable artifacts, legacy admission
+certificates and authoritative receipts without rewriting identities. Reconcile
+counts and hashes before switching writers.
 
 Keep exact-subject validation and acceptance in one authoritative transaction. Preserve the read snapshot used to freeze all segment learning. Validate time and lease deadlines at durable boundaries. Use a consistent clock policy, heartbeats for longer work and clear fencing semantics for a worker whose lease expires while inference is in flight.
 
