@@ -4553,6 +4553,151 @@ supersedes the v1 handoff for current use while preserving its original record.
 Full checks run in updated PR CI. No provider/model calls or real participant
 learning were introduced.
 
+## Registered external campaigns and report intake, 26 November 2026
+
+The [API/CLI contract](external-outcomes.md) introduces an operator-attested
+external registry, separate from synthetic learning and model memory. Native
+SQLite owns the commit; a file adapter supplies recorded evidence; learning
+owns assignment, coverage and Bayesian rules. Read-only views and original
+receipts expose history without granting current authority. No frontend,
+provider fetch, model call, sending or schema migration is introduced.
+
+| Invariant | Independent oracle and failure probe | Observable requirement |
+| --- | --- | --- |
+| Original denominator survives partial or failed dispatch | Six literal A/B/holdout members; missing page/member and substituted manifest | Unknowns remain missing; no finalization or denominator shrink |
+| Engagement does not become statistical support | Twenty opens plus a click on one business | Twenty event counts, one engaged business, zero outcome trials |
+| Mature complete counts update once | Literal two-member groups: A/holdout 1 success, B 0; prior (1,19) | Final A/holdout (2,20), B (1,21); no synthetic beliefs/model calls |
+| Scope and source identity stay frozen | Wrong organization, CRM record, native dispatch, arm, content hash, data class or metric | Atomic denial, unchanged native row counts |
+| Exact replay observes original work | Duplicate source event/page/report, changed payload under old ID, new request key | Original receipt; no additional observations; contradictions roll back |
+| Every write retains active operator authority | Disable/generation change after final command write | Whole transaction rolls back; receipt inspection remains historical |
+| Evidence, audit and receipt commit together | Inject failure after registration/report/finalization audit and lose reply after commit | Zero partial effects or original committed receipt on retry |
+| Independent businesses cannot be counted twice | Real accepted legacy cohort before/after external registration; native CRM/dispatch alias | Cross-path conflict under native write transaction |
+| Process/concurrent recovery converges | Fresh Python process, two registration contenders, two finalizers, Hrana COMMIT reply loss | One original cohort/finalization and saved report; no repeated counts |
+| Historical evidence cannot be renewed | Actual checkpoint create/restore, disabled role, late correction and clock regression | Inspection works; writes deny; future history has no current posterior projection |
+| Missing or tampered relationships fail closed | Deleted source audit/member reservation and altered saved snapshot | No usable posterior/finalization from inconsistent evidence |
+| Advisory comparison is bounded | Literal A better than B but worse than holdout | No recommendation to prefer the treatment; authority remains advisory |
+
+The focused `test_external_outcomes.py` suite has 24 tests. Its real SQLite
+counts, process restart, actual checkpoint round trip and two-contender schedules
+exercise the listed failure mechanisms. The remote case uses the existing
+SQLite-backed Hrana wire server and string wire identities, with a fresh remote
+connection after a lost COMMIT acknowledgement. It is not managed Turso service
+or live provider evidence. The committed fixture is also run through separate
+CLI processes, proving registration, partial status, complete finalization,
+report retrieval and replay with the literal posterior values above.
+
+Manual attestation is the authority boundary, not independently verified
+provider truth. This slice cannot detect a dishonest original manifest,
+incorrect cross-system business mappings, contaminated holdouts, retrospective
+selection or invented source completeness. No automated learning from real
+feeds is claimed. Declared randomized designs and illustrative priors/thresholds
+need independent calibration. Complete finalized results are separate advisory
+evidence; corrections, repeated exposure, model-context integration and hosted
+access are deferred. Resource caps prevent unbounded input within one cohort;
+there is no hosted ingestion rate-limit claim.
+
+The [commit-bound verification record](evaluations/outcomes-registration-2026-11-26.json)
+attributes the full backend pass to `faff202aced00f69e475c70cab462b773a5dc6dd`:
+1,300 tests in 1,253.334 seconds. All 481 fingerprinted source/config/test/fixture
+files remained unchanged during that run. A later one-line read-only projection
+refinement exposes complete mature cohorts as `ready_to_finalize`; its regression
+assertion and all 24 focused tests passed in 4.109 seconds. The full backend was
+not repeated after that status-label refinement.
+
+Final implementation `2f30ca3928eac43d92635c7ca8b7b8d16977e226` passes architecture
+with 253 modules and zero exceptions. All five integrated boundary cases pass
+with zero network attempts, stable attributable source and all 46 historical
+evaluation artifacts unchanged. Ten fresh network-blocked CLI processes verify
+the committed fixture, literal posteriors, saved snapshot and original replay;
+native model-call, run, synthetic-cohort and synthetic-belief counts remain zero.
+Heavy suites ran sequentially; only the two-contender race probes overlap.
+No frontend change was made, so interface-check was not required. Managed Turso,
+live providers and live model behavior were not tested. The original checkout's
+dirty files retain their pre-work hashes. The evidence/validation follow-up is
+documentation only and preserves historical records.
+
+
+### Outcomes review corrections, 26 November 2026
+
+Review base `09468ad`. The two findings were reproduced before production fixes:
+a complete 30-A/30-B/10-holdout cohort with identical A/B content recommended A,
+and a valid dispatch event one second before sending committed evidence. Three
+regression methods failed on the old source, including the older saved-winner
+projection and unchanged-row-count oracle for the invalid import.
+
+| Invariant | Regression and independent oracle | Required result |
+| --- | --- | --- |
+| Assignment differences cannot prove a difference between identical creatives | Native 70-business identical-content cohort, A 30/30 success, B/holdout zero; equivalent distinct-content cohort | Identical content has no candidate or winner probabilities; distinct content retains the supported advisory recommendation; literal group counts remain unchanged |
+| Current projection cannot revive an invalid old recommendation | Persist a v1 winner, restart into read-only inspection and compare native bytes/receipt | Current comparison says `no_creative_contrast`; original v1 receipt and group intervals remain intact |
+| Diagnostics cannot precede their actual recorded dispatch | All five email diagnostic kinds and all four supported postal kinds at send minus one, exact send and send plus one | Nine invalid mixed reports roll back, with no saved snapshot; 18 boundary/after observations accepted; CRM organic enquiries within the cohort window remain valid |
+| Invalid historical diagnostics cannot enter current metrics | Save a legacy pre-send report, then reconcile under current validation | Read projection/snapshot fail closed; historical receipt and database bytes are retained |
+
+The focused suite passes 28 tests, including actual SQLite history, cross-channel
+boundaries and Hrana lost-COMMIT recovery. The comparison sampling algorithm and
+policy stay v1; the eligibility rule is separately versioned. Finalization and
+read projections share that rule, while stored historical receipts remain
+immutable. The dispatch-time rule is checked in the shared report validator on
+both import and evidence reconciliation. There is no data rewrite or migration.
+[Review-correction evidence](evaluations/outcomes-review-corrections-2026-11-26.json)
+binds all final checks to `d92d3b8279efb715733999b86509bcc824c7897a`.
+The full backend passes 1,304 tests in 1,384.397 seconds; the focused suite passes
+28 in 4.716 seconds. Architecture passes with 253 modules and zero exceptions.
+All five boundary cases pass with zero network attempts, stable source and all
+47 historical evaluation artifacts unchanged. Ten fresh network-blocked CLI
+processes verify the committed recorded fixture and exact counts/replay. All
+481 fingerprinted source inputs remain unchanged across verification.
+
+Heavy suites ran sequentially, with one full backend process. The original
+checkout retains its dirty-file hashes. No frontend/dependency changes or
+interface-check were needed. Managed Turso, live providers and live models were
+not checked. This follow-up evidence commit changes documentation only.
+
+
+### Historical outcomes replay and inspection, 27 November 2026
+
+Review base `40f9fbe`. Both new findings reproduced through public methods:
+a new finalization key returned an old identical-creative winner without a
+historical observation, and snapshot inspection rejected previously saved
+pre-send evidence. This correction supersedes the earlier fail-closed handling
+of otherwise integrity-valid legacy diagnostic timing. The earlier evidence
+records remain historical and byte-identical.
+
+Historical source verification and current eligibility now have distinct roles.
+The saved report reader checks scope, frozen registration, journal hash, atomic
+audit, source identity and original event binding. It identifies pre-send
+observations without making them current metrics. A selected snapshot is
+inspectable without depending on unrelated report/finalization health. New
+report admissions still use strict timestamp validation. Exact known legacy
+replays observe the original receipt and are labeled historical; changing the
+snapshot, event or identity does not gain that exception.
+
+| Invariant | Independent regression oracle | Required result |
+| --- | --- | --- |
+| A replay cannot renew an old creative winner | v1 identical-creative finalization, original and fresh request keys, repeated fresh key | Historical observation, exact original receipt and filtered current comparison; one native finalization audit |
+| Historical reads preserve evidence without accepting invalid metrics | Saved early open, read-only API, actual CLI snapshot read and file hash | Original timestamp/pages retained; zero current opens; `needs_reconciliation`; database bytes unchanged |
+| Legacy timing does not block valid primary evidence | Import valid open and complete six-business outcome snapshot after legacy early event | One valid current open, literal A/holdout one success each and B zero; mature finalization once with reconciliation metadata |
+| Historical read cannot bypass native integrity | Corrupt another report audit, then selected report event binding; foreign scope | Healthy selected report remains inspectable; corrupted selected evidence and wrong organization deny |
+| Eligibility annotations stay bounded and deduplicated | 101 distinct early opens repeated in two cumulative snapshots | Exactly 101 exclusions, 100 issue samples with truncation, both report IDs and zero current opens |
+| Fresh and replayed effects remain distinguishable | Lost acknowledgement, concurrent finalizers and Hrana restart | One raw original receipt, labeled historical observations, one effect and stable original counts |
+
+The former test asserting that legacy timing blocks all inspection was updated
+to prove retained snapshot access and exclusion from current metrics. The nine
+new-report timestamp rejection cases and native tamper tests still catch the
+unsafe admissions/integrity failures that must remain denied. No test was
+removed. The focused suite passes 30 tests in 8.669 seconds. The
+[history-review evidence](evaluations/outcomes-history-review-2026-11-27.json)
+binds every final gate to `0bfdaf7bedc780fe9253555a52d74d9725fbb826`:
+1,306 backend tests pass in 1,343.643 seconds, architecture passes with 253
+modules and zero exceptions, and all five native boundary cases pass with zero
+network attempts. All 48 historical evaluation artifacts and 481 fingerprinted
+source inputs remain unchanged. Ten fresh network-blocked CLI processes verify
+the committed recorded example, exact counts and explicitly historical replay.
+
+Heavy suites ran sequentially with one full backend process. Original checkout
+hashes remain intact. No frontend/dependency changes required interface-check;
+managed Turso, live CRM/provider and live model checks were not run. The
+subsequent evidence commit changes documentation only.
+
 ### Issue 144: opt-in model ranking evaluation
 
 Starting from merged #147 (`fecb9f0`), `feature/144-model-ranking` adds a
@@ -4671,3 +4816,24 @@ All 1,263 backend tests passed in four standard shards. The five boundary
 cases and the unchanged 576 allocation trials also passed with stable source
 fingerprints, zero network attempts and all 45 historical evaluation artifacts
 unchanged. Architecture remains 240 modules with zero dependency exceptions.
+
+
+### Outcomes publication integration with current main, 27 November 2026
+
+Merged main `415442ebbebd0c17cb281efaf0c45af53bc50b17` into the reviewed outcomes branch at
+`7ca4bd66e7022d99b96bd2a42bae49874fd89d04`. Both append-only validation sections and both architecture
+module sets are preserved. The outcomes and YouTube ranking bootstrap functions
+match their respective parent ASTs; no production conflict was resolved manually.
+
+All 30 outcomes tests and all 19 fake-provider YouTube ranking tests pass on the
+combined source. Architecture passes with 255 classified modules and zero
+exceptions. All five boundary cases pass with zero network attempts, stable
+source and all 52 historical evaluation artifacts unchanged. The
+[integration evidence](evaluations/outcomes-main-integration-2026-11-27.json)
+records exact commits, logs and the 485-file source fingerprint.
+
+The full 1,306-test backend pass remains attributed to `0bfdaf7`, before this
+integration. It was not repeated locally after merging main; the normal PR CI
+runs the combined suite. Local suites ran sequentially, with no frontend or live
+provider/model checks. The original checkout remains preserved. This evidence
+follow-up changes documentation only.

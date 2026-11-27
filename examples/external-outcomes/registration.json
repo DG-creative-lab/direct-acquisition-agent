@@ -1,0 +1,107 @@
+{
+  "schema": "external-campaign-registration/v1",
+  "mode": "EXTERNAL_OPERATOR_ATTESTED",
+  "data_class": "recorded_fixture",
+  "organization": "outcomes-fixture",
+  "campaign_id": "fictional-email-campaign",
+  "channel": "email",
+  "metric": "qualified_enquiry/v1",
+  "assignment_design": "observational",
+  "qualification_rule": "Recorded request to discuss the fictional product; excludes automatic replies and unsubscribe requests.",
+  "window_start": 1795564800,
+  "window_end": 1795651200,
+  "prior": {
+    "alpha": 1,
+    "beta": 19
+  },
+  "sources": [
+    {
+      "id": "dispatch",
+      "role": "dispatch",
+      "system": "fictional-mail-platform",
+      "account_id": "fixture-mail-account"
+    },
+    {
+      "id": "crm",
+      "role": "outcomes",
+      "system": "fictional-crm",
+      "account_id": "fixture-crm-account"
+    }
+  ],
+  "assignments": [
+    {
+      "business_id": "fixture-business-0",
+      "segment": "retail",
+      "arm": "A",
+      "creative_sha256": "e402e9523cee09690b7a0c11ed980f4943af09477d89e7b17dd8492f0a36c3ef",
+      "outcome_record_id": "fixture-crm-0",
+      "dispatch": {
+        "id": "fixture-message-0",
+        "status": "sent",
+        "at": 1795564860,
+        "content_sha256": "e402e9523cee09690b7a0c11ed980f4943af09477d89e7b17dd8492f0a36c3ef"
+      }
+    },
+    {
+      "business_id": "fixture-business-1",
+      "segment": "retail",
+      "arm": "A",
+      "creative_sha256": "e402e9523cee09690b7a0c11ed980f4943af09477d89e7b17dd8492f0a36c3ef",
+      "outcome_record_id": "fixture-crm-1",
+      "dispatch": {
+        "id": "fixture-message-1",
+        "status": "sent",
+        "at": 1795564860,
+        "content_sha256": "e402e9523cee09690b7a0c11ed980f4943af09477d89e7b17dd8492f0a36c3ef"
+      }
+    },
+    {
+      "business_id": "fixture-business-2",
+      "segment": "retail",
+      "arm": "B",
+      "creative_sha256": "65be4ce78e6b18d35aaae5c3ef4bdfbd7c5b50fbf5c972e8f6468815f0c99eee",
+      "outcome_record_id": "fixture-crm-2",
+      "dispatch": {
+        "id": "fixture-message-2",
+        "status": "sent",
+        "at": 1795564860,
+        "content_sha256": "65be4ce78e6b18d35aaae5c3ef4bdfbd7c5b50fbf5c972e8f6468815f0c99eee"
+      }
+    },
+    {
+      "business_id": "fixture-business-3",
+      "segment": "retail",
+      "arm": "B",
+      "creative_sha256": "65be4ce78e6b18d35aaae5c3ef4bdfbd7c5b50fbf5c972e8f6468815f0c99eee",
+      "outcome_record_id": "fixture-crm-3",
+      "dispatch": {
+        "id": "fixture-message-3",
+        "status": "sent",
+        "at": 1795564860,
+        "content_sha256": "65be4ce78e6b18d35aaae5c3ef4bdfbd7c5b50fbf5c972e8f6468815f0c99eee"
+      }
+    },
+    {
+      "business_id": "fixture-business-4",
+      "segment": "retail",
+      "arm": "holdout",
+      "creative_sha256": null,
+      "outcome_record_id": "fixture-crm-4",
+      "dispatch": null
+    },
+    {
+      "business_id": "fixture-business-5",
+      "segment": "retail",
+      "arm": "holdout",
+      "creative_sha256": null,
+      "outcome_record_id": "fixture-crm-5",
+      "dispatch": null
+    }
+  ],
+  "attestation": {
+    "confirmed": true,
+    "note": "Fictional recorded assignments only; no real messages sent.",
+    "evidence_ref": "fixture:original-manifest",
+    "evidence_sha256": "e8c601bc15635298f425146274f7647edc9a7e5ba4cb5e9eee50f39f32791403"
+  }
+}

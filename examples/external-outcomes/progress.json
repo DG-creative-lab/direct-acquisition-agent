@@ -1,0 +1,35 @@
+{
+  "schema": "external-outcome-report/v1",
+  "mode": "EXTERNAL_OPERATOR_ATTESTED",
+  "data_class": "recorded_fixture",
+  "organization": "outcomes-fixture",
+  "cohort_id": "external_cohort_c94366b94ca5beab0064760e110007e1e00680e0239b4799e811ffe873ef0f56",
+  "report_id": "fixture-progress",
+  "source_id": "crm",
+  "watermark": 1795568400,
+  "final": false,
+  "page_count": 1,
+  "pages": [
+    {
+      "number": 1,
+      "events": [
+        {
+          "event_id": "fixture-outcome-0",
+          "business_id": "fixture-business-0",
+          "arm": "A",
+          "creative_sha256": "e402e9523cee09690b7a0c11ed980f4943af09477d89e7b17dd8492f0a36c3ef",
+          "record_id": "fixture-crm-0",
+          "kind": "qualified_enquiry",
+          "occurred_at": 1795568400,
+          "evidence_ref": "fixture:crm-outcome-0"
+        }
+      ]
+    }
+  ],
+  "attestation": {
+    "confirmed": true,
+    "note": "Fictional recorded observations only. Partial snapshot; missing results remain unknown.",
+    "evidence_ref": "fixture:fixture-progress",
+    "evidence_sha256": "a6cf57ca479112c93a1f38ac5c04816359a7053ab55bdf657f3364eaad770dd0"
+  }
+}

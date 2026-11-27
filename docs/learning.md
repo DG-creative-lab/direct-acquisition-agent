@@ -1,5 +1,7 @@
 # Learning and outcome reference
 
+The separate [registered external outcomes API/CLI](external-outcomes.md) records operator-attested postal/email assignments and local report snapshots. Its posterior results remain separate from synthetic cohorts and model memory. No live provider verification or sending is added.
+
 The learning module turns complete, mature synthetic outcome cohorts into persistent Bayesian counts and advisory experiment recommendations. Runtime, campaign selection, editorial preferences and approval remain separate.
 
 ## Run the demonstration

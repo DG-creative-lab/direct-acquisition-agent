@@ -407,6 +407,16 @@ def build_database(path, *, clock=time.time, verified_admissions=False, remote_s
                          verified_admissions=verified_admissions, initialize=not read_only, deadline=remote_storage.get('deadline'))
 
 
+def build_outcomes(path, clock=time.time, *, remote_storage=None, read_only=False, verified_admissions=False):
+    """Operator-attested external evidence only; no provider execution or synthetic memory."""
+    from acquisition.learning import ExternalOutcomes
+    from acquisition.adapters.sqlite.external_outcomes import SqliteExternalOutcomes
+    from acquisition.adapters.external_reports import ExternalOutcomeFiles
+    database = build_database(path, clock=clock, remote_storage=remote_storage, read_only=read_only,
+                              verified_admissions=verified_admissions)
+    return ExternalOutcomes(SqliteExternalOutcomes(database, clock, read_only=read_only), ExternalOutcomeFiles())
+
+
 def build_intake(path, clock=time.time, *, remote_storage=None, read_only=False, verified_admissions=False):
     """Internal intake API; the caller supplies trusted organization and actor scope.
 

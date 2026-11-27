@@ -1,5 +1,7 @@
 # Product overview
 
+The [external outcomes registry](external-outcomes.md) adds API/CLI intake of operator-attested postal/email assignments and recorded reports. Complete mature cohorts produce separate advisory Bayesian results. This does not establish authenticated provider completeness, sending or integration into model memory.
+
 Direct Acquisition Agent helps an acquisition operator turn a supplied audience into a reviewable direct-mail experiment, then use observed responses to inform the next proposal. Its central object is the campaign: an exact audience, creative set, assignment plan, evidence pack and cost estimate that a reviewer can inspect together.
 
 The demonstration targets two working-capital situations, stock/inventory and projects/contractors, using synthetic business records and public iwoca Flexi-Loan evidence. These segments illustrate a workflow. They are not validated iwoca customer segments or a live targeting feed. A [versioned audience catalogue](audience-catalogue.md) discovers and verifies local source datasets. Chat pauses for confirmation of an exact version, then preserves that source through campaign preparation and review.

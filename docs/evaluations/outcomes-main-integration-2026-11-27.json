@@ -1,0 +1,104 @@
+{
+  "architecture": {
+    "classified_modules": 255,
+    "errors": [],
+    "log": {
+      "bytes": 127,
+      "path": "/private/tmp/iwoca-outcomes-publish-arch-2026-11-27.log",
+      "sha256": "2c9be954f902c63718408e58b2bf9be01d9275f1c20194d8d19142ac9fb6dadb"
+    },
+    "passed": true,
+    "source_commit": "7ca4bd66e7022d99b96bd2a42bae49874fd89d04",
+    "temporary_exceptions": 0
+  },
+  "boundary": {
+    "cases": 5,
+    "historical_artifacts": 52,
+    "historical_bytes_unchanged": true,
+    "network_attempts": 0,
+    "passed": true,
+    "report": {
+      "bytes": 98086,
+      "path": "/private/tmp/iwoca-outcomes-publish-7ca4bd6-boundary-2026-11-27/results.json",
+      "sha256": "82c3a2001d552f86fa2f093b657674c2508b5551f604297091be15aacf6f0b5f"
+    },
+    "source_stable": true
+  },
+  "branch": "feature/outcomes-registration-report-intake",
+  "code_commit": "7ca4bd66e7022d99b96bd2a42bae49874fd89d04",
+  "evaluated_at": "2026-11-27T08:15:36.415965+00:00",
+  "feature_parent_commit": "063b70a1fff8c634e324128eb9cc94ce3a7af6cd",
+  "heavy_suites_parallel": false,
+  "limits": [
+    "Full backend was last run on 0bfdaf7, before main integration. These are focused integration checks, not a full merged-backend pass.",
+    "No managed Turso, live CRM/provider, paid model or browser checks were run. No frontend change was made."
+  ],
+  "merged_main_commit": "415442ebbebd0c17cb281efaf0c45af53bc50b17",
+  "original_checkout_preserved": true,
+  "outcomes": {
+    "log": {
+      "bytes": 6019,
+      "path": "/private/tmp/iwoca-outcomes-publish-focused-2026-11-27.log",
+      "sha256": "c58277207f74da56ca6beae3a436e14bc06dcd297d7c2bf2925e85bb7f5bb34d"
+    },
+    "passed": true,
+    "seconds": 7.688,
+    "source_commit": "7ca4bd66e7022d99b96bd2a42bae49874fd89d04",
+    "tests": 30
+  },
+  "prior_full_backend": {
+    "command": "make test",
+    "log": {
+      "bytes": 255589,
+      "path": "/private/tmp/iwoca-outcomes-history-backend-2026-11-27.log",
+      "sha256": "d959bb7e882f86013b0bbd5dffc9f7fcbc3abc03976b16b80eb81fc9de1b8141"
+    },
+    "passed": true,
+    "reason": "Merge conflicts were append-only ledger and architecture classifications. The two preserved bootstrap compositions and both feature suites plus architecture and native boundaries were checked on the merged source. Normal PR CI will run the combined backend suite.",
+    "rerun_after_main_integration": false,
+    "seconds": 1343.643,
+    "source_commit": "0bfdaf7bedc780fe9253555a52d74d9725fbb826",
+    "source_stable": true,
+    "tests": 1306
+  },
+  "resolution": {
+    "both_architecture_role_sets_retained": true,
+    "both_validation_histories_retained": true,
+    "composition_functions_match_respective_parents": true,
+    "manual_conflict_paths": [
+      "docs/validation.md",
+      "scripts/architecture_policy.json"
+    ]
+  },
+  "schema": "outcomes-main-integration/v1",
+  "source": {
+    "changed_files_since_full_backend_source": [
+      "scripts/architecture_policy.json",
+      "scripts/check_architecture.py",
+      "scripts/evaluate_youtube_model_ranking.py",
+      "src/acquisition/adapters/youtube_decision_inputs.py",
+      "src/acquisition/bootstrap.py",
+      "src/acquisition/workflows/youtube_ranking.py",
+      "src/acquisition/youtube/__init__.py",
+      "src/acquisition/youtube/decisioning.py",
+      "src/acquisition/youtube/ranking.py",
+      "tests/test_architecture.py",
+      "tests/test_youtube_model_ranking.py"
+    ],
+    "files_count": 485,
+    "files_sha256": "5ac2ffbad4e4b12368dd418a6b098a2abf697c18fe5f7190b193ee25b7807f4d",
+    "source_stable": true
+  },
+  "youtube_ranking": {
+    "log": {
+      "bytes": 4068,
+      "path": "/private/tmp/iwoca-outcomes-publish-ranking-2026-11-27.log",
+      "sha256": "25f8a00ac503abd83978475edc2a87e89d88f88c246326ab62b953e14be10b29"
+    },
+    "passed": true,
+    "provider": "fake gateway",
+    "seconds": 23.664,
+    "source_commit": "7ca4bd66e7022d99b96bd2a42bae49874fd89d04",
+    "tests": 19
+  }
+}
