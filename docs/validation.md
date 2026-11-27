@@ -4816,3 +4816,24 @@ All 1,263 backend tests passed in four standard shards. The five boundary
 cases and the unchanged 576 allocation trials also passed with stable source
 fingerprints, zero network attempts and all 45 historical evaluation artifacts
 unchanged. Architecture remains 240 modules with zero dependency exceptions.
+
+
+### Outcomes publication integration with current main, 27 November 2026
+
+Merged main `415442ebbebd0c17cb281efaf0c45af53bc50b17` into the reviewed outcomes branch at
+`7ca4bd66e7022d99b96bd2a42bae49874fd89d04`. Both append-only validation sections and both architecture
+module sets are preserved. The outcomes and YouTube ranking bootstrap functions
+match their respective parent ASTs; no production conflict was resolved manually.
+
+All 30 outcomes tests and all 19 fake-provider YouTube ranking tests pass on the
+combined source. Architecture passes with 255 classified modules and zero
+exceptions. All five boundary cases pass with zero network attempts, stable
+source and all 52 historical evaluation artifacts unchanged. The
+[integration evidence](evaluations/outcomes-main-integration-2026-11-27.json)
+records exact commits, logs and the 485-file source fingerprint.
+
+The full 1,306-test backend pass remains attributed to `0bfdaf7`, before this
+integration. It was not repeated locally after merging main; the normal PR CI
+runs the combined suite. Local suites ran sequentially, with no frontend or live
+provider/model checks. The original checkout remains preserved. This evidence
+follow-up changes documentation only.
