@@ -107,8 +107,8 @@ entry point or Gateplane dependency is introduced by this slice.
 
 `make arch-check` statically inspects every Python file under `src/acquisition`,
 without importing product code. `scripts/architecture_policy.json` is the reviewed,
-exact module-to-role inventory and temporary exception ledger. It currently
-classifies 250 modules, including workspace application/views, startup and HTTP adapters, compatibility wrappers, engagements and supporting
+exact module-to-role inventory and temporary exception ledger. It classifies
+every production module, including workspace application/views, startup and HTTP adapters, compatibility wrappers, engagements and supporting
 files and every root utility. An added file needs an explicit classification;
 removed files must lose their classifications. A file/package name collision is
 rejected. Tests and scripts are outside this production inventory and cannot be
