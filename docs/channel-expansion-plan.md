@@ -1,5 +1,11 @@
 # Agent-led acquisition channel expansion
 
+The 27 November [go-to-market platform map](gtm-platform-map.md) is the current
+product-area taxonomy. This plan supplies the Direct acquisition foundations;
+YouTube belongs to Advertising, and Agentic commerce remains a future migration.
+Shared services and channel-access boundaries follow that map. The dated
+proposal and implementation history below remain unchanged.
+
 Date: 13 November 2026
 
 Status: proposed product and architecture direction. This document authorizes no external sending, CRM writes, paid inference or production deployment. It does not describe newly implemented features. The existing postal simulator, legacy contracts and execution restrictions remain in force.

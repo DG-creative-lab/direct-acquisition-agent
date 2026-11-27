@@ -72,6 +72,11 @@ The workspace's **Knowledge** view shows advisory campaign playbooks, the baseli
 
 ## Documentation
 
+The [go-to-market platform map](docs/gtm-platform-map.md) records the agreed
+Direct acquisition, Advertising and Agentic commerce areas, shared-service
+ownership, channel access and incremental build sequence. It separates future
+capabilities from the current runnable product.
+
 The proposed [YouTube migration plan](docs/youtube-migration-plan.md) coordinates the
 [shared marketing workspace design](docs/multichannel-workspace-design.md) and
 [remaining hosted preparation](docs/hosted-platform-preparation.md). These are

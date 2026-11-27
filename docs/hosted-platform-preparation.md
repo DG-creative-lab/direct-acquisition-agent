@@ -4,6 +4,13 @@ Status: migration planning, 24 November 2026. This is a gap map against accepted
 
 The target is a bounded online product a permitted tester can actually use: save company and campaign context, talk to the agent, review an exact result, export it and return to saved work. YouTube adds a usable viewer and channel-specific evidence loop. See the [migration sequence](youtube-migration-plan.md) and [shared workspace design](multichannel-workspace-design.md).
 
+The 27 November [platform map](gtm-platform-map.md) adds the agreed product-area
+and channel-access design. Hosted #70/#130 work must distinguish current
+membership, enabled channel/capability grants, actor roles and provider/effect
+authority. A YouTube-only customer must remain restricted through APIs, tools
+and resumed work, not only navigation. These are additional implementation
+requirements, not claims about the current local operator boundary.
+
 The [targeting feasibility gate](targeting-decisioning-feasibility.md) now
 precedes the next #133 channel build: #143 establishes actual control/data/reward
 and #144 compares offline contextual recommendations. #130 continues hosted
