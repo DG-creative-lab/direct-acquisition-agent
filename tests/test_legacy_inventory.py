@@ -21,7 +21,9 @@ from acquisition.conversations.legacy_migration import classify_inventory
 from acquisition.adapters.sqlite.database import Database
 from acquisition.adapters.sqlite.legacy_inventory import SqliteLegacyInventory
 from acquisition.reasoning import ModelConfig, ModelError
-from acquisition.bootstrap import build_workspace as Workspace
+from functools import partial
+from acquisition.bootstrap import build_workspace as _build_workspace
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 from test_conversations import PlannerModel
 
 

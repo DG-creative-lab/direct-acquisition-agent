@@ -343,7 +343,8 @@ export function CopyLetters({
             </div>
             <div className="letter-paper">
               <div className="letter-brand">
-                iwoca<span>Independent demonstration</span>
+                {view.authority.pack.product}
+                <span>Independent demonstration</span>
               </div>
               <p className="letter-label">SYNTHETIC DIRECT MAIL</p>
               <h3>{c.headline || "Offline message fixture"}</h3>

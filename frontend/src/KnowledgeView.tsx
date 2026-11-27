@@ -3,6 +3,7 @@ import { read } from "./api";
 import "./knowledge.css";
 
 type Knowledge = {
+  company_context?: { status: string };
   playbooks: {
     version: string;
     purpose: string;
@@ -79,11 +80,19 @@ export default function KnowledgeView() {
               02 / EVIDENCE <span>{data.product_facts.version}</span>
             </div>
             <h2>{data.product_facts.product}</h2>
-            <p>
-              Baseline pack checked {data.product_facts.checked_on}. Review by{" "}
-              {data.product_facts.review_by}. Campaign review checks its own
-              current evidence and freshness.
-            </p>
+            {data.company_context?.status === "source_required" ? (
+              <p>
+                Save your company and campaign brief in Company & brief. Each
+                preparation uses its selected, versioned sources. No company
+                evidence is selected by default.
+              </p>
+            ) : (
+              <p>
+                Baseline pack checked {data.product_facts.checked_on}. Review by{" "}
+                {data.product_facts.review_by}. Campaign review checks its own
+                current evidence and freshness.
+              </p>
+            )}
             {data.product_facts.facts.map((f) => (
               <div className="knowledge-row" key={f.id}>
                 <div>

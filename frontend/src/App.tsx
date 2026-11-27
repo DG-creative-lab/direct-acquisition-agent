@@ -69,6 +69,7 @@ export default function App() {
     [creating, setCreating] = useState(false),
     [mode, setMode] = useState<"fixture" | "model">("fixture");
   const [listed, setListed] = useState(false);
+  const [companyContext, setCompanyContext] = useState(true);
   const [modelSession, setModelSession] = useState(openRouterSession);
   const [showOpenRouter, setShowOpenRouter] = useState(false);
   const [parent, setParent] = useState<string | null>(null);
@@ -110,8 +111,14 @@ export default function App() {
   }, [modelSession]);
   const loadList = useCallback(async () => {
     const epoch = ++listGeneration.current;
-    const list = await read<{ sessions: Session[] }>("/api/sessions");
-    if (epoch === listGeneration.current) setSessions(list.sessions);
+    const list = await read<{
+      sessions: Session[];
+      new_work_contract?: string;
+    }>("/api/sessions");
+    if (epoch === listGeneration.current) {
+      setSessions(list.sessions);
+      setCompanyContext(list.new_work_contract !== "legacy-fixed-product/v1");
+    }
     return list.sessions;
   }, []);
   useEffect(() => {
@@ -310,7 +317,8 @@ export default function App() {
             aria-label="New campaign"
             onClick={() => {
               setParent(null);
-              setCreating(true);
+              if (companyContext) setPage("intake");
+              else setCreating(true);
             }}
             disabled={!!busy}
           >
@@ -421,6 +429,7 @@ export default function App() {
         <main id="workspace-main">
           <div hidden={page !== "assistant"}>
             <ConversationWorkspace
+              companyContext={companyContext}
               modelSession={modelSession}
               onModelSelected={(model) => {
                 if (modelSession)
@@ -476,7 +485,8 @@ export default function App() {
                   className="button primary"
                   onClick={() => {
                     setParent(null);
-                    setCreating(true);
+                    if (companyContext) setPage("intake");
+                    else setCreating(true);
                   }}
                   disabled={!!busy}
                 >
@@ -528,7 +538,8 @@ export default function App() {
                     className="button primary"
                     onClick={() => {
                       setParent(null);
-                      setCreating(true);
+                      if (companyContext) setPage("intake");
+                      else setCreating(true);
                     }}
                   >
                     <Plus size={16} />

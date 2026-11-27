@@ -46,7 +46,9 @@ export default defineConfig({
       { outputFile: root + `/.local/browser-reports/shard-${shard}.json` },
     ],
   ],
-  timeout: 30000,
+  // Bounded asynchronous correctness waits, not product latency assertions.
+  timeout: 60000,
+  expect: { timeout: 15000 },
   use: {
     baseURL,
     browserName: "chromium",

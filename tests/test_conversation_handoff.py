@@ -10,7 +10,9 @@ from pathlib import Path
 from unittest.mock import patch
 from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.contracts import Conflict
-from acquisition.bootstrap import build_workspace as Workspace
+from functools import partial
+from acquisition.bootstrap import build_workspace as _build_workspace
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 
 
 def _set_up_workspace(self, template=None):
@@ -65,7 +67,9 @@ class ConversationHandoffTests(unittest.TestCase):
         self.assertFalse(self.w.control_store.command(self.w._session(self.sid)['organization'], self.sid, 'handoff')['done'])
         self.w.message_conversation(self.c, 'edit', 1, 'Use £300 instead.')
         code = """import sys,json
-from acquisition.bootstrap import build_workspace as Workspace
+from functools import partial
+from acquisition.bootstrap import build_workspace as _build_workspace
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 w=Workspace(sys.argv[1],real_clock=lambda:1792972800.0)
 s=w.action(sys.argv[2],'handoff',json.loads(sys.argv[3]))
 print(json.dumps(s['review']['handoff']))

@@ -10,7 +10,7 @@ The new path is an explicit Python/CLI preparation API. It installs no new chat 
 
 | Profile/version | Product evidence | Audience taxonomy | Brand and qualification |
 | --- | --- | --- | --- |
-| `fielddesk/v1` | Fictional visit-planning product specification | Maintenance teams and installation teams | Appointment questions, fictional capability qualifications and a `.invalid` demonstration CTA |
+| `fielddesk/v2` | Fictional visit-planning product specification | Maintenance teams and installation teams | Appointment questions, fictional capability qualifications and a `.invalid` demonstration CTA |
 
 Fielddesk is synthetic. Its authored specification is test evidence, not an externally verified product or a real offering. Both profiles remain UK/GBP postal response experiments. An unsupported market, currency, channel, profile/version or taxonomy is rejected rather than replaced.
 
@@ -18,21 +18,20 @@ Files in `config/profiles/` contain reviewed configuration and fixture content. 
 
 ## Prepare a proposal
 
-The v1 authored evidence window is historical and expires on 24 November 2026.
-Fresh preparation after expiry must fail. Inspect the
-[recorded Fielddesk example](../examples/fielddesk-profile/README.md) or reproduce
-it with its explicitly simulated date; do not extend a source's validity or use
-a simulated clock for current customer work.
+The current fictional v2 specification is authored on 27 November 2026 with a
+27 December 2026 review deadline. It is a new synthetic fixture, not a renewal
+of real product evidence. The original v1 specification and
+[recorded Fielddesk example](../examples/fielddesk-profile/README.md) retain their
+24 November deadline and original identities. Fresh v1 preparation after expiry
+must fail; saved v1 requests replay their original artifacts.
 
-For reference, this is the real-time CLI form. It requires a currently valid
-installed specification, so the unchanged v1 fixture rejects a fresh request
-after its deadline:
+The real-time CLI selects the installed version explicitly:
 
 ```sh
 PYTHONPATH=src python3 -m acquisition.profile_cli \
   --db .local/fielddesk-profile.sqlite \
   --organization fielddesk-demo \
-  --profile fielddesk --version v1 --request-id first-profile \
+  --profile fielddesk --version v2 --request-id first-profile-v2 \
   --objective "Compare responses to visit-planning questions." \
   --budget-pence 60000 --segments maintenance installations \
   --country UK --currency GBP --channel direct_mail
@@ -50,7 +49,7 @@ An identical request observes the original artifact with `observation: historica
 
 Publication verifies the whole audience against the installed synthetic recipe using the frozen organization, taxonomy, size, seed and date. Candidate rows, metadata and rehashed identities cannot establish their own provenance. An omitted `as_of` uses the UTC date checked at publication; a change of date between preparation and final publication validation requires fresh preparation. An explicit ISO date remains frozen. Historical replay continues to return the original artifact.
 
-Both checked packs retain their 25 October 2026 checked date and 24 November 2026 review deadline. This implementation does not extend that deadline. New preparation after expiry requires an actually reviewed new installed pack/profile version. Tests use a controlled clock without claiming live evidence verification.
+Both original v1 packs retain their 25 October 2026 checked date and 24 November 2026 review deadline. This implementation does not extend their deadline. Fielddesk v2 has distinct profile, fact-pack, context and draft identities. New preparation after expiry requires an actually reviewed new installed pack/profile version. Tests use a controlled clock without claiming live evidence verification.
 
 ## Contracts and ownership
 

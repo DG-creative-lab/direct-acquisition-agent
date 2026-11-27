@@ -20,7 +20,9 @@ from acquisition.contracts import Conflict, canonical
 from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.entrypoints.learning_demo import run_learning_demo
 from acquisition.reasoning import CallScope
-from acquisition.bootstrap import build_workspace as Workspace
+from functools import partial
+from acquisition.bootstrap import build_workspace as _build_workspace
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 from test_conversations import PlannerModel
 from test_workspace_projection import records
 

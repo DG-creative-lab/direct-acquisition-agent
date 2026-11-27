@@ -6,6 +6,47 @@ requirements. Use the [product overview](product.md) and
 [examples index](../examples/README.md) for current scope and demonstrations;
 the [legacy reference](legacy-product-demo.md) explains retained compatibility.
 
+
+## Company-context creation and compatibility migration, 27 November 2026
+
+Normal new workspace conversations use `company-context/v2`. New campaign opens
+Company & brief, Knowledge has no global finance fact pack, and the optional
+fictional starter uses a distinct Fielddesk v2 specification. Native planning,
+action and sequence admission check the stored contract. Schema 28 adds the
+marker transactionally; NULL-safe update/replacement guards prevent downgrading
+it through SQLite's `OR REPLACE` default substitution. Original v1 configuration,
+prompt renderers, frozen request bodies, review subjects and receipts are retained.
+
+The migration regressions cover a physical schema-27 upgrade and rollback,
+unchanged approval/creation replay, paid-receipt recovery with zero additional
+provider calls, uncertain outcomes remaining fenced, source-free planning denial,
+rejected legacy-catalogue substitution, and independent Fielddesk v2 recovery.
+A changed CRM mapping label cannot select newer fixture dates. New company intake
+plans retain their own exact user-supplied source; they do not acquire finance facts.
+
+Backend discovery contains 1,340 cases. The full four-shard pass exercised 1,336
+cases while this slice was being completed. Its 51 distinct failures were rerun
+with all 15 migration cases after the compatibility fixture/schema updates and
+source freeze: 66 passed. The final metadata-read and NULL-guard corrections were
+then checked with all 15 migration tests, plus 22 storage/ranking tests using the
+local libSQL wire adapter and authored gateways. Architecture passes with 257
+classified modules and zero exceptions.
+
+The full browser run covered 165 cases: 156 passed initially; all nine failed
+cases passed after restoring the saved legacy scope label and using bounded
+asynchronous readiness waits. Effect counts, exact-subject, consent, recovery and
+dispatch assertions remain unchanged. The suite is not a latency benchmark.
+New-default desktop/mobile checks and the fictional starter passed, including
+reload without repeat generation or approval. Build and formatting pass.
+
+The final five-case boundary gate passes with zero network attempts, stable
+source attribution and unchanged historical artifact bytes. Local attributable
+reports, the full browser report, corrected-case rerun and screenshots are retained
+under `.local/company-context-verification/`; `summary.json` records the separate
+verification rounds. No live provider quality or hosted deployment is established.
+See the [migration contract](company-context-migration.md) for the upgrade and
+compatibility boundaries.
+
 ## Email sender display-name review fix, 26 November 2026
 
 The email approval view now displays each immutable email's `from_name` together

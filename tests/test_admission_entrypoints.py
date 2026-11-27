@@ -18,7 +18,9 @@ from acquisition.contracts import Conflict, digest
 from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.reasoning import CallScope, ModelConfig, ModelError
 from acquisition.runtime import Claim, LeaseLost, Outcome, TaskSpec
-from acquisition.bootstrap import build_workspace as Workspace
+from functools import partial
+from acquisition.bootstrap import build_workspace as _build_workspace
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 import test_admission_workflow_coverage as coverage
 import test_copy_revisions as revisions
 import test_followups as followups
@@ -150,7 +152,7 @@ class AdmissionEntrypointTests(unittest.TestCase):
             return subprocess.run([sys.executable,'-m','acquisition','--db',str(path),'--organization','cli',*args],
                 env=env,capture_output=True,text=True,timeout=20)
         selected=cli('admission-cutover');self.assertEqual(selected.returncode,0,selected.stderr)
-        created=cli('create','--request-id','command','--size','20')
+        created=cli('create', "--legacy-product-contract", "legacy-fixed-product/v1",'--request-id','command','--size','20')
         self.assertEqual(created.returncode,0,created.stderr)
         run=json.loads(created.stdout)['run_id']
         worked=cli('work');self.assertEqual(worked.returncode,0,worked.stderr)
@@ -167,7 +169,7 @@ class AdmissionEntrypointTests(unittest.TestCase):
                  "patch.object(b,'build',with_clock).start(); "
                  "patch.object(b,'workspace_gateway',side_effect=AssertionError('Provider loaded')).start(); c.main()")
         result=subprocess.run([sys.executable,'-c',wrapper,'--db',str(path),'--verified-admissions',
-            '--env-file',str(self.root/'missing.env'),'create-model','--request-id','model','--size','20'],
+            '--env-file',str(self.root/'missing.env'),'create-model', "--legacy-product-contract", "legacy-fixed-product/v1",'--request-id','model','--size','20'],
             env=env,capture_output=True,text=True,timeout=20)
         self.assertEqual(result.returncode,0,result.stderr)
         app=build(path,clock=lambda:self.now)

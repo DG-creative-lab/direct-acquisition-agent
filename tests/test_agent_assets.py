@@ -15,7 +15,9 @@ from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.reasoning import validate_assets, ModelConfig, ModelError
 from test_conversations import PlannerModel
 from test_copy_revisions import RevisionModel
-from acquisition.bootstrap import build_workspace as Workspace
+from functools import partial
+from acquisition.bootstrap import build_workspace as _build_workspace
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 
 
 class AgentAssetTests(unittest.TestCase):

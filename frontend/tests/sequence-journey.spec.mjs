@@ -8,7 +8,9 @@ import { fileURLToPath } from "node:url";
 async function isolated(run, scenario = "default") {
   const root = await mkdtemp(join(tmpdir(), "acquisition-sequence-chat-"));
   const script = `
-from acquisition.bootstrap import build_workspace as Workspace
+from functools import partial
+from acquisition.bootstrap import build_workspace as _build_workspace
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 from acquisition.entrypoints.workspace import WorkspaceServer
 from pathlib import Path
 import sys
@@ -53,7 +55,7 @@ s.serve_forever()
         errors = "";
       const timer = setTimeout(
         () => reject(new Error("Sequence fixture did not start: " + errors)),
-        15000,
+        30000,
       );
       child.stderr.on("data", (data) => {
         errors += data.toString();

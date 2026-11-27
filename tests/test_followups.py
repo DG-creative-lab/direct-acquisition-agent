@@ -7,7 +7,9 @@ from pathlib import Path
 import test_conversation_learning as learning_tests
 import test_conversation_handoff as handoff_tests
 from prepared_workspace_fixture import prepared_workspace
-from acquisition.bootstrap import build_workspace as Workspace
+from functools import partial
+from acquisition.bootstrap import build_workspace as _build_workspace
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from test_copy_revisions import RevisionModel
 
@@ -169,7 +171,9 @@ class FollowupTests(unittest.TestCase):
         import subprocess, sys, os
         p=self.finalized()
         code = """import sys,json
-from acquisition.bootstrap import build_workspace as Workspace
+from functools import partial
+from acquisition.bootstrap import build_workspace as _build_workspace
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 w=Workspace(sys.argv[1],real_clock=lambda:1792972800.)
 s=w.prepare_followup(sys.argv[2],'restart',sys.argv[3],'fixture',False)
 print(json.dumps(s['session']))
@@ -351,7 +355,9 @@ print(json.dumps(s['session']))
                     if name == 'missing':
                         code = """import sys
 from acquisition.contracts import Conflict
-from acquisition.bootstrap import build_workspace as Workspace
+from functools import partial
+from acquisition.bootstrap import build_workspace as _build_workspace
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 w=Workspace(sys.argv[1],real_clock=lambda:1792972800.)
 try:w.propose_followup(sys.argv[2],'restart-missing-acceptance',sys.argv[3])
 except Conflict:print('blocked')

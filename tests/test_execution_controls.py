@@ -14,7 +14,9 @@ from unittest.mock import patch
 from acquisition.adapters.sqlite.database import Database, EXECUTION, EXECUTION_RECOVERY
 from acquisition.contracts import Conflict, NotFound
 from acquisition.reasoning import ModelError
-from acquisition.bootstrap import build_workspace as Workspace
+from acquisition.bootstrap import build_workspace as _build_workspace
+from functools import partial
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 import test_conversational_copy_revision as copy_tests
 import test_conversation_handoff as handoff_tests
 
@@ -174,7 +176,7 @@ class ExecutionTests(unittest.TestCase):
         with self.w._conversation_app().calls.database.connect() as db:
             self.assertEqual([tuple(r) for r in db.execute('SELECT * FROM model_calls ORDER BY rowid')],old)
             self.assertEqual([tuple(r) for r in db.execute('SELECT * FROM legacy_task_admissions')],cutoff)
-        code="from acquisition.bootstrap import build_workspace as Workspace;import json,sys;print(json.dumps(Workspace(sys.argv[1]).conversation(sys.argv[2])['execution']))"
+        code="from functools import partial;from acquisition.bootstrap import build_workspace as _build_workspace;Workspace=partial(_build_workspace,new_work_contract='legacy-fixed-product/v1');import json,sys;print(json.dumps(Workspace(sys.argv[1]).conversation(sys.argv[2])['execution']))"
         result=subprocess.run([sys.executable,'-c',code,str(self.root),self.c],env=dict(os.environ,PYTHONPATH='src'),capture_output=True,text=True,check=True)
         self.assertEqual(json.loads(result.stdout)['used'],before['used'])
 

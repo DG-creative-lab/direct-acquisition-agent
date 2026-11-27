@@ -137,6 +137,8 @@ class SqliteConversationActions:
                 value=self.decode(old)
                 if value['inputs']!=frozen['inputs']:raise Conflict('Action request already binds different inputs or permission')
                 return value
+            from .company_contexts import require_planning_company_source
+            require_planning_company_source(db,organization,conversation_id,frozen['inputs']['revision'])
             if conversation['revision']!=frozen['inputs']['revision']:
                 raise Conflict('The brief changed before this action was saved')
             if not frozen['alias']:

@@ -29,8 +29,8 @@ class ReviewCliTests(unittest.TestCase):
                     env=env, text=True, capture_output=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 return json.loads(result.stdout)
-            first = cli("demo-review", "--out", str(root / "report"))
-            second = cli("demo-review", "--out", str(root / "report"))
+            first = cli("demo-review", "--legacy-product-contract", "legacy-fixed-product/v1", "--out", str(root / "report"))
+            second = cli("demo-review", "--legacy-product-contract", "legacy-fixed-product/v1", "--out", str(root / "report"))
             self.assertEqual(first["receipt"], second["receipt"])
             self.assertTrue(second["already_completed"])
             self.assertTrue(first["replay_same_receipt"])
@@ -90,7 +90,7 @@ class ReviewCliTests(unittest.TestCase):
                 db.close()
             migrated = Database(path)
             with migrated.connect() as db:
-                self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 27)
+                self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 28)
                 self.assertEqual([tuple(r) for r in db.execute("SELECT * FROM legacy_task_admissions")], old)
                 self.assertEqual(db.execute("SELECT status FROM runs WHERE id='later'").fetchone()[0], "queued")
 

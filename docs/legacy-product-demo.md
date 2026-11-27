@@ -6,11 +6,16 @@ used public iwoca Flexi-Loan material. Current documentation leads with
 [fictional Fielddesk and contextual YouTube examples](../examples/README.md)
 and the user's explicitly reviewed company context.
 
-The old postal path remains installed and its material can still appear in
-manual controls, baseline Knowledge, profile selectors and fixed-scope planning.
-This documentation pass
-does not change that runtime behavior. Calling it legacy must not imply that
-its replacement or retirement has already shipped.
+New local workspace conversations now use `company-context/v2`. New campaign
+opens Company & brief, Knowledge has no default company evidence, and the offline
+starter uses fictional Fielddesk v2. The fixed-product planner is no longer a
+fallback for new company-context requests. See the
+[versioned migration contract](company-context-migration.md).
+
+The old postal path remains installed for saved v1 work and explicitly selected
+compatibility tooling. Its material may appear when inspecting that saved work.
+The operator-only hosted preparation API and low-level profile CLIs require an
+explicit installed profile; neither chooses the finance profile by default.
 
 ## Retained identities and evidence
 
@@ -48,14 +53,10 @@ Old copy does not become company-independent because a name is replaced.
 A fictional proposal cannot inherit the old profile's approval or outcome
 counts. Dates in an authored rehearsal do not authorize current customer work.
 
-## Retirement requirements
+## Compatibility requirements
 
-Retire the default legacy path as a separately reviewed implementation slice
-under the platform/channel work, consuming the existing reviewed-intake and
-profile boundaries. The required outcome is that new company-independent
-requests do not select the fixed financial product implicitly.
-
-That slice must:
+The versioned migration retires the implicit local default. Maintain these
+requirements when extending the current company/channel workflows:
 
 - Inventory the defaults in `bootstrap.py`, `campaigns.CampaignScope`,
   `conversations`, the fixed-source grounding policy, CLI defaults and browser

@@ -1,11 +1,15 @@
 # Review and approval reference
 
+The CLI demonstrations below explicitly select the legacy postal fixture.
+Current company email and YouTube review use their own native subjects and
+sources. See the [creation migration](company-context-migration.md).
+
 Review cases bind durable proposals to local reviewer decisions, invalidation rules and simulated acceptance. The custom runtime and campaign rules retain their own module boundaries. Reviewing, approving, suppressing and simulating acceptance require no model calls.
 
 ## Run the scripted demonstration
 
 ```sh
-PYTHONPATH=src python3 -m acquisition --db .local/review.sqlite demo-review --request-id review-demo --out .local/review-demo
+PYTHONPATH=src python3 -m acquisition --db .local/review.sqlite demo-review --legacy-product-contract legacy-fixed-product/v1 --request-id review-demo --legacy-product-contract legacy-fixed-product/v1 --out .local/review-demo
 ```
 
 Open `.local/review-demo/review.html`. The command also writes `before-approval.html`, `suppression-blocked.html` and exact draft exports under `artifacts/`. These are read-only reports. Their decision examples invoke the CLI, which rechecks authoritative state.
@@ -21,8 +25,8 @@ All commands below use the same database and organization. Replace capitalized i
 ```sh
 PYTHONPATH=src python3 -m acquisition --db .local/manual.sqlite --organization demo-org review-actor --actor operator --role operator
 PYTHONPATH=src python3 -m acquisition --db .local/manual.sqlite --organization demo-org review-actor --actor reviewer --role reviewer
-PYTHONPATH=src python3 -m acquisition --db .local/manual.sqlite --organization demo-org review-evidence --actor operator --request-id evidence-1
-PYTHONPATH=src python3 -m acquisition --db .local/manual.sqlite --organization demo-org demo --request-id campaign-1 --as-of 2026-10-26
+PYTHONPATH=src python3 -m acquisition --db .local/manual.sqlite --organization demo-org review-evidence --actor operator --request-id evidence-1 --pack config/iwoca-product-facts-v1.json
+PYTHONPATH=src python3 -m acquisition --db .local/manual.sqlite --organization demo-org demo --legacy-product-contract legacy-fixed-product/v1 --request-id campaign-1 --as-of 2026-10-26
 PYTHONPATH=src python3 -m acquisition --db .local/manual.sqlite --organization demo-org review-open --run RUN_ID --actor operator
 PYTHONPATH=src python3 -m acquisition --db .local/manual.sqlite --organization demo-org review-show --case CASE_ID --html .local/manual/review.html --out .local/manual/artifacts
 ```

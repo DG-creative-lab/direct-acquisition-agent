@@ -7,6 +7,7 @@ from .database import Database
 from .tasks import finite_time
 from .admission_guard import require_legacy_writer
 from .execution import require_active
+from acquisition.conversations import LEGACY_COMPANY_CONTRACT, validate_company_contract
 
 
 def scoped_conversation(connection, organization, conversation_id):
@@ -31,15 +32,24 @@ class SqliteConversations:
         with self.database.connect() as db:
             return planning_source(db, organization, conversation_id, revision)
 
-    def create(self, organization, request_id, title, now):
+    def create(self, organization, request_id, title, now, *, product_contract=LEGACY_COMPANY_CONTRACT):
         identity(organization), identity(request_id), text(title, 120), finite_time(now)
+        validate_company_contract(product_contract)
         conversation_id = "conversation_" + digest({"organization": organization, "request_id": request_id})[:32]
         with self.database.transaction() as db:
             old = db.execute("SELECT * FROM conversations WHERE organization=? AND request_id=?", (organization, request_id)).fetchone()
             if old and old["title"] != title:
                 raise Conflict("Conversation request already binds a different title")
             if old is None:
-                db.execute("INSERT INTO conversations VALUES(?,?,?,?,0,?)", (organization, conversation_id, request_id, title, now))
+                columns = {row[1] for row in db.execute('PRAGMA table_info(conversations)')}
+                if 'product_contract' not in columns:
+                    if product_contract != LEGACY_COMPANY_CONTRACT:
+                        raise Conflict('Migrate the store before creating company-context work')
+                    db.execute("INSERT INTO conversations(organization,id,request_id,title,revision,created_at) VALUES(?,?,?,?,0,?)",
+                               (organization,conversation_id,request_id,title,now))
+                else:
+                    db.execute("INSERT INTO conversations(organization,id,request_id,title,revision,created_at,product_contract) VALUES(?,?,?,?,0,?,?)",
+                               (organization, conversation_id, request_id, title, now, product_contract))
         return conversation_id
 
     def listing(self, organization):
@@ -58,6 +68,7 @@ class SqliteConversations:
             conversation = dict(scoped_conversation(db, organization, conversation_id))
             conversation.pop("organization")
             conversation.pop("request_id")
+            conversation.setdefault('product_contract', LEGACY_COMPANY_CONTRACT)
             exchanges=[]
             for row in db.execute('SELECT id,confirmed FROM conversation_actions WHERE organization=? AND conversation_id=? AND confirmed IS NOT NULL ORDER BY rowid',
                                   (organization,conversation_id)):
@@ -118,6 +129,8 @@ class SqliteConversations:
                     raise Conflict("Planning request already binds a different revision")
                 # Recovery uses admitted knowledge/configuration, never current files.
                 return json.loads(old["payload"])
+            from .company_contexts import require_planning_company_source
+            require_planning_company_source(db, organization, conversation_id, expected_revision)
             require_legacy_writer(db)
             if db.execute("SELECT 1 FROM admission_requests WHERE organization=? AND conversation_id=? AND (revision=? OR COALESCE(json_extract(inputs,'$.native_request_id'),request_id)=?)",
                           (organization,conversation_id,expected_revision,request_id)).fetchone():
