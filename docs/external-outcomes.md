@@ -85,9 +85,14 @@ Every event has `event_id`, `business_id`, `arm`, `creative_sha256`, `record_id`
 `kind`, `occurred_at`, `evidence_ref`. Primary outcomes must name the original CRM
 record and outcome source. Diagnostics must name the original recorded sent
 dispatch and dispatch source, with `occurred_at` at or after the recorded send.
-Postal reports cannot claim email opens. A previously saved report with pre-send
-diagnostics fails evidence reconciliation rather than contributing to current
-metrics; its original bytes and historical command receipt remain unchanged.
+Postal reports cannot claim email opens. New pre-send diagnostics are rejected.
+An integrity-checked historical snapshot retains its original pre-send entries,
+but those entries are excluded from current event and business counts. Reads
+report `reconciliation.status: needs_reconciliation`, the distinct excluded
+count, affected report IDs and at most 100 issue samples. Repeated events across
+snapshots count once. `issues_truncated` identifies a capped issue sample.
+Valid observations and complete primary outcomes can still be imported and
+finalized; the reconciliation note does not invent or remove primary trials.
 Event identities are native source-system/account identities, stable across
 cumulative reports. Exact duplicates add no new support. Changed event content,
 reused report IDs with changed snapshots, changed inputs under a command key,
@@ -130,7 +135,14 @@ assignment groups, but that cannot establish a creative winner. The
 candidate/winner probabilities and descriptive group intervals for that case.
 It applies to new finalizations and current comparison views of older results.
 Historical finalization/command receipts retain their original contents; an old
-stored winner is not renewed as a current recommendation.
+stored winner is not renewed as a current recommendation. Both original-key and
+new-key `outcomes-finalize` replays return
+`observation: HISTORICAL_RECEIPT_NO_CURRENT_AUTHORITY`, the unchanged
+`original_receipt`, and the current eligibility-filtered `comparisons`. The
+`finalization` field in `outcomes-show` uses the same historical observation.
+The first successful finalization returns its newly committed receipt. A replay
+stores only its command binding, never another finalization effect. Use
+`outcomes-receipt` to inspect the original receipt with a historical label.
 
 Finalized records are immutable. Exact old report/command replays return original
 receipts without recounting; new late reports or corrections reject. Retractions,
@@ -195,6 +207,16 @@ Concurrent writers serialize through database transactions, not process locks.
 After a lost acknowledgement, inspect `outcomes-receipt` or retry identical inputs
 with the original actor/request ID. An uncertain remote commit is reconciled via
 the original receipt on a fresh connection. No paid or outbound work can repeat.
+
+`outcomes-show-report` verifies the chosen report's organization, frozen
+registration, record hash, atomic audit and native source-event bindings. It does
+not require unrelated reports or cohort finalization to be currently usable.
+The original `snapshot` and import receipt remain unchanged; the response adds
+a historical observation and report-local reconciliation metadata. Missing or
+changed selected-report evidence still fails closed. Exact replays of previously
+accepted legacy snapshots are labeled historical. A new report ID cannot use
+that path to admit another pre-send diagnostic, and an existing native event
+cannot be silently corrected. Data repair remains a separate operation.
 
 `outcomes-show`, `outcomes-show-report` and `outcomes-receipt` open read-only;
 they preserve historical bytes and grant no current authority. Clock-regressed

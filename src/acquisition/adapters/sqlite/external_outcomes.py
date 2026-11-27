@@ -1,7 +1,7 @@
 """External learning in disjoint keys of the existing learning command/audit journals."""
 import json
 from acquisition.contracts import Conflict,NotFound,canonical,digest
-from acquisition.learning import (external_registration,external_report,external_summarize,external_final_counts,
+from acquisition.learning import (external_registration,external_report,external_historical_report,external_reconciliation,external_summarize,external_final_counts,
     external_comparisons,external_comparison_view,external_text,external_number)
 from .actors import require_actor
 from .admission_guard import verified_required
@@ -86,26 +86,41 @@ class SqliteExternalOutcomes:
             record=self.read(db,org,key,'native-identity')
             if record is None or record['payload']!=value:raise Conflict('Original native dispatch or CRM identity reservation is missing')
         return c
+    def saved_report(self,db,org,cohort,identity):
+        record=self.read(db,org,identity,'report')
+        if record is None:raise NotFound('External report snapshot unavailable')
+        self.audited(db,org,cohort['id'],record);p=record['payload']
+        normalized,events,issues=external_historical_report(p['snapshot'],cohort,p['at'])
+        if (p['cohort_id']!=cohort['id'] or normalized!=p['snapshot']
+                or identity!=record_key('report',cohort['id'],normalized['report_id'])):
+            raise Conflict('Report identity differs from its source')
+        source=next(s for s in cohort['sources'] if s['id']==normalized['source_id'])
+        for event in events:
+            native=self.read(db,org,record_key('event',source['system'],source['account_id'],event['event_id']),'event')
+            if native is None or native['payload']!={'cohort_id':cohort['id'],'source_id':source['id'],'event':event}:
+                raise Conflict('Report event lost its original source binding')
+        return p,events,issues,source
+
     def state(self,db,org,cohort_id):
-        c=self.load(db,org,cohort_id);events={};snapshots=[];reports=[];total_bytes=0
+        c=self.load(db,org,cohort_id);events={};excluded={};snapshots=[];reports=[];total_bytes=0
         rows=db.execute("SELECT request_id FROM learning_commands WHERE organization=? AND json_extract(receipt,'$.schema')='external-learning-record/v1' AND json_extract(receipt,'$.kind')='report' "
             "AND json_extract(receipt,'$.payload.cohort_id')=? ORDER BY rowid",(org,cohort_id)).fetchall()
         for row in rows:
-            r=self.read(db,org,row[0],'report');self.audited(db,org,cohort_id,r);p=r['payload']
-            normalized,raw=external_report(p['snapshot'],c,p['at'])
-            if normalized!=p['snapshot'] or row[0]!=record_key('report',cohort_id,normalized['report_id']):raise Conflict('Report identity differs from its source')
+            p,raw,issues,source=self.saved_report(db,org,c,row[0]);normalized=p['snapshot']
             total_bytes+=len(canonical(normalized).encode());reports.append(p)
-            source=next(s for s in c['sources'] if s['id']==normalized['source_id'])
+            rejected={i['event_id']:i for i in issues}
             for e in raw:
                 key=record_key('event',source['system'],source['account_id'],e['event_id'])
-                native=self.read(db,org,key,'event')
-                expected={'cohort_id':cohort_id,'source_id':source['id'],'event':e}
-                if native is None or native['payload']!=expected:raise Conflict('Report event lost its original source binding')
                 if key in events and events[key]!=e:raise Conflict('Duplicate source event changed')
                 events[key]=e
+                if e['event_id'] in rejected:
+                    issue=rejected[e['event_id']]
+                    if key in excluded:issue=issue|{'report_ids':sorted(set(issue['report_ids']+excluded[key]['report_ids']))}
+                    excluded[key]=issue
             if normalized['final']:
                 snapshots.append([e['business_id'] for e in raw if e['kind'] in {'qualified_enquiry','no_qualified_enquiry'}])
-        summary,outcomes=external_summarize(c,list(events.values()),snapshots)
+        summary,outcomes=external_summarize(c,[e for key,e in events.items() if key not in excluded],snapshots)
+        summary['reconciliation']=external_reconciliation(list(excluded.values()))
         final=self.read(db,org,record_key('final',cohort_id),'finalization')
         if final:
             self.audited(db,org,cohort_id,final)
@@ -117,6 +132,17 @@ class SqliteExternalOutcomes:
     def current(self,db,org,cohort_id,reports,final,now):
         registered=self.read(db,org,record_key('cohort',cohort_id),'registration')['payload']['at']
         return registered<=now and all(p['at']<=now for p in reports) and (final is None or final['payload']['finalized_at']<=now)
+
+    @staticmethod
+    def historical_finalization(cohort,receipt,reconciliation,*,current=True):
+        return receipt|{'observation':'HISTORICAL_RECEIPT_NO_CURRENT_AUTHORITY','original_receipt':receipt,
+            'comparisons':external_comparison_view(cohort,receipt['comparisons']) if current else [],
+            'current':current,'reconciliation':reconciliation}
+
+    @staticmethod
+    def historical_import(receipt,reconciliation):
+        return receipt|{'observation':'HISTORICAL_RECEIPT_NO_CURRENT_AUTHORITY',
+            'original_receipt':receipt,'reconciliation':reconciliation}
 
     def register(self,org,actor,key,payload):
         with self.database.transaction() as db:
@@ -149,13 +175,15 @@ class SqliteExternalOutcomes:
             self.writable(db);generation=require_actor(db,org,actor,'operator')['generation'];now=self.now()
             c,summary,outcomes,reports,events,size,final=self.state(db,org,cohort_id)
             if not self.current(db,org,cohort_id,reports,final,now):raise Conflict('Stored evidence is after the current clock; inspect history instead')
-            normalized,raw=external_report(payload,c,now);inputs={'cohort_id':cohort_id,'report':normalized}
+            normalized,raw,issues=external_historical_report(payload,c,now);inputs={'cohort_id':cohort_id,'report':normalized}
             old=self.command(db,org,actor,'import',key,inputs)
-            if old:return old
+            if old:return self.historical_import(old,summary['reconciliation']) if issues else old
             identity=record_key('report',cohort_id,normalized['report_id']);existing=self.read(db,org,identity,'report')
             if existing:
                 if existing['payload']['snapshot']!=normalized:raise Conflict('An immutable report ID cannot change content')
-                return self.finish(db,org,actor,'import',key,inputs,existing['payload']['receipt'],generation,max(now,normalized['watermark']))
+                observed=self.finish(db,org,actor,'import',key,inputs,existing['payload']['receipt'],generation,max(now,normalized['watermark']))
+                return self.historical_import(observed,summary['reconciliation']) if issues else observed
+            normalized,raw=external_report(payload,c,now)
             if final:raise Conflict('Finalized external outcomes are immutable; reconcile late corrections separately')
             if len(reports)>=32 or size+len(canonical(normalized).encode())>16*1024*1024:raise Conflict('Cohort recorded-report limit reached')
             source=next(s for s in c['sources'] if s['id']==normalized['source_id']);added=0
@@ -181,12 +209,14 @@ class SqliteExternalOutcomes:
             c,summary,outcomes,reports,events,size,final=self.state(db,org,cohort_id);inputs={'cohort_id':cohort_id}
             if not self.current(db,org,cohort_id,reports,final,now):raise Conflict('Stored evidence is after the current clock; inspect history instead')
             old=self.command(db,org,actor,'finalize',key,inputs)
-            if old:return old
-            if final:return self.finish(db,org,actor,'finalize',key,inputs,final['payload'],generation,max(now,c['window_end']))
+            if old:return self.historical_finalization(c,old,summary['reconciliation'])
+            if final:
+                observed=self.finish(db,org,actor,'finalize',key,inputs,final['payload'],generation,max(now,c['window_end']))
+                return self.historical_finalization(c,observed,summary['reconciliation'])
             if now<c['window_end'] or any(p['at']>now for p in reports) or not summary['coverage_complete']:raise Conflict('Every original assignment, including holdouts, needs an explicit outcome and a complete final snapshot after maturity')
             groups=external_final_counts(c,outcomes)
             value={'kind':'external_cohort_finalized','cohort_id':cohort_id,'finalized_at':now,'actor':actor,'actor_generation':generation,'data_class':c['data_class'],
-                'metric':c['metric'],'groups':groups,'comparisons':external_comparisons(c,groups),
+                'metric':c['metric'],'groups':groups,'comparisons':external_comparisons(c,groups),'reconciliation':summary['reconciliation'],
                 'outcomes_sha256':digest(outcomes),'reports_sha256':digest(reports),'evidence_assurance':'OPERATOR_ATTESTED_NOT_PROVIDER_VERIFIED',
                 'authority':'ADVISORY_REQUIRES_NEW_PROPOSAL_AND_APPROVAL'}
             record=self.insert(db,org,record_key('final',cohort_id),'finalization',value);self.audit(db,org,cohort_id,record,now)
@@ -198,19 +228,23 @@ class SqliteExternalOutcomes:
             db.execute('BEGIN');now=self.now();c,s,outcomes,reports,events,size,final=self.state(db,org,cohort_id)
             frozen=final is not None
             current=self.current(db,org,cohort_id,reports,final,now)
-            return {'cohort':c,'current':current,'status':'historical_evidence_after_current_clock' if not current else 'finalized' if frozen else ('ready_to_finalize' if s['coverage_complete'] else 'awaiting_complete_outcomes') if now>=c['window_end'] else 'observing',
+            status='observing'
+            if not current:status='historical_evidence_after_current_clock'
+            elif s['reconciliation']['excluded_diagnostics']:status='needs_reconciliation'
+            elif frozen:status='finalized'
+            elif now>=c['window_end']:status='ready_to_finalize' if s['coverage_complete'] else 'awaiting_complete_outcomes'
+            return {'cohort':c,'current':current,'status':status,
                 'as_of':now,'enrolled':len(c['assignments']),**s,'reports':[p['receipt'] for p in reports],
                 'posterior_groups':final['payload']['groups'] if frozen and current else [],'comparisons':external_comparison_view(c,final['payload']['comparisons']) if frozen and current else [],
-                'finalization':final['payload'] if frozen else None,'authority':'OBSERVATIONS_ONLY_NO_SEND_OR_APPROVAL',
+                'finalization':self.historical_finalization(c,final['payload'],s['reconciliation'],current=current) if frozen else None,'authority':'OBSERVATIONS_ONLY_NO_SEND_OR_APPROVAL',
                 'limitations':['External records are operator-attested, not independently provider-verified.',
                     'Opens, clicks and raw replies are diagnostics, not qualified outcomes.','Missing outcomes remain unknown.',
                     'Repeated business cohorts and finalized corrections are unsupported.','No synthetic memory, live sending or model training is changed.']}
     def snapshot(self,org,cohort_id,report_id):
         with self.database.connect() as db:
-            db.execute('BEGIN');self.state(db,org,cohort_id)
-            value=self.read(db,org,record_key('report',cohort_id,report_id),'report')
-            if value is None:raise NotFound('External report snapshot unavailable')
-            return value['payload']
+            db.execute('BEGIN');cohort=self.load(db,org,cohort_id)
+            payload,_,issues,_=self.saved_report(db,org,cohort,record_key('report',cohort_id,report_id))
+            return payload|{'observation':'HISTORICAL_RECEIPT_NO_CURRENT_AUTHORITY','reconciliation':external_reconciliation(issues)}
     def receipt(self,org,actor,operation,request_id):
         if operation not in {'register','import','finalize'}:raise ValueError('Use an installed external operation')
         for v in (org,actor,request_id):external_text(v)

@@ -4651,3 +4651,38 @@ Heavy suites ran sequentially, with one full backend process. The original
 checkout retains its dirty-file hashes. No frontend/dependency changes or
 interface-check were needed. Managed Turso, live providers and live models were
 not checked. This follow-up evidence commit changes documentation only.
+
+
+### Historical outcomes replay and inspection, 27 November 2026
+
+Review base `40f9fbe`. Both new findings reproduced through public methods:
+a new finalization key returned an old identical-creative winner without a
+historical observation, and snapshot inspection rejected previously saved
+pre-send evidence. This correction supersedes the earlier fail-closed handling
+of otherwise integrity-valid legacy diagnostic timing. The earlier evidence
+records remain historical and byte-identical.
+
+Historical source verification and current eligibility now have distinct roles.
+The saved report reader checks scope, frozen registration, journal hash, atomic
+audit, source identity and original event binding. It identifies pre-send
+observations without making them current metrics. A selected snapshot is
+inspectable without depending on unrelated report/finalization health. New
+report admissions still use strict timestamp validation. Exact known legacy
+replays observe the original receipt and are labeled historical; changing the
+snapshot, event or identity does not gain that exception.
+
+| Invariant | Independent regression oracle | Required result |
+| --- | --- | --- |
+| A replay cannot renew an old creative winner | v1 identical-creative finalization, original and fresh request keys, repeated fresh key | Historical observation, exact original receipt and filtered current comparison; one native finalization audit |
+| Historical reads preserve evidence without accepting invalid metrics | Saved early open, read-only API, actual CLI snapshot read and file hash | Original timestamp/pages retained; zero current opens; `needs_reconciliation`; database bytes unchanged |
+| Legacy timing does not block valid primary evidence | Import valid open and complete six-business outcome snapshot after legacy early event | One valid current open, literal A/holdout one success each and B zero; mature finalization once with reconciliation metadata |
+| Historical read cannot bypass native integrity | Corrupt another report audit, then selected report event binding; foreign scope | Healthy selected report remains inspectable; corrupted selected evidence and wrong organization deny |
+| Eligibility annotations stay bounded and deduplicated | 101 distinct early opens repeated in two cumulative snapshots | Exactly 101 exclusions, 100 issue samples with truncation, both report IDs and zero current opens |
+| Fresh and replayed effects remain distinguishable | Lost acknowledgement, concurrent finalizers and Hrana restart | One raw original receipt, labeled historical observations, one effect and stable original counts |
+
+The former test asserting that legacy timing blocks all inspection was updated
+to prove retained snapshot access and exclusion from current metrics. The nine
+new-report timestamp rejection cases and native tamper tests still catch the
+unsafe admissions/integrity failures that must remain denied. No test was
+removed. The focused suite has 30 tests. Final gates and their exact source
+commit are recorded in the subsequent history-review evidence.

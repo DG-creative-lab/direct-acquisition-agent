@@ -96,7 +96,7 @@ def registration(payload, organization, now):
     return value|{'id':'external_cohort_'+digest(value)}
 
 
-def report(payload, cohort, now):
+def _report(payload, cohort, now, *, historical):
     fields(payload,'schema mode data_class organization cohort_id report_id source_id watermark final page_count pages attestation')
     if (payload['schema']!='external-outcome-report/v1' or payload['mode']!=MODE
             or any(payload[k]!=cohort[k] for k in ('organization','data_class')) or payload['cohort_id']!=cohort['id']):
@@ -112,7 +112,7 @@ def report(payload, cohort, now):
     if type(payload['page_count']) is not int or not 1<=payload['page_count']<=100 or type(payload['pages']) is not list:
         raise ValueError('Use a bounded complete page set')
     if len(payload['pages'])!=payload['page_count']:raise ValueError('Missing report pages remain missing evidence')
-    members={m['business_id']:m for m in cohort['assignments']};pages=set();events={};raw_count=0
+    members={m['business_id']:m for m in cohort['assignments']};pages=set();events={};issues={};raw_count=0
     for page in payload['pages']:
         fields(page,'number events')
         if type(page['number']) is not int or page['number'] in pages or not 1<=page['number']<=payload['page_count'] or type(page['events']) is not list:
@@ -132,7 +132,11 @@ def report(payload, cohort, now):
                 if source['role']!='outcomes' or e['record_id']!=m['outcome_record_id']:raise Conflict('Qualified outcomes require the registered CRM record/source')
             elif (source['role']!='dispatch' or m['dispatch'] is None or m['dispatch']['status']!='sent'
                     or e['record_id']!=m['dispatch']['id']):raise Conflict('Engagement events require an actually recorded send, not a holdout or planned export')
-            elif e['occurred_at']<m['dispatch']['at']:raise ValueError('Dispatch diagnostics cannot predate the recorded send')
+            elif e['occurred_at']<m['dispatch']['at']:
+                if not historical:raise ValueError('Dispatch diagnostics cannot predate the recorded send')
+                issues[e['event_id']]={'event_id':e['event_id'],'business_id':e['business_id'],'kind':kind,
+                    'occurred_at':e['occurred_at'],'dispatch_at':m['dispatch']['at'],
+                    'source_id':payload['source_id'],'report_ids':[payload['report_id']],'reason':'diagnostic_before_dispatch'}
             if kind=='no_qualified_enquiry':
                 if not payload['final'] or e['occurred_at']!=cohort['window_end']:raise ValueError('Non-response requires an explicit closed-window attestation')
             elif not cohort['window_start']<=e['occurred_at']<cohort['window_end'] or e['occurred_at']>watermark:
@@ -142,7 +146,24 @@ def report(payload, cohort, now):
             if len(events)>10000:raise ValueError('Report exceeds ten thousand distinct events')
     attestation(payload['attestation'])
     value=payload|{'pages':sorted(payload['pages'],key=lambda p:p['number'])}
-    return value,list(events.values())
+    return value,list(events.values()),list(issues.values())
+
+
+def report(payload, cohort, now):
+    normalized,events,_=_report(payload,cohort,now,historical=False)
+    return normalized,events
+
+
+def historical_report(payload, cohort, imported_at):
+    """Verify the frozen source contract and identify diagnostics ineligible today."""
+    return _report(payload,cohort,imported_at,historical=True)
+
+
+def reconciliation(issues):
+    ordered=sorted(issues,key=lambda i:(i['source_id'],i['event_id']))
+    return {'status':'needs_reconciliation' if ordered else 'clean','policy':'dispatch-time/v1',
+        'excluded_diagnostics':len(ordered),'affected_reports':sorted({r for i in ordered for r in i['report_ids']}),
+        'issues':ordered[:100],'issues_truncated':len(ordered)>100}
 
 
 def summarize(cohort, events, final_snapshots):

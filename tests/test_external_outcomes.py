@@ -199,7 +199,8 @@ class ExternalOutcomeTests(unittest.TestCase):
         self.assertEqual(receipts[0],receipts[1]);self.c=self.app.view('one',receipts[0]['cohort_id'])['cohort'];self.complete()
         def finalize(i):return build_outcomes(self.path,clock=lambda:self.now).finalize('one','operator','final-'+str(i),self.c['id'])
         with ThreadPoolExecutor(max_workers=2) as pool:values=list(pool.map(finalize,range(2)))
-        self.assertEqual(values[0],values[1])
+        self.assertEqual(values[0].get('original_receipt',values[0]),values[1].get('original_receipt',values[1]))
+        self.assertEqual(sum(v.get('observation')=='HISTORICAL_RECEIPT_NO_CURRENT_AUTHORITY' for v in values),1)
         with self.db.connect() as db:self.assertEqual(db.execute("SELECT count(*) FROM learning_events WHERE kind='external_registration'").fetchone()[0],1)
     def test_new_process_readonly_and_finalized_late_changes_preserve_history(self):
         self.register();self.complete();self.app.finalize('one','operator','final',self.c['id'])
@@ -313,7 +314,7 @@ class ExternalOutcomeTests(unittest.TestCase):
         self.assertEqual(self.app.view('two',two['cohort_id'])['missing'],6)
         with self.assertRaises(NotFound):self.app.view('two',self.c['id'])
         with self.assertRaises(NotFound):self.app.receipt('two','operator','finalize','final')
-        self.assertEqual(self.app.view('one',self.c['id'])['finalization'],one)
+        self.assertEqual(self.app.view('one',self.c['id'])['finalization']['original_receipt'],one)
 
     def test_cohort_report_cap_is_atomic_and_existing_replay_remains_available(self):
         self.register();first=None
@@ -362,32 +363,103 @@ class ExternalOutcomeTests(unittest.TestCase):
             original=self.app.finalize('one','operator','old-final',self.c['id'])
         before=hashlib.sha256(self.path.read_bytes()).hexdigest()
         reopened=build_outcomes(self.path,clock=lambda:self.now,read_only=True);view=reopened.view('one',self.c['id'])
-        self.assertEqual(view['finalization'],original)
+        self.assertEqual(view['finalization']['original_receipt'],original)
+        self.assertEqual(view['finalization']['observation'],'HISTORICAL_RECEIPT_NO_CURRENT_AUTHORITY')
         self.assertEqual(view['comparisons'][0]['action'],'no_creative_contrast')
         self.assertIsNone(view['comparisons'][0]['candidate_arm']);self.assertIsNone(view['comparisons'][0]['probability_beats_other'])
         self.assertEqual(view['comparisons'][0]['intervals_90'],legacy['intervals_90'])
         receipt=reopened.receipt('one','operator','finalize','old-final')
         self.assertEqual(receipt['comparisons'],[legacy]);self.assertEqual(receipt['observation'],'HISTORICAL_RECEIPT_NO_CURRENT_AUTHORITY')
         self.assertEqual(hashlib.sha256(self.path.read_bytes()).hexdigest(),before)
+        for request_id in ('new-finalize','old-final','new-finalize'):
+            replay=self.app.finalize('one','operator',request_id,self.c['id'])
+            self.assertEqual(replay['observation'],'HISTORICAL_RECEIPT_NO_CURRENT_AUTHORITY')
+            self.assertEqual(replay['original_receipt'],original)
+            self.assertEqual(replay['comparisons'][0]['action'],'no_creative_contrast')
+            self.assertIsNone(replay['comparisons'][0]['candidate_arm'])
+        with self.db.connect() as db:self.assertEqual(db.execute("SELECT count(*) FROM learning_events WHERE kind='external_finalization'").fetchone()[0],1)
+        cli=subprocess.run([sys.executable,'-m','acquisition','--db',str(self.path),'--organization','one','outcomes-finalize',
+            '--cohort',self.c['id'],'--actor','operator','--request-id','cli-new-key'],capture_output=True,text=True,timeout=20)
+        self.assertEqual(cli.returncode,0,cli.stderr);observed=json.loads(cli.stdout)
+        self.assertEqual(observed['observation'],'HISTORICAL_RECEIPT_NO_CURRENT_AUTHORITY')
+        self.assertEqual(observed['original_receipt'],original);self.assertEqual(observed['comparisons'][0]['action'],'no_creative_contrast')
+        self.roles.register_actor('one','operator',('operator',),False);before=self.counts()
+        with self.assertRaises(ValueError):self.app.finalize('one','operator','disabled-replay',self.c['id'])
+        self.assertEqual(self.counts(),before)
 
-    def test_previously_saved_pre_send_report_fails_closed_without_rewriting_history(self):
+    def save_legacy_report(self,payload,key):
         from acquisition.learning import external_report
+        def old_validator(value,cohort,now):
+            valid=copy.deepcopy(value);members={m['business_id']:m for m in cohort['assignments']}
+            for page in valid['pages']:
+                for row in page['events']:
+                    if row['kind'] not in {'qualified_enquiry','no_qualified_enquiry'}:
+                        row['occurred_at']=max(row['occurred_at'],members[row['business_id']]['dispatch']['at'])
+            external_report(valid,cohort,now)
+            return value,list({row['event_id']:row for page in value['pages'] for row in page['events']}.values())
+        with patch('acquisition.adapters.sqlite.external_outcomes.external_report',side_effect=old_validator):return self.ingest(payload,key)
+
+    def test_legacy_pre_send_snapshot_is_inspectable_with_excluded_current_diagnostics(self):
         self.register();member=self.c['assignments'][0];sent=member['dispatch']['at']
         original=report(self.c,[event(member,'opened',sent-1)],source='send',identity='legacy-early')
-        def old_validator(payload,cohort,now):
-            valid=copy.deepcopy(payload)
-            for page in valid['pages']:
-                for row in page['events']:row['occurred_at']=sent
-            external_report(valid,cohort,now)
-            return payload,[row for page in payload['pages'] for row in page['events']]
-        with patch('acquisition.adapters.sqlite.external_outcomes.external_report',side_effect=old_validator):
-            imported=self.ingest(original,'legacy-import')
+        imported=self.save_legacy_report(original,'legacy-import')
         before=hashlib.sha256(self.path.read_bytes()).hexdigest()
         reopened=build_outcomes(self.path,clock=lambda:self.now,read_only=True)
-        with self.assertRaisesRegex(ValueError,'predate'):reopened.view('one',self.c['id'])
-        with self.assertRaisesRegex(ValueError,'predate'):reopened.snapshot('one',self.c['id'],'legacy-early')
+        saved=reopened.snapshot('one',self.c['id'],'legacy-early')
+        self.assertEqual(saved['snapshot'],original)
+        self.assertEqual(saved['observation'],'HISTORICAL_RECEIPT_NO_CURRENT_AUTHORITY')
+        self.assertEqual(saved['reconciliation']['status'],'needs_reconciliation')
+        self.assertEqual(saved['reconciliation']['excluded_diagnostics'],1)
+        self.assertEqual(saved['reconciliation']['issues'][0]['occurred_at'],sent-1)
+        view=reopened.view('one',self.c['id'])
+        self.assertEqual(view['event_counts'],{});self.assertEqual(view['business_counts'],{})
+        self.assertEqual(view['status'],'needs_reconciliation')
         self.assertEqual(reopened.receipt('one','operator','import','legacy-import'),imported|{'observation':'HISTORICAL_RECEIPT_NO_CURRENT_AUTHORITY'})
         self.assertEqual(hashlib.sha256(self.path.read_bytes()).hexdigest(),before)
+        result=subprocess.run([sys.executable,'-m','acquisition','--db',str(self.path),'--organization','one','outcomes-show-report',
+            '--cohort',self.c['id'],'--report','legacy-early'],capture_output=True,text=True,timeout=20)
+        self.assertEqual(result.returncode,0,result.stderr);self.assertEqual(json.loads(result.stdout)['snapshot'],original)
+        self.assertEqual(hashlib.sha256(self.path.read_bytes()).hexdigest(),before)
+        for key in ('legacy-import','new-observation-key'):
+            replay=self.ingest(original,key)
+            self.assertEqual(replay['original_receipt'],imported);self.assertEqual(replay['observation'],'HISTORICAL_RECEIPT_NO_CURRENT_AUTHORITY')
+        forged=copy.deepcopy(original);forged['report_id']='new-invalid-report';counts=self.counts()
+        with self.assertRaisesRegex(ValueError,'predate'):self.ingest(forged,'new-invalid')
+        self.assertEqual(self.counts(),counts)
+        with self.assertRaises(Conflict):self.ingest(report(self.c,[event(member,'opened',sent)],source='send',identity='changed-event'))
+        self.ingest(report(self.c,[event(member,'opened',sent,event_id='new-valid-open')],source='send',identity='valid-open'))
+        self.assertEqual(self.app.view('one',self.c['id'])['event_counts'],{'opened':1})
+        self.complete();final=self.app.finalize('one','operator','final',self.c['id'])
+        self.assertEqual(final['reconciliation']['excluded_diagnostics'],1)
+        self.assertEqual([(g['trials'],g['successes']) for g in final['groups']],[(2,1),(2,0),(2,1)])
+        replay=self.app.finalize('one','operator','replay',self.c['id'])
+        self.assertEqual(replay['original_receipt'],final);self.assertEqual(replay['reconciliation']['status'],'needs_reconciliation')
+        with self.db.connect() as db:self.assertEqual(db.execute("SELECT count(*) FROM learning_events WHERE kind='external_finalization'").fetchone()[0],1)
+        self.assertEqual(reopened.snapshot('one',self.c['id'],'legacy-early')['snapshot'],original)
+
+    def test_snapshot_checks_only_its_bound_evidence_and_still_rejects_tampering(self):
+        self.register();first=report(self.c,[event(self.c['assignments'][0],'qualified_enquiry')],identity='first')
+        self.ingest(first);self.ingest(report(self.c,[event(self.c['assignments'][1],'qualified_enquiry')],identity='other'))
+        with self.db.transaction() as db:
+            db.execute("DELETE FROM learning_events WHERE organization=? AND kind='external_report' AND json_extract(payload,'$.payload.snapshot.report_id')=?",('one','other'))
+        with self.assertRaises(Conflict):self.app.view('one',self.c['id'])
+        self.assertEqual(self.app.snapshot('one',self.c['id'],'first')['snapshot'],first)
+        with self.assertRaises(Conflict):self.app.snapshot('one',self.c['id'],'other')
+        with self.assertRaises(NotFound):self.app.snapshot('foreign',self.c['id'],'first')
+        with self.db.transaction() as db:
+            db.execute("DELETE FROM learning_commands WHERE organization=? AND json_extract(receipt,'$.kind')='event' AND json_extract(receipt,'$.payload.event.event_id')=?",('one',first['pages'][0]['events'][0]['event_id']))
+        with self.assertRaises(Conflict):self.app.snapshot('one',self.c['id'],'first')
+
+    def test_legacy_diagnostic_reconciliation_deduplicates_and_bounds_issue_samples(self):
+        self.register();member=self.c['assignments'][0];sent=member['dispatch']['at']
+        rows=[event(member,'opened',sent-1,event_id='legacy-'+str(i)) for i in range(101)]
+        first=report(self.c,rows,source='send',identity='legacy-many');self.save_legacy_report(first,'many')
+        second=report(self.c,rows+rows,source='send',identity='legacy-cumulative');self.save_legacy_report(second,'cumulative')
+        view=self.app.view('one',self.c['id']);r=view['reconciliation']
+        self.assertEqual(r['excluded_diagnostics'],101);self.assertEqual(len(r['issues']),100);self.assertTrue(r['issues_truncated'])
+        self.assertEqual(r['affected_reports'],['legacy-cumulative','legacy-many']);self.assertEqual(view['event_counts'],{})
+        self.assertTrue(all(i['report_ids']==['legacy-cumulative','legacy-many'] for i in r['issues']))
+        self.assertEqual(self.app.snapshot('one',self.c['id'],'legacy-cumulative')['snapshot'],second)
 
     def test_dispatch_diagnostics_reject_pre_send_events_atomically_and_accept_send_boundary(self):
         for channel,org in [('email','one'),('postal','two')]:
@@ -445,7 +517,9 @@ class RemoteExternalOutcomeTests(unittest.TestCase):
                 receipt=reopened.ingest('one','operator','report',c['id'],p);self.assertEqual(receipt['added_events'],6)
                 final=reopened.finalize('one','operator','final',c['id'])
                 self.assertEqual([(g['trials'],g['successes'],g['alpha'],g['beta']) for g in final['groups']],[(2,0,1,21)]*3)
-                self.assertEqual(reopened.finalize('one','operator','replay',c['id']),final)
+                replay=reopened.finalize('one','operator','replay',c['id'])
+                self.assertEqual(replay['original_receipt'],final);self.assertEqual(replay['observation'],'HISTORICAL_RECEIPT_NO_CURRENT_AUTHORITY')
+                self.assertEqual(reopened.snapshot('one',c['id'],p['report_id'])['reconciliation']['status'],'clean')
                 with reopened.store.database.connect() as conn:
                     self.assertEqual(conn.execute('PRAGMA user_version').fetchone()[0],27)
                     self.assertEqual(conn.execute('SELECT COUNT(*) FROM model_calls').fetchone()[0],0)
