@@ -1,0 +1,252 @@
+{
+  "approval": "not_granted",
+  "arm_counts": {
+    "installations:A": 17,
+    "installations:B": 17,
+    "installations:no_mail": 3,
+    "maintenance:A": 18,
+    "maintenance:B": 18,
+    "maintenance:no_mail": 3
+  },
+  "as_of": "2026-11-13",
+  "assignment_algorithm": "hash-randomization/v1",
+  "assignments_sha256": "5df1a405c7269a6418c227d89d3cc7130cca2429f75d6d2620426fbda37a94a5",
+  "brief": {
+    "budget_pence": 60000,
+    "campaign_id": "profile-campaign-992be22b9d98bee1bd751dba3dd37a06c9cd4dd9681507fa59e9848f5f785004",
+    "max_candidates": 1000,
+    "plan": {
+      "approval": "not_granted",
+      "budget_pence": 60000,
+      "channel": "direct_mail",
+      "command": {
+        "as_of": null,
+        "budget_pence": 60000,
+        "channel": "direct_mail",
+        "country": "UK",
+        "currency": "GBP",
+        "key": "fielddesk",
+        "objective": "Compare responses to fictional visit-planning questions.",
+        "organization": "fielddesk-example",
+        "schema": "profile-preparation/v1",
+        "seed": 42,
+        "segments": [
+          "maintenance",
+          "installations"
+        ],
+        "size": 100,
+        "version": "v1"
+      },
+      "copy_mode": "fixture",
+      "country": "UK",
+      "currency": "GBP",
+      "execution": "not_performed",
+      "id": "profile_plan_992be22b9d98bee1bd751dba3dd37a06c9cd4dd9681507fa59e9848f5f785004",
+      "mode": "SYNTHETIC_PLANNING_ONLY",
+      "objective": "Compare responses to fictional visit-planning questions.",
+      "objective_kind": "response_experiment",
+      "organization": "fielddesk-example",
+      "profile": {
+        "channel": "direct_mail",
+        "company": "fielddesk",
+        "country": "UK",
+        "currency": "GBP",
+        "key": "fielddesk",
+        "objective": "response_experiment",
+        "product_key": "fielddesk_visit_planner",
+        "product_profile_id": "product_profile_6d774c0bbe2f41812ae7d6ad5fd86dd638d7d5a304433e7377160f6b1b426f33",
+        "schema": "campaign-profile/v1",
+        "taxonomy": {
+          "key": "fielddesk-audiences",
+          "segments": [
+            {
+              "description": "Maintenance appointment dates and service visits.",
+              "key": "maintenance",
+              "label": "Maintenance teams"
+            },
+            {
+              "description": "Installation schedules and site visits.",
+              "key": "installations",
+              "label": "Installation teams"
+            }
+          ],
+          "version": "v1"
+        },
+        "version": "v1"
+      },
+      "profile_id": "campaign_profile_094d5a059078d7d836218e2d7ef17b34af5eae2b6e8f7d64094076dcfb4b4fc4",
+      "request_id": "fielddesk-reference-v1",
+      "schema": "profile-plan/v1",
+      "segments": [
+        "maintenance",
+        "installations"
+      ],
+      "snapshot_id": "aud_85bc444c616dc8ced346bc59484341884d8c1e69afbab0e650d40e819f0cf8a9"
+    },
+    "policy_version": "demo-marketing/v1",
+    "profile": {
+      "channel": "direct_mail",
+      "company": "fielddesk",
+      "country": "UK",
+      "currency": "GBP",
+      "key": "fielddesk",
+      "objective": "response_experiment",
+      "product_key": "fielddesk_visit_planner",
+      "product_profile_id": "product_profile_6d774c0bbe2f41812ae7d6ad5fd86dd638d7d5a304433e7377160f6b1b426f33",
+      "schema": "campaign-profile/v1",
+      "taxonomy": {
+        "key": "fielddesk-audiences",
+        "segments": [
+          {
+            "description": "Maintenance appointment dates and service visits.",
+            "key": "maintenance",
+            "label": "Maintenance teams"
+          },
+          {
+            "description": "Installation schedules and site visits.",
+            "key": "installations",
+            "label": "Installation teams"
+          }
+        ],
+        "version": "v1"
+      },
+      "version": "v1"
+    },
+    "segments": [
+      "maintenance",
+      "installations"
+    ],
+    "unit_cost_pence": 85
+  },
+  "counts": {
+    "eligible_unselected": 0,
+    "excluded": 24,
+    "holdout": 6,
+    "input": 100,
+    "mailed": 70
+  },
+  "creatives": [
+    {
+      "arm": "A",
+      "claim_check": "not_evaluated",
+      "content_hash": "0e7bb2da66dd685e60534d057d33da9ba0eacdd8ccba89cab36f09772aea8e71",
+      "context_id": "context_1823119544ec10cf9f313b7f7ed8d6f7853c52fd06f2177592dfb494a8207ed3",
+      "evidence_ids": [
+        "fielddesk-brand/v1",
+        "profile_fixture_no_outcomes",
+        "facts_a203be41908c7ff940d2cb7fcef16c9aa98b1fe976eef1ec7a716a10a0c706fd",
+        "fielddesk.calendar"
+      ],
+      "fact_id": "fielddesk.calendar",
+      "fact_pack_id": "facts_a203be41908c7ff940d2cb7fcef16c9aa98b1fe976eef1ec7a716a10a0c706fd",
+      "headline": "Planning installation dates?",
+      "hypothesis": "This framing may change message response; no outcomes have been observed.",
+      "id": "profile-fixture-fielddesk_visit_planner-installations-A:0e7bb2da66dd685e60534d057d33da9ba0eacdd8ccba89cab36f09772aea8e71",
+      "key": "profile-fixture-fielddesk_visit_planner-installations-A",
+      "locked_block": "SYNTHETIC DEMONSTRATION. Do not post. Unapproved profile proposal.",
+      "model": "offline-fixture/v1",
+      "opening": "If you are planning an installation, which site visit dates need checking? Fielddesk Demo includes a shared calendar for scheduled service visits. This is a fictional capability for synthetic testing only. Synthetic demonstration. No real product or service is being offered. Explore the fictional Fielddesk Demo at https://fielddesk.example.invalid/product.",
+      "segment": "installations",
+      "status": "synthetic_profile_fixture_unapproved"
+    },
+    {
+      "arm": "B",
+      "claim_check": "not_evaluated",
+      "content_hash": "098af1bc59d09540271f38e7dc9834e716859dedc34254d4bee73618360eed65",
+      "context_id": "context_1823119544ec10cf9f313b7f7ed8d6f7853c52fd06f2177592dfb494a8207ed3",
+      "evidence_ids": [
+        "fielddesk-brand/v1",
+        "profile_fixture_no_outcomes",
+        "facts_a203be41908c7ff940d2cb7fcef16c9aa98b1fe976eef1ec7a716a10a0c706fd",
+        "fielddesk.visit-record"
+      ],
+      "fact_id": "fielddesk.visit-record",
+      "fact_pack_id": "facts_a203be41908c7ff940d2cb7fcef16c9aa98b1fe976eef1ec7a716a10a0c706fd",
+      "headline": "When are site visits due?",
+      "hypothesis": "This framing may change message response; no outcomes have been observed.",
+      "id": "profile-fixture-fielddesk_visit_planner-installations-B:098af1bc59d09540271f38e7dc9834e716859dedc34254d4bee73618360eed65",
+      "key": "profile-fixture-fielddesk_visit_planner-installations-B",
+      "locked_block": "SYNTHETIC DEMONSTRATION. Do not post. Unapproved profile proposal.",
+      "model": "offline-fixture/v1",
+      "opening": "When installation schedules overlap, which visit dates need checking? Fielddesk Demo includes a record of completed visits. No real service is provided by this demonstration. Synthetic demonstration. No real product or service is being offered. Explore the fictional Fielddesk Demo at https://fielddesk.example.invalid/product.",
+      "segment": "installations",
+      "status": "synthetic_profile_fixture_unapproved"
+    },
+    {
+      "arm": "A",
+      "claim_check": "not_evaluated",
+      "content_hash": "f72edd24584d7da6eb7f3c6bb1381e95e855251d9473930b2a10aca19eebb05d",
+      "context_id": "context_01786b9fe1020f0471058fe9c86479d96e8784797fc78e6631f9237d841f34c4",
+      "evidence_ids": [
+        "fielddesk-brand/v1",
+        "profile_fixture_no_outcomes",
+        "facts_a203be41908c7ff940d2cb7fcef16c9aa98b1fe976eef1ec7a716a10a0c706fd",
+        "fielddesk.calendar"
+      ],
+      "fact_id": "fielddesk.calendar",
+      "fact_pack_id": "facts_a203be41908c7ff940d2cb7fcef16c9aa98b1fe976eef1ec7a716a10a0c706fd",
+      "headline": "Planning maintenance visits?",
+      "hypothesis": "This framing may change message response; no outcomes have been observed.",
+      "id": "profile-fixture-fielddesk_visit_planner-maintenance-A:f72edd24584d7da6eb7f3c6bb1381e95e855251d9473930b2a10aca19eebb05d",
+      "key": "profile-fixture-fielddesk_visit_planner-maintenance-A",
+      "locked_block": "SYNTHETIC DEMONSTRATION. Do not post. Unapproved profile proposal.",
+      "model": "offline-fixture/v1",
+      "opening": "If you are planning maintenance visits, how are appointment dates recorded? Fielddesk Demo includes a shared calendar for scheduled service visits. This is a fictional capability for synthetic testing only. Synthetic demonstration. No real product or service is being offered. Explore the fictional Fielddesk Demo at https://fielddesk.example.invalid/product.",
+      "segment": "maintenance",
+      "status": "synthetic_profile_fixture_unapproved"
+    },
+    {
+      "arm": "B",
+      "claim_check": "not_evaluated",
+      "content_hash": "2cbdd670aa7486dce93c65be205b52e62c95abe2541ef7b07c9d933e0b90702d",
+      "context_id": "context_01786b9fe1020f0471058fe9c86479d96e8784797fc78e6631f9237d841f34c4",
+      "evidence_ids": [
+        "fielddesk-brand/v1",
+        "profile_fixture_no_outcomes",
+        "facts_a203be41908c7ff940d2cb7fcef16c9aa98b1fe976eef1ec7a716a10a0c706fd",
+        "fielddesk.visit-record"
+      ],
+      "fact_id": "fielddesk.visit-record",
+      "fact_pack_id": "facts_a203be41908c7ff940d2cb7fcef16c9aa98b1fe976eef1ec7a716a10a0c706fd",
+      "headline": "When are service visits due?",
+      "hypothesis": "This framing may change message response; no outcomes have been observed.",
+      "id": "profile-fixture-fielddesk_visit_planner-maintenance-B:2cbdd670aa7486dce93c65be205b52e62c95abe2541ef7b07c9d933e0b90702d",
+      "key": "profile-fixture-fielddesk_visit_planner-maintenance-B",
+      "locked_block": "SYNTHETIC DEMONSTRATION. Do not post. Unapproved profile proposal.",
+      "model": "offline-fixture/v1",
+      "opening": "When several service visits fall in the same week, which dates need checking? Fielddesk Demo includes a record of completed visits. No real service is provided by this demonstration. Synthetic demonstration. No real product or service is being offered. Explore the fictional Fielddesk Demo at https://fielddesk.example.invalid/product.",
+      "segment": "maintenance",
+      "status": "synthetic_profile_fixture_unapproved"
+    }
+  ],
+  "currency": "GBP",
+  "exclusion_reasons": {
+    "contact_cap": 2,
+    "contact_cooldown": 2,
+    "duplicate_business": 2,
+    "missing_score": 2,
+    "product_scope": 5,
+    "suppressed": 8,
+    "unusable_demo_address": 3
+  },
+  "forecast_basis": "response_not_incremental_value",
+  "limitations": [
+    "No authority to print or send",
+    "Copy is fixed unapproved fixture content",
+    "Budget conservatively includes potential holdouts",
+    "Small strata may have no holdout",
+    "Rows with missing scores are explicitly excluded; no complete scoring claim",
+    "Profile proposals have no installed review, handoff or model execution capability"
+  ],
+  "mailing_sha256": "cd47be0da48158c65557240bafd2ff8bb7422d84c961c00bc4b4581331a0189b",
+  "mode": "SYNTHETIC_DRY_RUN_UNAPPROVED",
+  "model_version": "synthetic-profile-audience/v1",
+  "organization": "fielddesk-example",
+  "product_profile_id": "product_profile_6d774c0bbe2f41812ae7d6ad5fd86dd638d7d5a304433e7377160f6b1b426f33",
+  "profile_id": "campaign_profile_094d5a059078d7d836218e2d7ef17b34af5eae2b6e8f7d64094076dcfb4b4fc4",
+  "schema": "profile-draft/v1",
+  "score_semantics": "synthetic_response_propensity_not_uplift",
+  "seed": 42,
+  "snapshot_id": "aud_85bc444c616dc8ced346bc59484341884d8c1e69afbab0e650d40e819f0cf8a9",
+  "variable_cost_pence": 5950
+}

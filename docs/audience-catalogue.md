@@ -8,7 +8,7 @@ This first source-integration slice of [issue 26](https://github.com/DG-creative
 
 Two contractor versions deliberately match `contractor-project-costs`. Discovery returns both as ambiguous and never chooses the first or newest version. `inventory-supplier-timing` has one candidate. Even a single candidate requires an explicit dataset/version/checksum/manifest selection. A list entry is metadata, not proof that the payload passes validation.
 
-A combined working-capital dataset also covers both supported segments. The committed records come from the existing deterministic synthetic generator, filtered by segment while preserving upstream record and business IDs, supplied propensity values and policy fields. They are not an iwoca feed or an ML integration. Fixture review windows expire on 24 November 2026. Tests use controlled clocks; operators must review and publish a new source version when the window expires.
+A combined working-capital dataset also covers both supported segments. The committed records come from the existing deterministic synthetic generator, filtered by segment while preserving upstream record and business IDs, supplied propensity values and policy fields. They are not a customer feed or an ML integration. Fixture review windows expire on 24 November 2026. Tests use controlled clocks; operators must review and publish a new source version when the window expires.
 
 ## Ports and checks
 

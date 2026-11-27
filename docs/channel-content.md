@@ -2,7 +2,7 @@
 
 Issue #65 adds an agent-callable preparation API and CLI. It freezes a complete
 email or human call script for each of one to six intended synthetic recipients.
-Both iwoca and the fictional Fielddesk profile use the same services. The
+The fictional Fielddesk profile and retained legacy profile use the same services. The
 installed proposer and screen are deterministic offline fixtures. This is not
 evidence of live-model quality, provider compatibility or outbound readiness.
 

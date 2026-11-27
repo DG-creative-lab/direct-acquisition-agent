@@ -1,10 +1,10 @@
-# Requested campaign scope
+# Legacy requested campaign scope
 
 This workflow change addresses the four scope substitution failures in the issue-25 offline corpus. It does not complete typed conversational prepare/follow-up routing or establish live model quality. Paid inference remains paused and restored workspaces remain inspection-only.
 
 ## Ownership and evidence
 
-`campaigns.CampaignScope` owns the installed delivery capability: `iwoca_flexi_loan`, `direct_mail`, `UK`, `response_experiment`. This agrees with the deterministic UK audience exclusions, fixed postal assignment format and response-experiment forecast basis. The conversation module uses that public pure contract; runtime remains business-agnostic.
+`campaigns.CampaignScope` owns the retained fixed-product postal capability: the product key identified in the [legacy reference](legacy-product-demo.md), `direct_mail`, `UK`, `response_experiment`. This is not the platform-wide capability catalogue. This agrees with the deterministic UK audience exclusions, fixed postal assignment format and response-experiment forecast basis. The conversation module uses that public pure contract; runtime remains business-agnostic.
 
 `conversations.requested_scope` owns `requested-campaign-scope/v1`, resolved by `literal-scope/v1`. A snapshot records organization, conversation, revision, full native-message hash and four requirements. Each explicit requirement cites the original message ID, revision, character range and quotation. Its content-derived ID binds every field. It is evidence of a bounded literal interpretation, with `authority: none`, never approval or product-fact authority.
 

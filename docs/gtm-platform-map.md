@@ -282,7 +282,7 @@ latency rather than only the model's answer quality.
 
 The minimum boundary work for #133 should follow its actual dependencies; a
 wholesale directory migration is not a prerequisite. Hosted access work may
-continue in the iwoca thread while this thread owns YouTube contracts.
+continue in the shared-platform thread while this thread owns YouTube contracts.
 Shared schema, bootstrap, HTTP and access changes need one integration owner
 and an agreed base revision before parallel implementation.
 

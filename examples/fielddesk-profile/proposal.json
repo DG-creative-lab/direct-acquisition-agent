@@ -1,0 +1,85 @@
+{
+  "approval": "not_granted",
+  "counts": {
+    "eligible_unselected": 0,
+    "excluded": 24,
+    "holdout": 6,
+    "input": 100,
+    "mailed": 70
+  },
+  "draft_id": "draft_724a45f194eac11203b75a79164adfe18243ede47a66506a26b174446bb5790f",
+  "execution": "not_performed",
+  "manifest_hash": "724a45f194eac11203b75a79164adfe18243ede47a66506a26b174446bb5790f",
+  "observation": "prepared_proposal",
+  "plan": {
+    "approval": "not_granted",
+    "budget_pence": 60000,
+    "channel": "direct_mail",
+    "command": {
+      "as_of": null,
+      "budget_pence": 60000,
+      "channel": "direct_mail",
+      "country": "UK",
+      "currency": "GBP",
+      "key": "fielddesk",
+      "objective": "Compare responses to fictional visit-planning questions.",
+      "organization": "fielddesk-example",
+      "schema": "profile-preparation/v1",
+      "seed": 42,
+      "segments": [
+        "maintenance",
+        "installations"
+      ],
+      "size": 100,
+      "version": "v1"
+    },
+    "copy_mode": "fixture",
+    "country": "UK",
+    "currency": "GBP",
+    "execution": "not_performed",
+    "id": "profile_plan_992be22b9d98bee1bd751dba3dd37a06c9cd4dd9681507fa59e9848f5f785004",
+    "mode": "SYNTHETIC_PLANNING_ONLY",
+    "objective": "Compare responses to fictional visit-planning questions.",
+    "objective_kind": "response_experiment",
+    "organization": "fielddesk-example",
+    "profile": {
+      "channel": "direct_mail",
+      "company": "fielddesk",
+      "country": "UK",
+      "currency": "GBP",
+      "key": "fielddesk",
+      "objective": "response_experiment",
+      "product_key": "fielddesk_visit_planner",
+      "product_profile_id": "product_profile_6d774c0bbe2f41812ae7d6ad5fd86dd638d7d5a304433e7377160f6b1b426f33",
+      "schema": "campaign-profile/v1",
+      "taxonomy": {
+        "key": "fielddesk-audiences",
+        "segments": [
+          {
+            "description": "Maintenance appointment dates and service visits.",
+            "key": "maintenance",
+            "label": "Maintenance teams"
+          },
+          {
+            "description": "Installation schedules and site visits.",
+            "key": "installations",
+            "label": "Installation teams"
+          }
+        ],
+        "version": "v1"
+      },
+      "version": "v1"
+    },
+    "profile_id": "campaign_profile_094d5a059078d7d836218e2d7ef17b34af5eae2b6e8f7d64094076dcfb4b4fc4",
+    "request_id": "fielddesk-reference-v1",
+    "schema": "profile-plan/v1",
+    "segments": [
+      "maintenance",
+      "installations"
+    ],
+    "snapshot_id": "aud_85bc444c616dc8ced346bc59484341884d8c1e69afbab0e650d40e819f0cf8a9"
+  },
+  "profile_id": "campaign_profile_094d5a059078d7d836218e2d7ef17b34af5eae2b6e8f7d64094076dcfb4b4fc4",
+  "semantic_screen": "not_evaluated",
+  "variable_cost_pence": 5950
+}

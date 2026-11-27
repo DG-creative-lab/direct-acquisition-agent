@@ -1,4 +1,9 @@
-# Campaign validation and review readiness
+# Legacy postal campaign validation and review readiness
+
+These rules describe the retained [fixed-product postal demonstration](legacy-product-demo.md).
+They are not universal requirements for email, advertising or commerce.
+Use the [platform map](gtm-platform-map.md) and each native channel contract
+when adding a new capability.
 
 This is the second slice of [issue 25](https://github.com/DG-creative-lab/direct-acquisition-agent/issues/25). It composes existing validators into a read-only report for the current exact campaign. It introduces no approval, dispatch or lending authority.
 

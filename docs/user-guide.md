@@ -1,8 +1,10 @@
-# Campaign user guide
+# Legacy postal campaign user guide
 
-This guide follows the local postal campaign demonstration in GTM Agent
-Platform. The [product overview](product.md) separates this usable workflow
-from other installed capabilities and the broader product direction.
+This guide follows the retained fixed-product postal simulation. Its finance
+assumptions are [legacy compatibility material](legacy-product-demo.md), not
+platform requirements. Start with the [examples index](../examples/README.md)
+for company-independent demonstrations. The [product overview](product.md)
+separates installed capabilities and the broader product direction.
 
 For other workflows:
 
@@ -189,7 +191,7 @@ Keep model-copy permission explicit for that request. Reloading after a lost res
 
 ## Prepare an email and human call sequence
 
-Send `Prepare a Fielddesk email and human call sequence for UK contacts with a £100 total budget.` in chat, or substitute Iwoca. The agent uses the installed primary synthetic CRM unless another installed source is named, prepares and validates a proposal, then waits for your exact review. Open optional recipient/copy/evidence inspection and use **Review and approve simulation** followed by **Approve and simulate**. The agent continues the bounded synthetic schedule. Record accepted synthetic human call tasks completed only when that observation is intended. Inspection and reload do not repeat work. Use **Stop this sequence** or send `stop` to stop further work. Status questions preserve the proposal; material edits require new review. This uses at most 15 offline calls at $0 within the shared allowance, with no model setup. See [scope, recovery and limitations](conversational-sequences.md).
+Send `Prepare a Fielddesk email and human call sequence for UK contacts with a £100 total budget.` in chat. The agent uses the installed primary synthetic CRM unless another installed source is named, prepares and validates a proposal, then waits for your exact review. Open optional recipient/copy/evidence inspection and use **Review and approve simulation** followed by **Approve and simulate**. The agent continues the bounded synthetic schedule. Record accepted synthetic human call tasks completed only when that observation is intended. Inspection and reload do not repeat work. Use **Stop this sequence** or send `stop` to stop further work. Status questions preserve the proposal; material edits require new review. This uses at most 15 offline calls at $0 within the shared allowance, with no model setup. See [scope, recovery and limitations](conversational-sequences.md).
 ## Rechecking the integrated architecture
 
 Developers can run `make boundary-check` from the repository root. Each run uses

@@ -29,7 +29,7 @@ Built by Dessi Georgieva.
 
 | Area | Intended job | What is available here today |
 | --- | --- | --- |
-| Direct acquisition | Prepare contextual email, direct-mail and human-assisted call campaigns | Local postal experiment/review/simulation; synthetic email/call journeys; reviewed company intake to synthetic email export |
+| Direct acquisition | Prepare contextual email, direct-mail and human-assisted call campaigns | Fictional Fielddesk email/call journeys; reviewed company intake to synthetic email export; a retained legacy postal simulation |
 | Advertising | Match campaign objectives and creative to suitable contexts and evaluate results | Local authored YouTube placement drafts, exact review/manual export, and separate offline recommendation and model-evaluation tools |
 | Agentic commerce | Improve product discoverability, representation and commerce readiness | A future integration area; the separate commerce application has not been migrated into this repository |
 
@@ -43,8 +43,9 @@ For early conversations, use the [design-partner brief](docs/product-discovery.m
 - Save Company & brief drafts and inspect the exact context behind a proposal.
 - Prepare, edit, review and manually export an authored YouTube placement package
   from chat. Its catalogue is fictional and its comparison media is prerecorded.
-- Run a synthetic postal experiment through exact review, simulated handoff and
-  mature outcome learning. Separately, rehearse an email/human-call sequence.
+- Inspect the fictional Fielddesk [recorded preparation example](examples/fielddesk-profile/README.md)
+  or rehearse its synthetic email/human-call sequence. The legacy postal
+  simulation remains a separate compatibility workflow.
 - Inspect recorded postal/email results through the external outcomes API/CLI.
   These are operator-attested records, not an authenticated provider feed.
 
@@ -53,10 +54,11 @@ can use explicitly permitted OpenRouter calls. YouTube chat preparation and
 synthetic sequence generation remain authored/offline; connecting a model does
 not turn them into live targeting or real delivery.
 
-The demonstrations include public iwoca product evidence and fictional business
-records. They are not iwoca customer data, validated customer segments or an
-integration with iwoca production systems. The application sends no mail, makes
-no calls and buys no advertising.
+The current example entry points use fictional products and contacts or the
+user's explicitly reviewed company assertions. Authored specifications are not
+externally verified product facts. The application sends no mail, makes no calls
+and buys no advertising. Older fixed-product fixtures are retained only as
+[legacy compatibility material](docs/legacy-product-demo.md).
 
 ## Try it locally
 
@@ -73,11 +75,12 @@ The command installs the locked frontend dependencies, builds React and starts
 the Python server, which serves the UI and API from the same origin.
 Stop it with Ctrl+C.
 
-For a zero-cost first run, choose **New campaign -> Offline fixtures ->
-Prepare campaign**. For YouTube, start a conversation and choose
-**Prepare a YouTube brief**. Follow the
-[postal user guide](docs/user-guide.md) or [YouTube flow](docs/youtube-preparation.md)
-for the exact review and export steps.
+For a zero-cost first run, start a conversation and choose
+**Prepare a YouTube brief**. Follow the [YouTube flow](docs/youtube-preparation.md)
+for the exact review and export steps. The [examples index](examples/README.md)
+also includes a fictional Fielddesk preparation and recorded outcome fixtures.
+The separate [postal user guide](docs/user-guide.md) describes the older
+fixed-product simulation; its assumptions do not define the platform.
 
 The server is loopback-only and supports one active worker per workspace root.
 For an isolated root or another port:

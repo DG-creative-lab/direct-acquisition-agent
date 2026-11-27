@@ -8,7 +8,7 @@ Send, for example:
 
 > Prepare a Fielddesk email and human call sequence for UK contacts with a £100 total budget.
 
-The equivalent Iwoca request is supported. A uniquely resolvable spelling error such as `Fielddsek` resolves to the installed company. Missing or ambiguous company, source or budget produces a focused question. The primary synthetic CRM is the declared default when no source is specified. A source can also be named as primary CRM, secondary CRM, or its installed company connection key.
+A uniquely resolvable spelling error such as `Fielddsek` resolves to the installed company. Missing or ambiguous company, source or budget produces a focused question. The primary synthetic CRM is the declared default when no source is specified. A source can also be named as primary CRM, secondary CRM, or its installed company connection key.
 
 This slice uses a bounded offline interpreter and offline channel model. Sending an email/call objective permits three content runs, each limited to five calls, at $0. They consume the existing conversation-wide 48-call allowance. These are local deterministic model fixtures, not evidence of live language understanding or commercial copy quality. Browser OpenRouter settings and the postal model-copy checkbox do not select a provider for this capability. Its message endpoint does not request or transmit OpenRouter funding, so an unrelated model connection cannot gate offline clarification, edits or inspection.
 

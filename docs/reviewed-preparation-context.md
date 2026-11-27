@@ -122,7 +122,7 @@ examples. No edits are made to the separate YouTube worktree.
 ## Acceptance and evidence boundary
 
 - Two different products preserve their own selected wording, qualifications,
-  references, CTA and exact requirements, with no iwoca substitution.
+  references, CTA and exact requirements, with no substitution of a legacy company profile.
 - Stale previews, substituted sources/claims and foreign organization reads or
   writes have no review effect. Cached receipts grant no future authority.
 - Changed sources and expiry require review while original receipts keep exact

@@ -1,5 +1,11 @@
 # Model integration
 
+The fixed-product copy CLI below is a retained
+[legacy capability](legacy-product-demo.md), not the platform's general product
+model. User-company interpretation and reviewed email preparation have their
+own [intake contracts](intake-planning.md) and
+[source-context boundary](reviewed-preparation-context.md).
+
 The CLI uses OpenRouter behind a provider-independent inference port. Model commands default to GPT-OSS-120B. The application owns orchestration, task state, tool execution, validation and recovery.
 
 ## Configure and run

@@ -13,7 +13,10 @@ repository name is now `gtm-agent-platform`; Python still uses `acquisition`.
 The local React workspace retains its bounded loopback/single-worker contract.
 See `docs/user-guide.md` for the postal flow, the channel guides for other
 installed workflows, `docs/scalability.md` for further scaling proposals and
-`docs/product-grounding.md` for recorded live-model evidence.
+`docs/product-grounding.md` for recorded legacy copy-model evidence.
+Current product examples use fictional or explicitly reviewed user-company
+context. Retire fixed-product defaults through versioned runtime changes;
+keep old prompt bytes, source identities and saved-run recovery interpretable.
 
 ## Boundaries
 

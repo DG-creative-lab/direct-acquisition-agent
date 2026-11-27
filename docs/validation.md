@@ -1,5 +1,11 @@
 # Validation and limits
 
+This ledger retains dated evidence, including original product names, fixture
+identities and local report paths. Those records are not current platform
+requirements. Use the [product overview](product.md) and
+[examples index](../examples/README.md) for current scope and demonstrations;
+the [legacy reference](legacy-product-demo.md) explains retained compatibility.
+
 ## Email sender display-name review fix, 26 November 2026
 
 The email approval view now displays each immutable email's `from_name` together

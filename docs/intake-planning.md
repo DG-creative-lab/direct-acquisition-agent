@@ -29,7 +29,7 @@ gate and keeps its frozen source. The existing verified planning admission indep
 and rechecks this source before assigning execution ownership.
 
 A dedicated intake interpretation tool shares the existing planner/inference
-harness. Its knowledge contains no default iwoca product facts. User snapshots
+harness. Its knowledge contains no default legacy product facts. User snapshots
 are separate from authored guidance. The server copies requirements and source
 references into the result; the model proposes interpretation and questions,
 not replacement budgets, scope, facts or execution permission. Deterministic

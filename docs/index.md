@@ -24,7 +24,8 @@ or a second feature roadmap.
 
 | Job | Guides |
 | --- | --- |
-| Prepare and review the postal demo | [User guide](user-guide.md), [campaign validation](campaign-validation.md), [review contract](reviews.md) |
+| Explore company-independent examples | [Examples index](../examples/README.md), [fictional Fielddesk proposal](../examples/fielddesk-profile/README.md), [reviewed intake email preparation](intake-email-preparation.md) |
+| Inspect the legacy postal simulation | [Compatibility scope](legacy-product-demo.md), [user guide](user-guide.md), [campaign validation](campaign-validation.md), [review contract](reviews.md) |
 | Save company/product assertions and brief requirements | [Intake](intake.md), [intake planning](intake-planning.md), [reviewed preparation context](reviewed-preparation-context.md), [preparation eligibility](preparation-eligibility.md) |
 | Produce a synthetic email export from reviewed intake | [Intake email preparation](intake-email-preparation.md) |
 | Rehearse email and human-call sequences | [Conversational sequences](conversational-sequences.md), [sequence simulation](sequence-simulation.md), [sequence review](sequence-review.md), [channel content](channel-content.md) |

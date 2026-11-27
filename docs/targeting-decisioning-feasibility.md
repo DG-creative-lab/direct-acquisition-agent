@@ -213,7 +213,7 @@ paths alongside successful results.
    require separate explicit scope, evidence and approval.
 6. Decide rollout/cutover; retain the source until that decision.
 
-The iwoca track continues #131 grounding/preparation and #70/#130 platform
+The shared-platform track continues #131 grounding/preparation and #70/#130 platform
 work. This YouTube track owns #143/#144 and the revised #133 handoff. Asset work
 #140/#141 can proceed against the agreed contract. Record one integration owner
 and fresh main baseline before touching shared migrations/bootstrap/workspace

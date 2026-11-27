@@ -166,7 +166,7 @@ matrix pairs cases by the effects each state can reach.
 
 | Scenario | Tested behavior |
 | --- | --- |
-| Independent run admitted first | Fielddesk and Iwoca each record three independent calls, then nine calls across the later journey's three owned stages. The four exact runs publish four artifacts. The later journey reaches unapproved review and its allowance counts only its nine calls. |
+| Independent run admitted first | Fielddesk and the legacy reference profile each record three independent calls, then nine calls across the later journey's three owned stages. The four exact runs publish four artifacts. The later journey reaches unapproved review and its allowance counts only its nine calls. |
 | Later commands on owned sources | Fielddesk rejects new channel and recipient keys, reassessment, refreshed versions and an installed access alias for the same provider account. An unrelated account and an independent organization can still generate. |
 | Earlier detached run | Six Fielddesk cases cover queued resume, an active lease, a cached call, publication with a completed result, an unknown call and an in-flight observation. No new calls or artifacts appear. Unlinked call receipts make accounting incomplete and block recovery. A late observation records on its existing reservation, including after stop. |
 | Original owned call interrupted | Stop, revision edit and unknown outcome retain the one call on the original account and revision. The run produces no artifact and replay adds no calls. |

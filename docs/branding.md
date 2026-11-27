@@ -37,7 +37,7 @@ The earlier original wave motif remains in `wave-crop.svg` as a retired design a
 
 ## Scope and verification
 
-This is a light workspace with a black navigation rail. It does not introduce a dark theme. iwoca remains the campaign's product-evidence context. Saved campaign copy, exports, approvals, audience data and backend rules are unchanged by this presentation pass.
+This is a light workspace with a black navigation rail. It does not introduce a dark theme. Historical campaign previews retain their original product-evidence context. Saved campaign copy, exports, approvals, audience data and backend rules are unchanged by this presentation pass.
 
 Review includes rendered desktop (1440 × 1000) and mobile (390 × 844), campaign audience/copy, evidence, learning, activity and the campaign dialog. Browser regressions check document width at both breakpoints before and after local table scrolling. Build, formatting, Python tests and architecture checks run separately. Screenshots are local review artifacts, not public product data.
 

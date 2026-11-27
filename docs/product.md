@@ -85,7 +85,7 @@ same screen or the same model route.
 | Capability | Available surface and behavior | Important limit |
 | --- | --- | --- |
 | Company and campaign intake | Local Company & brief drafts, immutable revisions, explicit model-assisted interpretation and reviewed preparation context | Source assertions require review; interpretation is not factual verification or campaign approval |
-| Postal campaign | Chat/local campaign form; synthetic audience, exclusions, A/B/no-mail assignment, inspectable copy, exact review and simulated handoff | No real printing/sending or live audience feed |
+| Legacy postal campaign | Chat/local campaign form; synthetic audience, exclusions, A/B/no-mail assignment, inspectable copy, exact review and simulated handoff | Retained fixed-product compatibility workflow, not the platform's general product specification; no real printing/sending |
 | Grounded planning and copy | Bounded, explicitly permitted OpenRouter calls; frozen context, product fact/qualification checks, advisory model screen and original-receipt recovery | A screen is not factual certification; model quality needs separate evaluation |
 | Email and human-call journey | Conversational preparation, exact review and bounded simulation for installed company fixtures | Interpreter/content use offline fixtures; no real mail or calling |
 | Reviewed company email package | Local reviewed intake to one to six fictional messages, exact approval and JSON export | Synthetic UK/GBP contacts are not matched to a real requested audience; no model generation or send authority |
@@ -160,10 +160,11 @@ The implementation order is maintained in the
 Design-partner feedback can refine the next narrow use case without silently
 expanding permissions or changing frozen evaluation contracts.
 
-The current examples use fictional businesses and public iwoca product evidence.
-They are not validated iwoca segments or a production connection. The platform
-makes no lending decisions, approves no financial promotion, and has no
-demonstrated acquisition-efficiency or revenue uplift. Autonomous ad buying,
+Use [fictional and user-context examples](../examples/README.md) for product
+discovery. The [legacy fixed-product demonstration](legacy-product-demo.md)
+is retained for compatibility, not as the platform's product or customer model.
+The platform has no demonstrated acquisition-efficiency or revenue uplift.
+Autonomous ad buying,
 real outreach, full commerce migration and cross-channel attribution remain
 future work. See the [design-partner brief](product-discovery.md) for wording
 that can be used without presenting the roadmap as shipped functionality.

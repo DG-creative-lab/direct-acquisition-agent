@@ -57,7 +57,7 @@ Remaining general live preparation and native YouTube consumption must preserve
 source/intake revisions, product/profile identity, qualifications, evidence IDs,
 missing fields and freshness through the applicable hosted authority boundary.
 
-A website string is a reference, not fetched or verified evidence. Do not upgrade a user claim into an installed reviewed fact pack, silently fall back to iwoca facts, or bypass v3 grounding with legacy inputs. Decide whether a task requires reviewed factual material or can produce clearly labeled advice pending review. Inspecting draft context must not dispatch generation.
+A website string is a reference, not fetched or verified evidence. Do not upgrade a user claim into an installed reviewed fact pack, silently fall back to the legacy product facts, or bypass v3 grounding with legacy inputs. Decide whether a task requires reviewed factual material or can produce clearly labeled advice pending review. Inspecting draft context must not dispatch generation.
 
 New claims, unsupported channels and contradictions should produce an editable draft or clarification with clear blockers. Changes invalidate affected downstream proposals. Retrying after partial admission must recover the original frozen context and request.
 

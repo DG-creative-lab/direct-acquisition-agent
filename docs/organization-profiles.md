@@ -10,7 +10,6 @@ The new path is an explicit Python/CLI preparation API. It installs no new chat 
 
 | Profile/version | Product evidence | Audience taxonomy | Brand and qualification |
 | --- | --- | --- | --- |
-| `iwoca/v1` | Existing reviewed public Flexi-Loan pack, preserved exactly | Stock/inventory and projects/contractors | Existing facts, qualifications and official iwoca CTA, with synthetic disclosure |
 | `fielddesk/v1` | Fictional visit-planning product specification | Maintenance teams and installation teams | Appointment questions, fictional capability qualifications and a `.invalid` demonstration CTA |
 
 Fielddesk is synthetic. Its authored specification is test evidence, not an externally verified product or a real offering. Both profiles remain UK/GBP postal response experiments. An unsupported market, currency, channel, profile/version or taxonomy is rejected rather than replaced.
@@ -19,7 +18,15 @@ Files in `config/profiles/` contain reviewed configuration and fixture content. 
 
 ## Prepare a proposal
 
-From the repository root:
+The v1 authored evidence window is historical and expires on 24 November 2026.
+Fresh preparation after expiry must fail. Inspect the
+[recorded Fielddesk example](../examples/fielddesk-profile/README.md) or reproduce
+it with its explicitly simulated date; do not extend a source's validity or use
+a simulated clock for current customer work.
+
+For reference, this is the real-time CLI form. It requires a currently valid
+installed specification, so the unchanged v1 fixture rejects a fresh request
+after its deadline:
 
 ```sh
 PYTHONPATH=src python3 -m acquisition.profile_cli \
@@ -31,7 +38,11 @@ PYTHONPATH=src python3 -m acquisition.profile_cli \
   --country UK --currency GBP --channel direct_mail
 ```
 
-For iwoca, use another request/database and `--profile iwoca --version v1 --segments inventory contractors`. The same bootstrap, planning, copy, campaign and persistence implementations handle both. All contact addresses are synthetic and marked not to post. The illustrative 85-pence treatment cost remains the postal demo cost, not a commercial forecast.
+Fielddesk is the current documentation example. The additional
+[legacy profile](legacy-product-demo.md) remains installed for compatibility,
+using the same preparation services. All contact addresses are synthetic and
+marked not to post. The illustrative 85-pence treatment cost is a demonstration
+assumption, not a commercial forecast.
 
 The result contains the exact draft/manifest identity, frozen plan, counts and cost. Preparation creates no runtime tasks, model requests, decisions or simulated jobs. Use the returned Python service's `proposals.get(organization, draft_id)` port to inspect saved bytes. The CLI exposes neither approval nor sending.
 
