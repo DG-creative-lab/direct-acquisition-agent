@@ -248,7 +248,9 @@
     "acquisition.adapters.sqlite.intake_email_reviews": "adapter",
     "acquisition.youtube.decisioning": "domain",
     "acquisition.youtube.recommendations": "application",
-    "acquisition.adapters.youtube_decision_inputs": "adapter"
+    "acquisition.adapters.youtube_decision_inputs": "adapter",
+    "acquisition.youtube.ranking": "domain",
+    "acquisition.workflows.youtube_ranking": "workflow"
   },
   "exceptions": []
 }

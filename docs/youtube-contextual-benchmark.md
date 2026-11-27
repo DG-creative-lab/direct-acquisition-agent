@@ -59,9 +59,10 @@ with specific reasons.
 
 Recorded ranking receipts are data, not a serving API. The current implementation
 accepts deterministic rules and an explicitly authored model-response fixture.
-It cannot certify a real model or accept its claims of identity, price or
-authority. Future genuine model serving must use existing `reasoning.Inference`
-admission/journaling; no separate live ledger or model client is introduced.
+An opt-in local evaluation can also record an actual provider ranking through
+the existing `reasoning.Inference` and call journal, as described below. Normal
+recommendation reads consume recorded data only. Model arguments cannot define
+provider identity, price or authority. Production live serving remains deferred.
 
 ## Frozen method
 
@@ -180,6 +181,138 @@ output. Corrections to completeness/identity enforcement are attributable code
 changes; no prior, budget, epsilon or scenario is tuned to make Bayesian results
 win. Further pooling, paced exploration or genuine model comparisons need a
 separately identified experiment.
+
+## Opt-in model ranking evaluation
+
+The next #144 slice starts at merged #147 (`fecb9f0`) on
+`feature/144-model-ranking`. It adds a local model-evaluation command, not a
+workspace chat route. The LLM rates contextual relevance; deterministic code
+continues to own candidates, prices, allocation, evidence and approval.
+
+`scripts/evaluate_youtube_model_ranking.py` freezes the existing corpus/hash,
+selected cases, native input IDs, model settings, prompt/tool bytes, source
+fingerprint and conservative whole-batch estimate into a prepared plan. Plan
+preparation makes no network calls and does not read credentials. Changes to
+the prepared inputs or source require a new plan. Saved messages, tools and
+provider replies remain available for inspection in the original checkout.
+Interrupted source-validation intervals are unverified rather than certified
+by rerendering or replaying a paid result after source restoration.
+
+The default six-task plan allows at most six calls with 2,400 output tokens,
+32,000 input bytes, forced tool choice and the existing $1/M input, $2/M output
+route ceilings. Its conservative local estimate is $0.2208. One selected task
+has a $0.0368 estimate. Free model IDs route with zero price ceilings. These
+are local reservation estimates, not external billing guarantees or permission
+to spend. The operator must separately authorize the account, sample and cap.
+No paid baseline was executed while implementing this slice.
+
+After authorization, explicit `--live` execution uses a dedicated ignored
+SQLite store under `.local/evaluations/youtube-model-ranking/<batch-id>/`.
+One existing runtime run owns sequential case tasks; `SqliteCalls` reserves
+each call before dispatch. Requests use the existing OpenRouter adapter with
+fallbacks disabled. Keys come from the environment/local key file or a hidden
+terminal prompt, never the plan or model payload. Batch names must start with
+an ASCII letter or digit, so `.` and `..` cannot escape their dedicated store.
+Live/inspection commands reject budget overrides before credential access;
+model, task and budget changes require a new prepared plan. Reusing the batch ID cannot
+change its inputs. Saved provider receipts and billing survive a process restart
+without another call. Reclaimed attempts and cached replies without a committed
+source interval stop the evaluation as unverified; they cannot become a verified
+sample. A reserved/unknown result cannot be repeated automatically. Unstarted
+tasks, including an unclaimed final validation, may still continue normally.
+
+The model sees only the goal and candidate placement/creative text and IDs.
+Explicit context-category labels are omitted so it must compare the supplied
+text. Expected labels, prices, outcomes and hidden simulation truth stay outside its
+request. Tool arguments must contain exactly the matching input ID and one
+bounded integer score/reason per candidate. Duplicate, missing, foreign or
+authority-bearing output is rejected. Requested model, resolved model, provider,
+generation ID and response/request hashes come from the admitted request and
+provider receipt, not from the model's tool arguments.
+
+The workflow checks billing, independent relevance grades and consumption by
+the native read-only recommendation command before settling each task. Any
+execution, structural validation, identity or billing failure ends the run and
+leaves subsequent cases `not_run`, including failures with known zero cost.
+A semantically poor but structurally valid ranking receives its low quality
+score and does not become an execution failure. No silent rules fallback occurs.
+
+Plan/report v3 checks source identity before and after each leased
+case and appends a zero-provider final validation task. A detected mismatch
+persists `EvaluationSourceChanged` in the existing runtime, fails the run and
+prevents later calls. The final task saves the matching fingerprint after all
+model cases commit. This defines the validation cutoff; it is not continuous
+filesystem monitoring after completion. A missing final receipt is unverified,
+not complete; an unclaimed final task can resume without repeating the paid cases. A saved mismatch
+stays invalid after file restoration and inspection. Whole-sample and split
+aggregate scores are unavailable unless the durable validation succeeded.
+The pinned `first-attempt-source-validation/v1` policy also fences any reclaimed
+attempt or reply-only recovery before provider dispatch. An expired lease can
+prevent a detected mismatch from being saved; restoration cannot prove that
+lost interval stable. Durable attempt counts and saved recovery flags therefore
+keep it unverified, even if an older producer saved positive validation receipts.
+Saved replies/billing remain inspectable, scores stay unavailable and remaining
+paid cases do not run. A new sample requires explicit preparation/authorization;
+the evaluator never automatically repeats the paid calls to obtain a score.
+Comparison requires source-validated v3 reports; historical v1/v2 plans/reports
+cannot be silently promoted to that guarantee.
+
+Reports retain per-case replies, reasons, failures, rules/model relevance,
+requested/resolved identity, reported cost and inference wall time. Recovered
+receipts cannot reconstruct original latency, so that field remains unavailable.
+Unknown billing stays unavailable rather than zero. Full-sample mean grades
+require every selected case to complete; development/held-out summaries remain
+separate. `--inspect` reconstructs the saved report without credentials or
+provider dispatch. `--compare` requires identical source, prompt, settings
+(except model), frozen task IDs and input identities across reports.
+
+For example, prepare one discriminative mixed-context task without making calls:
+
+```sh
+PYTHONPATH=src python3 scripts/evaluate_youtube_model_ranking.py \
+  --model openai/gpt-4.1-mini --case mixed-held-out --budget-usd 0.25 \
+  --plan .local/evaluations/mini-ranking-plan.json
+```
+
+Only after the sample/account/cost is authorized:
+
+```sh
+PYTHONPATH=src python3 scripts/evaluate_youtube_model_ranking.py \
+  --live --plan .local/evaluations/mini-ranking-plan.json --batch-id mini-ranking-01
+```
+
+Inspect or compare saved samples without calls:
+
+```sh
+PYTHONPATH=src python3 scripts/evaluate_youtube_model_ranking.py \
+  --inspect --plan .local/evaluations/mini-ranking-plan.json --batch-id mini-ranking-01
+PYTHONPATH=src python3 scripts/evaluate_youtube_model_ranking.py \
+  --compare .local/evaluations/youtube-model-ranking/mini-ranking-01/report.json \
+    .local/evaluations/youtube-model-ranking/second-ranking-01/report.json \
+  --output .local/evaluations/ranking-comparison.json
+```
+
+The new ranking receipt format is v2; legacy rules/authored ranking v1 remains
+readable. Allocation policy v2 and the accepted simulation/economic contract are
+unchanged. `RecordedModelRanking` is an injected trusted local source. Hashes
+bind content but do not authenticate an arbitrary uploaded JSON file. No HTTP
+import or production inference admission is installed by this evaluation.
+
+This corpus remains small and intentionally simple. Single-context tasks have
+only positive candidates, so their top-rank grades mainly check conformance;
+the mixed-context tasks can reveal wrong-context ranking. These are not broad
+reasoning-capability or audience-response tests. Gateway-double reports are
+explicitly labeled and cannot establish genuine model quality. Real relevance,
+cost and latency evidence remains open until an authorized sample is executed.
+The existing known-truth allocation benchmark is still separate; this command
+does not rerun allocation simulations or establish a production-policy winner.
+
+Next sequence: review this evaluator, run/review a small authorized real-model
+comparison, accept the measurement handoff, then begin #133 with trusted scoped
+assignment and generated-sample job/result receipts. Its first local rehearsal
+must label fake provider results separately. Real generation, participant
+collection and hosted asset delivery keep their own authorization and platform
+dependencies. Existing instruction-beta-v1 remains a separate experiment.
 
 ## #133 measurement handoff
 

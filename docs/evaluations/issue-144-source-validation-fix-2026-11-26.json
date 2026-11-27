@@ -1,0 +1,143 @@
+{
+  "schema": "youtube-model-ranking-source-review-evidence/v1",
+  "recorded_date": "2026-11-26",
+  "review_base": "5539f5efac718c68d0f08796c3269a7a22e6978f",
+  "source": {
+    "head_commit": "5539f5efac718c68d0f08796c3269a7a22e6978f",
+    "files_sha256": "afeddb37145da32fcbfc46b25969bf6837239b0d8713553dc43ca48be0e6862f",
+    "worktree_dirty": true,
+    "source_overlay": {
+      "scripts/evaluate_youtube_model_ranking.py": {
+        "sha256": "8034d609c5b9669f270eb218b3ad0a134f3766119f8db9c4d6c30a6cd935a592"
+      },
+      "src/acquisition/bootstrap.py": {
+        "sha256": "0519760ba24405de2f70dbc07d34c474eb0a5bf61a90370d5a3d16afe82f4dc1"
+      },
+      "src/acquisition/workflows/youtube_ranking.py": {
+        "sha256": "ddeeaffc035f2a0cb9327bdd93cea247d9849ef7b1212294eba8f77773cfc343"
+      },
+      "tests/test_youtube_model_ranking.py": {
+        "sha256": "98b8775fda78f5a98cf585d9e64c8a225d78f121ae1acc790e3ff45c7e5a76e6"
+      }
+    }
+  },
+  "regression_before_fix": {
+    "test_methods": 1,
+    "observed_failures": 3,
+    "effects": [
+      "execute retained mean after source mismatch",
+      "inspection promoted restored source to complete",
+      "replay promoted the same run"
+    ]
+  },
+  "correction": {
+    "plan_schema": "youtube-model-ranking-plan/v2",
+    "report_schema": "youtube-model-ranking-evaluation/v2",
+    "case_guards": "before and after each leased case",
+    "durable_failure": "EvaluationSourceChanged saved by existing runtime",
+    "finalization": "zero-provider final task saves matching expected/observed fingerprint after model cases commit",
+    "cutoff": "final validation observation; not continuous filesystem monitoring",
+    "inspection": "uses persisted case/final validation only; no reconstruction of past stability from current files",
+    "aggregates": "whole-sample and split scores require a positive saved source verdict",
+    "compatibility": "historical v1 plans/reports are not certified under v2; comparison rejects v1",
+    "storage": "existing task outputs and failure events; no schema migration"
+  },
+  "verification": {
+    "backend_tests": 1260,
+    "backend_result": "passed",
+    "command": "make test-shard SHARD=N BACKEND_SHARDS=4 (N=1..4)",
+    "shards": [
+      {
+        "shard": 1,
+        "tests": 289,
+        "result": "passed",
+        "log_sha256": "0d0f94c75417d7e13a4fa650abbeda2884b4bffbe2a68021c9b3296038451bed"
+      },
+      {
+        "shard": 2,
+        "tests": 414,
+        "result": "passed",
+        "log_sha256": "1541a4b22a077a1aea736f023725bb12aa03dec5fde5b9a7c29017596a82440b"
+      },
+      {
+        "shard": 3,
+        "tests": 325,
+        "result": "passed",
+        "log_sha256": "1c6c01dd24015cec931b35eee4a1a9df069beadabf23ba797d920bab56ca5228"
+      },
+      {
+        "shard": 4,
+        "tests": 232,
+        "result": "passed",
+        "log_sha256": "a8915678e26a8c541e51d8f56f3076ebcf186a755c75366c43e1fdae32fcc8a5"
+      }
+    ],
+    "model_ranking_tests": 16,
+    "architecture": {
+      "classified_modules": 240,
+      "errors": [],
+      "temporary_exceptions": 0
+    },
+    "boundary": {
+      "passed": true,
+      "cases": [
+        {
+          "id": "compatibility-model-journey",
+          "exit_code": 0,
+          "network_attempts": 0
+        },
+        {
+          "id": "verified-commit-rebuild-replay",
+          "exit_code": 0,
+          "network_attempts": 0
+        },
+        {
+          "id": "uncertain-restart",
+          "exit_code": 0,
+          "network_attempts": 0
+        },
+        {
+          "id": "profile-replay",
+          "exit_code": 0,
+          "network_attempts": 0
+        },
+        {
+          "id": "engagement-replay",
+          "exit_code": 0,
+          "network_attempts": 0
+        }
+      ],
+      "source_stable": true,
+      "historical_count": 44,
+      "historical_bytes_unchanged": true,
+      "report_sha256": "707e2de76f64bc30132e25e0ff5b26d78e55af82be4544c66b9ae41e04d6ccea"
+    },
+    "allocation": {
+      "passed": true,
+      "trials": 576,
+      "source_stable": true,
+      "network_attempts": 0,
+      "baseline": "retain_rules",
+      "report_sha256": "7ef6052d649061e9c725132cd50f42c17941ede366b0283f3bfaa3fb0ad5e2e6"
+    },
+    "persisted_failure_probe": {
+      "gateway_kind": "test_double",
+      "fake_calls": 1,
+      "execution_source_stable": false,
+      "inspection_after_restore_source_stable": false,
+      "execution_mean": null,
+      "inspection_mean": null
+    }
+  },
+  "new_regressions": [
+    "mismatch during final provider response remains invalid after restoration and replay",
+    "mismatch after final model case commit fails durable final validation",
+    "missing validation is unavailable and resumes with no additional model calls"
+  ],
+  "limits": {
+    "live_provider_calls": 0,
+    "credentials_used": false,
+    "genuine_model_quality": "unmeasured",
+    "new_spend_authority": false
+  }
+}

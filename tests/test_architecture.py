@@ -53,6 +53,7 @@ class ArchitectureTests(unittest.TestCase):
             ("acquisition.adapters.openrouter", "from importlib import import_module as load"),
             ("acquisition.workflows.monthly_mail", "from builtins import __import__ as load"),
             ("acquisition.campaigns.application", "import pathlib"),
+            ("acquisition.workflows.youtube_ranking", "from decimal import getcontext"),
         ]
         for module, source in examples:
             with self.subTest(module=module, source=source):
@@ -63,6 +64,8 @@ class ArchitectureTests(unittest.TestCase):
                                             'acquisition.engagements.domain'))
         self.assertFalse(CHECKER.violations('from difflib import get_close_matches',
                                             'acquisition.conversations.sequence_journey'))
+        self.assertFalse(CHECKER.violations('from decimal import Decimal, InvalidOperation',
+                                            'acquisition.workflows.youtube_ranking'))
 
 
 class ArchitectureRepositoryTests(unittest.TestCase):
