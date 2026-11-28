@@ -29,7 +29,8 @@ assignment identities and reward definitions.
    Current eligibility-filtered comparisons are separate from historical receipts.
    Neither the receipt nor an advisory comparison grants campaign or send authority.
 
-JSON files use the existing registry schemas and are bounded to four MiB each.
+Browser uploads use UTF-8 JSON in the existing registry schemas, bounded to four
+MiB each. Invalid encoding is rejected instead of silently replacing source characters.
 The local workspace resolves organization `local-conversations` and operator
 `local-operator` on the server. Evidence must name that organization; JSON cannot
 select a different actor, organization, role or model connection. The examples in

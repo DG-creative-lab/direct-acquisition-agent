@@ -369,6 +369,18 @@ test("strict duplicate source rejection and company switching invalidate reviewe
     await expect(page.getByRole("alert")).toContainText("Duplicate");
     await expect(page.getByRole("alert")).toBeFocused();
     expect(await pending(page)).toBeNull();
+    await page
+      .getByLabel("JSON evidence file")
+      .setInputFiles({
+        name: "invalid-encoding.json",
+        mimeType: "application/json",
+        buffer: Buffer.from([123, 34, 120, 34, 58, 34, 255, 34, 125]),
+      });
+    await expect(page.getByRole("alert")).toContainText("valid UTF-8 JSON");
+    await expect(page.getByLabel("Original JSON source")).toHaveValue("");
+    await expect(
+      page.getByRole("button", { name: "Preview registration", exact: true }),
+    ).toBeDisabled();
   });
 });
 

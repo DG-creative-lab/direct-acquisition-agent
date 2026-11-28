@@ -757,7 +757,18 @@ export default function OutcomesWorkspace({
                       return;
                     }
                     void act(async () => {
-                      setSource(await file.text());
+                      try {
+                        const bytes = await file.arrayBuffer();
+                        setSource(
+                          new TextDecoder("utf-8", { fatal: true }).decode(
+                            bytes,
+                          ),
+                        );
+                      } catch {
+                        throw new Error(
+                          "Use a valid UTF-8 JSON file. The original source was not uploaded.",
+                        );
+                      }
                     });
                   }}
                 />
@@ -776,8 +787,9 @@ export default function OutcomesWorkspace({
                 />
               </label>
               <p>
-                Four MiB maximum. Source text is parsed strictly on the server.
-                Provider tokens and local file paths are not required.
+                UTF-8 JSON, four MiB maximum. Source text is parsed strictly on
+                the server. Provider tokens and local file paths are not
+                required.
               </p>
             </>
           )}
