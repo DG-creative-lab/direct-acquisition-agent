@@ -1,0 +1,130 @@
+{
+  "architecture": {
+    "classified_modules": 258,
+    "errors": [],
+    "passed": true,
+    "temporary_exceptions": 0
+  },
+  "backend": {
+    "command": "nice -n 10 make test",
+    "log": {
+      "bytes": 266018,
+      "path": "/private/tmp/gtm-outcomes-operator-full-backend.log",
+      "sha256": "28e41d50a5e732a42f130f33285b53608ca00ff668f0b77f7fa2019a51833950"
+    },
+    "passed": true,
+    "processes": 1,
+    "seconds": 1639.995,
+    "tests": 1352
+  },
+  "base_commit": "59e495f0b0718451225490e17450eb4aa9ccc879",
+  "boundary": {
+    "cases": 5,
+    "historical_artifacts": 54,
+    "historical_bytes_unchanged": true,
+    "network_attempts": 0,
+    "passed": true,
+    "report": {
+      "bytes": 99998,
+      "path": "/private/tmp/gtm-outcomes-operator-boundary/results.json",
+      "sha256": "117aa533493b7f646e0102732eb402c59dfba11b40fc4dd9203ad9d71b6ceb65"
+    },
+    "source_stable": true
+  },
+  "branch": "feature/outcomes-workspace",
+  "browser": {
+    "log": {
+      "bytes": 927,
+      "path": "/private/tmp/gtm-outcomes-operator-browser.log",
+      "sha256": "c6a7ee3a18120cc4d48399e44447ebd089239b477b4eeff51ec080617820184a"
+    },
+    "passed": true,
+    "stats": {
+      "duration": 6773.64,
+      "expected": 4,
+      "flaky": 0,
+      "skipped": 0,
+      "startTime": "2026-11-28T17:02:06.008Z",
+      "unexpected": 0
+    },
+    "tests": 4,
+    "workers": 1
+  },
+  "code_commit": "b134b71840363b21658a2a2731a957cdda7bd913",
+  "evaluated_at": "2026-11-28T17:02:35.297811+00:00",
+  "finding": "Historical registration or later registration recreated a removed local operator at generation 1.",
+  "fix": "Initialize only for a first request with no local actor, authority audit or outcome history inside the native transaction. Require active authority before returning saved registration receipts.",
+  "focused": {
+    "command": "PYTHONPATH=src:tests python3 -m unittest test_outcomes_workspace test_external_outcomes test_turso_storage",
+    "log": {
+      "bytes": 162,
+      "path": "/private/tmp/gtm-outcomes-operator-focused.log",
+      "sha256": "da4286c8acd020735a68258a5eba633797e52798e3c0988f03b40670c180fde8"
+    },
+    "passed": true,
+    "seconds": 27.333,
+    "tests": 62
+  },
+  "limits": [
+    "No frontend changes; the prior full 169-scenario interface result remains historical evidence. This review reruns the four recorded-outcome browser scenarios.",
+    "Full heavy gates ran sequentially within this branch.",
+    "No managed Turso or live provider/model checks were run."
+  ],
+  "mutation_probes": [
+    {
+      "detected": true,
+      "errors": 0,
+      "failures": 2,
+      "mutation": "missing_actor_row_treated_as_fresh"
+    },
+    {
+      "detected": true,
+      "errors": 0,
+      "failures": 1,
+      "mutation": "ignore_registration_history_after_audit_loss"
+    }
+  ],
+  "original_checkout_preserved": true,
+  "prior_workspace_evidence": {
+    "bytes": 7626,
+    "path": "/private/tmp/gtm-outcomes-workspace/docs/evaluations/outcomes-workspace-2026-11-28.json",
+    "sha256": "7eff0d7c2e18c2a87ae2de8717137480e232185fa73a644862096df6d8cfccfd"
+  },
+  "process_restart": {
+    "blocked": [
+      true,
+      true
+    ],
+    "operators": 0,
+    "receipt_observation": "HISTORICAL_RECEIPT_NO_CURRENT_AUTHORITY",
+    "report": {
+      "bytes": 108,
+      "path": "/private/tmp/gtm-outcomes-operator-process.json",
+      "sha256": "11995a851ea8a222a7cdeaf3f9a2ced71322cf6013b3549cfc2a89075f1ac31f"
+    }
+  },
+  "regressions": {
+    "before_fix": {
+      "assertion_failures": 5,
+      "log": {
+        "bytes": 3753,
+        "path": "/private/tmp/gtm-outcomes-operator-red.log",
+        "sha256": "f6779591e0550c36c561cc4d8842c3d7f82fb03b776db46265e5a88b4789a662"
+      },
+      "tests": 2
+    },
+    "dimensions": [
+      "Exact replay after actor deletion and application reopen",
+      "New key for the original campaign",
+      "New campaign with independent business and native identities",
+      "Removed authority and learning audit history with original registration records retained",
+      "Pre-existing reviewer authority",
+      "Operator removed before first outcome",
+      "Foreign organization history and rejected first request do not block legitimate bootstrap",
+      "Historical receipt and original context remain inspectable"
+    ]
+  },
+  "schema": "outcomes-operator-replay-review/v1",
+  "source_fingerprint": "3cacba888ae782c737c1b2d7effe8330d8e27dfafc34c66dfa1c28427ebb7eae",
+  "source_stable": true
+}

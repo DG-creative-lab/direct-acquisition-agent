@@ -333,7 +333,32 @@ test("offline assistant prepares a persistent draft without a model call", async
     if (request.method() === "POST")
       paths.push(new URL(request.url()).pathname);
   });
+  let release, arrived;
+  const held = new Promise((resolve) => {
+    release = resolve;
+  });
+  const requested = new Promise((resolve) => {
+    arrived = resolve;
+  });
+  await page.route(
+    "**/api/sessions",
+    async (route) => {
+      arrived();
+      await held;
+      await route.continue();
+    },
+    { times: 1 },
+  );
   await page.goto("/");
+  await requested;
+  try {
+    await expect(
+      page.getByRole("button", { name: /Try the offline example/ }),
+    ).toHaveCount(0, { timeout: 1000 });
+    expect(paths).toHaveLength(0);
+  } finally {
+    release();
+  }
   await page.getByRole("button", { name: /Try the offline example/ }).click();
   await page
     .getByRole("region", { name: "Choose campaign audience" })

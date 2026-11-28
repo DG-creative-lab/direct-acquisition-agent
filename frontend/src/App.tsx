@@ -38,6 +38,7 @@ import { Badge, Empty, Modal } from "./ui";
 import { AudienceView, CopyView } from "./CampaignViews";
 import ReviewPanel from "./ReviewPanel";
 import LearningView from "./LearningView";
+import OutcomesWorkspace from "./OutcomesWorkspace";
 import ConversationWorkspace from "./ConversationWorkspace";
 import KnowledgeView from "./KnowledgeView";
 import IntakeWorkspace from "./IntakeWorkspace";
@@ -70,6 +71,9 @@ export default function App() {
     [mode, setMode] = useState<"fixture" | "model">("fixture");
   const [listed, setListed] = useState(false);
   const [companyContext, setCompanyContext] = useState(true);
+  const [learningSource, setLearningSource] = useState<
+    "auto" | "recorded" | "synthetic"
+  >("auto");
   const [modelSession, setModelSession] = useState(openRouterSession);
   const [showOpenRouter, setShowOpenRouter] = useState(false);
   const [parent, setParent] = useState<string | null>(null);
@@ -118,6 +122,7 @@ export default function App() {
     if (epoch === listGeneration.current) {
       setSessions(list.sessions);
       setCompanyContext(list.new_work_contract !== "legacy-fixed-product/v1");
+      setListed(true);
     }
     return list.sessions;
   }, []);
@@ -126,7 +131,6 @@ export default function App() {
     const initial = selectedRef.current;
     loadList()
       .then((list) => {
-        if (alive) setListed(true);
         if (
           alive &&
           selectedRef.current === initial &&
@@ -254,7 +258,12 @@ export default function App() {
           : view && !view.candidate_valid
             ? "Needs refresh"
             : "Awaiting review";
-  const campaignPage = !["assistant", "knowledge", "intake"].includes(page);
+  const recordedLearning =
+    learningSource === "recorded" ||
+    (learningSource === "auto" && companyContext);
+  const campaignPage =
+    !["assistant", "knowledge", "intake"].includes(page) &&
+    !(page === "learning" && recordedLearning);
   const nav: { id: Page; label: string; icon: LucideIcon }[] = [
     { id: "intake", label: "Company & brief", icon: FileText },
     { id: "campaign", label: "Campaign", icon: Layers3 },
@@ -428,35 +437,64 @@ export default function App() {
         </header>
         <main id="workspace-main">
           <div hidden={page !== "assistant"}>
-            <ConversationWorkspace
-              companyContext={companyContext}
-              modelSession={modelSession}
-              onModelSelected={(model) => {
-                if (modelSession)
-                  updateModelSession({
-                    ...modelSession,
-                    model: { id: model.id, name: model.name, tier: model.tier },
-                  });
-              }}
-              onModelSettings={() => setShowOpenRouter(true)}
-              onCampaignsChanged={loadList}
-              navigationTarget={conversationMount}
-              active={page === "assistant"}
-              onNavigate={() => setPage("assistant")}
-              onOpenCampaign={(next) => {
-                selectedRef.current = next.session.id;
-                setSelected(next.session.id);
-                setState(next);
-                setPage("campaign");
-                setTab("audience");
-                void loadList();
-              }}
-            />
+            {listed ? (
+              <ConversationWorkspace
+                companyContext={companyContext}
+                modelSession={modelSession}
+                onModelSelected={(model) => {
+                  if (modelSession)
+                    updateModelSession({
+                      ...modelSession,
+                      model: {
+                        id: model.id,
+                        name: model.name,
+                        tier: model.tier,
+                      },
+                    });
+                }}
+                onModelSettings={() => setShowOpenRouter(true)}
+                onCampaignsChanged={loadList}
+                navigationTarget={conversationMount}
+                active={page === "assistant"}
+                onNavigate={() => setPage("assistant")}
+                onOpenCampaign={(next) => {
+                  selectedRef.current = next.session.id;
+                  setSelected(next.session.id);
+                  setState(next);
+                  setPage("campaign");
+                  setTab("audience");
+                  void loadList();
+                }}
+              />
+            ) : (
+              <p role={error ? "alert" : "status"}>
+                {error || "Loading workspace capabilities."}
+              </p>
+            )}
           </div>
           {page === "knowledge" && <KnowledgeView />}
           <div hidden={page !== "intake"}>
             <IntakeWorkspace active={page === "intake"} />
           </div>
+          {page === "learning" && (
+            <div className="outcomes-page" aria-label="Learning source">
+              <button
+                aria-pressed={recordedLearning}
+                onClick={() => setLearningSource("recorded")}
+              >
+                Recorded campaigns
+              </button>
+              <button
+                aria-pressed={!recordedLearning}
+                onClick={() => setLearningSource("synthetic")}
+              >
+                Synthetic campaign
+              </button>
+            </div>
+          )}
+          {page === "learning" && recordedLearning && (
+            <OutcomesWorkspace onIntake={() => setPage("intake")} />
+          )}
           {campaignPage && (
             <>
               <div className="page-heading">

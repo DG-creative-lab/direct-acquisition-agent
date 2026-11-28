@@ -31,7 +31,7 @@ or a second feature roadmap.
 | Rehearse email and human-call sequences | [Conversational sequences](conversational-sequences.md), [sequence simulation](sequence-simulation.md), [sequence review](sequence-review.md), [channel content](channel-content.md) |
 | Prepare, review and manually export a YouTube draft | [YouTube preparation](youtube-preparation.md) |
 | Inspect contextual recommendation and model-evaluation tools | [YouTube contextual benchmark](youtube-contextual-benchmark.md) |
-| Understand synthetic learning and recorded external results | [Learning](learning.md), [external outcomes registry](external-outcomes.md) |
+| Understand synthetic learning and recorded external results | [Learning](learning.md), [external outcomes registry](external-outcomes.md), [recorded outcomes workspace](outcomes-workspace.md) |
 
 The YouTube benchmark and external outcomes registry are separate capabilities,
 not new steps automatically invoked by the chat demo. External results are

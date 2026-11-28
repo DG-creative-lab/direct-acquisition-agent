@@ -7,6 +7,82 @@ requirements. Use the [product overview](product.md) and
 the [legacy reference](legacy-product-demo.md) explains retained compatibility.
 
 
+## Portable outcomes browser evidence, 28 November 2026
+
+PR #155's first [interface partition 2 run](https://github.com/DG-creative-lab/gtm-agent-platform/actions/runs/46174098430/job/141068831881)
+failed only when the mobile outcomes scenario saved its diagnostic screenshot to
+a macOS-specific `/private/tmp` path that is absent on the Linux runner. The
+scenario's behavior assertions had passed. The test now uses Playwright's
+`testInfo.outputPath`, keeping the screenshot in the configured per-test artifact
+directory on each platform and partition. No assertion is removed or weakened.
+
+All four outcomes browser scenarios pass locally with CI partition settings
+(`BROWSER_SHARD=2 BROWSER_SHARDS=2`), using one worker, and the complete frontend
+formatting check passes. Application and backend source are unchanged; the prior
+backend and browser evidence remains retained below.
+
+## Removed-operator registration replay review, 28 November 2026
+
+Historical registrations cannot recreate a removed `local-operator`. Automatic
+initialization is limited to a first registration in an organization with no
+local actors, authority audit or outcome history, checked inside the native write
+transaction. Replays, alternate request IDs and new campaigns require an existing
+active operator. Prior outcome registrations also prevent initialization if their
+authority/audit rows have been removed. A rejected first request does not consume
+setup, and foreign-organization history does not block it. Original receipts and
+company context remain inspectable without recreating authority.
+
+The new SQLite regressions fail before the fix and cover role deletion across a
+reopened application, exact replay, a new key, a different campaign, removed audit
+history, pre-existing reviewer authority, and deletion before the first outcome.
+The [operator replay report](evaluations/outcomes-operator-replay-review-2026-11-28.json)
+records passing verification on `b134b71`: all 1,352 backend tests, 62 focused
+outcomes/remote-storage tests, four outcomes browser scenarios with one worker,
+architecture with 258 classified modules and zero exceptions, and all five native
+recovery cases with zero network attempts and unchanged historical artifacts.
+Two deliberately weakened guards are detected. A separate fresh interpreter
+blocks both original and new-key replay, leaves zero operator rows, and reads the
+original historical receipt. The original checkout is unchanged. Full heavy gates
+ran sequentially at reduced backend priority. There were no frontend changes;
+the earlier 169-scenario full interface result below remains historical evidence,
+not a full interface rerun for this review. No managed Turso or live model/provider
+checks were run. The prior committed workspace evidence remains byte-for-byte
+unchanged.
+
+## Recorded outcomes workspace, 28 November 2026
+
+New browser registrations freeze an exact saved company/brief association in the
+existing outcome journal, atomically with registration, source reservations,
+audit and receipt. Existing cohort IDs and unassociated history retain their
+original bytes. The local operator is initialized only by an explicit valid
+registration and never overrides disabled authority. Server-side preview IDs bind
+the original source and store; finalization rechecks the displayed evidence inside
+the native write transaction. IndexedDB retains original uploads and request IDs
+across reloads. Store checks prevent cross-root replay, and a native rejection
+fence prevents a delayed request committing after definitive rejection.
+
+The commit-bound [workspace report](evaluations/outcomes-workspace-2026-11-28.json)
+records a passing full 1,350-test backend run, 40 focused outcomes tests, all 169
+browser scenarios with one worker, architecture with 258 classified modules and
+zero exceptions, and all five native recovery cases with zero network attempts,
+stable source and 53 unchanged historical artifacts. Three deliberate guard
+faults are detected by their regression tests. New scenarios exercise atomic
+rollback, independent process reads, stale-evidence rejection, legacy inspection,
+paused formats, disabled operators, strict JSON and UTF-8 source handling, HTTP
+scope/security, lost replies, root switches and exact report downloads.
+
+The first full browser run exposed a startup race: the offline example could
+select its workflow before the server's creation contract arrived. An explicit
+delayed-response probe reproduced it. The assistant now waits for a current
+contract response, and the extended regression plus the final complete browser
+gate pass. Backend source has not changed since its full run at `690c579`; the
+final browser and boundary checks use `2260e93`. Subsequent evidence edits change
+only documentation. Full heavy gates ran sequentially within this feature branch.
+No managed Turso, live model or provider checks were run.
+The existing qualified-enquiry denominator, historical reconciliation and
+advisory-only Bayesian rules remain in the native learning module. Synthetic
+belief memory and YouTube measurement are separate.
+
 ## Company-context creation and compatibility migration, 27 November 2026
 
 Normal new workspace conversations use `company-context/v2`. New campaign opens
