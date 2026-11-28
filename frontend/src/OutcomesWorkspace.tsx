@@ -39,6 +39,14 @@ type Group = {
   beta: number;
   mean: number;
 };
+type Comparison = {
+  segment: string;
+  candidate_arm: string | null;
+  action: string;
+  probability_beats_other: number | null;
+  probability_beats_holdout: number | null;
+  limitation: string;
+};
 type CohortItem = Pick<
   Cohort,
   "id" | "campaign_id" | "channel" | "data_class"
@@ -55,7 +63,7 @@ type View = {
   event_counts: Record<string, number>;
   business_counts: Record<string, number>;
   posterior_groups: Group[];
-  comparisons: unknown[];
+  comparisons: Comparison[];
   reports: { report_id: string; final: boolean }[];
   reconciliation: { status: string; excluded_diagnostics: number };
   finalization: unknown;
@@ -72,7 +80,7 @@ type Preview = {
   events?: number;
   eligible?: boolean;
   posterior_groups?: Group[];
-  comparisons?: unknown[];
+  comparisons?: Comparison[];
   summary?: unknown;
 };
 type Evidence = {
@@ -132,6 +140,36 @@ function Groups({ groups }: { groups: Group[] }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function Comparisons({ values }: { values: Comparison[] }) {
+  return (
+    <div>
+      {values.map((value) => (
+        <div key={value.segment}>
+          <h4>{value.segment}</h4>
+          <p>
+            {value.action === "no_creative_contrast"
+              ? "A and B use identical creative content. No creative winner can be inferred."
+              : value.action === "consider_next_experiment"
+                ? `Consider a new experiment with arm ${value.candidate_arm}. This requires a new proposal and approval.`
+                : "Collect more evidence before proposing a next experiment."}
+          </p>
+          {value.probability_beats_other !== null && (
+            <p>
+              Estimated probability that arm {value.candidate_arm} has a higher
+              qualified-enquiry rate:{" "}
+              {(value.probability_beats_other * 100).toFixed(1)}% versus the
+              other creative;{" "}
+              {((value.probability_beats_holdout ?? 0) * 100).toFixed(1)}%
+              versus holdout.
+            </p>
+          )}
+          <p>{value.limitation}</p>
+        </div>
+      ))}
     </div>
   );
 }
@@ -592,6 +630,7 @@ export default function OutcomesWorkspace({
             <>
               <h3>Current eligible learning</h3>
               <Groups groups={view.posterior_groups} />
+              <Comparisons values={view.comparisons} />
               <Json
                 label="Current comparison and statistical limits"
                 value={view.comparisons}
@@ -831,6 +870,9 @@ export default function OutcomesWorkspace({
               preview.posterior_groups.length > 0 && (
                 <Groups groups={preview.posterior_groups} />
               )}
+            {preview.comparisons && (
+              <Comparisons values={preview.comparisons} />
+            )}
             <Json
               label="Exact reviewed evidence and comparisons"
               value={preview}

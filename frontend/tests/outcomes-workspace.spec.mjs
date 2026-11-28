@@ -215,6 +215,12 @@ test("recorded email outcomes preview, finalize and download exact historical ev
       page.getByRole("heading", { name: "Current eligible learning" }),
     ).toBeVisible();
     await expect(
+      page.getByText(
+        "Collect more evidence before proposing a next experiment.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(
       page.getByRole("cell", { name: "9.1%", exact: true }),
     ).toHaveCount(1);
     await page
