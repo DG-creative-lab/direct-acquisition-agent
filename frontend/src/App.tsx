@@ -122,6 +122,7 @@ export default function App() {
     if (epoch === listGeneration.current) {
       setSessions(list.sessions);
       setCompanyContext(list.new_work_contract !== "legacy-fixed-product/v1");
+      setListed(true);
     }
     return list.sessions;
   }, []);
@@ -130,7 +131,6 @@ export default function App() {
     const initial = selectedRef.current;
     loadList()
       .then((list) => {
-        if (alive) setListed(true);
         if (
           alive &&
           selectedRef.current === initial &&
@@ -437,30 +437,40 @@ export default function App() {
         </header>
         <main id="workspace-main">
           <div hidden={page !== "assistant"}>
-            <ConversationWorkspace
-              companyContext={companyContext}
-              modelSession={modelSession}
-              onModelSelected={(model) => {
-                if (modelSession)
-                  updateModelSession({
-                    ...modelSession,
-                    model: { id: model.id, name: model.name, tier: model.tier },
-                  });
-              }}
-              onModelSettings={() => setShowOpenRouter(true)}
-              onCampaignsChanged={loadList}
-              navigationTarget={conversationMount}
-              active={page === "assistant"}
-              onNavigate={() => setPage("assistant")}
-              onOpenCampaign={(next) => {
-                selectedRef.current = next.session.id;
-                setSelected(next.session.id);
-                setState(next);
-                setPage("campaign");
-                setTab("audience");
-                void loadList();
-              }}
-            />
+            {listed ? (
+              <ConversationWorkspace
+                companyContext={companyContext}
+                modelSession={modelSession}
+                onModelSelected={(model) => {
+                  if (modelSession)
+                    updateModelSession({
+                      ...modelSession,
+                      model: {
+                        id: model.id,
+                        name: model.name,
+                        tier: model.tier,
+                      },
+                    });
+                }}
+                onModelSettings={() => setShowOpenRouter(true)}
+                onCampaignsChanged={loadList}
+                navigationTarget={conversationMount}
+                active={page === "assistant"}
+                onNavigate={() => setPage("assistant")}
+                onOpenCampaign={(next) => {
+                  selectedRef.current = next.session.id;
+                  setSelected(next.session.id);
+                  setState(next);
+                  setPage("campaign");
+                  setTab("audience");
+                  void loadList();
+                }}
+              />
+            ) : (
+              <p role={error ? "alert" : "status"}>
+                {error || "Loading workspace capabilities."}
+              </p>
+            )}
           </div>
           {page === "knowledge" && <KnowledgeView />}
           <div hidden={page !== "intake"}>

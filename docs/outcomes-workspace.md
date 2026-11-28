@@ -3,8 +3,8 @@
 Learning offers **Recorded campaigns** alongside the existing **Synthetic campaign**
 view. Recorded campaigns work without first creating a synthetic campaign. They
 use the [external outcomes registry](external-outcomes.md), not a second learner.
-YouTube measurement remains a separate native capability with its own journal,
-assignment identities and reward definitions.
+Separately developed YouTube measurement retains its own journal, assignment
+identities and reward definitions.
 
 ## Operator workflow
 

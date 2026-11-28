@@ -73,7 +73,7 @@ Campaign generation remains a separate grounded workflow. See the
 [intake contract](intake.md) and [planning contract](intake-planning.md). Hosted
 tester sign-in and access remain Gateplane integration work.
 
-Follow the [user guide](user-guide.md) for campaign creation, audience and copy inspection, exact-subject approval, simulated handoff and learning. The [product overview](product.md) separates demonstrated capabilities from future work.
+Follow the [user guide](user-guide.md) for campaign creation, audience and copy inspection, exact-subject approval, simulated handoff and learning. Learning also offers a [recorded outcomes workspace](outcomes-workspace.md) for company/brief-bound email and postal reports, independent of a synthetic campaign. Assistant creation waits for the server-provided creation contract before offering its offline starter. The [product overview](product.md) separates demonstrated capabilities from future work.
 
 The interface follows the publication's Arial/Helvetica typography, warm paper and black navigation, with the shared static Op Art mark. Historical creative previews retain their original presentation. Fonts and vector assets are served locally; reduced-motion support applies to workspace transitions. See [branding](branding.md) for tokens and provenance.
 
