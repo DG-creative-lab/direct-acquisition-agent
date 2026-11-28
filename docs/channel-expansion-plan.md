@@ -30,7 +30,7 @@ Company independence means replacing business-specific assumptions with reviewed
 
 Initial expansion: email plus human call tasks, retaining postal experiments. Support a complete simulated journey before live effects. Separate permission-based email from unsolicited prospecting, because provider permission and legal eligibility can differ. Keep UK-first policy as an initial explicit profile; broader markets require separately reviewed profiles. Keep GBP as the initial supported currency and make currency explicit in new contracts. Additional currencies need money, budget and reporting work rather than a label change.
 
-Preserve iwoca as a named reference profile and immutable historical example. Demonstrate company independence with a second synthetic B2B company and a different product, audience taxonomy, qualification text and CTA. Changing organizations must not require campaign-service edits.
+Use a fictional B2B company as the current documentation example. Retain the original fixed-product profile only for compatibility and immutable historical evidence. Demonstrate company independence through distinct products, audience taxonomies, qualification text and CTAs. Changing organizations must not require campaign-service edits.
 
 Defer autonomous voice calls, automatic replies to prospects, social-network automation, an unlimited connector marketplace and continuously adapting live allocation. Human calling requires a sales representative; the agent prepares, schedules and records tasks. Agent-led operation does not imply that software performs every real-world activity.
 
@@ -38,7 +38,7 @@ Defer autonomous voice calls, automatic replies to prospects, social-network aut
 
 Repository evidence: [architecture](architecture.md), [product](product.md), [execution ownership](execution-authority-decision.md), [scope](requested-campaign-scope.md), [agent contracts](agent-contracts.md), [campaign validation](campaign-validation.md), [reviews](reviews.md), [learning](learning.md), and current audience/campaign/creative/review ports and domain code.
 
-Current facts: the campaign scope fixes iwoca Flexi-Loan, UK postal mail and response experiments; the audience is synthetic; the contact record has no email or telephone identity; product grounding checks an iwoca-specific official URL; supported segments are hardcoded; acceptance is simulated; learning has a fixed 28-day window and one-cohort-per-business rule. Existing skills describe bounded installed capabilities and grant no authority. Selected execution modes remain intentionally paused.
+Original baseline facts (13 November): the legacy campaign scope fixes one financial product, UK postal mail and response experiments; the audience is synthetic; the contact record has no email or telephone identity; product grounding checks the original product-specific official URL; supported segments are hardcoded; acceptance is simulated; learning has a fixed 28-day window and one-cohort-per-business rule. Existing skills describe bounded installed capabilities and grant no authority. Selected execution modes remain intentionally paused.
 
 Public provider documentation and research are cited below. No CRM account, sender account, live model or real recipient was exercised for this plan. Provider account permissions, customer data availability, budgets, operational capacity and commercial results remain unverified.
 
@@ -138,7 +138,7 @@ Freeze feature schema, taxonomy, strategy, model/configuration and output for ea
 
 | Object | Identity and relationships | Lifecycle and authority |
 | --- | --- | --- |
-| Organization/profile binding | Organization + version/hash; product, brand, market, money and evidence references | Reviewed configuration; cannot migrate historical iwoca artifacts by reinterpretation |
+| Organization/profile binding | Organization + version/hash; product, brand, market, money and evidence references | Reviewed configuration; cannot migrate historical fixed-product artifacts by reinterpretation |
 | Account/contact reference | Organization + connection/account + native type/ID + mapping version | Identity resolution, merges and deletion preserve provenance; a matching name is insufficient |
 | Audience/feature snapshot | Content identity, declared population, coverage and as-of time | Immutable input; partial sources cannot claim complete selection |
 | Permission observation | Contact/account, channel, purpose, source, scope and observed/expiry times | Evidence used by current policy; absence is unknown, not consent |
@@ -271,7 +271,7 @@ Implement these as dependency-ordered slices. No calendar estimate is asserted b
 | Slice | Deliverable and owner | Evidence required before progression |
 | --- | --- | --- |
 | 0. Reconcile baseline | Execution/conversation owners document supported modes, current offline journey and legacy migration/restore constraints | Existing supported journey and recovery stay intact; unresolved baseline failures have explicit ownership; no bypass of paused execution |
-| 1. Organization-independent contracts | Audiences/campaigns/creative introduce versioned profile, account/contact, taxonomy, channel and objective values with narrow ports | iwoca and second synthetic profile run through the same core logic; unknown profiles/markets fail explicitly; old artifacts retain exact hashes |
+| 1. Organization-independent contracts | Audiences/campaigns/creative introduce versioned profile, account/contact, taxonomy, channel and objective values with narrow ports | the legacy reference and fictional profile run through the same core logic; unknown profiles/markets fail explicitly; old artifacts retain exact hashes |
 | 2. Agent-led sequence simulation | Conversations/campaigns/creative/reviews plus new engagements prepare and run an exact email/call proposal in simulation | One conversational request reaches a fully validated proposal, one required approval and correct simulated sequence; objections, revisions and reload/restart work |
 | 3. Adapter conformance and authorized sandbox reads | Bootstrap/adapters add one selected CRM source and differing synthetic provider; author capability mappings and decision-strategy conformance cases | Scoped sandbox account/contact reads, pagination, identity drift, missing permissions and strategy abstentions; core workflow does not import provider code |
 | 4. Pilot access and operations | Hosted-access owner plus operations establish authenticated membership/roles, connection secrets/OAuth, data-use/retention policy, audit access, dedicated transport and restore procedures | Cross-tenant tests, revoked-session/connection behavior, authorized-data scope, incident ownership and a tested recovery procedure before pilot data or recipients |

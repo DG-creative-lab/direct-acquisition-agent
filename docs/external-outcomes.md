@@ -24,7 +24,7 @@ flowchart LR
     B --> N[Advisory evidence for a separately reviewed next experiment]
 ```
 
-Exporting or approving an iwoca draft does not prove it was sent. Register the
+Exporting or approving a platform draft does not prove it was sent. Register the
 external dispatch identity, exact content hash and `sent`, `failed` or `not_sent`
 status for each assigned treatment. Failed or unsent assignments stay in the
 original denominator. Untreated holdouts have no dispatch or creative. This

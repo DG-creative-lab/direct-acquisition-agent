@@ -1,10 +1,21 @@
-# Product evidence and grounded copy
+# Legacy fixed-product evidence and grounded copy
 
-New model commands use GPT-OSS-120B and `monthly-mail/v3`. The deliverable is a sourced, screened, unreviewed synthetic draft. It does not approve financial promotions, assess recipient eligibility or send mail.
+This guide describes the original fixed-product `monthly-mail/v3` capability,
+which remains runnable for compatibility. Its source restrictions are not
+platform-wide requirements. New company context follows the
+[reviewed preparation context](reviewed-preparation-context.md); current
+examples use [fictional specifications](../examples/README.md).
+The legacy model command defaults to GPT-OSS-120B and produces a sourced,
+screened, unreviewed synthetic draft. It grants no release or sending authority.
 
 ## Evidence and editorial authority
 
-`config/iwoca-product-facts-v1.json` is a small, manually verified public-source pack from the [official iwoca Flexi-Loan page](https://www.iwoca.co.uk/flexi-loan). Its two permitted product statements, individual qualifications, assessment qualification and CTA are local editorial paraphrases of that page. They are not copy approved by iwoca. The pack records source URL, section names, check date and a brief excerpt. Numerical offers, pricing, speed, credit-score effects, eligibility, testimonials and regulatory endorsements are deliberately outside this pack.
+The [legacy compatibility reference](legacy-product-demo.md) identifies the
+original public-source fact pack, exact source URL and product key. Its statements,
+qualifications and CTA are frozen with existing runs; they are not rewritten as
+fictional claims or carried into another company's context. Numerical offers,
+pricing, speed, eligibility, testimonials and regulatory endorsements remain
+outside the original pack.
 
 The evidence was checked on 25 October 2026. A local thirty-day review policy makes it unusable for new generation or draft preparation after 24 November 2026. This is a review window, not a guarantee that a website cannot change earlier. Re-verification is a human source-review step; the model cannot extend the window or mark new claims verified. The local configuration is trusted operator input, not a signed external attestation or automatic web monitor.
 

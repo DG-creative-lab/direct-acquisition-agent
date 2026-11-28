@@ -1,130 +1,146 @@
-# Direct Acquisition Agent
+# GTM Agent Platform
 
-An acquisition workspace for preparing audience-specific direct-mail experiments, reviewing the exact campaign and learning from counted outcomes. It combines a custom agent runtime with deterministic population rules, source-grounded copy generation and explicit human approval.
+**An agent-led workspace for turning product knowledge into reviewable
+go-to-market actions, then using observed outcomes to inform the next experiment.**
 
-Built by Dessi Georgieva. The current product is a local demonstration using synthetic businesses, simulated agency acceptance and synthetic responses. The example campaign uses public iwoca product evidence. It has no connection to iwoca production systems, sends no mail and makes no lending decisions.
+We are building a shared workspace for Direct acquisition, Advertising and
+Agentic commerce. The user describes a goal; the agent prepares a proposal using
+permitted product context; a person reviews the exact result; channel-specific
+evidence informs what to try next.
 
-A chat request continues through planning, then asks you to confirm an exact synthetic audience dataset before campaign preparation proceeds in the background. Allow model copy before sending to include bounded generation; the agent stops at an unapproved campaign for human review. Progress survives reload and process restart. Inspect and approve the result in chat, or [request a targeted copy edit conversationally](docs/conversational-copy-revision.md), with exact-target confirmation and separate model-call consent. Follow-up inspection questions preserve the current brief; proposed brief changes require exact confirmation before replanning.
+The initial product focus is contextual YouTube campaigns. The broader platform
+brings outreach and commerce capabilities into the same knowledge, asset and
+review experience. Customers should eventually be able to use one channel or
+an explicitly enabled combination.
 
-## What the product does
+For YouTube, the goal is to recommend which creative fits which video/channel
+context within a campaign's objective, budget and pacing, then update those
+recommendations from qualified product-demo outcomes. Live targeting and
+trusted measurement are still being built.
 
-- Prepares a campaign audience with traceable exclusions, a bounded mailing budget and randomized A/B/no-mail assignments.
-- Uses offline copy fixtures or explicitly requested GPT-OSS-120B generation through OpenRouter. Generated framing is checked against a frozen product fact pack; factual text and qualifications are inserted by code.
-- Records review decisions against an exact draft and current evidence. Suppression, revision, expiry or withdrawn authority blocks a new simulated handoff until the requirements are met again.
-- Counts only complete, mature outcome cohorts. Bayesian comparisons with the no-mail group inform a proposed next experiment, which needs its own review.
+**Stage: in development.** This repository has usable local workflows and
+bounded API/CLI capabilities. It does not yet provide the complete authenticated
+hosted workspace or autonomous live campaign execution. The working product
+name follows the repository; customer positioning is being tested.
 
-The [product overview](docs/product.md) explains the intended users, authority boundaries and current limits. The [user guide](docs/user-guide.md) follows the interface from a new campaign through review and learning.
+Built by Dessi Georgieva.
 
-An additive [organization/profile foundation](docs/organization-profiles.md) prepares unapproved synthetic postal proposals for iwoca and a fictional B2B company through the same Python services. Its explicit CLI/API grants no model, review or delivery authority. The [multichannel expansion plan](docs/channel-expansion-plan.md) maps later work under epic #60.
+## Product areas
 
-The [contact evidence guide](docs/contact-evidence.md) documents the scoped synthetic account/contact API, channel readiness, objections and immutable source history. It prepares non-executable assessments while preserving the existing postal workflow.
+| Area | Intended job | What is available here today |
+| --- | --- | --- |
+| Direct acquisition | Prepare contextual email, direct-mail and human-assisted call campaigns | Fictional Fielddesk email/call journeys; reviewed company intake to synthetic email export; a retained legacy postal simulation |
+| Advertising | Match campaign objectives and creative to suitable contexts and evaluate results | Local authored YouTube placement drafts, exact review/manual export, and separate offline recommendation and model-evaluation tools |
+| Agentic commerce | Improve product discoverability, representation and commerce readiness | A future integration area; the separate commerce application has not been migrated into this repository |
 
-The [audience strategy guide](docs/audience-strategies.md) adds replaceable offline categorization and ranking over frozen contact features. Two deterministic strategies share independent eligibility, budget and account-assignment rules, producing saved synthetic proposals without outbound authority.
+The [product overview](docs/product.md) is the current scope and claims
+reference. The [platform map](docs/gtm-platform-map.md) defines shared ownership,
+channel boundaries and the incremental build sequence.
+For early conversations, use the [design-partner brief](docs/product-discovery.md).
 
-The [recipient context guide](docs/recipient-context.md) adds bounded retrieval of reviewed synthetic facts for exact contacts and accounts. It records fact-level citations, missingness, permitted use and freshness while keeping raw source text out of prompt projections and saved receipts.
+## What you can try now
 
-The [channel content guide](docs/channel-content.md) adds frozen personalized email and human call-script artifacts through a bounded agent API/CLI. It validates every recipient, uses exact reviewed product wording and provides separately versioned skills. The installed proposer and screen are offline fixtures; the artifacts remain unapproved and synthetic.
+- Save Company & brief drafts and inspect the exact context behind a proposal.
+- Prepare, edit, review and manually export an authored YouTube placement package
+  from chat. Its catalogue is fictional and its comparison media is prerecorded.
+- Inspect the fictional Fielddesk [recorded preparation example](examples/fielddesk-profile/README.md)
+  or rehearse its synthetic email/human-call sequence. The legacy postal
+  simulation remains a separate compatibility workflow.
+- Inspect recorded postal/email results through the external outcomes API/CLI.
+  These are operator-attested records, not an authenticated provider feed.
 
-The [sequence simulation guide](docs/sequence-simulation.md) combines frozen audience assignments and recipient content into bounded email/call strategies. It preserves controls, costs, capacity and exact step identities while simulating submissions, delivery, replies, objections and human task completion. [Exact sequence review](docs/sequence-review.md) now binds one bounded approval to the full materialized sequence and checks current authority before simulated effects. Real outreach remains separate.
+Offline workflows need no provider key. Selected planning and copy workflows
+can use explicitly permitted OpenRouter calls. YouTube chat preparation and
+synthetic sequence generation remain authored/offline; connecting a model does
+not turn them into live targeting or real delivery.
 
-The [local YouTube preparation flow](docs/youtube-preparation.md) adds authored placement drafts, exact human review and manual JSON export in chat. Its fictional catalogue and bundled synthetic comparison media make no model calls and collect no viewer events.
+The current example entry points use fictional products and contacts or the
+user's explicitly reviewed company assertions. Authored specifications are not
+externally verified product facts. The application sends no mail, makes no calls
+and buys no advertising. Older fixed-product fixtures are retained only as
+[legacy compatibility material](docs/legacy-product-demo.md).
 
 ## Try it locally
 
-Requires Python 3.14 or later, Node 22.12+ and pnpm 10.33+ on macOS or Linux.
+Requires Python 3.14+, Node 22.12+ and pnpm 10.33+ on macOS or Linux.
 
 ```sh
+git clone https://github.com/DG-creative-lab/gtm-agent-platform.git
+cd gtm-agent-platform
 make workspace
 ```
 
-Then open [the local workspace](http://127.0.0.1:8768/). The command:
+Open [the local workspace](http://127.0.0.1:8768/).
+The command installs the locked frontend dependencies, builds React and starts
+the Python server, which serves the UI and API from the same origin.
+Stop it with Ctrl+C.
 
-1. Installs dependencies using the frozen pnpm lockfile.
-2. Builds the React interface.
-3. Starts the Python server.
-4. Serves both React and the API from the same origin.
+For a zero-cost first run, start a conversation and choose
+**Prepare a YouTube brief**. Follow the [YouTube flow](docs/youtube-preparation.md)
+for the exact review and export steps. The [examples index](examples/README.md)
+also includes a fictional Fielddesk preparation and recorded outcome fixtures.
+The separate [postal user guide](docs/user-guide.md) describes the older
+fixed-product simulation; its assumptions do not define the platform.
 
-No separate frontend server is required. Choose **New campaign → Offline fixtures → Prepare campaign** to use the application without a model key or inference request. All audience records and results are labelled synthetic. Stop the server with Ctrl+C.
-
-For frontend development with automatic rebuilding, keep the workspace server running and start the Vite build watcher in a second terminal:
-
-```sh
-# Terminal 1
-make workspace
-
-# Terminal 2
-pnpm --dir frontend run dev
-```
-
-To use another port or isolated data directory:
+The server is loopback-only and supports one active worker per workspace root.
+For an isolated root or another port:
 
 ```sh
 make workspace WORKSPACE_PORT=8769 WORKSPACE_ROOT=.local/another-workspace
 ```
 
-To try model copy, configure `OPENROUTER_API_KEY` in ignored `.env.local`, then explicitly choose **Generate with GPT-OSS-120B**. This spends provider credit and requires an unexpired, manually reviewed fact pack. No paid fallback or uncertain-call retry is automatic. See [model integration](docs/model-integration.md) and [product grounding](docs/product-grounding.md).
+[Local operations](docs/workspace.md) covers development watching, optional
+OpenRouter connections, startup and recovery. Model generation needs separate
+consent, funding and current reviewed evidence. Keep credentials outside Git;
+paid calls and live model-quality tests are opt-in.
 
-The server is loopback-only and intended for trusted local use. Startup, storage, recovery and CLI alternatives are in [local operations](docs/workspace.md).
+## Read next
 
-A [conversational assistant](docs/conversations.md) saves objectives and corrections, then can prepare a synthetic campaign draft from a validated brief. The React workspace includes a fixed offline example that makes no model calls. Free-text planning explicitly uses OpenRouter. For a model-copy proposal, choose **Generate campaign copy** to generate and screen grounded copy for the selected segments. Review and simulated acceptance remain separate human actions.
-
-The workspace's **Knowledge** view shows advisory campaign playbooks, the baseline product fact pack and editorial guidance. Each conversation can show the guidance snapshot used for its planning request. Campaign-specific evidence and synthetic outcome memory remain separate from this baseline.
-
-## Documentation
-
-The [go-to-market platform map](docs/gtm-platform-map.md) records the agreed
-Direct acquisition, Advertising and Agentic commerce areas, shared-service
-ownership, channel access and incremental build sequence. It separates future
-capabilities from the current runnable product.
-
-The proposed [YouTube migration plan](docs/youtube-migration-plan.md) coordinates the
-[shared marketing workspace design](docs/multichannel-workspace-design.md) and
-[remaining hosted preparation](docs/hosted-platform-preparation.md). These are
-planning documents; the migration and hosted product release are not yet delivered.
-
-| Reader need | Guide |
+| Reader need | Maintained guide |
 | --- | --- |
-| Understand the product and demonstrated scope | [Product overview](docs/product.md) |
-| Walk through campaign, review and learning | [User guide](docs/user-guide.md) |
-| Ask inspection questions or confirm brief amendments | [Conversational follow-ups](docs/conversational-actions.md) |
-| Inspect usage or stop pending conversation work | [Execution controls](docs/execution-controls.md) |
-| Use persistent conversations and the brief planner | [Conversation planning](docs/conversations.md) |
-| Understand modules, state and transactions | [Architecture](docs/architecture.md) |
-| Assess a path to hosted operation and scale | [Scalability](docs/scalability.md) |
-| Run and recover the local application | [Workspace operations](docs/workspace.md) |
-| Inspect or rebuild registered new-format projections offline | [Projection recovery](docs/workspace.md#offline-projection-inspection-and-rebuild) |
-| Inspect legacy ownership and migration gaps without changing history | [Legacy migration inventory](docs/legacy-migration.md) |
-| Inspect approval and invalidation semantics | [Review reference](docs/reviews.md) |
-| Inspect outcome contracts and Bayesian assumptions | [Learning reference](docs/learning.md) |
-| Inspect versioned synthetic audience sources | [Audience catalogue](docs/audience-catalogue.md) |
-| Inspect inference controls and evidence | [Model integration](docs/model-integration.md), [grounding](docs/product-grounding.md) |
-| Assess verification and remaining gaps | [Validation](docs/validation.md) |
-| Understand CI checks, justification and execution cost | [CI gate audit](docs/ci-gate-audit.md) |
-| Reuse the visual system and trace the shared mark | [Branding](docs/branding.md) |
+| Understand the product, intended users and current capability limits | [Product overview](docs/product.md) |
+| Pitch the initial use case and test demand | [Design-partner brief](docs/product-discovery.md) |
+| Find operating instructions, contracts and evidence | [Documentation index](docs/index.md) |
+| Understand shared services, channel ownership and future commerce integration | [Platform map](docs/gtm-platform-map.md) |
+| Understand ports, adapters, transactions and runtime | [Architecture](docs/architecture.md) |
+| Plan the hosted YouTube journey and remaining work | [Migration plan](docs/youtube-migration-plan.md), [hosted preparation](docs/hosted-platform-preparation.md) |
+| Assess what verification does and does not establish | [Validation](docs/validation.md) |
 
 ## Engineering
 
-A Python modular monolith owns business rules, durable tasks, inference reservations and authority. SQLite and OpenRouter sit behind narrow ports. React is a presentation client of the same-origin local API. The copy workflow exposes context reading and copy submission; the separate conversational planner can submit a brief proposal or clarification. Neither tool surface grants approval or delivery authority.
+Python owns business rules, durable tasks, inference reservations, authority and
+learning. React presents the same application commands. Provider and storage
+adapters implement narrow ports; `bootstrap.py` selects the implementations.
+The repository name has changed; Python imports and commands still use
+`acquisition`. Package names, saved identities and historical artifacts have
+not been migrated by this documentation change.
+
+Before verification, install the locked frontend dependencies and Chromium
+while network access is available:
+
+```sh
+pnpm --dir frontend install --frozen-lockfile
+pnpm --dir frontend exec playwright install chromium
+```
+
+After dependencies and Chromium are installed, run the checks:
 
 ```sh
 make test
 make arch-check
 make boundary-check
 make mutation-check
-pnpm --dir frontend exec playwright install chromium
 make interface-check
 ```
 
-New CI gates and runtime matrix entries must record their protected regression, value beyond existing checks, measured cost and execution cadence in the [gate audit](docs/ci-gate-audit.md). Runtime support needs an explicit product or deployment reason.
+These checks run offline after those prerequisites are installed and need no
+provider credentials. Local HTTP tests still require loopback access.
+`make boundary-check` retains a fresh evidence bundle under
+`.local/boundary-evidence/`; use `BOUNDARY_OUTPUT=/path/to/new-empty-directory`
+for another destination. It fails on missing/failed cases, network attempts or
+changed source/historical evidence. See
+[boundary verification](docs/hexagonal-boundaries.md) for its finite scope.
+CI gate purpose, measured cost and cadence belong in the
+[gate audit](docs/ci-gate-audit.md).
 
-Offline checks need no provider credentials. Live model quality is evaluated separately. A [recorded generated-copy example](examples/grounded-run/letters.txt) is supplied for inspection, with its limitations described in the grounding guide.
-
-Development branches use `feature/...`. Build history is available in Git; the guides describe the current product and label future work explicitly. No license terms have been selected yet.
-
-`make boundary-check` runs the bounded offline lifecycle and recovery corpus on
-demand without provider credentials. It retains a fresh evidence bundle under
-`.local/boundary-evidence/` and exits nonzero for missing cases, failed assertions,
-network attempts, changed source inputs or altered historical evidence. Use
-`BOUNDARY_OUTPUT=/path/to/new-empty-directory` to choose a destination. See
-[hexagonal boundary verification](docs/hexagonal-boundaries.md) for ownership,
-scenario scope and the evidence reusable by later product gates.
+Development branches use `feature/...`. No license terms have been selected.

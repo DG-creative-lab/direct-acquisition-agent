@@ -1,8 +1,8 @@
-# YouTube migration into the acquisition workspace
+# YouTube migration into GTM Agent Platform
 
 Status: proposed implementation plan, 24 November 2026. The owner has selected this repository as the destination for the YouTube product. This document approves no deployment, paid call, data import, outbound campaign or production cutover.
 
-This is the coordination entry point for two workstreams: platform preparation in the iwoca chat, and YouTube compatibility and migration in the YouTube chat. The intended product is one marketing workspace with channel-specific campaign capabilities. Initial delivery remains bounded preparation, human review and manual export.
+This is the coordination entry point for two workstreams: platform preparation in the shared-platform chat, and YouTube compatibility and migration in the YouTube chat. The intended product is one marketing workspace with channel-specific campaign capabilities. Initial delivery remains bounded preparation, human review and manual export.
 
 The 27 November [platform map](gtm-platform-map.md) places YouTube under
 Advertising, alongside future Meta/TikTok channels, with Direct acquisition and
@@ -25,14 +25,18 @@ the product objective or evidence of ad conversion.
 
 ## Evidence baseline
 
-After merged #147 (`fecb9f0`), the next #144 slice is the
+Current checkpoint, 27 November: PR #149 has merged the
 [opt-in model ranking evaluator](youtube-contextual-benchmark.md#opt-in-model-ranking-evaluation).
 It freezes the same authored tasks and uses existing inference reservations,
-receipts and runtime recovery. Review it with fake gateways, then separately
-authorize a small real-model comparison. No real model quality is established
-until that comparison is run. #133 then starts trusted assignment and
+receipts and runtime recovery. The installed evaluator does not itself establish
+real model quality; a genuine comparison remains a separately authorized
+evidence step under #144. #133 starts trusted assignment and
 generated-sample job/result receipts against the accepted measurement handoff;
 its first local rehearsal keeps fake results separate from participants.
+
+The older checkpoints below retain their named baselines. The
+[platform map](gtm-platform-map.md#build-sequence-and-coordination) owns the
+current cross-area ordering and [product overview](product.md) owns current scope.
 
 26 November implementation checkpoint: merged #146 freezes #143's offline
 contract. #144 now has a [native recommendation/benchmark slice](youtube-contextual-benchmark.md):
@@ -68,7 +72,7 @@ The table below remains the original planning baseline.
 | YouTube campaign agent | `8250e1f4f4ce2150d911a8231cc03bd31c2cab8b`, accepted main | Migration behavior oracle |
 | YouTube UX proposal | `f92253945fc418adb3399f0d31fdfc16e99f6f72`, [workspace design](https://github.com/DG-creative-lab/youtube-ad-agent/blob/f92253945fc418adb3399f0d31fdfc16e99f6f72/docs/workspace-ux-design.md) | Requirements input, not implemented application behavior |
 
-The older local iwoca checkout at `788c77e` is behind accepted main. Earlier comparisons against that checkout understate the destination's capabilities. Product profiles, contact/context evidence, channel content, sequence simulation/review, native remote storage, request-bound serverless preparation and saved Company & brief intake already exist. Revalidate changed contracts at each implementation start.
+The older local destination checkout at `788c77e` is behind accepted main. Earlier comparisons against that checkout understate the destination's capabilities. Product profiles, contact/context evidence, channel content, sequence simulation/review, native remote storage, request-bound serverless preparation and saved Company & brief intake already exist. Revalidate changed contracts at each implementation start.
 
 The unmerged YouTube guided-learning exercise at `dd1012966f3ae6811340a863415bdf98c284c920` is excluded. Its source issue #124 remains paused. Do not use that exercise as the migrated Learning page.
 
@@ -114,13 +118,13 @@ delivery or a human-call pilot to evaluate the permitted offline baseline.
 
 | Track | Primary working chat | Owned deliverables |
 | --- | --- | --- |
-| Shared platform preparation | Existing iwoca chat | Hosted identity/access, workspace API composition, intake grounding, funding/session policy, frontend delivery and remote operations |
+| Shared platform preparation | Shared-platform chat | Hosted identity/access, workspace API composition, intake grounding, funding/session policy, frontend delivery and remote operations |
 | YouTube migration | This YouTube chat | Source contract inventory, channel port, viewer/measurement/finding parity, source-to-target comparison |
 | Integration and release | Joint checkpoint in issues | Composition changes, composed evidence, release/cutover decision |
 
 Before implementation, claim an issue and record its baseline, branch and public contract. Shared files such as `bootstrap.py`, workspace ports, HTTP routing, schema migrations, profile selection and model admission need one active integration owner at a time. Agree a contract or merge a prerequisite before another branch changes those surfaces. Use ordinary commits/PRs and issue links; parallel chats are not independent authorities over shared state.
 
-Leave the existing local iwoca working tree and its unmerged evaluation work intact. This design branch starts from accepted main and contains no runtime commits from that branch. Avoid building a second YouTube-only Knowledge, Learning or navigation shell while the shared destination is being prepared; preserve those source issues as requirements and trace them to the destination.
+Leave the existing local platform working tree and its unmerged evaluation work intact. This design branch starts from accepted main and contains no runtime commits from that branch. Avoid building a second YouTube-only Knowledge, Learning or navigation shell while the shared destination is being prepared; preserve those source issues as requirements and trace them to the destination.
 
 ## Compatibility and recovery acceptance
 
@@ -148,7 +152,7 @@ Open decisions for the contract stage:
 
 - Exact YouTube module/public API and supported first artifact/export formats.
 - Product/brand scope inside current organization authority; do not invent project sharing permissions prematurely.
-- Unified funding and credential-session contract: current iwoca server-side explicit generation and source tab-memory BYOK are not interchangeable.
+- Unified funding and credential-session contract: current destination server-side explicit generation and source tab-memory BYOK are not interchangeable.
 - Public viewer asset hosting, opaque participant access, revocation and retention under the chosen hosted composition.
 - Which source histories users actually need before cutover; mass import is deferred.
 

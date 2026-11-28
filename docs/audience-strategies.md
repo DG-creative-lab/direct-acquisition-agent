@@ -2,7 +2,7 @@
 
 Issue #63 adds an offline categorization and decision slice on top of the scoped
 [contact evidence foundation](contact-evidence.md). It prepares immutable,
-non-executable synthetic selection proposals for iwoca and Fielddesk. Existing
+non-executable synthetic selection proposals for fictional Fielddesk and retained compatibility fixtures. Existing
 postal campaign construction, model copy, review, simulator acceptance and
 learning keep their existing contracts and artifact identities.
 

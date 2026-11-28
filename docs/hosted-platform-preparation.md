@@ -2,6 +2,12 @@
 
 Status: migration planning, 24 November 2026. This is a gap map against accepted main `796a4cc3f533e0cbae3b7760e89221d9fe1b1b86`. It adds no cloud resources, credentials, paid calls or deployment.
 
+Current reading guide, 27 November: the [product overview](product.md) owns the
+capability summary. Intake interpretation, reviewed preparation context and
+synthetic email export have since been installed; their remaining hosted/live
+integration is distinct from those local foundations. Earlier feasibility
+probes remain dated evidence rather than a fresh release decision.
+
 The target is a bounded online product a permitted tester can actually use: save company and campaign context, talk to the agent, review an exact result, export it and return to saved work. YouTube adds a usable viewer and channel-specific evidence loop. See the [migration sequence](youtube-migration-plan.md) and [shared workspace design](multichannel-workspace-design.md).
 
 The 27 November [platform map](gtm-platform-map.md) adds the agreed product-area
@@ -24,7 +30,7 @@ creative API is not proof of writable targeting or a compatible outcome report.
 | Reviewed organization/product profiles and synthetic multichannel preparation | [Profiles](organization-profiles.md), [channel expansion](channel-expansion-plan.md); #61 to #68 closed | Not general live user-intake interpretation or real outreach |
 | Native remote libSQL storage with transactions, migrations and uncertain-result recovery | [Remote storage](remote-storage.md) | Each new channel's state and cross-function recovery still need conformance evidence |
 | Request-bound serverless preparation with explicit stage continuation | [Serverless preparation](serverless-preparation.md), `api/preparation.py` | Operator-only synthetic workflow, not a hosted visitor workspace |
-| Saved Company & brief drafts with scoped revisions and replay | [Intake](intake.md), accepted PR #127 | Drafts are source assertions; planning does not yet consume them as reviewed grounding |
+| Saved Company & brief, explicit interpretation, reviewed context and synthetic email export | [Intake](intake.md), [planning](intake-planning.md), [reviewed context](reviewed-preparation-context.md), [email export](intake-email-preparation.md) | Operator review does not independently verify source truth; general live/YouTube consumption and hosted authority remain distinct work |
 | React workspace and bounded local workspace API | [Workspace](workspace.md), [architecture](architecture.md) | Local loopback identity/root lock is not hosted authorization or a distributed lock |
 | Vercel/Turso feasibility and deployment plan | [Feasibility](hosting-feasibility.md), [MVP deployment](mvp-demo-deployment.md) | Historical probes and plans are not proof of a newly deployed complete application |
 
@@ -44,9 +50,14 @@ Acceptance must include two distinct authorized organizations, guessed IDs, revo
 
 ### Saved intake to live agent context
 
-Reuse `creative.CompanyDraft`, `campaigns.CampaignBriefDraft` and `CampaignIntake`. Add an explicit transition from saved source assertions to the permitted context used for interpretation and artifact generation. Record source and intake revisions, product/profile version, qualifications, evidence IDs, missing fields and freshness.
+Reuse the installed `creative.CompanyDraft`, `campaigns.CampaignBriefDraft`
+and `CampaignIntake` paths, including explicit interpretation and reviewed
+preparation context. The local email export consumes that context already.
+Remaining general live preparation and native YouTube consumption must preserve
+source/intake revisions, product/profile identity, qualifications, evidence IDs,
+missing fields and freshness through the applicable hosted authority boundary.
 
-A website string is a reference, not fetched or verified evidence. Do not upgrade a user claim into an installed reviewed fact pack, silently fall back to iwoca facts, or bypass v3 grounding with legacy inputs. Decide whether a task requires reviewed factual material or can produce clearly labeled advice pending review. Inspecting draft context must not dispatch generation.
+A website string is a reference, not fetched or verified evidence. Do not upgrade a user claim into an installed reviewed fact pack, silently fall back to the legacy product facts, or bypass v3 grounding with legacy inputs. Decide whether a task requires reviewed factual material or can produce clearly labeled advice pending review. Inspecting draft context must not dispatch generation.
 
 New claims, unsupported channels and contradictions should produce an editable draft or clarification with clear blockers. Changes invalidate affected downstream proposals. Retrying after partial admission must recover the original frozen context and request.
 

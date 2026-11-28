@@ -1,20 +1,26 @@
-# Acquisition agent project
+# GTM Agent Platform
 
 Use `feature/...` names for development branches. Write plain, precise copy
 without em dashes. Preserve immutable historical artifacts when style changes;
 newly generated content must follow the current editorial guidance.
 
 Use the modular monolith decision in `docs/architecture.md` for implementation.
-The runnable product includes deterministic campaign preparation, bounded OpenRouter
-copy generation, exact-subject local review, simulated acceptance, synthetic
-outcome learning and a React workspace over a bounded loopback API. See
-`docs/product.md` for scope, `docs/user-guide.md` for the operating flow and
-`docs/scalability.md` for proposals that must not be presented as implemented.
-See `docs/product-grounding.md` for recorded live-model evidence.
+Use `docs/product.md` as the current capability and claims reference,
+`docs/gtm-platform-map.md` for accepted platform direction and
+`docs/index.md` for topic ownership. `docs/product-discovery.md` contains
+pitch hypotheses, not evidence of demand or installed capabilities. The
+repository name is now `gtm-agent-platform`; Python still uses `acquisition`.
+The local React workspace retains its bounded loopback/single-worker contract.
+See `docs/user-guide.md` for the postal flow, the channel guides for other
+installed workflows, `docs/scalability.md` for further scaling proposals and
+`docs/product-grounding.md` for recorded legacy copy-model evidence.
+Current product examples use fictional or explicitly reviewed user-company
+context. Retire fixed-product defaults through versioned runtime changes;
+keep old prompt bytes, source identities and saved-run recovery interpretable.
 
 ## Boundaries
 
-- `runtime`, `audiences`, `campaigns`, `creative`, `reasoning`, `learning`, `reviews`, `conversations`, and `engagements` own their
+- `runtime`, `audiences`, `campaigns`, `creative`, `reasoning`, `learning`, `reviews`, `conversations`, `engagements`, and `youtube` own their
   domain values, rules and narrow ports. Their `domain.py` files use only the
   standard library, `contracts`, and declared public domain contracts.
 - Cross-module use goes through the provider module's `__init__.py` exports.

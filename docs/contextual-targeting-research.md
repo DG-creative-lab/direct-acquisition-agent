@@ -29,7 +29,7 @@ Implementation design: [targeting and decisioning feasibility](targeting-decisio
 
 ## Repository evidence
 
-The source here is the separate `DG-creative-lab/youtube-ad-agent` repository, inspected at `1c8676e`; the destination is this iwoca repository. The source product brief describes contextual placement/creative pairing.
+The source here is the separate `DG-creative-lab/youtube-ad-agent` repository, inspected at `1c8676e`; the destination is the destination GTM platform repository. The source product brief describes contextual placement/creative pairing.
 `campaign_agent/placement_discovery.py` implements scoped permitted catalogues
 and classification proposals; its simulated classifier uses authored rules.
 `placements.py` has keyword-based context assignment. The bounded live planner

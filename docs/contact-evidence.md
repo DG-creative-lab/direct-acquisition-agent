@@ -8,7 +8,7 @@ This foundation records scoped account/contact sources, channel permission obser
 
 ## Installed scope
 
-Bootstrap wires a recorded synthetic source and the SQLite store through audiences-owned ports. Both `iwoca` and `fielddesk` have two provider accounts, selected by `<profile>-crm-a` and `<profile>-crm-b`. Each source deliberately uses the same native IDs. Version 1 has two accounts and three people, including two people at one account. Version 2 merges the first person into the second. Version 3 deletes their account. These are authored fixtures, not CRM integration evidence.
+Bootstrap wires a recorded synthetic source and the SQLite store through audiences-owned ports. Fielddesk and the retained legacy reference profile each have two provider accounts, selected by `<profile>-crm-a` and `<profile>-crm-b`. Each source deliberately uses the same native IDs. Version 1 has two accounts and three people, including two people at one account. Version 2 merges the first person into the second. Version 3 deletes their account. These are authored fixtures, not CRM integration evidence.
 
 The source port separates bounded retrieval from resolving an immutable attested identity. Identity checks under the SQLite write lock use frozen attestations, without provider requests. Future remote adapters must capture their bounded source response before that transaction and supply the same frozen version for validation.
 
