@@ -1,0 +1,172 @@
+{
+  "acceptance": {
+    "authority": "Server-fixed organization/operator, same-origin/Host/token/store checks; disabled roles, inspection roots and paused verified formats cannot authorize new writes.",
+    "company_brief_association": "Exact immutable snapshots and registration pointer, source reservations, audit and receipt commit atomically; missing context cannot become legacy history.",
+    "cross_root_replay": "At the same origin a different store receives no original registration dispatch; restoring the original store recovers its single registration.",
+    "evidence_confirmation": "Finalization rejects a preview after another report changes the native evidence and preserves the original receipt on exact replay.",
+    "learning": "Native qualified-enquiry counts and eligibility-filtered comparisons remain separate from diagnostics, historical receipts, synthetic memory and YouTube measurement.",
+    "legacy_compatibility": "Original manifests and cohort IDs remain unchanged. Unassociated cohorts stay inspectable without retroactive company binding.",
+    "recovery": "IndexedDB keeps original raw source, store, company and request. Browser loses registration/import/finalization replies and recovers without repeating effects.",
+    "rejection_fence": "A durable non-commit fence rejects delayed writes; a committed writer wins the concurrent fence and retains its original receipt.",
+    "source_integrity": "Duplicate JSON fields and malformed UTF-8 are rejected. Current report downloads bind the inspected snapshot digest.",
+    "zero_new_provider_effects": "The browser journey asserts zero model calls, runs, synthetic cohorts and synthetic beliefs in its fresh recorded-outcomes store."
+  },
+  "architecture": {
+    "classified_modules": 258,
+    "errors": [],
+    "passed": true,
+    "temporary_exceptions": 0
+  },
+  "backend": {
+    "command": "nice -n 10 make test",
+    "log": {
+      "bytes": 264952,
+      "path": "/private/tmp/gtm-outcomes-full-backend.log",
+      "sha256": "13ca140bda232004cbc3d8202bd3ba2ceb11a1dbbdecc07aa2cde642ec7f2044"
+    },
+    "passed": true,
+    "processes": 1,
+    "seconds": 1440.315,
+    "tests": 1350
+  },
+  "base_commit": "e56dca12f8dca4d1dc7e371992036a5a922404ac",
+  "boundary": {
+    "case_ids": [
+      "compatibility-model-journey",
+      "verified-commit-rebuild-replay",
+      "uncertain-restart",
+      "profile-replay",
+      "engagement-replay"
+    ],
+    "cases": 5,
+    "historical_artifacts": 53,
+    "historical_bytes_unchanged": true,
+    "network_attempts": 0,
+    "passed": true,
+    "report": {
+      "bytes": 99771,
+      "path": "/private/tmp/gtm-outcomes-boundary-final/results.json",
+      "sha256": "9067d802b3f5501ef2f76fb39c0ae4ed6556f248ec4c788244d2afd133e891c0"
+    },
+    "source_stable": true
+  },
+  "branch": "feature/outcomes-workspace",
+  "code_commit": "2260e93def0474a8dc0f24665b355ecb15fa101f",
+  "evaluated_at": "2026-11-28T10:09:03.589138+00:00",
+  "execution": {
+    "backend_nice_priority": 10,
+    "browser_workers": 1,
+    "heavy_suites_parallel_within_this_branch": false
+  },
+  "focused_outcomes": {
+    "command": "PYTHONPATH=src:tests python3 -m unittest test_outcomes_workspace test_external_outcomes",
+    "log": {
+      "bytes": 140,
+      "path": "/private/tmp/gtm-outcomes-focused.log",
+      "sha256": "855c21ac6b9f5a16b852c2cb06585cab92bba0ca1e79831ccfc79e57317768c6"
+    },
+    "passed": true,
+    "seconds": 10.663,
+    "tests": 40
+  },
+  "interface": {
+    "build": true,
+    "command": "BROWSER_SUITE=full BROWSER_SHARDS=1 make interface-check",
+    "formatting": true,
+    "log": {
+      "bytes": 25149,
+      "path": "/private/tmp/gtm-outcomes-interface.log",
+      "sha256": "57fe4f5385bf812cde9290ca7f69e97db0d961ba533b2037509e1aa56dd5a955"
+    },
+    "passed": true,
+    "report": {
+      "bytes": 195665,
+      "path": "/private/tmp/gtm-outcomes-workspace/.local/browser-reports/shard-1.json",
+      "sha256": "d9edd80d8e55167803813f44da9f578284fc11c9c355fa2bc1a1cfafd47ea6c8"
+    },
+    "stats": {
+      "duration": 817261.149,
+      "expected": 169,
+      "flaky": 0,
+      "skipped": 0,
+      "startTime": "2026-11-28T09:54:27.404Z",
+      "unexpected": 0
+    },
+    "workers": 1
+  },
+  "limits": [
+    "Local loopback single-worker workspace, not hosted tester authentication.",
+    "No managed Turso or live provider/model checks were run. External evidence remains operator-attested.",
+    "No live sending, automatic model-memory integration or shared cross-channel posterior is added.",
+    "Full backend began at 690c579; subsequent production edits were browser-only. Exact backend source equivalence is verified above."
+  ],
+  "mutation_probes": {
+    "detected": 3,
+    "passed": true,
+    "report": {
+      "bytes": 583,
+      "path": "/private/tmp/gtm-outcomes-mutations.json",
+      "sha256": "953bf352d71c85c0d30a9914bab1c08b3e86a28438ff87b42a6b29955c28a8cb"
+    },
+    "results": [
+      {
+        "detected": true,
+        "errors": 0,
+        "failures": 1,
+        "mutation": "skip_exact_preview",
+        "test": "test_finalization_rechecks_displayed_evidence_and_exact_retry"
+      },
+      {
+        "detected": true,
+        "errors": 0,
+        "failures": 1,
+        "mutation": "ignore_company_binding",
+        "test": "test_missing_company_binding_cannot_silently_become_unassociated_history"
+      },
+      {
+        "detected": true,
+        "errors": 0,
+        "failures": 1,
+        "mutation": "ignore_rejection_fence",
+        "test": "test_rejection_fence_prevents_a_late_original_request_and_never_erases_a_commit"
+      }
+    ]
+  },
+  "original_checkout_preservation": {
+    "files": {
+      ".gitignore": "b7bb8a574b328b96ed0656c518e870868c561c605ea71b0a3b53310bb011f77e",
+      "docs/channel-expansion-plan.md": "381f76feddc2d7f08b4d2a7740264fe9b2b60cae4535340ae2b68d9602f34927",
+      "frontend/test-results/.last-run.json": "91d1c43004802cd49950d78eb11c8fa7d05da8ffffe219a8b13b2f561bc00903"
+    },
+    "status": " M .gitignore\n?? docs/channel-expansion-plan.md\n?? frontend/test-results/\n",
+    "verified_unchanged": true
+  },
+  "schema": "outcomes-workspace-validation/v1",
+  "source": {
+    "backend_fingerprint": "479de2d72ccae99a1dbea721971ba0e53da1a48fe947f60f80b98df46e0a6b08",
+    "backend_inputs_identical_to_code_commit": true,
+    "backend_run_started_at_commit": "690c579551d386749a4e01675197e96a128bb98a",
+    "boundary_evaluated_commit": "2260e93def0474a8dc0f24665b355ecb15fa101f",
+    "frontend_fingerprint": "7bf5576e1492f268cd3573b486ca820c7288197b4912b58f69640f19d508284e",
+    "source_stable": true
+  },
+  "startup_integration_fix": {
+    "description": "The assistant now waits for a current server creation-contract response before becoming interactive; the offline starter cannot choose a workflow from an unresolved default.",
+    "deterministic_before_fix": {
+      "bytes": 3194,
+      "path": "/private/tmp/gtm-outcomes-startup-red.log",
+      "sha256": "2e333c5d280211254b66767f88c2f237c31f276046b8ff91f801a1f346dc40b0"
+    },
+    "focused_after_fix": {
+      "bytes": 1214,
+      "path": "/private/tmp/gtm-outcomes-startup-green.log",
+      "sha256": "7eeb6a806fcfb334da50651c0b005b6121c8461f5c3d3373a129b5398f9e3923"
+    },
+    "initial_full_run": {
+      "bytes": 28238,
+      "path": "/private/tmp/gtm-outcomes-interface-initial.log",
+      "sha256": "2192f84370058060c7ec433162aacecc642d530eb4ee8f8e652e553e57ca35ee"
+    },
+    "initial_run_disposition": "Stopped after the startup failure was diagnosed; 149 passed, one failed, one interrupted and 18 not run. Full interface rerun below uses the fixed source."
+  }
+}
