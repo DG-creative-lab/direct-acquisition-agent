@@ -14,6 +14,7 @@ from acquisition.conversations import COMPANY_CONTEXT_CONTRACT, LEGACY_COMPANY_C
 from .ports import WorkspaceStorageUnavailable, WorkspaceApplications, WorkspaceModelSessions
 from .state import WorkspaceStateAccess
 from .intake import WorkspaceIntake
+from .outcomes import WorkspaceOutcomes
 from acquisition.youtube import route_youtube
 from .views import WorkspaceViews, REVISION_BLOCKS, CHECKPOINT_BLOCKS, _partial_delivery
 from acquisition.contracts import Conflict, NotFound, canonical, digest
@@ -180,6 +181,10 @@ class Workspace(WorkspaceViews):
     @property
     def intake(self):
         return WorkspaceIntake(self._applications.intake(verified=self._verified_mode()))
+
+    @property
+    def outcomes(self):
+        return WorkspaceOutcomes(self._applications.outcomes(verified=self._verified_mode()))
 
     def intake_plans(self, brief_id):
         return {'items': self._conversation_app().intake_planning.listing('local-conversations', brief_id)}

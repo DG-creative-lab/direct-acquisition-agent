@@ -7,6 +7,27 @@ requirements. Use the [product overview](product.md) and
 the [legacy reference](legacy-product-demo.md) explains retained compatibility.
 
 
+## Recorded outcomes workspace, 28 November 2026
+
+New browser registrations freeze an exact saved company/brief association in the
+existing outcome journal, atomically with registration, source reservations,
+audit and receipt. Existing cohort IDs and unassociated history retain their
+original bytes. The local operator is initialized only by an explicit valid
+registration and never overrides disabled authority. Server-side preview IDs bind
+the original source and store; finalization rechecks the displayed evidence inside
+the native write transaction. IndexedDB retains original uploads and request IDs
+across reloads. Store checks prevent cross-root replay, and a native rejection
+fence prevents a delayed request committing after definitive rejection.
+
+Acceptance evidence will be recorded in the commit-bound
+[workspace report](evaluations/outcomes-workspace-2026-11-28.json). New scenarios
+exercise atomic rollback, independent process reads, stale-evidence rejection,
+legacy inspection, paused formats, disabled operators, source JSON integrity,
+HTTP scope/security, lost replies, root switches and exact report downloads.
+The existing qualified-enquiry denominator, historical reconciliation and
+advisory-only Bayesian rules remain in the native learning module. Synthetic
+belief memory and YouTube measurement are separate.
+
 ## Company-context creation and compatibility migration, 27 November 2026
 
 Normal new workspace conversations use `company-context/v2`. New campaign opens

@@ -95,6 +95,24 @@ class Handler(BaseHTTPRequestHandler):
         try:
             path = self.parsed_target.path
             parts = path.strip('/').split('/')
+            if path.startswith('/api/outcomes/'):
+                app=self.server.workspace.outcomes
+                query=parse_qs(self.parsed_target.query,keep_blank_values=True)
+                if path=='/api/outcomes/store' and not query:return self._send(200,{'store_id':app.store_identity()})
+                if path=='/api/outcomes/cohorts':
+                    if set(query)-{'company_id','after_id'} or any(len(v)!=1 for v in query.values()):raise ValueError('Use one bounded company cohort page')
+                    return self._send(200,app.listing(**{k:v[0] for k,v in query.items()}))
+                if len(parts)==4 and parts[:3]==['api','outcomes','cohorts'] and not query:
+                    return self._send(200,app.view(unquote(parts[3])))
+                if len(parts)==5 and parts[:3]==['api','outcomes','commands'] and not query:
+                    return self._send(200,app.receipt(parts[3],unquote(parts[4])))
+                if len(parts)==6 and parts[:3]==['api','outcomes','cohorts'] and parts[4]=='reports':
+                    value=app.snapshot(unquote(parts[3]),unquote(parts[5]))
+                    if query:
+                        if set(query)!={'snapshot_id'} or query['snapshot_id']!=[value['snapshot_id']]:raise Conflict('Download the exact displayed report snapshot')
+                        return self._send(200,json.dumps(value).encode(),'application/json','recorded-outcomes-report.json')
+                    return self._send(200,value)
+                raise ValueError('Use an installed recorded outcome read')
             if path == '/api/youtube/store' and not self.parsed_target.query:
                 return self._send(200, {'store_id': self.server.workspace.youtube.campaigns.store_identity()})
             if len(parts) == 4 and parts[:3] == ['api', 'youtube', 'campaigns'] and not self.parsed_target.query:
@@ -246,7 +264,8 @@ class Handler(BaseHTTPRequestHandler):
             context_save = path == '/api/intake/contexts'
             grounded_save = path == '/api/intake/preparations'
             email_command = path.startswith('/api/intake/emails/')
-            limit = 34 * 1024 * 1024 if monitoring_upload else 70 * 1024 if intake_save or context_save else 16384
+            outcomes_request = path.startswith('/api/outcomes/')
+            limit = 25 * 1024 * 1024 if outcomes_request else 34 * 1024 * 1024 if monitoring_upload else 70 * 1024 if intake_save or context_save else 16384
             if not 0 < length <= limit or self.headers.get("Content-Type", "").split(";")[0] != "application/json":
                 return self._send(400, {"error": "Use a bounded JSON request"} |
                                   ({'intake_not_saved': True} if intake_save else {}))
@@ -260,7 +279,7 @@ class Handler(BaseHTTPRequestHandler):
                         result[key] = value
                     return result
                 youtube_request = path.startswith('/api/youtube/') or path.endswith('/youtube-messages')
-                data = json.loads(raw, object_pairs_hook=unique_pairs) if youtube_request or grounded_save or email_command else json.loads(raw)
+                data = json.loads(raw, object_pairs_hook=unique_pairs) if youtube_request or grounded_save or email_command or outcomes_request else json.loads(raw)
                 if not isinstance(data, dict):
                     raise ValueError("Use a JSON object")
             except ValueError:
@@ -271,6 +290,23 @@ class Handler(BaseHTTPRequestHandler):
             authorization = self.headers.get("Authorization")
             handle = self.headers.get("X-OpenRouter-Handle")
             tab = self.headers.get("X-OpenRouter-Session")
+            if outcomes_request:
+                app=self.server.workspace.outcomes
+                if (authorization is not None or handle is not None or tab is not None or self.parsed_target.query
+                        or any(len(self.headers.get_all(name,[]))!=1 for name in ('Host','Origin','X-Workspace-Token','X-Outcomes-Store'))):
+                    raise ValueError('Use a scoped recorded outcome command without model funding')
+                if self.headers.get('X-Outcomes-Store')!=app.store_identity():
+                    return self._send(409,{'error':'Restore the original outcome workspace before retrying. The pending request has been kept.', 'code':'store_mismatch'})
+                if len(parts)!=3:raise ValueError('Use an installed recorded outcome command')
+                operation=parts[2].removesuffix('-preview')
+                if operation not in {'register','import','finalize'}:raise ValueError('Use an installed recorded outcome operation')
+                if parts[2].endswith('-preview'):return self._send(200,app.preview(operation,data)|{'store_id':app.store_identity()})
+                try:return self._send(200,app.command(operation,data))
+                except (ValueError,Conflict,NotFound) as error:
+                    try:definite=app.not_committed(operation,data.get('request_id'))
+                    except Exception:definite=False
+                    return self._send(409,{'error':str(error),'outcomes_not_saved':definite,'store_id':app.store_identity(),
+                        'request_id':data.get('request_id'),'operation':operation})
             if youtube_request:
                 if (authorization is not None or handle is not None or tab is not None or self.parsed_target.query
                         or any(len(self.headers.get_all(name, [])) != 1 for name in

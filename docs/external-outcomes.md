@@ -1,9 +1,9 @@
 # Registered campaigns and recorded outcome reports
 
-This Python API/CLI slice records externally executed postal or email campaigns,
+The Python API/CLI and [local Learning workspace](outcomes-workspace.md) record externally executed postal or email campaigns,
 imports local JSON snapshots and calculates separate, advisory Bayesian results.
 It makes no provider calls. It does not send campaigns, authenticate provider
-records, add a browser screen or change synthetic learning memory.
+records or change synthetic learning memory.
 
 An active local operator attests the source records. `confirmed: true` is a
 statement by that operator, not independent verification. A claimed digest records the evidence identity stated by the operator;

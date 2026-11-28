@@ -38,6 +38,7 @@ import { Badge, Empty, Modal } from "./ui";
 import { AudienceView, CopyView } from "./CampaignViews";
 import ReviewPanel from "./ReviewPanel";
 import LearningView from "./LearningView";
+import OutcomesWorkspace from "./OutcomesWorkspace";
 import ConversationWorkspace from "./ConversationWorkspace";
 import KnowledgeView from "./KnowledgeView";
 import IntakeWorkspace from "./IntakeWorkspace";
@@ -70,6 +71,9 @@ export default function App() {
     [mode, setMode] = useState<"fixture" | "model">("fixture");
   const [listed, setListed] = useState(false);
   const [companyContext, setCompanyContext] = useState(true);
+  const [learningSource, setLearningSource] = useState<
+    "auto" | "recorded" | "synthetic"
+  >("auto");
   const [modelSession, setModelSession] = useState(openRouterSession);
   const [showOpenRouter, setShowOpenRouter] = useState(false);
   const [parent, setParent] = useState<string | null>(null);
@@ -254,7 +258,12 @@ export default function App() {
           : view && !view.candidate_valid
             ? "Needs refresh"
             : "Awaiting review";
-  const campaignPage = !["assistant", "knowledge", "intake"].includes(page);
+  const recordedLearning =
+    learningSource === "recorded" ||
+    (learningSource === "auto" && companyContext);
+  const campaignPage =
+    !["assistant", "knowledge", "intake"].includes(page) &&
+    !(page === "learning" && recordedLearning);
   const nav: { id: Page; label: string; icon: LucideIcon }[] = [
     { id: "intake", label: "Company & brief", icon: FileText },
     { id: "campaign", label: "Campaign", icon: Layers3 },
@@ -457,6 +466,25 @@ export default function App() {
           <div hidden={page !== "intake"}>
             <IntakeWorkspace active={page === "intake"} />
           </div>
+          {page === "learning" && (
+            <div className="outcomes-page" aria-label="Learning source">
+              <button
+                aria-pressed={recordedLearning}
+                onClick={() => setLearningSource("recorded")}
+              >
+                Recorded campaigns
+              </button>
+              <button
+                aria-pressed={!recordedLearning}
+                onClick={() => setLearningSource("synthetic")}
+              >
+                Synthetic campaign
+              </button>
+            </div>
+          )}
+          {page === "learning" && recordedLearning && (
+            <OutcomesWorkspace onIntake={() => setPage("intake")} />
+          )}
           {campaignPage && (
             <>
               <div className="page-heading">

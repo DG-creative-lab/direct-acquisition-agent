@@ -1,0 +1,132 @@
+.outcomes-page {
+  max-inline-size: 62rem;
+  margin-inline: auto;
+  padding: 2rem;
+  line-height: 1.6;
+}
+.outcomes-page header p {
+  max-inline-size: 48rem;
+}
+.outcomes-boundary {
+  color: var(--brand-muted);
+  border-block: 1px solid var(--brand-rule);
+  padding-block: 1rem;
+}
+.outcomes-page section {
+  margin-block: 2rem 3rem;
+}
+.outcomes-page h2 {
+  border-block-end: 1px solid var(--brand-rule);
+  padding-block-end: 0.7rem;
+}
+.outcomes-page label {
+  display: block;
+  margin-block: 1rem;
+  font-weight: 600;
+}
+.outcomes-page select,
+.outcomes-page textarea,
+.outcomes-page input {
+  display: block;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  min-block-size: 48px;
+  margin-block-start: 0.5rem;
+  padding: 0.7rem;
+  color: var(--brand-ink);
+  background: var(--brand-panel);
+  border: 1px solid var(--brand-rule);
+  border-radius: 4px;
+  font: inherit;
+}
+.outcomes-page textarea,
+.outcomes-page pre {
+  font: 0.8rem/1.6 var(--brand-code);
+}
+.outcomes-page button,
+.outcomes-page summary {
+  min-block-size: 48px;
+  padding: 0.7rem 1rem;
+  cursor: pointer;
+}
+.outcomes-page button {
+  margin: 0.35rem 0.5rem 0.35rem 0;
+  border: 1px solid var(--brand-rule);
+  border-radius: 4px;
+  background: var(--brand-panel);
+  color: var(--brand-ink);
+}
+.outcomes-page button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.outcomes-page :focus-visible {
+  outline: 2px solid var(--brand-ink);
+  outline-offset: 3px;
+}
+.outcomes-page pre {
+  overflow: auto;
+  max-block-size: 28rem;
+  white-space: pre;
+  background: var(--brand-surface);
+  padding: 1rem;
+}
+.outcomes-page details {
+  border-block-end: 1px solid var(--brand-rule);
+}
+.outcomes-counts {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+}
+.outcomes-counts dd {
+  font-size: 1.6rem;
+  margin: 0.25rem 0;
+}
+.outcomes-error,
+.outcomes-warning {
+  padding: 1rem;
+  overflow-wrap: anywhere;
+}
+.outcomes-error {
+  background: var(--status-error-surface);
+  color: var(--status-error-ink);
+}
+.outcomes-warning {
+  background: var(--status-warning-surface);
+  color: var(--status-warning-ink);
+}
+.outcomes-preview {
+  padding: 1rem;
+  border: 1px solid var(--brand-rule);
+  margin-block-start: 1rem;
+}
+.outcomes-scroll {
+  overflow-x: auto;
+}
+.outcomes-page table {
+  inline-size: 100%;
+  border-collapse: collapse;
+}
+.outcomes-page th,
+.outcomes-page td {
+  padding: 0.7rem;
+  text-align: start;
+  border-block-end: 1px solid var(--brand-rule);
+}
+.outcomes-page caption {
+  text-align: start;
+  color: var(--brand-muted);
+  padding-block: 0.5rem;
+}
+@media (max-width: 650px) {
+  .outcomes-page {
+    padding: 1rem;
+  }
+  .outcomes-counts {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .outcomes-page h1 {
+    font-size: 2rem;
+  }
+}
