@@ -10,6 +10,7 @@ from .ports import ConversationStore
 from .scope import requested_scope
 from .budgets import BUDGET_POLICY
 from .intake_planning import INTAKE_KNOWLEDGE, bind_intake_source
+from .company_context import LEGACY_COMPANY_CONTRACT, validate_company_contract, require_company_source
 
 
 class MessageRejectedConflict(Conflict):
@@ -39,12 +40,15 @@ class ConversationService:
         if old:
             return old["knowledge"]
         selected = snapshot.get('intake_source')
+        require_company_source(snapshot.get('product_contract', LEGACY_COMPANY_CONTRACT), selected)
         knowledge = (INTAKE_KNOWLEDGE | {'playbooks': {'version': 'intake-interpretation/v1', 'guidance': INTAKE_KNOWLEDGE['procedures']}}
                      if selected else KNOWLEDGE | ({"playbooks": self.guidance()} if self.guidance else {}))
         return knowledge | {"agent_assets": self.assets(organization, knowledge)} if self.assets else knowledge
 
-    def create(self, organization: str, request_id: str, title: str = "New campaign conversation") -> dict:
-        conversation = self.store.create(organization, request_id, title, self.clock())
+    def create(self, organization: str, request_id: str, title: str = "New campaign conversation", *,
+               product_contract=LEGACY_COMPANY_CONTRACT) -> dict:
+        validate_company_contract(product_contract)
+        conversation = self.store.create(organization, request_id, title, self.clock(), product_contract=product_contract)
         return self.view(organization, conversation)
 
     def message(self, organization: str, conversation_id: str, request_id: str, expected_revision: int, content: str) -> dict:
@@ -66,6 +70,7 @@ class ConversationService:
     def planning_context(self, organization, conversation_id, request_id, expected_revision, fixture):
         """Freeze bounded planning inputs without admitting a task or inference."""
         source = self.view(organization, conversation_id)
+        require_company_source(source.get('product_contract', LEGACY_COMPANY_CONTRACT), source.get('intake_source'))
         if source.get('intake_source'):
             raise Conflict('Use the saved brief planning action; intake cannot authorize campaign preparation')
         if source["revision"] != expected_revision or expected_revision < 1:

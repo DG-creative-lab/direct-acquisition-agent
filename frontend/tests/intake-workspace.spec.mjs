@@ -54,7 +54,7 @@ s.serve_forever()
         errors = "";
       const timer = setTimeout(
         () => reject(new Error("Intake fixture did not start: " + errors)),
-        15000,
+        30000,
       );
       child.stderr.on("data", (chunk) => {
         errors += chunk.toString();
@@ -2454,5 +2454,87 @@ test("email recovery refuses a switched store and retains the original command",
     await expect(retry).toHaveCount(0);
     expect(posts).toBe(1);
     expect(emailRecords(root)).toHaveLength(2);
+  });
+});
+
+for (const mobile of [false, true])
+  test(`new company-context defaults avoid the fixed-product flow on ${mobile ? "mobile" : "desktop"}`, async ({
+    page,
+  }, testInfo) => {
+    await isolated(async (url, root) => {
+      await page.setViewportSize(
+        mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 },
+      );
+      await page.goto(url);
+      await expect(
+        page.getByText("Fictional Fielddesk · £60 · offline model simulation", {
+          exact: true,
+        }),
+      ).toBeVisible();
+      if (mobile)
+        await page
+          .getByRole("button", { name: "Campaign", exact: true })
+          .click();
+      await page
+        .getByRole("button", { name: "New campaign", exact: true })
+        .first()
+        .click();
+      await expect(
+        page.getByRole("heading", { name: "Company & brief", exact: true }),
+      ).toBeVisible();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await company(page, "Aster operations consultancy");
+      await page
+        .getByRole("button", { name: "Knowledge", exact: true })
+        .click();
+      await expect(
+        page.getByText("No company evidence is selected by default.", {
+          exact: false,
+        }),
+      ).toBeVisible();
+      await expect(page.locator("main")).not.toContainText(/iwoca|Flexi.Loan/i);
+      const saved = rows(root);
+      expect(saved.intake_company_revisions).toHaveLength(1);
+      expect(saved.runs).toHaveLength(0);
+      expect(saved.model_calls).toHaveLength(0);
+      expect(saved.review_decisions).toHaveLength(0);
+      await page.screenshot({
+        path: testInfo.outputPath("company-context.png"),
+        fullPage: true,
+      });
+    });
+  });
+
+test("current fictional starter reaches an unapproved review without legacy planning", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(90000);
+  await isolated(async (url, root) => {
+    const posts = [];
+    page.on("request", (request) => {
+      if (request.method() === "POST")
+        posts.push(new URL(request.url()).pathname);
+    });
+    await page.goto(url);
+    await page
+      .getByRole("button", { name: "Try the offline example", exact: false })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "Ready for your review", exact: true }),
+    ).toBeVisible({ timeout: 60000 });
+    expect(
+      posts.some((path) => /\/(plan|plan-fixture|preparations)$/.test(path)),
+    ).toBe(false);
+    const before = rows(root);
+    expect(before.review_decisions).toHaveLength(0);
+    await page.reload();
+    await expect(
+      page.getByRole("heading", { name: "Ready for your review", exact: true }),
+    ).toBeVisible();
+    expect(rows(root).model_calls).toEqual(before.model_calls);
+    await page.screenshot({
+      path: testInfo.outputPath("fictional-review.png"),
+      fullPage: true,
+    });
   });
 });

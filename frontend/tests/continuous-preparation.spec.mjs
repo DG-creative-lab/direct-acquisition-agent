@@ -11,7 +11,9 @@ async function fakeWorkspace(scenario, run) {
 import sys, time
 from pathlib import Path
 from unittest.mock import patch
-from acquisition.bootstrap import build_workspace as Workspace
+from functools import partial
+from acquisition.bootstrap import build_workspace as _build_workspace
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 from acquisition.entrypoints.workspace import WorkspaceServer
 from acquisition.reasoning import ModelError
 from test_preparations import CombinedModel
@@ -65,7 +67,7 @@ server.serve_forever()
         errors = "";
       const timer = setTimeout(
         () => reject(new Error("Fixture did not start: " + errors)),
-        10000,
+        30000,
       );
       child.stderr.on("data", (data) => {
         errors += data.toString();

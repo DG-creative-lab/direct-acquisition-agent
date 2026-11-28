@@ -13,7 +13,9 @@ from acquisition.adapters.sqlite.conversations import SqliteConversations
 
 from acquisition.contracts import Conflict, canonical
 from acquisition.conversations import BUDGET_POLICY, budget_clarification, budget_response, validate_result
-from acquisition.bootstrap import build_workspace as Workspace
+from functools import partial
+from acquisition.bootstrap import build_workspace as _build_workspace
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 import test_conversations as conversations
 import test_preparations as preparations
 
@@ -205,7 +207,9 @@ class BudgetReplyTests(unittest.TestCase):
         pending = self.w.start_preparation(self.c, 'reply-prepare', 3, False, False)['preparations'][-1]
         code = """import json,sys
 from unittest.mock import patch
-from acquisition.bootstrap import build_workspace as Workspace
+from functools import partial
+from acquisition.bootstrap import build_workspace as _build_workspace
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 from test_preparations import CombinedModel
 from test_conversations import proposal
 model=CombinedModel(proposal(budget_pence=40000))

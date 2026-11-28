@@ -44,9 +44,13 @@ class RecordedContactSource:
 def synthetic_contact_snapshots(organization, profile):
     observed = datetime(2026, 11, 13, tzinfo=timezone.utc).timestamp() - 3600
     expiry = datetime(2026, 11, 24, tzinfo=timezone.utc).timestamp()
+    current = profile.key == 'fielddesk' and profile.version == 'v2'
+    if current:
+        observed = datetime(2026, 11, 27, tzinfo=timezone.utc).timestamp() - 3600
+        expiry = datetime(2026, 12, 27, tzinfo=timezone.utc).timestamp()
     for suffix in ('a', 'b'):
         connection = ContactConnection(organization, profile.key + '-crm-' + suffix,
-                                      'synthetic-crm', profile.key + '-provider-' + suffix, 'mapping-v1')
+                                      'synthetic-crm', profile.key + '-provider-' + suffix, 'mapping-v2' if current else 'mapping-v1')
         accounts = tuple(ContactAccount(NativeReference(connection, 'Company', str(i), 'account'),
             profile.key + '-' + suffix + '-business-' + str(i), profile.taxonomy.segments[(i-1) % len(profile.taxonomy.segments)].key)
             for i in (1, 2))
@@ -54,7 +58,7 @@ def synthetic_contact_snapshots(organization, profile):
             (accounts[0 if i < 3 else 1].ref,), 'person' + str(i) + '@' + suffix + '.example.invalid',
             'DEMO ONLY DO NOT CALL: synthetic person ' + str(i)) for i in (1, 2, 3))
         permissions = tuple(PermissionObservation(p.ref, channel, 'acquisition', 'granted',
-            'synthetic-permission-v1', observed, expiry) for p in people for channel in ('email', 'human_call', 'direct_mail'))
+            'synthetic-permission-v2' if current else 'synthetic-permission-v1', observed, expiry) for p in people for channel in ('email', 'human_call', 'direct_mail'))
         pressure = tuple(ContactPressure(p.ref, accounts[0 if i < 2 else 1].experiment_unit, 0, 0,
             observed-90*86400, observed, expiry, True, 'synthetic-shared-pressure-v1') for i,p in enumerate(people))
         original = ContactSnapshot(connection, 1, profile.id, observed, expiry, 2, 3, True, None,

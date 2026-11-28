@@ -20,7 +20,7 @@ authored YouTube or synthetic sequence preparation.
 
 ```sh
 PYTHONPATH=src python3 -m acquisition models
-PYTHONPATH=src python3 -m acquisition --db .local/copy.sqlite demo-model --request-id copy-demo
+PYTHONPATH=src python3 -m acquisition --db .local/copy.sqlite demo-model --legacy-product-contract legacy-fixed-product/v1 --request-id copy-demo
 ```
 
 `models` reads the provider's current public catalogue. `demo-model` makes explicit model requests and requires valid evidence. Free endpoints may be unavailable or violate the tool/output contract; there is no automatic paid fallback. To resume, use the same database, original model and limits:

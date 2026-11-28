@@ -521,6 +521,6 @@ class RemoteExternalOutcomeTests(unittest.TestCase):
                 self.assertEqual(replay['original_receipt'],final);self.assertEqual(replay['observation'],'HISTORICAL_RECEIPT_NO_CURRENT_AUTHORITY')
                 self.assertEqual(reopened.snapshot('one',c['id'],p['report_id'])['reconciliation']['status'],'clean')
                 with reopened.store.database.connect() as conn:
-                    self.assertEqual(conn.execute('PRAGMA user_version').fetchone()[0],27)
+                    self.assertEqual(conn.execute('PRAGMA user_version').fetchone()[0],28)
                     self.assertEqual(conn.execute('SELECT COUNT(*) FROM model_calls').fetchone()[0],0)
             finally:wire.close()

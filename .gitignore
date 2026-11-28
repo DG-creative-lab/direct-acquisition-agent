@@ -30,6 +30,7 @@ dist/
 !/docs/index.md
 !/docs/product-discovery.md
 !/docs/legacy-product-demo.md
+!/docs/company-context-migration.md
 !/docs/branding.md
 !/docs/conversations.md
 !/docs/learning.md

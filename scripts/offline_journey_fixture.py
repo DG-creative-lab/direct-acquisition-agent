@@ -62,7 +62,9 @@ def sha(value):
 
 
 def serve(root, port, generation):
-    from acquisition.bootstrap import build_workspace
+    from functools import partial
+    from acquisition.bootstrap import build_workspace as _build_workspace
+    build_workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
     from acquisition.entrypoints.workspace import WorkspaceServer
     from acquisition.adapters.sqlite.report_monitoring import SqliteReportMonitoring
     from test_preparations import CombinedModel

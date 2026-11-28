@@ -434,7 +434,7 @@ class Database:
                 require_live_root(self.path)
             with self.connect() as connection:
                 version = connection.execute('PRAGMA user_version').fetchone()[0]
-                if version not in {14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27}:
+                if version not in {14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28}:
                     raise ValueError('Unsupported application schema for checkpoint inspection')
                 self._validate_workspace_schema(connection)
                 if version >= 17:
@@ -469,6 +469,9 @@ class Database:
                             validate_youtube_schema(connection)
                         if version >= 27:
                             validate_preparation_context_schema(connection)
+                        if version >= 28:
+                            from .company_contexts import validate_company_context_schema
+                            validate_company_context_schema(connection)
             return
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._initialize(verified_admissions, clock, fixture_execution)
@@ -480,7 +483,7 @@ class Database:
             version = connection.execute("PRAGMA user_version").fetchone()[0]
             if fixture_execution and (version != 0 or connection.execute('SELECT 1 FROM sqlite_schema LIMIT 1').fetchone()):
                 raise Conflict('Fixture execution requires a fresh application store')
-            if not 0 <= version <= 27:
+            if not 0 <= version <= 28:
                 raise ValueError(f"Unsupported database schema {version}")
             if (verified_admissions and version < 10
                     and connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='runs'").fetchone()
@@ -588,6 +591,10 @@ class Database:
             if version < 27:
                 self._apply_migration(connection, PREPARATION_CONTEXTS)
             validate_preparation_context_schema(connection)
+            from .company_contexts import company_context_migration, validate_company_context_schema
+            if version < 28:
+                self._apply_migration(connection, company_context_migration(connection))
+            validate_company_context_schema(connection)
             if verified_admissions:
                 # Seal under the same write lock that skipped legacy recovery.
                 from .admission_guard import seal_legacy_writes
@@ -657,7 +664,7 @@ class Database:
         database=cls.__new__(cls);database.path=Path(path)
         if not database.path.is_file():raise ValueError('Authoritative application store is unavailable')
         with database.connect() as db:
-            if db.execute('PRAGMA user_version').fetchone()[0] not in {14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27}:
+            if db.execute('PRAGMA user_version').fetchone()[0] not in {14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28}:
                 raise ValueError('Migrate the authoritative application store before workspace access')
         return database
 

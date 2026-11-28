@@ -11,5 +11,5 @@ from acquisition.entrypoints import workspace
 
 if __name__ == "__main__":
     with patch.object(workspace, "build_workspace",
-                      partial(workspace.build_workspace, real_clock=lambda: 1793404800.)):
+                      partial(workspace.build_workspace, real_clock=lambda: 1793404800., new_work_contract="legacy-fixed-product/v1")):
         workspace.main()

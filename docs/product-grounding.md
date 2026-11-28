@@ -49,7 +49,7 @@ Legacy `monthly-mail/v2` tasks remain explicitly ungrounded and resumable only w
 ```sh
 make test
 make arch-check
-PYTHONPATH=src python3 -m acquisition --db .local/grounded-demo.sqlite demo-model --request-id grounded-demo
+PYTHONPATH=src python3 -m acquisition --db .local/grounded-demo.sqlite demo-model --legacy-product-contract legacy-fixed-product/v1 --request-id grounded-demo
 ```
 
 The model defaults to `openai/gpt-oss-120b`; it needs the existing ignored `.env.local`. An explicit model still overrides the default. To resume a current run:

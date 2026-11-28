@@ -58,7 +58,7 @@ from acquisition.adapters.sqlite.admissions import SqliteAdmissions
 from acquisition.workflows.conversation import validate_planning_assets
 
 
-def build_contact_directory(path, organization, profile_key, clock=time.time, *, read_only=False, remote_storage=None, _database=None):
+def build_contact_directory(path, organization, profile_key, clock=time.time, *, read_only=False, remote_storage=None, _database=None, profile_version='v1'):
     """Installed synthetic contact evidence only, without campaign or execution authority."""
     if not read_only and remote_storage is None:
         require_live_root(path)
@@ -67,8 +67,8 @@ def build_contact_directory(path, organization, profile_key, clock=time.time, *,
     from acquisition.adapters.sqlite.contacts import SqliteContactDirectory
     from acquisition.adapters.sqlite.admission_guard import verified_required
     from acquisition.audiences import ContactDirectory
-    profiles = LocalProfiles(organization, profile_key, Path(__file__).resolve().parents[2] / 'config/profiles')
-    profile = profiles.campaign_profile(organization,profile_key,'v1')
+    profiles = LocalProfiles(organization, profile_key, Path(__file__).resolve().parents[2] / 'config/profiles', version=profile_version)
+    profile = profiles.campaign_profile(organization,profile_key,profile_version)
     database = _database or build_database(path, clock=clock, remote_storage=remote_storage, read_only=read_only)
     with database.connect() as db:
         if db.execute('PRAGMA user_version').fetchone()[0] < 18:
@@ -76,11 +76,11 @@ def build_contact_directory(path, organization, profile_key, clock=time.time, *,
         if not read_only and verified_required(db):
             raise Conflict('Contact preparation has no verified execution capability; execution stays paused')
     source = RecordedContactSource(organization,tuple(synthetic_contact_snapshots(organization,profile)))
-    store = SqliteContactDirectory(database,source,profiles,profile_key,'v1',clock,read_only=read_only)
+    store = SqliteContactDirectory(database,source,profiles,profile_key,profile_version,clock,read_only=read_only)
     return ContactDirectory(source,store)
 
 
-def build_audience_decisions(path, organization, profile_key, strategy='taxonomy-order', clock=time.time, *, read_only=False, remote_storage=None, _database=None):
+def build_audience_decisions(path, organization, profile_key, strategy='taxonomy-order', clock=time.time, *, read_only=False, remote_storage=None, _database=None, profile_version='v1'):
     """Offline advisory strategies and deterministic constraints; no campaign/outbound authority."""
     from acquisition.adapters.audience_strategies import (DeclaredSegmentCategorizer, TaxonomyOrderDecision,
                                                          ReverseTaxonomyDecision)
@@ -88,7 +88,7 @@ def build_audience_decisions(path, organization, profile_key, strategy='taxonomy
     from acquisition.audiences import AudienceDecisions
     if strategy not in {'taxonomy-order','reverse-taxonomy-test'}:
         raise ValueError('Select an installed offline audience strategy')
-    contacts = build_contact_directory(path,organization,profile_key,clock,read_only=read_only,remote_storage=remote_storage,_database=_database)
+    contacts = build_contact_directory(path,organization,profile_key,clock,read_only=read_only,remote_storage=remote_storage,_database=_database,profile_version=profile_version)
     profile = contacts.store._profile(organization)
     categorizer = DeclaredSegmentCategorizer(profile.taxonomy,profile.objective)
     decision = (TaxonomyOrderDecision if strategy=='taxonomy-order' else ReverseTaxonomyDecision)(profile.taxonomy,profile.objective)
@@ -96,16 +96,18 @@ def build_audience_decisions(path, organization, profile_key, strategy='taxonomy
     return AudienceDecisions(categorizer,decision,store)
 
 
-def build_recipient_contexts(path, organization, profile_key, clock=time.time, *, guidance=None, read_only=False, remote_storage=None, _database=None):
+def build_recipient_contexts(path, organization, profile_key, clock=time.time, *, guidance=None, read_only=False, remote_storage=None, _database=None, profile_version='v1'):
     """Reviewed synthetic context only. No raw document prompts, inference or outbound authority."""
     from acquisition.adapters.recipient_fixtures import RecordedRecipientContextSource, synthetic_recipient_evidence
     from acquisition.adapters.sqlite.recipient_contexts import SqliteRecipientContexts
     from acquisition.creative import RecipientContexts, RecipientContextGuidance
-    contacts = build_contact_directory(path,organization,profile_key,clock,read_only=read_only,remote_storage=remote_storage,_database=_database)
+    contacts = build_contact_directory(path,organization,profile_key,clock,read_only=read_only,remote_storage=remote_storage,_database=_database,profile_version=profile_version)
     with contacts.store.database.connect() as db:
         if db.execute('PRAGMA user_version').fetchone()[0]<19:
             raise Conflict('Migrate the live application store before inspecting recipient context')
-    evidence = tuple(item for suffix in ('a','b') for item in synthetic_recipient_evidence(
+    recipient_evidence = (partial(synthetic_recipient_evidence,fixture_version=profile_version)
+                          if profile_version!='v1' else synthetic_recipient_evidence)
+    evidence = tuple(item for suffix in ('a','b') for item in recipient_evidence(
         contacts.source.read(organization,profile_key+'-crm-'+suffix,1)))
     source = RecordedRecipientContextSource(organization,evidence)
     selected_guidance = guidance if guidance is not None else RecipientContextGuidance()
@@ -115,14 +117,14 @@ def build_recipient_contexts(path, organization, profile_key, clock=time.time, *
 
 
 def build_channel_preparation(path, organization, profile_key, clock=time.time, *, gateway=None, read_only=False,
-                              stage_ownership=False, remote_storage=None, _database=None):
+                              stage_ownership=False, remote_storage=None, _database=None, profile_version='v1'):
     """Installed offline model simulation only; no paid model, sender or review capability."""
     from acquisition.adapters.channel_fixtures import OfflineChannelModel
     from acquisition.adapters.sqlite.channel_content import SqliteChannelContent, SqliteChannelTasks
     from acquisition.workflows.channel_content import ChannelContentWorkflow, ChannelPreparation, compose_channel_admission
     from acquisition.reasoning import ModelConfig
     from acquisition.creative import CHANNEL_CONTENT_CAPABILITY, PAUSED_CHANNEL_ADMISSION, SYNTHETIC_CHANNEL_ADMISSION
-    recipients = build_recipient_contexts(path,organization,profile_key,clock,read_only=read_only,remote_storage=remote_storage,_database=_database)
+    recipients = build_recipient_contexts(path,organization,profile_key,clock,read_only=read_only,remote_storage=remote_storage,_database=_database,profile_version=profile_version)
     with recipients.store.contacts.database.connect() as db:
         if db.execute('PRAGMA user_version').fetchone()[0]<20:
             raise Conflict('Migrate the live store before inspecting channel artifacts')
@@ -143,7 +145,7 @@ def build_channel_preparation(path, organization, profile_key, clock=time.time, 
 
 
 def build_sequence_simulation(path, organization, profile_key, clock=time.time, *,
-                              email_scenario='success', call_scenario='success', read_only=False, remote_storage=None, _database=None):
+                              email_scenario='success', call_scenario='success', read_only=False, remote_storage=None, _database=None, profile_version='v1'):
     """Exact reviewed synthetic sequences only. No live provider or outbound authority."""
     from acquisition.adapters.simulated_engagements import synthetic_sequence_connections, SyntheticEngagementTransport
     from acquisition.adapters.sqlite.sequence_proposals import SqliteSequenceProposals
@@ -153,8 +155,8 @@ def build_sequence_simulation(path, organization, profile_key, clock=time.time, 
     from acquisition.campaigns import SequenceCampaigns
     from acquisition.engagements import EngagementSimulator
     from acquisition.workflows.sequences import SequenceSimulation
-    channels=build_channel_preparation(path,organization,profile_key,clock,read_only=read_only,remote_storage=remote_storage,_database=_database)
-    decisions=build_audience_decisions(path,organization,profile_key,clock=clock,read_only=read_only,remote_storage=remote_storage,_database=_database)
+    channels=build_channel_preparation(path,organization,profile_key,clock,read_only=read_only,remote_storage=remote_storage,_database=_database,profile_version=profile_version)
+    decisions=build_audience_decisions(path,organization,profile_key,clock=clock,read_only=read_only,remote_storage=remote_storage,_database=_database,profile_version=profile_version)
     with channels.store.database.connect() as db:
         if db.execute('PRAGMA user_version').fetchone()[0]<(21 if read_only else 22):
             raise Conflict('Migrate the live store before reviewing sequences')
@@ -167,7 +169,7 @@ def build_sequence_simulation(path, organization, profile_key, clock=time.time, 
     return SequenceSimulation(SequenceCampaigns(proposals),simulator,SequenceReviews(reviews))
 
 
-def build_sequence_journeys(path,clock=time.time,*,stage_ownership=False, remote_storage=None, read_only=False, _database=None, _gateway=None, _preparation_clock=False):
+def build_sequence_journeys(path,clock=time.time,*,stage_ownership=False, remote_storage=None, read_only=False, _database=None, _gateway=None, _preparation_clock=False, new_work_contract='legacy-fixed-product/v1'):
     """Wire bounded conversation continuation to installed synthetic module APIs."""
     from acquisition.adapters.local_profiles import LocalProfiles
     from acquisition.adapters.contact_fixtures import synthetic_contact_snapshots
@@ -177,13 +179,19 @@ def build_sequence_journeys(path,clock=time.time,*,stage_ownership=False, remote
     from acquisition.workflows.sequence_journey import JourneyCapabilities, SequenceJourneyWorkflow
     database=_database or build_database(path,clock=clock,remote_storage=remote_storage,read_only=read_only)
     store=SqliteSequenceJourneys(database,clock)
+    from acquisition.conversations import COMPANY_CONTEXT_CONTRACT, validate_company_contract
+    validate_company_contract(new_work_contract)
+    current = new_work_contract == COMPANY_CONTEXT_CONTRACT
     config_root=Path(__file__).resolve().parents[2]/'config/profiles'
     def catalogue(organization):
         profiles=[]
-        for key in ('iwoca','fielddesk'):
-            native='sequence_scope_'+digest({'owner_organization':organization,'profile_key':key})[:40]
-            installed=LocalProfiles(native,key,config_root)
-            profile=installed.campaign_profile(native,key,'v1')
+        for key in (('fielddesk',) if current else ('iwoca','fielddesk')):
+            version='v2' if current else 'v1'
+            scope={'owner_organization':organization,'profile_key':key}
+            if current:scope['profile_version']=version
+            native='sequence_scope_'+digest(scope)[:40]
+            installed=LocalProfiles(native,key,config_root,version=version)
+            profile=installed.campaign_profile(native,key,version)
             connections=[]
             for snapshot in synthetic_contact_snapshots(native,profile):
                 if snapshot.version!=1:continue
@@ -194,6 +202,7 @@ def build_sequence_journeys(path,clock=time.time,*,stage_ownership=False, remote
                     'aliases':['primary crm','crm a'] if primary else ['secondary crm','crm b']})
             profiles.append({'key':key,'organization':native,'profile_id':profile.id,
                 'product_profile_id':installed.product.id,'label':installed.product.brand_name,
+                **({'profile_version':version} if current else {}),
                 'aliases':['iwoca','flexi loan','flexi-loan'] if key=='iwoca' else ['fielddesk','field desk'],
                 'connections':connections,'segments':[{'key':s.key,'label':s.label} for s in profile.taxonomy.segments]})
         return {'schema':'installed-conversational-sequences/v1','organization':organization,'profiles':profiles,
@@ -205,13 +214,14 @@ def build_sequence_journeys(path,clock=time.time,*,stage_ownership=False, remote
             'max_content_runs':3,'max_calls':15,'shared_conversation_call_limit':48,'authority':'none'}
     def capabilities(frozen,inspection):
         native=frozen['native_organization'];key=frozen['interpretation']['profile_key']
+        profile_version=next(p for p in frozen['catalogue']['profiles'] if p['key']==key).get('profile_version','v1')
         scoped_clock=clock if frozen['catalogue'].get('preparation_clock')=='real-invocation/v1' else lambda:store.simulation_time(frozen['organization'],frozen['id'])
-        directory=build_contact_directory(path,native,key,scoped_clock,read_only=inspection,remote_storage=remote_storage,_database=database)
-        audiences=build_audience_decisions(path,native,key,clock=scoped_clock,read_only=inspection,remote_storage=remote_storage,_database=database)
-        contexts=build_recipient_contexts(path,native,key,scoped_clock,read_only=inspection,remote_storage=remote_storage,_database=database)
+        directory=build_contact_directory(path,native,key,scoped_clock,read_only=inspection,remote_storage=remote_storage,_database=database,profile_version=profile_version)
+        audiences=build_audience_decisions(path,native,key,clock=scoped_clock,read_only=inspection,remote_storage=remote_storage,_database=database,profile_version=profile_version)
+        contexts=build_recipient_contexts(path,native,key,scoped_clock,read_only=inspection,remote_storage=remote_storage,_database=database,profile_version=profile_version)
         channels=build_channel_preparation(path,native,key,scoped_clock,read_only=inspection,
-                                           stage_ownership=stage_ownership,remote_storage=remote_storage,_database=database,gateway=_gateway)
-        sequence=build_sequence_simulation(path,native,key,scoped_clock,read_only=inspection,remote_storage=remote_storage,_database=database)
+                                           stage_ownership=stage_ownership,remote_storage=remote_storage,_database=database,gateway=_gateway,profile_version=profile_version)
+        sequence=build_sequence_simulation(path,native,key,scoped_clock,read_only=inspection,remote_storage=remote_storage,_database=database,profile_version=profile_version)
         def initialize_reviewers():
             roles=SqliteReviews(sequence.campaigns.store.database,scoped_clock,SqliteSimulatedDelivery)
             roles.initialize_actor(native,'local-operator',('operator',))
@@ -221,14 +231,14 @@ def build_sequence_journeys(path,clock=time.time,*,stage_ownership=False, remote
     return SequenceJourneys(store,host,OfflineSequenceInterpreter(),clock)
 
 
-def build_profile_preparation(path, organization, profile_key, clock=time.time):
+def build_profile_preparation(path, organization, profile_key, clock=time.time, *, profile_version='v1'):
     """Explicit unapproved fixture preparation. No tasks, model or release capabilities."""
     require_live_root(path)
     from acquisition.adapters.local_profiles import LocalProfiles, SyntheticProfileAudience
     from acquisition.adapters.sqlite.profile_drafts import SqliteProfileDrafts
     from acquisition.creative import ProfileCopyService
     from acquisition.workflows.profile_preparation import ProfilePreparation
-    profiles = LocalProfiles(organization, profile_key, Path(__file__).resolve().parents[2] / 'config/profiles')
+    profiles = LocalProfiles(organization, profile_key, Path(__file__).resolve().parents[2] / 'config/profiles', version=profile_version)
     database = Database(path)
     # Do not write any intermediate inputs into paused/verified or restored stores.
     from acquisition.adapters.sqlite.admission_guard import verified_required
@@ -633,8 +643,29 @@ def _workspace_knowledge(facts):
 
 
 def _workspace_assets():
-    facts = json.loads((Path(__file__).resolve().parents[2] / 'config/iwoca-product-facts-v1.json').read_text())
-    return {'product_facts': facts, 'knowledge': lambda: _workspace_knowledge(facts)}
+    def legacy_facts():
+        return json.loads((Path(__file__).resolve().parents[2] / 'config/iwoca-product-facts-v1.json').read_text())
+    return {'legacy_product_facts': legacy_facts, 'knowledge': lambda: _workspace_knowledge(legacy_facts())}
+
+
+def _company_workspace_knowledge():
+    """A context-free workspace projection never supplies a default company's facts."""
+    return {
+        'company_context': {'contract': 'company-context/v2', 'status': 'source_required'},
+        'agent_catalogue': {'schema': 'agent-catalogue/v1', 'skills': [], 'tools': [],
+                            'status': 'company_context_required'},
+        'playbooks': {'version': 'company-workspace/v2',
+            'purpose': 'Start from a saved company and campaign brief; proposals retain their source identity.',
+            'playbooks': [{'id': 'reviewed-company/v1', 'title': 'Use reviewed company context',
+                           'guidance': 'Select source assertions, factual wording and qualifications explicitly.'}],
+            'experiment': 'Define a channel-specific outcome and keep missing evidence unknown.'},
+        'product_facts': {'version': 'company-context/v2', 'product': 'Select a company brief',
+            'checked_on': '', 'review_by': '', 'verification': 'No company context selected.',
+            'sources': [], 'facts': [], 'required_qualification': '', 'cta': ''},
+        'editorial': {'version': 'company-workspace/v2', 'situations': {},
+            'rules': ['Use only the selected company context.', 'A proposal or model opinion grants no approval.']},
+        'learning': 'Outcomes and recommendations remain scoped to their original channel and campaign.',
+    }
 
 
 def workspace_key(path=None):
@@ -687,12 +718,15 @@ class ScopedWorkspaceApplications:
                      model_config=model_config, workspace_organization='local-conversations', verified_admissions=verified)
 
 
-def build_workspace(root, real_clock=time.time, *, verified_admissions=False, model_sessions=None, gateway_factory=None):
+def build_workspace(root, real_clock=time.time, *, verified_admissions=False, model_sessions=None, gateway_factory=None,
+                    new_work_contract='company-context/v2'):
     from threading import RLock
     from acquisition.application.workspace import Workspace
+    from acquisition.conversations import validate_company_contract, COMPANY_CONTEXT_CONTRACT
     from acquisition.adapters.models.workspace_sessions import WorkspaceSessions
     from acquisition.workflows.preparation_host import WorkspacePreparationHost
     if type(verified_admissions) is not bool:raise ValueError('Choose an explicit admission mode')
+    validate_company_contract(new_work_contract)
     root = Path(root)
     require_live_root(root)
     root.mkdir(parents=True, exist_ok=True)
@@ -706,11 +740,15 @@ def build_workspace(root, real_clock=time.time, *, verified_admissions=False, mo
         lambda *a, **k: workspace.draft_generation(*a, **k),
         Workspace._run_generation, models, lock)
     legacy = build_preparations(root / 'workspace.sqlite', host)
+    assets = _workspace_assets()
+    if new_work_contract == COMPANY_CONTEXT_CONTRACT:
+        assets = assets | {'knowledge': _company_workspace_knowledge}
     workspace = Workspace(root, real_clock, applications=ScopedWorkspaceApplications(root, real_clock),
-                          state_access=state, models=models, assets=_workspace_assets(), lock=lock,
+                          state_access=state, models=models, assets=assets, lock=lock,
                           legacy_preparations=legacy,
                           owned_preparations=lambda: build_preparations(root / 'conversations.sqlite', host, authoritative=True),
-                          preparation_host=host, sequence_journeys=lambda: build_sequence_journeys(root / "conversations.sqlite", real_clock), verified_admissions=verified_admissions)
+                          preparation_host=host, sequence_journeys=lambda contract=new_work_contract: build_sequence_journeys(root / "conversations.sqlite", real_clock,new_work_contract=contract), verified_admissions=verified_admissions,
+                          new_work_contract=new_work_contract)
     return workspace
 
 

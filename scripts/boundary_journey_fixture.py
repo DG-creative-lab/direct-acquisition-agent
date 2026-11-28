@@ -84,7 +84,9 @@ def verify_rebuild_replay(case, directory, evidence):
 
 
 def replay_verified(directory):
-    from acquisition.bootstrap import build_workspace
+    from functools import partial
+    from acquisition.bootstrap import build_workspace as _build_workspace
+    build_workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
     from acquisition.contracts import Conflict
     data = json.loads((directory / 'replay-input.json').read_text())
     w = build_workspace(Path(data['root']), real_clock=lambda: data['clock'])
@@ -125,7 +127,9 @@ def uncertain(directory):
 
 
 def replay_uncertain(directory):
-    from acquisition.bootstrap import build_workspace
+    from functools import partial
+    from acquisition.bootstrap import build_workspace as _build_workspace
+    build_workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
     from scripts.evaluate_conversational_agent import NOW
     with patch('acquisition.bootstrap.workspace_gateway', side_effect=AssertionError('Repeated uncertain provider call')):
         w = build_workspace(directory / 'workspace', real_clock=lambda: NOW)

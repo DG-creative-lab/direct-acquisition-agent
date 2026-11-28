@@ -7,7 +7,9 @@ from unittest.mock import patch
 from acquisition.bootstrap import build
 from acquisition.contracts import NotFound, digest
 from acquisition.reasoning import ModelConfig
-from acquisition.bootstrap import build_workspace as Workspace
+from functools import partial
+from acquisition.bootstrap import build_workspace as _build_workspace
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 from test_conversations import PlannerModel
 
 

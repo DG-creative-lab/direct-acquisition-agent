@@ -204,6 +204,8 @@ class SqliteAdmissions:
                 if old['inputs']!=inputs:raise Conflict('Planning request already binds different inputs or consent')
                 return self._request_intent(old)
             source=planning_source(db,organization,conversation_id)
+            from .company_contexts import require_planning_company_source
+            require_planning_company_source(db,organization,conversation_id,revision)
             self._current(db,organization,conversation_id,revision,source)
             self._available(db,organization,conversation_id,revision,own_request=native_request,admission_request_id=request_id)
             intent=planning_intent(organization,request_id,source,context,planning_results(db,organization,conversation_id),

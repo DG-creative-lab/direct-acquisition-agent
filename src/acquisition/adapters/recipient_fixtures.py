@@ -36,9 +36,14 @@ class RecordedRecipientContextSource:
         return json.loads(self._manifests[key])
 
 
-def synthetic_recipient_evidence(snapshot):
+def synthetic_recipient_evidence(snapshot, *, fixture_version='v1'):
+    if fixture_version not in {'v1','v2'}:raise ValueError('Select an installed synthetic evidence version')
     observed = datetime(2026,11,13,tzinfo=timezone.utc).timestamp()-1800
     expiry = datetime(2026,11,24,tzinfo=timezone.utc).timestamp()
+    current = fixture_version == 'v2'
+    if current:
+        observed = snapshot.observed_at + 1800
+        expiry = snapshot.expires_at
     accounts = {a.ref.id:a for a in snapshot.accounts}
     for person in snapshot.contacts:
         account = accounts[person.accounts[0].id]
@@ -57,8 +62,8 @@ def synthetic_recipient_evidence(snapshot):
                     documents.append(RecipientDocument(slot,kind,body))
                     subject = target.contact if slot in {'contact_role','prior_interaction'} else target.account
                     facts.append(RecipientFact(subject.id,slot,code,
-                        None if slot=='contact_role' or state!='asserted' else '2026-11-12',slot,0,len(body),
+                        None if slot=='contact_role' or state!='asserted' else ('2026-11-26' if current else '2026-11-12'),slot,0,len(body),
                         observed+(version-1)*60 if slot=='contact_role' else observed,expiry,
-                        ('email:acquisition','human_call:acquisition'),'synthetic-review-v1',state))
+                        ('email:acquisition','human_call:acquisition'),'synthetic-review-v2' if current else 'synthetic-review-v1',state))
                 yield RecipientEvidence(target,key,version,observed+(version-1)*60,expiry,
                     ('email:acquisition','human_call:acquisition'),version!=4,4,4,tuple(documents),tuple(facts))

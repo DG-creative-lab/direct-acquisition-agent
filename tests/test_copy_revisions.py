@@ -22,7 +22,9 @@ from acquisition.creative.grounding import product_suffix
 from acquisition.reasoning import ModelError
 from acquisition.reviews import ReviewPolicy
 from acquisition.runtime import LeaseLost, TaskSpec
-from acquisition.bootstrap import build_workspace as Workspace
+from functools import partial
+from acquisition.bootstrap import build_workspace as _build_workspace
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 from test_preparations import CombinedModel
 from test_model_copy import reply
 
@@ -440,7 +442,9 @@ class CopyRevisionTests(unittest.TestCase):
         code = '''
 import sys
 from unittest.mock import patch
-from acquisition.bootstrap import build_workspace as Workspace
+from functools import partial
+from acquisition.bootstrap import build_workspace as _build_workspace
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 from test_copy_revisions import RevisionModel
 with patch('acquisition.bootstrap.workspace_key', return_value='fake'), patch('acquisition.bootstrap.workspace_gateway', return_value=RevisionModel()):
     w=Workspace(sys.argv[1], real_clock=lambda:1792972800.0)

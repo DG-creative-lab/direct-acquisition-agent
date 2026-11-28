@@ -83,7 +83,7 @@ class ReviewRegressions(unittest.TestCase):
         with patch("acquisition.bootstrap.workspace_gateway", return_value=model), \
              patch("acquisition.bootstrap.workspace_key", return_value="fixture-not-a-key"), \
              patch("acquisition.bootstrap.build", side_effect=lambda path, **kwargs: build(path, clock=lambda: self.now, **kwargs)):
-            run = cli("create-model", "--size", "100")["run_id"]
+            run = cli("create-model", "--legacy-product-contract", "legacy-fixed-product/v1", "--size", "100")["run_id"]
             self.assertEqual(cli("work")["worker_ticks"], 0)
             state = cli("status", "--run", run)
             self.assertEqual(state["run"]["status"], "queued")

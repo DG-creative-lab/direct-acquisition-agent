@@ -10,7 +10,9 @@ from unittest.mock import patch
 
 from acquisition.adapters.sqlite.conversations import SqliteConversations
 from acquisition.contracts import Conflict, canonical
-from acquisition.bootstrap import build_workspace as Workspace
+from functools import partial
+from acquisition.bootstrap import build_workspace as _build_workspace
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 import test_conversation_handoff as handoff_tests
 
 
@@ -96,7 +98,9 @@ class LegacyFollowupScopeTests(unittest.TestCase):
                     if source == 'current':
                         code = """import sys
 from acquisition.contracts import Conflict
-from acquisition.bootstrap import build_workspace as Workspace
+from functools import partial
+from acquisition.bootstrap import build_workspace as _build_workspace
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 w=Workspace(sys.argv[1],real_clock=lambda:1792972800.)
 assert w.propose_followup(sys.argv[2],'legacy-proposal',sys.argv[3])['id']==sys.argv[4]
 try:w.propose_followup(sys.argv[2],'fresh-process-proposal',sys.argv[3])

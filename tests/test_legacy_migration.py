@@ -19,7 +19,9 @@ from acquisition.bootstrap import build, build_legacy_migration_inventory
 from acquisition.contracts import Conflict, canonical, digest
 from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.reasoning import ModelConfig, ModelError
-from acquisition.bootstrap import build_workspace as Workspace
+from functools import partial
+from acquisition.bootstrap import build_workspace as _build_workspace
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 from test_conversations import PlannerModel
 from test_legacy_inventory import rows
 

@@ -18,7 +18,9 @@ from acquisition.bootstrap import build
 from acquisition.campaigns import build_draft, brief_from
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.conversations import AudienceSelectionRejected, FIXTURE_MESSAGE
-from acquisition.bootstrap import build_workspace as Workspace
+from functools import partial
+from acquisition.bootstrap import build_workspace as _build_workspace
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 from test_preparations import CombinedModel
 
 
@@ -131,7 +133,9 @@ class ConversationAudienceTests(unittest.TestCase):
             self.w=Workspace(self.root,real_clock=lambda:self.now)
             view=self.finish();self.assertEqual(view['review']['manifest']['counts']['input'],100)
         code='''import json,sys
-from acquisition.bootstrap import build_workspace as Workspace
+from functools import partial
+from acquisition.bootstrap import build_workspace as _build_workspace
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 w=Workspace(sys.argv[1],real_clock=lambda:1793404800.)
 v=w.conversation(sys.argv[2]);s=w.view(v['campaigns'][0]['session_id'])
 print(json.dumps(s['review']['manifest']['brief']['audience_source']))
@@ -248,7 +252,7 @@ print(json.dumps(s['review']['manifest']['brief']['audience_source']))
             self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],6)
             self.assertIsNone(db.execute("SELECT name FROM sqlite_master WHERE name='conversation_audiences'").fetchone())
         with Database(path).connect() as db:
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],27)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],28)
             self.assertEqual(tuple(db.execute('SELECT * FROM legacy_task_admissions').fetchone()),('o','historical','original'))
 
     def test_expiry_during_inference_prevents_more_calls_and_draft_commit(self):

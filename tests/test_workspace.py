@@ -15,7 +15,9 @@ from pathlib import Path
 from unittest.mock import patch
 from uuid import uuid4
 
-from acquisition.bootstrap import build_workspace as Workspace
+from functools import partial
+from acquisition.bootstrap import build_workspace as _build_workspace
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 from acquisition.application.workspace import MonitoringRejected
 from acquisition.entrypoints.workspace import WorkspaceServer, main
 from acquisition.contracts import Conflict, NotFound

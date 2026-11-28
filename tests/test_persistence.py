@@ -257,7 +257,7 @@ class PersistenceTests(unittest.TestCase):
                                      "--organization", "one", *arguments], env=environment,
                                     text=True, capture_output=True, check=True)
             return json.loads(result.stdout)
-        run = cli("create", "--size", "100")["run_id"]
+        run = cli("create", "--legacy-product-contract", "legacy-fixed-product/v1", "--size", "100")["run_id"]
         self.assertEqual(cli("work")["worker_ticks"], 3)
         waiting = cli("status", "--run", run)
         self.assertEqual(waiting["run"]["status"], "waiting")

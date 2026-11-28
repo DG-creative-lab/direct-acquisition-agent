@@ -368,6 +368,10 @@ class SqliteSequenceJourneys:
             old=saved_journey(db,organization,existing[0])
             if old['inputs']!=frozen:raise Conflict('Sequence admission changed while resolving the request')
             return old
+        if dict(source).get('product_contract') == 'company-context/v2':
+            profiles=frozen['catalogue']['profiles']
+            if any(p['key']!='fielddesk' or p.get('profile_version')!='v2' for p in profiles):
+                raise Conflict('New company-context work requires the current fictional catalogue or a saved company brief')
         if db.execute('SELECT 1 FROM sequence_journeys WHERE organization=? AND conversation_id=? AND revision=?',(organization,frozen['conversation_id'],frozen['revision'])).fetchone():
             raise Conflict('This revision already has its original sequence admission')
         if source['revision']!=frozen['revision'] or messages(db,organization,frozen['conversation_id'])!=frozen['messages']:

@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 
 from acquisition.conversations import IntakePlanningRejected, ACTIVE_PREPARATION, AudienceSelectionRejected, ActionNotSaved, pending_copy_clarification, EnvironmentIntent, FIXTURE_MESSAGE, TYPED_ACTION_ALIASES, action_alias
 from acquisition.conversations import MessageRejectedConflict, MessageRejectedInvalid, MessageRejectedNotFound, postal_request, sequence_language
+from acquisition.conversations import COMPANY_CONTEXT_CONTRACT, LEGACY_COMPANY_CONTRACT, CompanyContextRequired, validate_company_contract, require_company_source
 from .ports import WorkspaceStorageUnavailable, WorkspaceApplications, WorkspaceModelSessions
 from .state import WorkspaceStateAccess
 from .intake import WorkspaceIntake
@@ -34,9 +35,11 @@ class MonitoringRejected(ValueError):
 
 class Workspace(WorkspaceViews):
     def __init__(self, root, real_clock, *, applications: WorkspaceApplications, state_access: WorkspaceStateAccess, models: WorkspaceModelSessions, assets, lock,
-                 legacy_preparations, owned_preparations, preparation_host, sequence_journeys, verified_admissions=False):
+                 legacy_preparations, owned_preparations, preparation_host, sequence_journeys, verified_admissions=False,
+                 new_work_contract=COMPANY_CONTEXT_CONTRACT):
         if type(verified_admissions) is not bool:raise ValueError('Choose an explicit admission mode')
         self._requested_verified = verified_admissions
+        self.new_work_contract = validate_company_contract(new_work_contract)
         self.real_clock = real_clock
         self.root = root
         self.lock = lock
@@ -53,9 +56,14 @@ class Workspace(WorkspaceViews):
         self._sequence_journeys = None
         self.preparation_host = preparation_host
         self._authority = None
-        self.pack = assets['product_facts']
+        self._legacy_product_facts = assets['legacy_product_facts']
         self._knowledge = assets['knowledge']
         self.youtube_origin = 'http://127.0.0.1:8768'
+
+    @property
+    def pack(self):
+        """Original fixed-product evidence, resolved only for compatibility operations."""
+        return self._legacy_product_facts()
 
     @property
     def authority(self):
@@ -159,7 +167,8 @@ class Workspace(WorkspaceViews):
     def listing(self):
         sessions=self._sessions(reverse=True)[:50]
         return {"sessions": [{k: s[k] for k in ("id", "name", "mode", "created_at", "case_id")} for s in sessions],
-                "mode": "LOCAL_SYNTHETIC_SANDBOX", "hosted_authentication": False}
+                "mode": "LOCAL_SYNTHETIC_SANDBOX", "hosted_authentication": False,
+                "new_work_contract": self.new_work_contract}
 
     def _conversation_app(self, with_model=False, *, model_config=None):
         # Scope and database location are server-owned, never model/browser input.
@@ -245,7 +254,10 @@ class Workspace(WorkspaceViews):
             self.sequence_journeys.store.interaction('local-conversations',conversation_id,rows[-1]['id'],
                 request_id,expected_revision,content,stop=stopping)
             return self.conversation(conversation_id)
-        row=self.sequence_journeys.send('local-conversations',conversation_id,request_id,expected_revision,content,allow_generation)
+        source=self._conversation_app().conversations.store.snapshot('local-conversations',conversation_id)
+        contract=source.get('product_contract',LEGACY_COMPANY_CONTRACT)
+        journeys=(self.sequence_journeys if contract==self.new_work_contract else self._sequence_journey_factory(contract))
+        row=journeys.send('local-conversations',conversation_id,request_id,expected_revision,content,allow_generation)
         return self.conversation(conversation_id)|{'message_receipt':{'id':request_id,'revision':row['inputs']['revision']}}
 
     def sequence_command(self,conversation_id,kind,journey_id,request_id,expected_revision,**fields):
@@ -505,6 +517,7 @@ class Workspace(WorkspaceViews):
         if postal_transition:return self.message_conversation(conversation_id,request_id,expected_revision,content)
         if sequence is not None:return sequence
         app=self._conversation_app();old=app.actions.store.request('local-conversations',conversation_id,request_id)
+        if old is None:self._require_company_context(conversation_id)
         try:
             context=old['context'] if old else self.action_context(conversation_id,expected_revision)
             if self.models.binding and old is None and type(content) is str:
@@ -720,7 +733,13 @@ class Workspace(WorkspaceViews):
 
 
     def create_conversation(self, request_id, title):
-        return self._conversation_app().conversations.create("local-conversations", request_id, title)
+        return self._conversation_app().conversations.create("local-conversations", request_id, title,
+                                                            product_contract=self.new_work_contract)
+
+    def _require_company_context(self, conversation_id):
+        source = self._conversation_app().conversations.store.snapshot('local-conversations', conversation_id)
+        require_company_source(source.get('product_contract', LEGACY_COMPANY_CONTRACT),
+                               source.get('intake_source'))
 
     @staticmethod
     def _preparation_scope(organization):
@@ -728,6 +747,7 @@ class Workspace(WorkspaceViews):
             raise NotFound("Conversation organization is not available in this workspace")
 
     def freeze_preparation_plan(self, organization, conversation_id, request_id, revision, fixture, model_config=None):
+        self._require_company_context(conversation_id)
         return self.preparation_host.freeze_preparation_plan(organization, conversation_id, request_id, revision, fixture, model_config)
 
     def admit_preparation_plan(self, organization, row):
@@ -878,6 +898,7 @@ class Workspace(WorkspaceViews):
         return self.preparation_host.preparation_generation(organization, row)
 
     def start_preparation(self, conversation_id, request_id, expected_revision, fixture, allow_model_copy, use_audience_catalogue=False):
+        self._require_company_context(conversation_id)
         self.preparations.admit("local-conversations", conversation_id, request_id, expected_revision, fixture, allow_model_copy, use_audience_catalogue)
         return self.conversation(conversation_id)
 
@@ -1023,6 +1044,7 @@ class Workspace(WorkspaceViews):
                                                                   expected_revision, plan_id, content)
 
     def plan_conversation(self, conversation_id, request_id, expected_revision, *, replay_only=False):
+        self._require_company_context(conversation_id)
         with self.lock:
             scope = "local-conversations"
             native = self._conversation_app()
@@ -1043,6 +1065,7 @@ class Workspace(WorkspaceViews):
             return app.conversations.view("local-conversations", conversation_id)
 
     def plan_conversation_fixture(self, conversation_id, request_id, expected_revision):
+        self._require_company_context(conversation_id)
         with self.lock:
             app = self._conversation_app()
             run_id = app.conversations.plan_fixture("local-conversations", conversation_id, request_id, expected_revision)
@@ -1050,6 +1073,7 @@ class Workspace(WorkspaceViews):
             return app.conversations.view("local-conversations", conversation_id)
 
     def draft_conversation(self, conversation_id, request_id, expected_revision, plan_id, *, partial=False):
+        self._require_company_context(conversation_id)
         identifier(conversation_id), identifier(request_id), identifier(plan_id)
         if type(expected_revision) is not int or expected_revision < 1:
             raise ValueError("Select a current conversation revision")
@@ -1202,6 +1226,13 @@ class Workspace(WorkspaceViews):
             raise ValueError("Choose fixture or model copy")
         identity = "workspace_" + digest({"request_id": request_id})[:24]
         fingerprint = digest({"mode": mode, "parent_id": parent_id})
+        if self.new_work_contract == COMPANY_CONTEXT_CONTRACT and parent_id is None:
+            # Old command replays retain their exact intent. A fresh request
+            # cannot implicitly select the fixed-product v1 campaign.
+            saved = self.authority.get(identity) if self._verified_mode() else None
+            if saved is None and self.control_store.session(identity) is None:
+                raise CompanyContextRequired('Start with Company & brief or the fictional YouTube example. '
+                                             'New campaigns no longer select a default financial product.')
         if self._verified_mode():
             with self.lock:
                 self._legacy_collision(identity)

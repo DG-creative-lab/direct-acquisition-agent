@@ -255,7 +255,7 @@ class IntakePlanningTests(unittest.TestCase):
             self.assertEqual([tuple(row) for row in db.execute('SELECT * FROM intake_requests ORDER BY request_id')],before)
         Database(self.path)
         with Database.existing(self.path).connect() as db:
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],27)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],28)
             self.assertEqual(db.execute('SELECT id FROM application_store_identity').fetchone()[0],original_id)
             self.assertEqual([tuple(row) for row in db.execute('SELECT * FROM intake_requests ORDER BY request_id')],before)
             self.assertEqual(db.execute('PRAGMA foreign_key_check').fetchall(),[])

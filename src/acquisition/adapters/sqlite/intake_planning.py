@@ -154,8 +154,15 @@ class SqliteIntakePlanning:
                 {'id':request_id,'revision':revision,'role':'user','content':intake_source_message(source),'created_at':now}]
             preflight(source, future_messages)
             if conversation is None:
-                db.execute('INSERT INTO conversations VALUES(?,?,?,?,0,?)',
-                           (organization, conversation_id, native_key, 'Saved campaign brief planning', now))
+                columns={row[1] for row in db.execute('PRAGMA table_info(conversations)')}
+                values=(organization,conversation_id,native_key,'Saved campaign brief planning',now)
+                if 'product_contract' in columns:
+                    db.execute('INSERT INTO conversations(organization,id,request_id,title,revision,created_at,product_contract) VALUES(?,?,?,?,0,?,?)',
+                               (*values,'company-context/v2'))
+                else:
+                    # Original pre-28 intake writers have no creation-policy marker.
+                    # Their immutable selected source and request bytes stay v1.
+                    db.execute('INSERT INTO conversations(organization,id,request_id,title,revision,created_at) VALUES(?,?,?,?,0,?)',values)
             db.execute('INSERT INTO conversation_messages VALUES(?,?,?,?,?,?)',
                        (organization, conversation_id, request_id, revision, intake_source_message(source), now))
             db.execute('UPDATE conversations SET revision=? WHERE organization=? AND id=?',

@@ -6,6 +6,10 @@ platform requirements. Start with the [examples index](../examples/README.md)
 for company-independent demonstrations. The [product overview](product.md)
 separates installed capabilities and the broader product direction.
 
+These screens describe saved v1 work and explicitly composed compatibility
+servers. The normal new workspace opens Company & brief and does not offer a
+fresh fixed-product campaign. See the [creation migration](company-context-migration.md).
+
 For other workflows:
 
 - [YouTube preparation](youtube-preparation.md) covers authored placement drafts,
@@ -155,7 +159,7 @@ For a standalone application database:
 
 ```bash
 PYTHONPATH=src python3 -m acquisition --db .local/verified.sqlite admission-cutover
-PYTHONPATH=src python3 -m acquisition --db .local/verified.sqlite create --request-id example
+PYTHONPATH=src python3 -m acquisition --db .local/verified.sqlite create --legacy-product-contract legacy-fixed-product/v1 --request-id example
 PYTHONPATH=src python3 -m acquisition --db .local/verified.sqlite work
 ```
 

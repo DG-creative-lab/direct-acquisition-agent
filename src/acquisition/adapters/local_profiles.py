@@ -14,13 +14,15 @@ from .synthetic import generate
 
 
 class LocalProfiles:
-    def __init__(self, organization, key, root: Path):
+    def __init__(self, organization, key, root: Path, *, version='v1'):
         # Caller configuration selects installed keys, never filesystem paths or code.
-        installed = {'iwoca': 'iwoca-v1.json', 'fielddesk': 'fielddesk-v1.json'}
-        if key not in installed or not organization:
+        installed = {('iwoca', 'v1'): 'iwoca-v1.json',
+                     ('fielddesk', 'v1'): 'fielddesk-v1.json',
+                     ('fielddesk', 'v2'): 'fielddesk-v2.json'}
+        if (key, version) not in installed or not organization:
             raise NotFound('Unknown installed organization profile')
-        data = json.loads((root / installed[key]).read_text())
-        if data['schema'] != 'installed-profile/v1' or data['key'] != key or data['version'] != 'v1':
+        data = json.loads((root / installed[(key, version)]).read_text())
+        if data['schema'] != 'installed-profile/v1' or data['key'] != key or data['version'] != version:
             raise ValueError('Unsupported installed profile version')
         taxonomy = taxonomy_from(data['taxonomy'])
         product = product_profile_from(data['product_profile'])

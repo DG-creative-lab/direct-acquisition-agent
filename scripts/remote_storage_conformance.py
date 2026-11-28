@@ -41,11 +41,14 @@ def register_probe():
         local = Database(Path(root)/'expected.sqlite')
         with local.transaction() as db:
             # The diagnostic probe predates intake. Compare its exact old shape;
-            # production initialization then migrates the registered store to v27.
+            # production initialization then migrates the registered store to v28.
             for table in ('youtube_revocations','youtube_approvals','youtube_results','youtube_interactions',
                           'youtube_preparations','youtube_requests','youtube_revisions',
                           'preparation_contexts','intake_planning_sources', 'intake_requests', 'intake_brief_revisions', 'intake_company_revisions'):
                 db.execute('DROP TABLE ' + table)
+            db.execute('DROP TRIGGER conversation_company_contract_immutable')
+            db.execute('DROP TRIGGER conversation_company_contract_no_replace')
+            db.execute('ALTER TABLE conversations DROP COLUMN product_contract')
             db.execute('PRAGMA user_version=23')
             expected = {r['name']:schema_tokens(r['sql']) for r in db.execute(
                 "SELECT name,sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%'")}
@@ -123,7 +126,7 @@ def run(key):
     except sqlite3.IntegrityError:pass
     else:raise AssertionError('Constraint did not reject transaction')
     with store.database.connect() as db:
-        assert db.execute('PRAGMA user_version').fetchone()[0]==27
+        assert db.execute('PRAGMA user_version').fetchone()[0]==28
         assert db.execute("SELECT 1 FROM sqlite_master WHERE name=?",(marker,)).fetchone() is None
         assert db.execute('SELECT count(*) FROM runs WHERE organization=?',(org,)).fetchone()[0]==2
         assert db.execute('SELECT count(*) FROM execution_admissions WHERE organization=?',(org,)).fetchone()[0]==2

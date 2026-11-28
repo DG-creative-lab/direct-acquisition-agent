@@ -14,7 +14,9 @@ from acquisition.bootstrap import build
 from acquisition.contracts import Conflict
 from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.reasoning import ModelConfig
-from acquisition.bootstrap import build_workspace as Workspace
+from functools import partial
+from acquisition.bootstrap import build_workspace as _build_workspace
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 import test_admission_workflow_coverage as coverage
 import test_copy_revisions as revisions
 
@@ -248,7 +250,7 @@ class LegacyReplayTests(unittest.TestCase):
         env=dict(os.environ,PYTHONPATH=str(Path('src').resolve()))
         def replay(size):
             return subprocess.run([sys.executable,'-m','acquisition','--db',str(self.path),'--organization','one',
-                'create','--request-id','legacy','--size',str(size)],env=env,capture_output=True,text=True,timeout=20)
+                'create', "--legacy-product-contract", "legacy-fixed-product/v1",'--request-id','legacy','--size',str(size)],env=env,capture_output=True,text=True,timeout=20)
         result=replay(20)
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertEqual(json.loads(result.stdout)['run_id'],run)

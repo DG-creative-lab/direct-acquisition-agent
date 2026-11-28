@@ -13,7 +13,9 @@ from acquisition.bootstrap import initialize_fixture_workspace
 from acquisition.contracts import Conflict, NotFound, digest
 from acquisition.reasoning import ModelError
 from acquisition.conversations import FIXTURE_MESSAGE
-from acquisition.bootstrap import build_workspace as Workspace
+from functools import partial
+from acquisition.bootstrap import build_workspace as _build_workspace
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 from test_conversation_actions import _set_up_workspace
 from test_conversations import proposal
 from test_preparations import CombinedModel
@@ -23,7 +25,9 @@ import test_conversation_learning as learning_tests
 def restart(test, conversation_id, action_id, *, confirmed=False):
     script = """
 import json, sys
-from acquisition.bootstrap import build_workspace as Workspace
+from functools import partial
+from acquisition.bootstrap import build_workspace as _build_workspace
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 root, cid, action_id, clock, confirm = sys.argv[1:]
 w = Workspace(root, real_clock=lambda: float(clock))
 if confirm == 'True':

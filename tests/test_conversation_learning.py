@@ -62,7 +62,9 @@ class ConversationLearningTests(unittest.TestCase):
         with control_connection(self.w) as db:
             db.execute('UPDATE commands SET done=0 WHERE session_id=? AND request_id=?',(self.sid,'final'))
         code = """import sys,json
-from acquisition.bootstrap import build_workspace as Workspace
+from functools import partial
+from acquisition.bootstrap import build_workspace as _build_workspace
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 w=Workspace(sys.argv[1],real_clock=lambda:1792972800.0)
 s=w.action(sys.argv[2],'finalize',json.loads(sys.argv[3]))
 print(json.dumps(s['learning']))

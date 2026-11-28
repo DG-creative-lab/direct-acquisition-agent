@@ -1,4 +1,7 @@
 from .budgets import BUDGET_POLICY, SUPPORTED_BUDGET_POLICIES, budget_clarification, budget_response, non_total_budget_reference
+from .company_context import (COMPANY_CONTEXT_CONTRACT, LEGACY_COMPANY_CONTRACT,
+                              COMPANY_CONTRACTS, CompanyContextRequired,
+                              validate_company_contract, require_company_source)
 from .workspace_state import WorkspaceState, EnvironmentIntent, ENVIRONMENT_SCHEMA, WORKSPACE_OWNER, environment_time, preparation_record
 from .projection import WorkspaceProjectionRebuild, PROJECTION_SCHEMA
 from .legacy_migration import LegacyMigrationInventory, MIGRATION_PLAN_SCHEMA, MIGRATION_STORE
@@ -46,3 +49,6 @@ __all__ += ['intake_source_message', 'bind_intake_source']
 
 from .intake_planning_application import IntakePlanning, IntakePlanningRejected, IntakePlanningRejected
 __all__ += ['IntakePlanning', 'IntakePlanningRejected']
+
+__all__ += ['COMPANY_CONTEXT_CONTRACT', 'LEGACY_COMPANY_CONTRACT', 'COMPANY_CONTRACTS',
+            'CompanyContextRequired', 'validate_company_contract', 'require_company_source']
