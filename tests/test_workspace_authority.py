@@ -18,7 +18,9 @@ from acquisition.adapters.synthetic import generate
 from acquisition.campaigns import Brief
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.conversations import FIXTURE_MESSAGE, EnvironmentIntent
-from acquisition.bootstrap import build_workspace as Workspace
+from functools import partial
+from acquisition.bootstrap import build_workspace as _build_workspace
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 from acquisition.reviews import ActorUnavailable
 from acquisition.reasoning import ModelConfig
 from test_legacy_action_replay import durable_rows
@@ -452,7 +454,9 @@ class WorkspaceAuthorityTests(unittest.TestCase):
         session=self.create();cid,prep=self.prepare();app=self.app(session);before=durable_rows(app)
         (self.root/'workspace.sqlite').unlink()
         code='''import json,sys
-from acquisition.bootstrap import build_workspace as Workspace
+from functools import partial
+from acquisition.bootstrap import build_workspace as _build_workspace
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 w=Workspace(sys.argv[1],real_clock=lambda:1792972800.)
 print(json.dumps({'session':w._session(sys.argv[2]),'preparation':w.preparations.store.get('local-conversations',sys.argv[3])}))'''
         result=subprocess.run([sys.executable,'-c',code,str(self.root),session['id'],prep['id']],capture_output=True,text=True,timeout=20)

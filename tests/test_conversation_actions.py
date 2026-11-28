@@ -18,7 +18,9 @@ from prepared_workspace_fixture import prepared_workspace
 from acquisition.contracts import Conflict, NotFound, canonical, digest
 from acquisition.conversations import ActionNotSaved, FIXTURE_MESSAGE
 from acquisition.reasoning import ModelConfig, ModelError
-from acquisition.bootstrap import build_workspace as Workspace
+from functools import partial
+from acquisition.bootstrap import build_workspace as _build_workspace
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 from test_model_copy import reply
 from test_preparations import CombinedModel
 
@@ -582,7 +584,9 @@ class ConversationActionTests(unittest.TestCase):
     def test_saved_observation_survives_fresh_process_without_becoming_a_brief_message(self):
         self.ask()
         code='''import json,sys
-from acquisition.bootstrap import build_workspace as Workspace
+from functools import partial
+from acquisition.bootstrap import build_workspace as _build_workspace
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 w=Workspace(sys.argv[1],real_clock=lambda:1793404800.)
 v=w.conversation(sys.argv[2]);print(json.dumps({'revision':v['revision'],'messages':len(v['messages']),'answer':v['actions'][0]['result']['text']}))
 '''
@@ -707,7 +711,7 @@ v=w.conversation(sys.argv[2]);print(json.dumps({'revision':v['revision'],'messag
             self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],7)
             self.assertIsNone(db.execute("SELECT name FROM sqlite_master WHERE name='conversation_actions'").fetchone())
         with Database(path).connect() as db:
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],27)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],28)
             self.assertEqual([tuple(r) for r in db.execute('SELECT * FROM legacy_task_admissions')],cutoff)
             self.assertEqual(db.execute('SELECT payload FROM conversation_audiences WHERE organization=? AND conversation_id=?',('local-conversations',self.c)).fetchone()[0],source)
         self.assertTrue(self.w.view(self.sid)['review']['candidate_valid'])

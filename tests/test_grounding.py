@@ -190,7 +190,7 @@ class GroundingTests(unittest.TestCase):
         with patch("acquisition.bootstrap.workspace_gateway", return_value=self.model), \
              patch("acquisition.bootstrap.workspace_key", return_value="fake-not-a-key"), \
              patch("acquisition.bootstrap.build", side_effect=lambda path, **kwargs: build(path, clock=lambda: self.now, **kwargs)), \
-             patch("sys.argv", ["acquisition", "--db", str(self.root / "cli.sqlite"), "create-model", "--size", "100"]), \
+             patch("sys.argv", ["acquisition", "--db", str(self.root / "cli.sqlite"), "create-model", "--legacy-product-contract", "legacy-fixed-product/v1", "--size", "100"]), \
              redirect_stdout(StringIO()) as output:
             main()
         run = json.loads(output.getvalue())["run_id"]

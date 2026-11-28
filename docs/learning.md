@@ -1,5 +1,9 @@
 # Learning and outcome reference
 
+The CLI demonstrations below explicitly select the legacy postal fixture.
+Current company email and YouTube review use their own native subjects and
+sources. See the [creation migration](company-context-migration.md).
+
 The separate [registered external outcomes API/CLI](external-outcomes.md) records operator-attested postal/email assignments and local report snapshots. Its posterior results remain separate from synthetic cohorts and model memory. No live provider verification or sending is added.
 
 The learning module turns complete, mature synthetic outcome cohorts into persistent Bayesian counts and advisory experiment recommendations. Runtime, campaign selection, editorial preferences and approval remain separate.
@@ -7,7 +11,7 @@ The learning module turns complete, mature synthetic outcome cohorts into persis
 ## Run the demonstration
 
 ```sh
-PYTHONPATH=src python3 -m acquisition --db .local/learning-demo.sqlite demo-learning --out .local/learning-demo
+PYTHONPATH=src python3 -m acquisition --db .local/learning-demo.sqlite demo-learning --legacy-product-contract legacy-fixed-product/v1 --out .local/learning-demo
 ```
 
 Open `.local/learning-demo/learning.html`. The command also writes a pending report, outcome JSON, a learning JSON projection and the earlier review demonstration. It uses scripted reviewer decisions, simulated acceptance, synthetic response labels and a simulated 28-day clock. It does not wait 28 real days or claim real customer performance. Its deterministic organization is separate from the operator's organization. No model key or model requests are needed.

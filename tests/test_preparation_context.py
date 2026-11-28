@@ -242,7 +242,7 @@ os._exit(72)
         replay=reopened.preparation.confirm('one','writer','review',review)
         self.assertTrue(replay['replayed']);self.assertEqual(replay['context'],original)
         with reopened.store.database.connect() as db:
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],27)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],28)
             self.assertEqual(db.execute('SELECT payload FROM preparation_contexts').fetchone()[0],payload)
             self.assertEqual(db.execute('SELECT count(*) FROM youtube_revisions').fetchone()[0],0)
             self.assertEqual(db.execute('SELECT count(*) FROM model_calls').fetchone()[0],0)

@@ -13,7 +13,7 @@ def add_review_commands(commands):
     evidence = commands.add_parser("review-evidence", help="Activate a manually verified product pack and review policy")
     evidence.add_argument("--actor", required=True)
     evidence.add_argument("--request-id", required=True)
-    evidence.add_argument("--pack", type=Path, default=Path(__file__).resolve().parents[3] / "config/iwoca-product-facts-v1.json")
+    evidence.add_argument("--pack", type=Path, required=True)
     evidence.add_argument("--policy", type=Path)
     opened = commands.add_parser("review-open")
     opened.add_argument("--run", required=True)
@@ -47,6 +47,7 @@ def add_review_commands(commands):
     for key in ("actor", "request-id", "business", "reason"):
         suppression.add_argument("--" + key, required=True)
     demo = commands.add_parser("demo-review", help="Scripted synthetic reviewer decisions and a simulated agency")
+    demo.add_argument('--legacy-product-contract', choices=('legacy-fixed-product/v1',))
     demo.add_argument("--request-id", default="day-three")
     demo.add_argument("--out", type=Path, default=Path(".local/day-three"))
 

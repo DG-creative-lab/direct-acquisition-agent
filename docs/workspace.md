@@ -44,6 +44,20 @@ For frontend development, keep `make workspace` running and use `pnpm --dir fron
 
 ## Product and presentation
 
+New local conversations use [company-context/v2](company-context-migration.md).
+**New campaign** opens **Company & brief**. Knowledge has no globally selected
+company fact pack. The offline starter is the fictional Fielddesk v2 sequence;
+the authored YouTube draft remains separate. A generic request without a saved
+company source cannot enter the fixed financial-product planner. Unsupported
+work requires clarification or a supported channel, not a substituted company.
+
+Saved legacy conversations, postal review and their follow-up experiments retain
+the original v1 contracts. The optional model-copy and postal coordinator details
+below describe that compatibility path. They are not a promise that arbitrary
+company briefs can use the old postal generator. Reviewed company intake has its
+own planning, preparation-context and email review/export paths.
+
+
 The **Company & brief** navigation area saves user-supplied company/product drafts
 and campaign requirements in the local application store. Reopen/edit each saved
 record, explicitly select the company version behind a brief, and recover an
@@ -93,7 +107,7 @@ and standalone command names still work through thin compatibility wrappers.
 The full wrapper inventory is in [architecture](architecture.md#compatibility-wrapper-inventory).
 Canonical application, adapter and composition code cannot import those wrappers.
 
-Each root has a small separate `workspace.sqlite` control store for session metadata, command identities and scoped preparation records, plus existing application databases under sandbox directories. The application schema is v17; the compatibility control-store layout remains separate. Descendant experiments share their parent's organization/application database to retain scoped learning; independent campaigns have separate sandboxes. Organization and database paths are resolved from server-owned metadata, never supplied by action payloads.
+Each root has a small separate `workspace.sqlite` control store for session metadata, command identities and scoped preparation records, plus existing application databases under sandbox directories. The application schema is v28; the compatibility control-store layout remains separate. Descendant experiments share their parent's organization/application database to retain scoped learning; independent campaigns have separate sandboxes. Organization and database paths are resolved from server-owned metadata, never supplied by action payloads.
 
 Conversation messages, planning requests and conversation-origin campaign review use `<root>/conversations.sqlite`. Conversation records use a fixed local conversation scope; each independent campaign has its own organization scope in the same database, so review can check its source revision transactionally without mixing learning cohorts. A follow-up experiment inherits its parent's database and organization. Local actors are initialized only when absent, preserving subsequent administrative changes. The [conversation API and CLI](conversations.md) provide access. Reading and appending messages make no model request. Free-text planning explicitly invokes OpenRouter; the fixed offline example does not. The React assistant admits a persistent preparation coordinator from the current brief and continues to an unapproved campaign. A per-request option permits bounded model copy; without it, model-copy proposals stop for consent. Read-only polling shows task progress and terminal recovery guidance. Reload and navigation never dispatch inference. An interrupted unresolved reservation becomes uncertain on server restart. Approval and simulated acceptance remain explicit operations. The chat can display the campaign, record exact-subject review and admit targeted grounded-copy feedback. After valid approval, chat offers a separate confirmation for simulated handoff through the existing session endpoint, followed by receipt and exact accepted exports. Saved confirmations and command keys support explicit recovery after a lost response. Feedback requires separate generation consent and uses the existing bounded background executor. Accepted campaigns also expose synthetic learning in chat through explicit confirmations bound to the acceptance and cohort. Saved learning requests retain their exact command identities across reload.
 

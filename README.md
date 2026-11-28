@@ -40,11 +40,12 @@ For early conversations, use the [design-partner brief](docs/product-discovery.m
 
 ## What you can try now
 
-- Save Company & brief drafts and inspect the exact context behind a proposal.
+- Start new work in Company & brief and inspect the selected source versions.
+  New conversations have no default company or financial product.
 - Prepare, edit, review and manually export an authored YouTube placement package
   from chat. Its catalogue is fictional and its comparison media is prerecorded.
 - Inspect the fictional Fielddesk [recorded preparation example](examples/fielddesk-profile/README.md)
-  or rehearse its synthetic email/human-call sequence. The legacy postal
+  or try the current fictional v2 email/human-call sequence from chat. The legacy postal
   simulation remains a separate compatibility workflow.
 - Inspect recorded postal/email results through the external outcomes API/CLI.
   These are operator-attested records, not an authenticated provider feed.
@@ -59,6 +60,9 @@ user's explicitly reviewed company assertions. Authored specifications are not
 externally verified product facts. The application sends no mail, makes no calls
 and buys no advertising. Older fixed-product fixtures are retained only as
 [legacy compatibility material](docs/legacy-product-demo.md).
+
+New workspace creation and saved v1 compatibility are separated by the
+[company-context migration](docs/company-context-migration.md).
 
 ## Try it locally
 

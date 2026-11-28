@@ -25,7 +25,7 @@ def main():
     parser.add_argument('--seed', type=int, default=42)
     args = parser.parse_args()
     try:
-        service = build_profile_preparation(args.db, args.organization, args.profile)
+        service = build_profile_preparation(args.db, args.organization, args.profile, profile_version=args.version)
         result = service.prepare(args.organization, args.request_id, args.profile, args.version,
             objective=args.objective, budget_pence=args.budget_pence, segments=tuple(args.segments),
             country=args.country, currency=args.currency, channel=args.channel, size=args.size, seed=args.seed)

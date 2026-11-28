@@ -283,5 +283,5 @@ class RemoteIntakeEmailTests(unittest.TestCase):
                 self.assertEqual(json.loads(data)['emails'],first['batch']['content']['rows'])
                 with reopened.store.database.connect() as db:
                     self.assertEqual(db.execute('SELECT count(*) FROM model_calls').fetchone()[0],0)
-                    self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],27)
+                    self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],28)
             finally:wire.close()

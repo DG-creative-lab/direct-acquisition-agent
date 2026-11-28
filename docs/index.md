@@ -46,7 +46,7 @@ live delivery when a model connection is present.
 | Audience source identity and selection | [Catalogue](audience-catalogue.md), [audience strategies](audience-strategies.md), [contact evidence](contact-evidence.md), [recipient context](recipient-context.md) |
 | Saved conversations, amendments and copy feedback | [Conversations](conversations.md), [follow-ups](conversational-actions.md), [targeted copy revision](conversational-copy-revision.md), [writing preferences](writing-preferences.md) |
 | Model connections and execution limits | [Model integration](model-integration.md), [agent contracts](agent-contracts.md), [execution controls](execution-controls.md), [budget clarification](budget-clarification.md) |
-| Admission, ownership and compatibility | [Run ownership](run-ownership-admission.md), [execution authority](execution-authority-decision.md), [requested scope](requested-campaign-scope.md), [legacy migration](legacy-migration.md), [checkpoints](workspace-checkpoints.md) |
+| Admission, ownership and compatibility | [Run ownership](run-ownership-admission.md), [execution authority](execution-authority-decision.md), [requested scope](requested-campaign-scope.md), [legacy migration](legacy-migration.md), [company-context migration](company-context-migration.md), [checkpoints](workspace-checkpoints.md) |
 | Presentation | [Branding](branding.md); the [workspace design](multichannel-workspace-design.md) describes the target experience |
 
 ## Direction and remaining delivery

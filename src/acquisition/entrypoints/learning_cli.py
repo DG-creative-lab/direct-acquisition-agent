@@ -39,6 +39,7 @@ def add_learning_commands(commands):
                     commands.add_parser("learning-monitor-tick", help="Check one due recorded report in a standalone store")):
         command.add_argument("--cohort", required=True)
     demo = commands.add_parser("demo-learning", help="Scripted synthetic outcomes with an isolated simulated clock")
+    demo.add_argument('--legacy-product-contract', choices=('legacy-fixed-product/v1',))
     demo.add_argument("--request-id", default="day-four")
     demo.add_argument("--out", type=Path, default=Path(".local/day-four"))
 

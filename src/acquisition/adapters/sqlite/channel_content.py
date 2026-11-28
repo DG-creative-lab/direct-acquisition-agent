@@ -116,7 +116,9 @@ class SqliteChannelContent:
         if not verified_origin:
             require_channel_context_origin(db,organization,context,recipient_origins=origins)
         command = ChannelContentRequest(**(context['command'] | {'recipient_requests':tuple(context['command']['recipient_requests'])}))
-        profile = self.profiles.campaign_profile(organization,command.profile_key,'v1')
+        profile = self.recipients.contacts._profile(organization)
+        if profile.key != command.profile_key:
+            raise Conflict('Channel context differs from its installed company profile')
         product = self.profiles.product_profile(organization,profile.product_profile_id)
         if (profile.id!=context['campaign_profile_id'] or canonical(asdict(product))!=canonical(context['product_profile'])
                 or self.profiles.product_material(organization,product.id)['pack']!=context['product_facts']
@@ -265,7 +267,7 @@ class SqliteChannelContent:
                         journey_command(db,organization,request_id)
                 return old['run_id']
             if command.profile_key!=self.profile_key: raise Conflict('Use the installed scoped channel profile')
-            profile = self.profiles.campaign_profile(organization,command.profile_key,'v1')
+            profile = self.recipients.contacts._profile(organization)
             product = self.profiles.product_profile(organization,profile.product_profile_id)
             recipients = self._recipients(db,organization,command)
             if command.parent_id is not None:

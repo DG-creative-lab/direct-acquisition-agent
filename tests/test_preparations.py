@@ -14,7 +14,9 @@ from uuid import uuid4
 from acquisition.contracts import Conflict, NotFound
 from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.reasoning import ModelError
-from acquisition.bootstrap import build_workspace as Workspace
+from acquisition.bootstrap import build_workspace as _build_workspace
+from functools import partial
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 from acquisition.application.workspace import ModelSelectionRejected, ModelSessionExpired
 from test_conversations import PlannerModel, proposal
 from test_model_copy import FakeModel, reply
@@ -253,7 +255,7 @@ class PreparationTests(unittest.TestCase):
     def test_real_process_restart_resumes_a_queued_fixture(self):
         self.admit(fixture=True)
         env = dict(os.environ, PYTHONPATH=str(Path("src").resolve()))
-        code = "from acquisition.bootstrap import build_workspace as Workspace; import sys; w=Workspace(sys.argv[1]); [w.advance_preparations() for _ in range(6)]"
+        code = "from functools import partial;from acquisition.bootstrap import build_workspace as _build_workspace;Workspace=partial(_build_workspace,new_work_contract='legacy-fixed-product/v1'); import sys; w=Workspace(sys.argv[1]); [w.advance_preparations() for _ in range(6)]"
         result = subprocess.run([sys.executable, "-c", code, str(self.root)], env=env, capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.w.conversation(self.c)["preparations"][0]["status"], "review_ready")
@@ -502,7 +504,9 @@ class PreparationTests(unittest.TestCase):
                 code = '''
 import sys
 from unittest.mock import patch
-from acquisition.bootstrap import build_workspace as Workspace
+from acquisition.bootstrap import build_workspace as _build_workspace
+from functools import partial
+Workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 w = Workspace(sys.argv[1])
 w.preparations.recover('local-conversations')
 with patch('acquisition.conversations.application.ConversationService._knowledge', side_effect=AssertionError('Do not rebuild frozen guidance')):

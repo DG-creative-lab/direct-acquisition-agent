@@ -70,6 +70,7 @@ type Plan = {
     id: string;
     content: {
       version?: string;
+      product?: string;
       procedures?: string[];
       playbooks?: {
         version: string;
@@ -150,6 +151,7 @@ const activePreparation = (status: string) =>
   ["admitting", "planning", "selecting_audience", "preparing"].includes(status);
 
 type Conversation = {
+  product_contract?: string;
   youtube_interactions?: {
     revision: number;
     operation_id: string;
@@ -232,6 +234,7 @@ const example =
   "Prepare a £600 direct-mail response experiment for UK contractors. Use offline copy fixtures.";
 
 export default function ConversationWorkspace({
+  companyContext,
   modelSession,
   onModelSelected,
   onModelSettings,
@@ -241,6 +244,7 @@ export default function ConversationWorkspace({
   onNavigate,
   onCampaignsChanged,
 }: {
+  companyContext: boolean;
   modelSession: OpenRouterSession | null;
   onModelSelected: (model: OpenRouterModel) => void;
   onModelSettings: () => void;
@@ -753,7 +757,12 @@ export default function ConversationWorkspace({
       current = await newConversation("Offline example");
       const saved = await command<Conversation>(
         `/api/conversations/${current.id}/messages`,
-        { expected_revision: 0, content: example },
+        {
+          expected_revision: 0,
+          content: companyContext
+            ? "Prepare a £60 Fielddesk email, human call and followup sequence using the primary CRM."
+            : example,
+        },
       );
       accept(saved);
       const messageRevision = saved.message_receipt?.revision;
@@ -761,13 +770,15 @@ export default function ConversationWorkspace({
         throw new Error(
           "The example brief changed. Review the latest messages before preparing a campaign.",
         );
-      await continuePreparation({
-        conversationId: current.id,
-        expected_revision: messageRevision,
-        fixture: true,
-        allow_model_copy: false,
-        use_audience_catalogue: true,
-      });
+      if (!companyContext) {
+        await continuePreparation({
+          conversationId: current.id,
+          expected_revision: messageRevision,
+          fixture: true,
+          allow_model_copy: false,
+          use_audience_catalogue: true,
+        });
+      }
       await list();
     } catch (e) {
       setError((e as Error).message);
@@ -1281,8 +1292,12 @@ export default function ConversationWorkspace({
                           {plan.result.requested_scope && (
                             <div aria-label="Campaign scope">
                               <p>
-                                iwoca Flexi-Loan · Postal direct mail · UK ·
-                                Response experiment
+                                {/* The frozen v1 identity is presentation data, never a new-work default. */}
+                                {plan.guidance?.content.product ===
+                                "iwoca_flexi_loan"
+                                  ? "iwoca Flexi-Loan"
+                                  : "Selected product"}{" "}
+                                · Postal direct mail · UK · Response experiment
                               </p>
                               {Object.values(
                                 plan.result.requested_scope.requirements,
@@ -1570,8 +1585,13 @@ export default function ConversationWorkspace({
               <p className="sequence-compose-help">
                 For email and human call sequences, sending a request permits up
                 to 15 offline generation calls at $0, within the shared
-                conversation allowance. Include Iwoca or Fielddesk and a GBP
-                budget. No model setup is needed. Approval is separate.
+                conversation allowance. Include{" "}
+                {companyContext &&
+                conversation?.product_contract !== "legacy-fixed-product/v1"
+                  ? "Fielddesk"
+                  : "an explicitly selected installed company"}{" "}
+                and a GBP budget. No model setup is needed. Approval is
+                separate.
               </p>
             )}
             {!commentTarget && youtubeIntent && (
@@ -1640,7 +1660,11 @@ export default function ConversationWorkspace({
                       ? "The last message needs confirmation. Retry saving it before continuing."
                       : loadingConversation
                         ? "Loading your saved conversation."
-                        : "First requests allow up to 2 planning calls. Follow-ups may use 1 routing call. Brief changes need confirmation; copy revisions ask for separate permission for up to 5 calls. If allowed, campaign copy adds up to 10 calls. Approval is separate."}
+                        : companyContext &&
+                            conversation?.product_contract !==
+                              "legacy-fixed-product/v1"
+                          ? "Use Company & brief for your own company, or try the fictional Fielddesk and YouTube examples. Saving a message does not approve a campaign."
+                          : "First requests allow up to 2 planning calls. Follow-ups may use 1 routing call. Brief changes need confirmation; copy revisions ask for separate permission for up to 5 calls. If allowed, campaign copy adds up to 10 calls. Approval is separate."}
             </p>
           </form>
           {!hasMessages && (
@@ -1671,7 +1695,11 @@ export default function ConversationWorkspace({
                 <span>
                   Try the offline example <ArrowUpRight size={14} />
                 </span>
-                <small>Contractors · £600 · no model calls</small>
+                <small>
+                  {companyContext
+                    ? "Fictional Fielddesk · £60 · offline model simulation"
+                    : "Contractors · £600 · no model calls"}
+                </small>
               </button>
             </div>
           )}

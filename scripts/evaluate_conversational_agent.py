@@ -38,7 +38,9 @@ except subprocess.CalledProcessError:
 from acquisition.contracts import Conflict, canonical
 from acquisition.conversations import FIXTURE_MESSAGE
 from acquisition.reasoning import ModelError
-from acquisition.bootstrap import build_workspace
+from functools import partial
+from acquisition.bootstrap import build_workspace as _build_workspace
+build_workspace = partial(_build_workspace, new_work_contract="legacy-fixed-product/v1")
 from acquisition.bootstrap import initialize_fixture_workspace
 from test_conversations import proposal
 from test_conversational_copy_revision import CopyRoutingModel

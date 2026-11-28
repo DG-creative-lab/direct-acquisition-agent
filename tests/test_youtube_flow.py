@@ -360,7 +360,7 @@ class YouTubeFlowTests(unittest.TestCase):
         from acquisition.adapters.sqlite.youtube import YOUTUBE
         # Reconstruct a genuine schema-24 store by omitting the additive migration.
         path = self.root / 'schema24.sqlite'
-        with patch('acquisition.adapters.sqlite.preparation_context.PREPARATION_CONTEXTS', ''), patch('acquisition.adapters.sqlite.preparation_context.validate_preparation_context_schema'), patch('acquisition.adapters.sqlite.youtube.YOUTUBE', ''), patch('acquisition.adapters.sqlite.youtube.validate_youtube_schema'), patch('acquisition.adapters.sqlite.intake_planning.INTAKE_PLANNING', ''), patch('acquisition.adapters.sqlite.intake_planning.validate_intake_planning_schema'):
+        with patch('acquisition.adapters.sqlite.preparation_context.PREPARATION_CONTEXTS', ''), patch('acquisition.adapters.sqlite.preparation_context.validate_preparation_context_schema'), patch('acquisition.adapters.sqlite.youtube.YOUTUBE', ''), patch('acquisition.adapters.sqlite.youtube.validate_youtube_schema'), patch('acquisition.adapters.sqlite.intake_planning.INTAKE_PLANNING', ''), patch('acquisition.adapters.sqlite.intake_planning.validate_intake_planning_schema'), patch('acquisition.adapters.sqlite.company_contexts.company_context_migration', return_value=''), patch('acquisition.adapters.sqlite.company_contexts.validate_company_context_schema'):
             old = build(path, clock=self.clock)
             chat = old.conversations.create('A', 'old-chat', 'Preserved conversation')['id']
             old.conversations.message('A', chat, 'old-message', 0, 'Preserved original brief')
@@ -376,7 +376,7 @@ class YouTubeFlowTests(unittest.TestCase):
             self.assertEqual(db.execute('SELECT * FROM conversation_messages').fetchall(), before)
         Database(path)
         with sqlite3.connect(path) as db:
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 27)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 28)
             self.assertEqual(db.execute('SELECT * FROM conversation_messages').fetchall(), before)
 
     def test_plural_channel_requests_clarify_without_admitting_youtube_work(self):
@@ -437,7 +437,7 @@ class YouTubeFlowTests(unittest.TestCase):
         current = self.open()
         self.assertEqual(current.campaigns.command('export', command)['result'], original['result'])
         with current.campaigns.store.database.connect() as db:
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 27)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 28)
             self.assertEqual(db.execute('SELECT id FROM application_store_identity').fetchone()[0], identity)
             self.assertEqual(db.execute('PRAGMA foreign_key_check').fetchall(), [])
 
@@ -452,7 +452,7 @@ class YouTubeFlowTests(unittest.TestCase):
         path = self.root / 'main25.sqlite'
         gateway = IntakeModel()
         config = ModelConfig('test/model', max_calls=2, force_tool_choice=True)
-        with patch('acquisition.adapters.sqlite.preparation_context.PREPARATION_CONTEXTS', ''), patch('acquisition.adapters.sqlite.preparation_context.validate_preparation_context_schema'), patch('acquisition.adapters.sqlite.youtube.YOUTUBE', ''), patch('acquisition.adapters.sqlite.youtube.validate_youtube_schema'):
+        with patch('acquisition.adapters.sqlite.preparation_context.PREPARATION_CONTEXTS', ''), patch('acquisition.adapters.sqlite.preparation_context.validate_preparation_context_schema'), patch('acquisition.adapters.sqlite.youtube.YOUTUBE', ''), patch('acquisition.adapters.sqlite.youtube.validate_youtube_schema'), patch('acquisition.adapters.sqlite.company_contexts.company_context_migration', return_value=''), patch('acquisition.adapters.sqlite.company_contexts.validate_company_context_schema'):
             native = build(path, self.clock, gateway=gateway, model_config=config)
             intake = build_intake(path, self.clock)
             company = intake.save_company('A', 'writer', 'company', CompanyDraft(company_name='Authored company', product_name='Authored product', description='Synthetic consultancy example'))['snapshot']
@@ -483,7 +483,7 @@ class YouTubeFlowTests(unittest.TestCase):
                          'content': 'Prepare YouTube placements', 'draft_permission': 'placements'})
         self.assertIsNotNone(youtube.campaigns.interactions(chat)[0]['campaign_id'])
         with youtube.campaigns.store.database.connect() as db:
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 27)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 28)
             self.assertEqual([tuple(row) for row in db.execute('SELECT * FROM intake_planning_sources')], source)
 
     def test_published_youtube_schema26_and_reviewed_intake_coexist_after_atomic_upgrade(self):
@@ -522,7 +522,7 @@ class YouTubeFlowTests(unittest.TestCase):
         self.assertEqual(reviewed['context']['selected_inputs']['company_name'],'Different supplied company')
         self.assertEqual(reviewed['context']['authority'],'none')
         with intake.store.database.connect() as db:
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],27)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],28)
             self.assertEqual({t:[tuple(r) for r in db.execute('SELECT * FROM '+t)] for t in tables},before)
             self.assertEqual(db.execute('SELECT count(*) FROM model_calls').fetchone()[0],0)
         reopened=self.open()

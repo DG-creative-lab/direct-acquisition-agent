@@ -24,11 +24,13 @@ def main() -> None:
     commands = parser.add_subparsers(dest="command", required=True)
     for name in ("create", "demo", "create-model", "demo-model"):
         create = commands.add_parser(name)
+        create.add_argument('--legacy-product-contract', choices=('legacy-fixed-product/v1',),
+                            help='Explicit compatibility creation using the original fixed-product contract')
         create.add_argument("--request-id", default="grounded-day-two-plain" if name.endswith("model") else "day-one-plain")
         create.add_argument("--size", type=int, default=1000)
         create.add_argument("--seed", type=int, default=42)
         create.add_argument("--budget-pence", type=int, default=85000)
-        create.add_argument("--as-of", default="2026-10-25")
+        create.add_argument("--as-of")
         create.add_argument("--campaign-id", help="Stable campaign identity when preparing a new copy revision")
         create.add_argument('--parent-run',help='Exact verified parent run for a new descendant campaign')
     work = commands.add_parser("work")
@@ -53,7 +55,25 @@ def main() -> None:
     add_learning_commands(commands)
     add_review_commands(commands)
     args = parser.parse_args()
+    legacy_creation = args.command in {"create", "demo", "create-model", "demo-model", "demo-learning", "demo-review"}
     try:
+        if args.command == 'demo' and not args.legacy_product_contract:
+            if args.verified_admissions:
+                raise Conflict('Fictional profile preparation cannot bypass verified admission')
+            if args.parent_run or args.campaign_id:
+                raise ValueError('Fictional profile preparation cannot inherit a legacy campaign or parent run')
+            from acquisition.bootstrap import build_profile_preparation
+            app = build_profile_preparation(args.db,args.organization,'fielddesk',profile_version='v2')
+            result = app.prepare(args.organization,args.request_id,'fielddesk','v2',
+                objective='response_experiment',budget_pence=args.budget_pence,
+                segments=('maintenance','installations'),country='UK',currency='GBP',
+                channel='direct_mail',size=args.size,seed=args.seed,as_of=args.as_of)
+            print(json.dumps({'contract':'company-context/v2','mode':'fictional_unapproved_proposal',
+                              'proposal':result},indent=2))
+            return
+        if legacy_creation and not getattr(args,'legacy_product_contract',None):
+            raise ValueError('New work requires Company & brief or the fictional demo. '
+                             'Historical fixed-product creation requires --legacy-product-contract legacy-fixed-product/v1.')
         if args.command.startswith('outcomes-'):
             read_only=args.command in {'outcomes-show','outcomes-show-report','outcomes-receipt'}
             app=build_outcomes(args.db,read_only=read_only,verified_admissions=args.verified_admissions)
@@ -66,6 +86,8 @@ def main() -> None:
             if args.verified_admissions:raise ValueError('Verified admissions are paused; the complete learning demo requires execution')
             print(json.dumps(run_learning_demo(args.db, args.organization, args.request_id, args.out), indent=2))
             return
+        if args.command in {"create", "demo", "create-model", "demo-model"} and args.as_of is None:
+            args.as_of = "2026-10-25"  # Explicit v1 compatibility recipe.
         model = args.model or ("openai/gpt-oss-120b" if args.command in {"create-model", "demo-model"} else None)
         app = build_cli_application(args.db, model=model, max_calls=args.model_max_calls,
                                     tool_choice=args.tool_choice, env_file=args.env_file,

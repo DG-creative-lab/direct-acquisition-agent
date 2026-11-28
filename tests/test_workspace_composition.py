@@ -24,7 +24,7 @@ class WorkspaceCompositionTests(unittest.TestCase):
             def gateway():
                 constructions.append('explicit-generation')
                 return model
-            workspace = build_workspace(root, real_clock=lambda: 1792972800., gateway_factory=gateway)
+            workspace = build_workspace(root, real_clock=lambda: 1792972800., gateway_factory=gateway, new_work_contract='legacy-fixed-product/v1')
             self.assertEqual(workspace.listing()['sessions'], [])
             self.assertEqual(constructions, [])
             self.assertFalse((root / 'conversations.sqlite').exists())
