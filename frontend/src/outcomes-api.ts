@@ -164,3 +164,24 @@ export async function dispatchOutcome(
     );
   return result;
 }
+
+export async function inspectOutcome(
+  pending: OutcomePending,
+): Promise<OutcomeEnvelope> {
+  if ((await outcomeStore()) !== pending.store_id)
+    throw new Error(
+      "Restore the original workspace store to inspect this receipt.",
+    );
+  const result = await read<OutcomeEnvelope>(
+    `/api/outcomes/commands/${pending.operation}/${encodeURIComponent(pending.payload.request_id)}`,
+  );
+  if (
+    result.store_id !== pending.store_id ||
+    result.request_id !== pending.payload.request_id ||
+    result.operation !== pending.operation
+  )
+    throw new Error(
+      "The receipt did not match the original request and store.",
+    );
+  return result;
+}

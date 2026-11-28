@@ -3,6 +3,7 @@ import { read, token } from "./api";
 import type { BriefInput, CompanyInput, IntakeSnapshot } from "./intake-api";
 import {
   dispatchOutcome,
+  inspectOutcome,
   outcomePending,
   outcomePreview,
   outcomeStore,
@@ -24,8 +25,10 @@ type Cohort = {
   qualification_rule: string;
   window_start: number;
   window_end: number;
-  assignments: unknown[];
+  assignments: { arm: string }[];
   prior: { alpha: number; beta: number };
+  assignment_design: string;
+  sources: { id: string; system: string; account_id: string; role: string }[];
 };
 type Group = {
   segment: string;
@@ -367,6 +370,23 @@ export default function OutcomesWorkspace({
             onClick={() => void act(() => recover(pending))}
           >
             Recover original request
+          </button>
+          <button
+            disabled={busy}
+            onClick={() =>
+              void act(async () => {
+                const saved = await inspectOutcome(pending);
+                setReceipt({
+                  company_name: pending.company_name,
+                  historical_receipt: saved,
+                });
+                setNotice(
+                  "Historical receipt inspected. The original request remains retained for recovery.",
+                );
+              })
+            }
+          >
+            Inspect saved request receipt
           </button>
         </section>
       )}
@@ -758,6 +778,42 @@ export default function OutcomesWorkspace({
               . {(preview.manifest ?? preview.cohort)?.assignments.length}{" "}
               original assignments.
             </p>
+            {(preview.manifest ?? preview.cohort) &&
+              (() => {
+                const c = (preview.manifest ?? preview.cohort)!;
+                return (
+                  <>
+                    <p>
+                      Channel: {c.channel}. Design: {human(c.assignment_design)}
+                      . Prior: Beta({c.prior.alpha}, {c.prior.beta}).
+                    </p>
+                    <p>
+                      Window: {date(c.window_start)} to {date(c.window_end)}.
+                    </p>
+                    <p>Qualification rule: {c.qualification_rule}</p>
+                    <p>
+                      Original groups:{" "}
+                      {["A", "B", "holdout"]
+                        .map(
+                          (arm) =>
+                            `${arm}: ${c.assignments.filter((m) => m.arm === arm).length}`,
+                        )
+                        .join("; ")}
+                      .
+                    </p>
+                    <p>
+                      Sources:{" "}
+                      {c.sources
+                        .map(
+                          (s) =>
+                            `${s.role}: ${s.system} / ${s.account_id} (${s.id})`,
+                        )
+                        .join("; ")}
+                      .
+                    </p>
+                  </>
+                );
+              })()}
             {preview.events !== undefined && (
               <p>
                 {preview.events} source events. Duplicate source IDs will be

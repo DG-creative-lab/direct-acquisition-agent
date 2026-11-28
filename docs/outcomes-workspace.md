@@ -58,7 +58,9 @@ session storage. Reloading offers **Recover original request**. Recovery resends
 that exact request. A lost reply after commit converges on the original receipt.
 The client checks store identity before dispatch; the server checks it again.
 Starting another root at the same origin cannot redirect a pending request there.
-Do not clear browser storage while an original request is uncertain.
+**Inspect saved request receipt** reads an available original receipt without
+clearing pending recovery or requiring write authority. It checks the original
+store again. Do not clear browser storage while a request is uncertain.
 
 A validation error clears recovery only after a durable rejection fence confirms
 that no command committed. All writes check that fence inside their transaction,

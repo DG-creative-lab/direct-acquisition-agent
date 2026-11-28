@@ -289,6 +289,16 @@ test("lost registration reply survives reload and refuses a different workspace 
       }),
     ).toBeEnabled();
     const original = await pending(page);
+    await page
+      .getByRole("button", {
+        name: "Inspect saved request receipt",
+        exact: true,
+      })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "Saved request receipt", exact: true }),
+    ).toBeVisible();
+    expect(await pending(page)).toEqual(original);
     expect(original.payload.request_id).toBe(body.request_id);
     await page.unroute("**/api/outcomes/register");
     await restart();
