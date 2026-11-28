@@ -7,6 +7,20 @@ requirements. Use the [product overview](product.md) and
 the [legacy reference](legacy-product-demo.md) explains retained compatibility.
 
 
+## Portable outcomes browser evidence, 28 November 2026
+
+PR #155's first [interface partition 2 run](https://github.com/DG-creative-lab/gtm-agent-platform/actions/runs/46174098430/job/141068831881)
+failed only when the mobile outcomes scenario saved its diagnostic screenshot to
+a macOS-specific `/private/tmp` path that is absent on the Linux runner. The
+scenario's behavior assertions had passed. The test now uses Playwright's
+`testInfo.outputPath`, keeping the screenshot in the configured per-test artifact
+directory on each platform and partition. No assertion is removed or weakened.
+
+All four outcomes browser scenarios pass locally with CI partition settings
+(`BROWSER_SHARD=2 BROWSER_SHARDS=2`), using one worker, and the complete frontend
+formatting check passes. Application and backend source are unchanged; the prior
+backend and browser evidence remains retained below.
+
 ## Removed-operator registration replay review, 28 November 2026
 
 Historical registrations cannot recreate a removed `local-operator`. Automatic

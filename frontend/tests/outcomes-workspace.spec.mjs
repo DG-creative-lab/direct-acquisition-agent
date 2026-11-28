@@ -384,7 +384,7 @@ test("strict duplicate source rejection and company switching invalidate reviewe
 
 test("mobile Learning works without a synthetic campaign and keeps reading controls visible", async ({
   page,
-}) => {
+}, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await isolated(async (url, root, seed) => {
     await page.goto(url);
@@ -403,7 +403,7 @@ test("mobile Learning works without a synthetic campaign and keeps reading contr
       ),
     ).toBe(true);
     await page.screenshot({
-      path: "/private/tmp/gtm-outcomes-mobile.png",
+      path: testInfo.outputPath("outcomes-mobile.png"),
       fullPage: true,
     });
   });
