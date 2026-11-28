@@ -7,6 +7,23 @@ requirements. Use the [product overview](product.md) and
 the [legacy reference](legacy-product-demo.md) explains retained compatibility.
 
 
+## Removed-operator registration replay review, 28 November 2026
+
+Historical registrations cannot recreate a removed `local-operator`. Automatic
+initialization is limited to a first registration in an organization with no
+local actors, authority audit or outcome history, checked inside the native write
+transaction. Replays, alternate request IDs and new campaigns require an existing
+active operator. Prior outcome registrations also prevent initialization if their
+authority/audit rows have been removed. A rejected first request does not consume
+setup, and foreign-organization history does not block it. Original receipts and
+company context remain inspectable without recreating authority.
+
+The new SQLite regressions fail before the fix and cover role deletion across a
+reopened application, exact replay, a new key, a different campaign, removed audit
+history, pre-existing reviewer authority, and deletion before the first outcome.
+The prior workspace evidence below remains unchanged; this review's results will
+be retained in the [operator replay report](evaluations/outcomes-operator-replay-review-2026-11-28.json).
+
 ## Recorded outcomes workspace, 28 November 2026
 
 New browser registrations freeze an exact saved company/brief association in the

@@ -67,6 +67,61 @@ class OutcomeWorkspaceTests(unittest.TestCase):
         roles.register_actor(ORG,'local-operator',('operator',),enabled=False)
         with self.assertRaises(ValueError):self.web.command('register',self.command)
         with self.app.store.database.connect() as db:self.assertEqual(db.execute('SELECT enabled FROM review_actors').fetchone()[0],0)
+    def test_removed_operator_cannot_be_recreated_by_replay_or_later_registration(self):
+        self.register()
+        # Reopening and a different request key must not reset local authority.
+        with self.app.store.database.transaction() as db:
+            db.execute('DELETE FROM review_actors WHERE organization=? AND id=?',(ORG,'local-operator'))
+        reopened=WorkspaceOutcomes(build_outcomes(self.path,clock=lambda:self.now,local_operator=True))
+        later=json.loads(canonical(self.m));later['campaign_id']='later-campaign'
+        for member in later['assignments']:
+            member['business_id']+='-later';member['outcome_record_id']+='-later'
+            if member['dispatch']:member['dispatch']['id']+='-later'
+        data={'source':canonical(later),'selection':self.selection}
+        preview=reopened.preview('register',data)
+        attempts=[self.command,self.command|{'request_id':'another-key'},
+            data|{'request_id':'later','preview_id':preview['preview_id']}]
+        def durable():
+            with self.app.store.database.connect() as db:
+                return {table:[tuple(row) for row in db.execute('SELECT * FROM '+table+' WHERE organization=? ORDER BY rowid',(ORG,))]
+                    for table in ('review_actors','review_events','learning_commands','learning_events')}
+        before=durable()
+        for command in attempts:
+            with self.subTest(request=command['request_id']):
+                with self.assertRaises(ValueError):reopened.command('register',command)
+                self.assertEqual(durable(),before)
+        self.assertEqual(reopened.receipt('register','register')['result']['cohort_id'],self.c['id'])
+        self.assertEqual(reopened.view(self.c['id'])['company_context']['company'],self.company)
+        # Even deletion of the authority audit must not make existing outcome
+        # records look like a first-time setup for a different campaign.
+        with self.app.store.database.transaction() as db:
+            db.execute('DELETE FROM review_events WHERE organization=?',(ORG,))
+            db.execute('DELETE FROM learning_events WHERE organization=?',(ORG,))
+        before=durable()
+        with self.assertRaises(ValueError):reopened.command('register',attempts[-1])
+        self.assertEqual(durable(),before)
+
+    def test_local_bootstrap_respects_prior_authority_and_organization_scope(self):
+        roles=SqliteReviews(self.app.store.database,lambda:self.now,None)
+        roles.initialize_actor('foreign','local-operator',('operator',))
+        # A rejected first request is not an established local setup.
+        self.assertTrue(self.web.not_committed('register','rejected-before-setup'))
+        self.register()
+        with self.app.store.database.connect() as db:
+            self.assertEqual(db.execute('SELECT generation FROM review_actors WHERE organization=? AND id=?',(ORG,'local-operator')).fetchone()[0],1)
+        for history in ('reviewer_exists','operator_removed_before_first_outcome'):
+            with self.subTest(history=history):
+                other=build_outcomes(Path(self.temp.name)/(history+'.sqlite'),clock=lambda:self.now,local_operator=True)
+                admin=SqliteReviews(other.store.database,lambda:self.now,None)
+                actor='local-reviewer' if history=='reviewer_exists' else 'local-operator'
+                admin.initialize_actor(ORG,actor,('reviewer',) if actor=='local-reviewer' else ('operator',))
+                if actor=='local-operator':
+                    with other.store.database.transaction() as db:db.execute('DELETE FROM review_actors WHERE organization=? AND id=?',(ORG,actor))
+                with self.assertRaises(ValueError):other.register(ORG,'local-operator','first',self.m)
+                with other.store.database.connect() as db:
+                    self.assertIsNone(db.execute('SELECT 1 FROM review_actors WHERE organization=? AND id=?',(ORG,'local-operator')).fetchone())
+                    self.assertEqual(db.execute('SELECT count(*) FROM learning_commands WHERE organization=?',(ORG,)).fetchone()[0],0)
+
     def test_missing_company_binding_cannot_silently_become_unassociated_history(self):
         self.register()
         from acquisition.adapters.sqlite.external_outcomes import record_key

@@ -158,8 +158,16 @@ class SqliteExternalOutcomes:
             old=self.command(db,org,actor,'register',key,inputs)
             if context is not None:
                 self.expect_preview(db,org,'register',c,context,preview_id)
-            if self.local_operator and (org,actor)==('local-conversations','local-operator'):
-                if db.execute('SELECT 1 FROM review_actors WHERE organization=? AND id=?',(org,actor)).fetchone() is None:
+            if old is None and self.local_operator and (org,actor)==('local-conversations','local-operator'):
+                # Missing authority is not evidence of a fresh setup. Keep prior
+                # administration and outcome history authoritative across replay.
+                established=(db.execute('SELECT 1 FROM review_actors WHERE organization=? LIMIT 1',(org,)).fetchone()
+                    or db.execute('SELECT 1 FROM review_events WHERE organization=? LIMIT 1',(org,)).fetchone()
+                    or db.execute('SELECT 1 FROM learning_events WHERE organization=? LIMIT 1',(org,)).fetchone()
+                    or db.execute("SELECT 1 FROM learning_commands WHERE organization=? "
+                        "AND json_extract(receipt,'$.schema')='external-learning-record/v1' "
+                        "AND json_extract(receipt,'$.kind')='registration' LIMIT 1",(org,)).fetchone())
+                if not established:
                     db.execute('INSERT INTO review_actors VALUES(?,?,?,?,?)',(org,actor,canonical(['operator']),True,1))
                     db.execute('INSERT INTO review_events(organization,case_id,kind,payload,at) VALUES(?,?,?,?,?)',
                         (org,None,'local_actor_configured',canonical({'actor':actor,'generation':1}),now))

@@ -48,10 +48,15 @@ original registration manifest or cohort ID. Older unassociated cohorts remain
 inspectable; the browser cannot attach a new company to them after the fact.
 Original API/CLI inputs and replay identities remain compatible.
 
-The first explicit valid local registration can initialize the local operator if
-absent, atomically with registration. It never enables a disabled actor or grants a
-reviewer role. Preview and listing do not create operator authority. Inspection
-roots and the existing paused verified-admission format remain unwritable.
+The first explicit valid registration can initialize the local operator only in
+a fresh organization with no existing local actors, authority audit or outcome
+history. Initialization is atomic with registration. A removed operator is not a
+fresh setup: replays and later registrations require an existing active operator.
+Rejected requests and foreign-organization history do not consume the initial
+setup. Historical receipts remain readable without restoring authority. It never
+enables a disabled actor or grants a reviewer role. Preview and listing do not
+create operator authority. Inspection roots and the existing paused
+verified-admission format remain unwritable.
 
 Before an effectful request is sent, IndexedDB retains its original JSON text,
 preview, company, store identity and request ID. This supports uploads larger than
