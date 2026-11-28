@@ -21,8 +21,19 @@ company context remain inspectable without recreating authority.
 The new SQLite regressions fail before the fix and cover role deletion across a
 reopened application, exact replay, a new key, a different campaign, removed audit
 history, pre-existing reviewer authority, and deletion before the first outcome.
-The prior workspace evidence below remains unchanged; this review's results will
-be retained in the [operator replay report](evaluations/outcomes-operator-replay-review-2026-11-28.json).
+The [operator replay report](evaluations/outcomes-operator-replay-review-2026-11-28.json)
+records passing verification on `b134b71`: all 1,352 backend tests, 62 focused
+outcomes/remote-storage tests, four outcomes browser scenarios with one worker,
+architecture with 258 classified modules and zero exceptions, and all five native
+recovery cases with zero network attempts and unchanged historical artifacts.
+Two deliberately weakened guards are detected. A separate fresh interpreter
+blocks both original and new-key replay, leaves zero operator rows, and reads the
+original historical receipt. The original checkout is unchanged. Full heavy gates
+ran sequentially at reduced backend priority. There were no frontend changes;
+the earlier 169-scenario full interface result below remains historical evidence,
+not a full interface rerun for this review. No managed Turso or live model/provider
+checks were run. The prior committed workspace evidence remains byte-for-byte
+unchanged.
 
 ## Recorded outcomes workspace, 28 November 2026
 
